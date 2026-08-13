@@ -1,0 +1,10 @@
+# Baseline policy bundle referenced by POLICY_BUNDLE_REF (agent/config.py
+# loads this as the default source; env vars, when set, override it per
+# environment — see deploy/kustomize/base/configmap.yaml). This file is the
+# versioned, promoted default; environment differences belong in overlays,
+# not in forks of this file.
+
+max_reasoning_steps: 5
+tool_timeout_seconds: 10
+tool_retry_limit: 2
+approval_mode: required   # required | auto

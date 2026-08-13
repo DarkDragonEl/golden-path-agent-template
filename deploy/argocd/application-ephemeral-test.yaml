@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: golden-path-agent-ephemeral-test
+  namespace: REPLACE_WITH_GITOPS_NAMESPACE # TODO(platform)
+spec:
+  project: golden-path-agent
+  source:
+    repoURL: REPLACE_WITH_GIT_REPO_URL # TODO(platform): this scaffold's own repo, once created
+    targetRevision: main
+    path: deploy/kustomize/overlays/ephemeral-test
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: golden-path-agent-ephemeral-test
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

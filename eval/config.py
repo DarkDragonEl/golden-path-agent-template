@@ -1,0 +1,3 @@
+import os
+
+DEFAULT_LATENCY_BUDGET_MS = int(os.environ.get("EVAL_DEFAULT_LATENCY_BUDGET_MS", "5000"))

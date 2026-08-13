@@ -1,0 +1,104 @@
+#!/usr/bin/env sh
+# Local dev loop, deterministic (--offline) vs live-model toggle.
+#
+# Deliberately does NOT depend on docker-compose or podman-compose — many
+# dev machines have podman only, with neither compose backend installed
+# (confirmed: `podman compose` itself fails without one). Orchestrates the
+# two roles directly via plain `podman run`/`docker run` on a shared
+# network instead.
+set -e
+
+ENGINE="${CONTAINER_ENGINE:-}"
+if [ -z "$ENGINE" ]; then
+  if command -v podman >/dev/null 2>&1; then
+    ENGINE=podman
+  elif command -v docker >/dev/null 2>&1; then
+    ENGINE=docker
+  else
+    echo "[dev.sh] no container engine found (need podman or docker)" >&2
+    exit 1
+  fi
+fi
+
+NETWORK=golden-path-agent-dev
+IMAGE=golden-path-agent:dev
+AGENT_NAME=golden-path-agent-dev
+MCP_NAME=golden-path-agent-mcp-dev
+
+# Host-published ports, not container-internal ports (those stay 8080/8081
+# inside the network namespace regardless). Default to a less common range
+# — 8080/8081 are common enough for local infra (registries, identity
+# servers, ...) to already be taken on a dev box. Override with
+# AGENT_HOST_PORT/MCP_HOST_PORT if 18080/18081 collide with something too.
+AGENT_HOST_PORT="${AGENT_HOST_PORT:-18080}"
+MCP_HOST_PORT="${MCP_HOST_PORT:-18081}"
+
+ACTION="${1:-up}"
+[ $# -gt 0 ] && shift
+
+OFFLINE=false
+for arg in "$@"; do
+  case "$arg" in
+    --offline) OFFLINE=true ;;
+  esac
+done
+
+down() {
+  "$ENGINE" rm -f "$AGENT_NAME" "$MCP_NAME" >/dev/null 2>&1 || true
+  "$ENGINE" network rm "$NETWORK" >/dev/null 2>&1 || true
+}
+
+up() {
+  if [ "$OFFLINE" = "true" ]; then
+    AGENT_MODEL_MODE=fake
+    MCP_MODE=mock
+    echo "[dev.sh] offline mode: fake model client, mock MCP tool, no network required"
+  else
+    echo "[dev.sh] live mode: reads MODEL_API_BASE_URL/MODEL_NAME from .env"
+    [ -f .env ] && . ./.env
+  fi
+
+  "$ENGINE" build -t "$IMAGE" .
+  down
+  "$ENGINE" network create "$NETWORK" >/dev/null 2>&1 || true
+
+  "$ENGINE" run -d --name "$MCP_NAME" --network "$NETWORK" -p "${MCP_HOST_PORT}:8081" \
+    -e MCP_MODE="${MCP_MODE:-mock}" -e MCP_HOST=0.0.0.0 -e MCP_PORT=8081 \
+    "$IMAGE" mcp >/dev/null
+
+  "$ENGINE" run -d --name "$AGENT_NAME" --network "$NETWORK" -p "${AGENT_HOST_PORT}:8080" \
+    -e AGENT_MODEL_MODE="${AGENT_MODEL_MODE:-live}" \
+    -e MCP_MODE="${MCP_MODE:-mock}" \
+    -e MODEL_API_BASE_URL="${MODEL_API_BASE_URL:-http://localhost:11434/v1}" \
+    -e MODEL_NAME="${MODEL_NAME:-placeholder-model}" \
+    -e MCP_TOOL_ENDPOINT="http://${MCP_NAME}:8081" \
+    -e MAX_REASONING_STEPS="${MAX_REASONING_STEPS:-5}" \
+    -e TOOL_TIMEOUT_SECONDS="${TOOL_TIMEOUT_SECONDS:-10}" \
+    -e TOOL_RETRY_LIMIT="${TOOL_RETRY_LIMIT:-2}" \
+    -e APPROVAL_MODE="${APPROVAL_MODE:-required}" \
+    -e AUTO_APPROVE_IN_DEV="${AUTO_APPROVE_IN_DEV:-false}" \
+    -e OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-}" \
+    -v "$(pwd)/corpus/seed:/mnt/corpus:ro" \
+    "$IMAGE" agent >/dev/null
+
+  echo "[dev.sh] agent: http://localhost:${AGENT_HOST_PORT}  mcp: http://localhost:${MCP_HOST_PORT}  (Ctrl-C to stop)"
+  trap down INT TERM
+  "$ENGINE" logs -f "$AGENT_NAME"
+  down
+}
+
+case "$ACTION" in
+  up)
+    up
+    ;;
+  down)
+    down
+    ;;
+  logs)
+    "$ENGINE" logs -f "$AGENT_NAME"
+    ;;
+  *)
+    echo "usage: dev.sh {up|down|logs} [--offline]" >&2
+    exit 1
+    ;;
+esac

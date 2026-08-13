@@ -1,0 +1,21 @@
+id: EXAMPLE-001
+description: >
+  Placeholder case proving the harness runs the agent graph end-to-end via
+  the MCP contract's mock-mode tool, on the read (no-approval-needed) path.
+  No corpus/prompt/tool content required. Replace/extend per TODO_DOMAIN.md
+  once domain content exists.
+mode: offline
+input:
+  query: "example placeholder question — replace with a real domain query"
+assertions:
+  - type: tool_called
+    tool_name: placeholder_lookup
+  - type: contains
+    field: final_output
+    value: "PLACEHOLDER_TOOL_RESPONSE_MARKER"
+  - type: max_reasoning_steps
+    value: 5
+  - type: latency_ms_max
+    value: 5000
+  - type: no_unapproved_write
+    value: true

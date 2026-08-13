@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: golden-path-agent-ephemeral-test
+
+resources:
+  - ../../base
+  - namespace.yaml
+
+configMapGenerator:
+  - name: golden-path-agent-config
+    behavior: merge
+    literals:
+      - MODEL_API_BASE_URL=http://dev-model-endpoint.example.com/v1 # TODO(platform): real dev model endpoint
+      - DATA_SOURCE_BINDING=synthetic
+      - APPROVAL_MODE=required
+      - MCP_MODE=mock
+
+replicas:
+  - name: golden-path-agent
+    count: 1

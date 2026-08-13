@@ -1,0 +1,32 @@
+# Generic PR-check pipeline definition — adapt to the actual CI Pipeline
+# Executor (see ../../Agentic_AI_Platform_MVP_Agnostic.md) once one is
+# chosen for this engagement. Every stage must run identically on a laptop
+# and in CI — none of them assume a specific CI product's environment.
+
+name: pr-checks
+
+stages:
+  - name: unit-tests
+    run: pytest -q
+
+  - name: eval-gate
+    description: >
+      Evaluation as a CI/CD promotion gate — nonzero exit fails the
+      pipeline. Runs fully offline (fake model client, mock MCP tool); no
+      network access or external credentials required.
+    env:
+      AGENT_MODEL_MODE: fake
+      MCP_MODE: mock
+    run: python -m eval.cli run --all
+
+  - name: container-build
+    run: docker build -t golden-path-agent:pr-${GIT_SHA:-local} .
+
+  - name: sbom
+    description: Software bill of materials for the built image.
+    run: syft golden-path-agent:pr-${GIT_SHA:-local} -o spdx-json=sbom.json
+
+policy_gates:
+  - eval-gate must pass before container-build may be promoted
+  - no write operation is exercised by this pipeline — read-path
+    (EXAMPLE-001) and explicit approve-path (EXAMPLE-002) eval cases only

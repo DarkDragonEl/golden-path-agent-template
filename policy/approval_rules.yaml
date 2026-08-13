@@ -1,0 +1,9 @@
+# TODO(domain): define the real consequential-action taxonomy here once the
+# 1-2 domain tools are selected. Until then, agent/policy.py::classify_action
+# treats any tool call carrying an explicit `write: true` argument as a
+# write requiring approval, and everything else as read (auto-approved) —
+# per the proposal's read-only-by-default principle. This file is the
+# intended future home for a declarative rule set the code will load
+# instead of that hardcoded fallback.
+
+rules: []

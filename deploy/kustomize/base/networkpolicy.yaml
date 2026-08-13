@@ -1,0 +1,22 @@
+# The MCP server's independent security boundary: only the agent pod may
+# reach it, even though both roles ship from the same image.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: golden-path-agent-mcp-restrict
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: golden-path-agent
+      app.kubernetes.io/component: mcp
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: golden-path-agent
+              app.kubernetes.io/component: agent
+      ports:
+        - port: 8081
+          protocol: TCP

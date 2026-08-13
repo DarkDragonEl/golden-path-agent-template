@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: golden-path-agent-pilot-prod
+
+resources:
+  - ../../base
+
+configMapGenerator:
+  - name: golden-path-agent-config
+    behavior: merge
+    literals:
+      - MODEL_API_BASE_URL=http://pilot-model-endpoint.example.com/v1 # TODO(platform): approved model route + fallback
+      - DATA_SOURCE_BINDING=pilot-approved # TODO(domain): real pilot data-source binding
+      - APPROVAL_MODE=required
+      - MCP_MODE=live
+
+replicas:
+  - name: golden-path-agent
+    count: 2
+
+# Documentation/audit hook only — actual enforcement lives in
+# agent/policy.py (every write-classified call pauses for approval
+# regardless of this annotation's presence).
+commonAnnotations:
+  golden-path-agent/human-approval-required: "true"

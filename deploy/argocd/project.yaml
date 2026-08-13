@@ -1,0 +1,35 @@
+# Single small AppProject scoped to this one repo and its three destination
+# namespaces — not a multi-service, multi-repo platform project.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: golden-path-agent
+  namespace: REPLACE_WITH_GITOPS_NAMESPACE # TODO(platform): the cluster's GitOps controller namespace
+spec:
+  description: Golden-path agent MVP — one repo, three promoted environments.
+  sourceRepos:
+    - REPLACE_WITH_GIT_REPO_URL # TODO(platform): this scaffold's own repo, once created
+  destinations:
+    - namespace: golden-path-agent-ephemeral-test
+      server: https://kubernetes.default.svc
+    - namespace: golden-path-agent-staging
+      server: https://kubernetes.default.svc
+    - namespace: golden-path-agent-pilot-prod
+      server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: Deployment
+    - group: ""
+      kind: Service
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: ServiceAccount
+    - group: policy
+      kind: PodDisruptionBudget
+    - group: external-secrets.io
+      kind: ExternalSecret

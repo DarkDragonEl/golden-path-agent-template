@@ -1,0 +1,10 @@
+# TTL-annotated ephemeral namespace: a platform-level TTL garbage-collector
+# (not part of this repo) consumes these annotations to delete namespaces
+# past their TTL.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: golden-path-agent-ephemeral-test
+  annotations:
+    lifecycle/created-at: "PLACEHOLDER"   # TODO(platform): pipeline sets this to the actual deploy timestamp
+    lifecycle/ttl: "4h"

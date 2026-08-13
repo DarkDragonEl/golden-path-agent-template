@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: golden-path-agent-staging
+
+resources:
+  - ../../base
+
+configMapGenerator:
+  - name: golden-path-agent-config
+    behavior: merge
+    literals:
+      - MODEL_API_BASE_URL=http://staging-model-endpoint.example.com/v1 # TODO(platform): approved staging endpoint
+      - DATA_SOURCE_BINDING=staging-approved # TODO(domain): real staging data-source binding
+      - APPROVAL_MODE=required
+      - MCP_MODE=live # TODO(domain): flips from mock once a real tool exists
+
+replicas:
+  - name: golden-path-agent
+    count: 2

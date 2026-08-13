@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment-agent.yaml
+  - deployment-mcp.yaml
+  - service-agent.yaml
+  - service-mcp.yaml
+  - ingress.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - externalsecret.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+
+commonLabels:
+  app.kubernetes.io/name: golden-path-agent
+  app.kubernetes.io/part-of: golden-path-agent
+
+# CI/CD promotion updates only this digest field — the identical image is
+# promoted unmodified across ephemeral-test -> staging -> pilot-prod (see
+# docs/environments.md). TODO(platform): real registry + digest.
+images:
+  - name: golden-path-agent
+    newName: REGISTRY_PLACEHOLDER/golden-path-agent
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000

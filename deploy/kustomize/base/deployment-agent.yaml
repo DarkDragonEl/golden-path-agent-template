@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: golden-path-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: golden-path-agent
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: golden-path-agent
+        app.kubernetes.io/component: agent
+    spec:
+      serviceAccountName: golden-path-agent
+      containers:
+        - name: agent
+          image: golden-path-agent
+          args: ["agent"]
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: golden-path-agent-config
+            - secretRef:
+                name: golden-path-agent-secrets
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: corpus
+              mountPath: /mnt/corpus
+              readOnly: true
+            - name: state
+              mountPath: /opt/app-root/src/state
+      volumes:
+        - name: corpus
+          # TODO(platform): bind to the real corpus PVC/data-source binding
+          # per environment. emptyDir is a placeholder only.
+          emptyDir: {}
+        - name: state
+          # Session/checkpoint state for the LangGraph HITL pause/resume.
+          # emptyDir is fine for ephemeral-test; staging/pilot-prod overlays
+          # should switch this to a PVC so a pod restart doesn't lose a
+          # pending approval.
+          emptyDir: {}

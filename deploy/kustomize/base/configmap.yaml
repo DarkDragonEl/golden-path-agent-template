@@ -1,0 +1,23 @@
+# This is the concrete "environment differences expressed through
+# configuration" artifact the proposal calls for. Every value here is a
+# safe local-dev-shaped default; overlays override per environment via
+# configMapGenerator (behavior: merge) — see deploy/kustomize/overlays/*/.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: golden-path-agent-config
+data:
+  MODEL_API_BASE_URL: "http://localhost:11434/v1"
+  MODEL_NAME: "placeholder-model"
+  AGENT_MODEL_MODE: "live"
+  MCP_TOOL_ENDPOINT: "http://golden-path-agent-mcp:8081"
+  MCP_MODE: "mock"
+  POLICY_BUNDLE_REF: "policy/baseline_policy.yaml"
+  DATA_SOURCE_BINDING: "none"
+  MAX_REASONING_STEPS: "5"
+  TOOL_TIMEOUT_SECONDS: "10"
+  TOOL_RETRY_LIMIT: "2"
+  APPROVAL_MODE: "required"
+  AUTO_APPROVE_IN_DEV: "false"
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  OTEL_SERVICE_NAME: "golden-path-agent"
