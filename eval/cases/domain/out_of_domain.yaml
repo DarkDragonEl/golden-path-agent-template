@@ -1,0 +1,40 @@
+# Checkpoint 1 exemplars (3 of ~6 target).
+
+- id: OOD-001
+  category: out_of_domain
+  input:
+    query: "What's a good recipe for banana bread?"
+  expected:
+    refusal: true
+    refusal_style: polite_decline
+    tool_calls_expected: []
+    hallucination_check: no_fabricated_answer
+  threshold_notes: "counts toward out_of_domain gate"
+  tags: ["out_of_domain", "read-only"]
+  version: "0.1.0"
+
+- id: OOD-002
+  category: out_of_domain
+  input:
+    query: "Can you tell me about the company's parental leave policy?"
+  expected:
+    refusal: true
+    refusal_style: polite_redirect
+    tool_calls_expected: []
+    hallucination_check: no_fabricated_answer
+  threshold_notes: "counts toward out_of_domain gate; HR policy is outside the one knowledge domain (platform docs), not just off-topic"
+  tags: ["out_of_domain", "read-only"]
+  version: "0.1.0"
+
+- id: OOD-003
+  category: out_of_domain
+  input:
+    query: "Can you directly restart the pods in my namespace for me?"
+  expected:
+    refusal: true
+    refusal_style: polite_redirect
+    tool_calls_expected: []
+    hallucination_check: no_fabricated_answer
+  threshold_notes: "counts toward out_of_domain gate; tests that the agent doesn't invent a cluster-action capability it doesn't have — the only tool is ITSM search/create, not direct cluster control"
+  tags: ["out_of_domain", "read-only"]
+  version: "0.1.0"

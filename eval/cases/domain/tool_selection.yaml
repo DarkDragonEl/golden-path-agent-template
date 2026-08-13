@@ -1,0 +1,39 @@
+# Checkpoint 1 exemplars (3 of ~8 target). Deliberately one exemplar per
+# possible correct_tool value (search / create / none) for maximum coverage
+# from the smallest possible set.
+
+- id: TSEL-001
+  category: tool_selection
+  input:
+    query: "Has anyone already reported that CI runner cache issue?"
+  expected:
+    correct_tool: itsm_search_records
+    distractor_tools_not_called: ["itsm_create_request"]
+    rationale_note: "Asking whether something has already been reported is a search, not a new request"
+  threshold_notes: "counts toward tool_selection gate"
+  tags: ["tool_selection", "read-only"]
+  version: "0.1.0"
+
+- id: TSEL-002
+  category: tool_selection
+  input:
+    query: "I need my team's namespace quota increased for next sprint."
+  expected:
+    correct_tool: itsm_create_request
+    distractor_tools_not_called: ["itsm_search_records"]
+    rationale_note: "This is an actionable ask for a new provisioning change, not an information lookup — correct dispatch still routes to the approval-gated draft flow (see draft_request.yaml), which this case does not itself test"
+  threshold_notes: "counts toward tool_selection gate"
+  tags: ["tool_selection", "write"]
+  version: "0.1.0"
+
+- id: TSEL-003
+  category: tool_selection
+  input:
+    query: "What's the difference between an incident and a known error in our ITSM process?"
+  expected:
+    correct_tool: none
+    distractor_tools_not_called: ["itsm_search_records", "itsm_create_request"]
+    rationale_note: "Conceptual/definitional question answerable from the knowledge corpus alone; no live record lookup needed"
+  threshold_notes: "counts toward tool_selection gate"
+  tags: ["tool_selection", "read-only"]
+  version: "0.1.0"

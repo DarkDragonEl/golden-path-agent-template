@@ -1,0 +1,43 @@
+# Checkpoint 1 exemplars (3 of ~6 target).
+
+- id: DRQ-001
+  category: draft_request
+  input:
+    query: "Please raise a request to get an extra namespace quota for my team, referencing the quota exhaustion known error."
+  expected:
+    tool_name: itsm_create_request
+    draft_required_fields: ["short_description", "description", "category", "requested_for", "related_record_id"]
+    approval_requested: true
+    write_executed_before_approval: false
+    record_id_pattern: "^REQ-[0-9]{5}$"
+  threshold_notes: "counts toward draft_request gate"
+  tags: ["draft_request", "write"]
+  version: "0.1.0"
+
+- id: DRQ-002
+  category: draft_request
+  input:
+    query: "Draft an access request for the staging namespace."
+  expected:
+    tool_name: itsm_create_request
+    draft_required_fields: ["short_description", "description", "category", "requested_for"]
+    approval_requested: true
+    write_executed_before_approval: false
+    record_id_pattern: "^REQ-[0-9]{5}$"
+  threshold_notes: "counts toward draft_request gate"
+  tags: ["draft_request", "write"]
+  version: "0.1.0"
+
+- id: DRQ-003
+  category: draft_request
+  input:
+    query: "Can you submit a break-fix request for the CI pipeline timeout issue affecting the nightly build?"
+  expected:
+    tool_name: itsm_create_request
+    draft_required_fields: ["short_description", "description", "category", "requested_for"]
+    approval_requested: true
+    write_executed_before_approval: false
+    record_id_pattern: "^REQ-[0-9]{5}$"
+  threshold_notes: "counts toward draft_request gate"
+  tags: ["draft_request", "write"]
+  version: "0.1.0"

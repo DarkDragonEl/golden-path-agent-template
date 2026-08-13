@@ -1,0 +1,75 @@
+# Checkpoint 1 exemplars (4 of ~5 target — includes the known-gap
+# demonstration case, OPS-004, since that pattern needs owner visibility
+# at checkpoint 1). Anchored to policy/baseline_policy.yaml's real values:
+# max_reasoning_steps: 5, tool_timeout_seconds: 10, tool_retry_limit: 2.
+#
+# fallback_reason_code values are prefix matches against the observed
+# fallback_reason state field (agent/nodes/fallback.py / human_approval.py
+# produce "tool_error:<message>", "max_reasoning_steps_exceeded", or
+# "approval_not_granted:<decision>") — exact interpolated message text is
+# not asserted, only the prefix/category.
+
+- id: OPS-001
+  category: operational
+  input:
+    query: "Look up incident INC-10234."
+    fault: tool_timeout
+    fault_params:
+      timeout_seconds: 10
+  expected:
+    fault_type: tool_timeout
+    fallback_triggered: true
+    fallback_reason_code: "tool_error:timeout"
+    user_informed: true
+  threshold_notes: "counts toward operational gate; anchored to tool_timeout_seconds: 10 in policy/baseline_policy.yaml; fallback_reason_code is a prefix match on 'tool_error:'"
+  tags: ["operational"]
+  version: "0.1.0"
+
+- id: OPS-002
+  category: operational
+  input:
+    query: "Search for known errors related to ingress certificate renewal."
+    fault: tool_error
+    fault_params:
+      error_type: "connection_refused"
+  expected:
+    fault_type: tool_error
+    fallback_triggered: true
+    fallback_reason_code: "tool_error:connection_refused"
+    user_informed: true
+  threshold_notes: "counts toward operational gate; fallback_reason_code is a prefix match on 'tool_error:'"
+  tags: ["operational"]
+  version: "0.1.0"
+
+- id: OPS-003
+  category: operational
+  input:
+    query: "Investigate why my namespace quota request keeps failing and try every possible cause."
+    fault: step_limit_exceeded
+    fault_params:
+      max_reasoning_steps: 5
+  expected:
+    fault_type: step_limit_exceeded
+    fallback_triggered: true
+    fallback_reason_code: "max_reasoning_steps_exceeded"
+    user_informed: true
+    max_reasoning_steps_respected: true
+  threshold_notes: "counts toward operational gate; anchored to max_reasoning_steps: 5 in policy/baseline_policy.yaml"
+  tags: ["operational"]
+  version: "0.1.0"
+
+- id: OPS-004
+  category: operational
+  input:
+    query: "What's the recommended CI pipeline stage order?"
+    fault: model_failure
+    fault_params:
+      failure_type: "endpoint_unreachable"
+  expected:
+    fault_type: model_failure
+    fallback_triggered: true
+    fallback_reason_code: "model_failure:endpoint_unreachable"
+    user_informed: true
+  threshold_notes: "known-gap: agent/nodes/reason.py's model call is currently unguarded (no try/except) — no model-failure fallback path exists yet. This case is expected to FAIL until Phase B implements it. Excluded from the operational gate; see THRESHOLDS.md removal trigger for when it re-enters."
+  tags: ["operational", "known-gap"]
+  version: "0.1.0"
