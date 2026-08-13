@@ -73,3 +73,20 @@
   threshold_notes: "known-gap: agent/nodes/reason.py's model call is currently unguarded (no try/except) — no model-failure fallback path exists yet. This case is expected to FAIL until Phase B implements it. Excluded from the operational gate; see THRESHOLDS.md removal trigger for when it re-enters."
   tags: ["operational", "known-gap"]
   version: "0.1.0"
+
+- id: OPS-005
+  category: operational
+  input:
+    query: "Search for known errors related to CI runner cache corruption."
+    fault: tool_error
+    fault_params:
+      error_type: "retries_exhausted"
+      retry_limit: 2
+  expected:
+    fault_type: tool_error
+    fallback_triggered: true
+    fallback_reason_code: "tool_error:retries_exhausted"
+    user_informed: true
+  threshold_notes: "counts toward operational gate; anchored to tool_retry_limit: 2 in policy/baseline_policy.yaml, distinct scenario from OPS-002's single connection failure; fallback_reason_code is a prefix match on 'tool_error:'"
+  tags: ["operational"]
+  version: "0.1.0"

@@ -37,3 +37,63 @@
   threshold_notes: "counts toward tool_selection gate"
   tags: ["tool_selection", "read-only"]
   version: "0.1.0"
+
+- id: TSEL-004
+  category: tool_selection
+  input:
+    query: "Before I file anything, has this ingress certificate issue come up before?"
+  expected:
+    correct_tool: itsm_search_records
+    distractor_tools_not_called: ["itsm_create_request"]
+    rationale_note: "Checking whether something has already occurred is a search, even though the user is anticipating a possible future request"
+  threshold_notes: "counts toward tool_selection gate"
+  tags: ["tool_selection", "read-only"]
+  version: "0.1.0"
+
+- id: TSEL-005
+  category: tool_selection
+  input:
+    query: "I want to request more information about how to onboard a new namespace — please log this as a formal information request."
+  expected:
+    correct_tool: itsm_create_request
+    distractor_tools_not_called: ["itsm_search_records"]
+    rationale_note: "The user explicitly asks to log a formal record (category: information), not just receive a conversational answer"
+  threshold_notes: "counts toward tool_selection gate"
+  tags: ["tool_selection", "write"]
+  version: "0.1.0"
+
+- id: TSEL-006
+  category: tool_selection
+  input:
+    query: "What's the difference between the CI Pipeline Reference Architecture and the CI Pipeline Template service catalog entry?"
+  expected:
+    correct_tool: none
+    distractor_tools_not_called: ["itsm_search_records", "itsm_create_request"]
+    rationale_note: "Purely conceptual comparison answerable from the knowledge corpus"
+  threshold_notes: "counts toward tool_selection gate"
+  tags: ["tool_selection", "read-only"]
+  version: "0.1.0"
+
+- id: TSEL-007
+  category: tool_selection
+  input:
+    query: "Can you get me the latest on my namespace quota request?"
+  expected:
+    correct_tool: itsm_search_records
+    distractor_tools_not_called: ["itsm_create_request"]
+    rationale_note: "'Get me the latest on' is a status check on an existing request, not a new one"
+  threshold_notes: "counts toward tool_selection gate"
+  tags: ["tool_selection", "read-only"]
+  version: "0.1.0"
+
+- id: TSEL-008
+  category: tool_selection
+  input:
+    query: "My namespace has been hitting quota limits for a week — can someone please increase it?"
+  expected:
+    correct_tool: itsm_create_request
+    distractor_tools_not_called: ["itsm_search_records"]
+    rationale_note: "A direct ask for someone to take action is a new request, not an information query"
+  threshold_notes: "counts toward tool_selection gate"
+  tags: ["tool_selection", "write"]
+  version: "0.1.0"

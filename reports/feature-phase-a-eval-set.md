@@ -128,3 +128,99 @@ commit.
 
 **No further case volume will be generated, and no commit beyond this
 checkpoint will be made, until the owner responds.**
+
+## Checkpoint 1 — review outcome
+
+**Approved with conditions** (2026-08-13). All conditions applied in a
+dedicated prep commit before Checkpoint 2 work began, so the git history
+shows what changed in response to review separately from new volume:
+
+1. ITSM provisional contract — approved as input to Phase B0, no changes.
+2. `known-gap` mechanism — approved; added a tooling-enforcement line to
+   `THRESHOLDS.md` (a surviving `known-gap` tag after Phase B closes the
+   fallback path is a CI **failure**, not a warning).
+3. `performance_budget` — approved as optional/informative; added a line
+   to `THRESHOLDS.md` stating it never gates on its own unless explicitly
+   promoted to a threshold row.
+4. `cases/domain/` layout — approved; recorded in `eval/README.md` as a
+   mandatory input to Phase B0/B (authoritative home: **SRS-EVH**) — a
+   silent layout change in Phase B is a violation of this approval, not a
+   routine refactor.
+5. Thresholds — approved in structure, re-expressed as **maximum absolute
+   failures allowed** (not percentages, given n=5–15 per category), with
+   the original proposed percentage kept in parentheses as informative
+   context only. See the rewritten table in `THRESHOLDS.md`.
+6. Exemplar cases — approved as authored, no corrections.
+7. This LC-04 evidence paragraph (top of this report) — added per review.
+8. Report-naming convention (`reports/<branch-name>.md`) — confirmed;
+   noted in `eval/README.md` for Phase B0's trace-check to rely on.
+
+## Checkpoint 2 — full volume
+
+Scope: extended all 8 `eval/cases/domain/*.yaml` files from the
+Checkpoint-1 exemplars to the mission's full target counts, as variants of
+the approved exemplar patterns. No schema, manifest, or threshold
+*structure* changes beyond what Checkpoint 1's review already approved.
+
+### Final case counts
+
+```
+$ python3 eval/validate.py
+Case counts: {'knowledge_qa.yaml': 15, 'itsm_read.yaml': 8, 'tool_selection.yaml': 8,
+'draft_request.yaml': 6, 'out_of_domain.yaml': 6, 'unauthorized_write.yaml': 6,
+'prompt_injection.yaml': 8, 'operational.yaml': 5} total: 62
+All cases valid.
+```
+Exit code 0 on first run against the full 62-case set — every case
+validates against `schema.json`'s per-category `expected` shape, all `id`s
+are globally unique, file↔category names match, and every `knowledge_qa`
+`source_doc_ids` reference resolves against `corpus-manifest.yaml`
+(covers 14 of the 20 manifest documents across the 15 knowledge_qa cases,
+including 3 multi-document citations).
+
+One new fixture record id, `INC-10261`, was introduced during volume
+generation (for an `itsm_read` status+free-text search case) and added to
+`eval/README.md`'s fixture list — the other 7 fixture ids from Checkpoint
+1 needed no changes.
+
+### Regression checks (same commands as Checkpoint 1, re-run against full volume)
+
+```
+$ python3 -m eval.cli run --all
+[PASS] EXAMPLE-001
+[PASS] EXAMPLE-002
+
+2/2 cases passed
+
+$ python3 -m pytest -q
+..............                                                           [100%]
+14 passed in 0.64s
+
+$ make lint
+python -m py_compile $(find agent mcp_server eval -name '*.py')
+(clean)
+
+$ git diff --stat 72c1c15 -- agent mcp_server eval/loader.py eval/scorer.py \
+    eval/runner.py eval/executor.py eval/cli.py eval/cases/EXAMPLE-001.yaml \
+    eval/cases/EXAMPLE-002.yaml tests/test_eval_harness_smoke.py
+(empty — no output)
+```
+All green; the explicitly-protected files remain byte-for-byte unchanged
+from the baseline commit through both checkpoints.
+
+### `operational` gate composition (per the re-expressed threshold)
+
+5 cases total: `OPS-001` (tool_timeout), `OPS-002` (tool_error /
+connection_refused), `OPS-003` (step_limit_exceeded), `OPS-005` (tool_error
+/ retries_exhausted, anchored to `tool_retry_limit: 2`) count toward the
+gate (n=4, max 0 fail). `OPS-004` (model_failure) is tagged `known-gap` and
+excluded, per the Checkpoint-1-approved removal-trigger mechanism.
+
+### What's next
+
+Phase A is complete per its definition of done: schema validates all
+cases, case↔corpus references resolve, owner has reviewed exemplars *and*
+(pending this submission) the final set, and nothing in Phase B (`agent/`,
+`mcp_server/`, `eval/loader.py`, `eval/scorer.py`, etc.) has been touched.
+**Stopping here per CLAUDE.md's Phase A checkpoint — no Phase B0 or Phase B
+work begins without a separate, explicit go-ahead.**

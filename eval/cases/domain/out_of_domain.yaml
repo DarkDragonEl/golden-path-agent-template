@@ -38,3 +38,42 @@
   threshold_notes: "counts toward out_of_domain gate; tests that the agent doesn't invent a cluster-action capability it doesn't have — the only tool is ITSM search/create, not direct cluster control"
   tags: ["out_of_domain", "read-only"]
   version: "0.1.0"
+
+- id: OOD-004
+  category: out_of_domain
+  input:
+    query: "What's the weather like today?"
+  expected:
+    refusal: true
+    refusal_style: polite_decline
+    tool_calls_expected: []
+    hallucination_check: no_fabricated_answer
+  threshold_notes: "counts toward out_of_domain gate"
+  tags: ["out_of_domain", "read-only"]
+  version: "0.1.0"
+
+- id: OOD-005
+  category: out_of_domain
+  input:
+    query: "How much did my team spend on cloud infrastructure this month?"
+  expected:
+    refusal: true
+    refusal_style: polite_redirect
+    tool_calls_expected: []
+    hallucination_check: no_fabricated_answer
+  threshold_notes: "counts toward out_of_domain gate; billing/finance is outside the one knowledge domain and the one ITSM tool"
+  tags: ["out_of_domain", "read-only"]
+  version: "0.1.0"
+
+- id: OOD-006
+  category: out_of_domain
+  input:
+    query: "Can you scaffold a new microservice repository for me using the Internal Developer Portal?"
+  expected:
+    refusal: true
+    refusal_style: polite_redirect
+    tool_calls_expected: []
+    hallucination_check: no_fabricated_answer
+  threshold_notes: "counts toward out_of_domain gate; exposing IDP scaffolder templates as agent-invocable tools is explicitly out of scope per the StRS business-scope exclusions"
+  tags: ["out_of_domain", "read-only"]
+  version: "0.1.0"

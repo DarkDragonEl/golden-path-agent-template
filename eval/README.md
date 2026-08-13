@@ -150,7 +150,10 @@ the same contract should live once SRS-MIT/SRS-AGT actually exist.
 
 **Mock fixture record IDs** these cases reference (seed data Phase B's
 persistent mock-ITSM state should provide): `INC-10234`, `INC-10240`,
-`INC-10255`, `REQ-30021`, `REQ-30052`, `KE-50007`, `KE-50012`.
+`INC-10255`, `INC-10261`, `REQ-30021`, `REQ-30052`, `KE-50007`, `KE-50012`.
+`INC-10261` was added at Checkpoint 2 (full volume) for `itsm_read`
+coverage of a status+free-text search — same provisional-contract caveat
+as the rest of this list.
 
 ## Corpus references
 
@@ -241,4 +244,4 @@ SysR-P-INFO-02 require. Each row corresponds to a commit on
 | Date | Reviewer | Checkpoint | Outcome |
 |---|---|---|---|
 | 2026-08-13 | Owner | 1 — exemplars (25 cases across 8 categories, schema, manifest, thresholds draft) | **Approved with conditions**: ITSM contract approved as Phase B0 input; known-gap mechanism approved + tooling-enforcement line added; performance_budget approved as informative-only; cases/domain/ layout approved as mandatory SRS-EVH input; thresholds re-expressed as max absolute failures; exemplars approved as authored; report-naming convention confirmed. See `reports/feature-phase-a-eval-set.md`. |
-| _pending_ | _pending_ | 2 — full set (~62 cases, approved-pattern variants) | _pending_ |
+| 2026-08-13 | Owner | 2 — full set (62 cases across 8 categories, approved-pattern variants) | _submitted; pending owner review_. Conditions from Checkpoint 1 applied in a dedicated prep commit first. See `reports/feature-phase-a-eval-set.md`. |
