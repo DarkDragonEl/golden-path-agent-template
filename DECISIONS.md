@@ -89,3 +89,45 @@ that the distinction was checked, not assumed.
 Any further scope (SRS-EVH.md, `tools/trace-check/`, or anything past
 Checkpoint B0-b) requires re-confirming this same test, not just citing
 this entry.
+
+---
+
+## DEC-003 — SRS-RET-SEC-02's trace anchor: SysR-P-IF-04/SysR-P-F-10 by extension, not SysR-P-SEC-03/SysR-P-SEC-05
+
+**Document/scope:** `srs/SRS-RET.md`, SRS-RET-SEC-02 (no client-facing
+write path).
+
+**Ambiguity:** The derivation workflow's initial content plan suggested
+tracing SRS-RET-SEC-02 to SysR-P-SEC-05 (enforced deny path, by extension)
+and SysR-P-SEC-03 (least-privilege), mirroring the shape of
+`srs/SRS-AGT.md`'s SRS-AGT-SEC-02 trace. The same workflow's own Map
+phase, examining both SysRs' actual text independently, had already
+rejected them as RET anchors: SysR-P-SEC-03 is textually scoped to
+"tool-side credentials" and SysR-P-F-09 (an MCP/tool-contract concept),
+already fully discharged by `srs/SRS-MIT.md`'s SRS-MIT-SEC-01; SysR-P-SEC-05
+names only "an unauthorized tool call or a disallowed write" as its two
+deny-path instances, both tool/write-path concepts, with an Annex T
+lineage (StR-SEC-04) disjoint from SysR-P-IF-04's own lineage (StR-USR-01,
+StR-SEC-02, StR-SEC-03). Citing either would have been an invented,
+unforced trace, inconsistent with the document's own established
+discipline of only citing what the source text actually supports.
+
+**Decision:** SRS-RET-SEC-02 traces instead to SysR-P-IF-04 and
+SysR-P-F-10, both by extension — the retrieval contract (IF-04) names no
+write operation, and ingestion (F-10) is structurally the platform's
+exclusive corpus-write path; the no-client-write guarantee follows
+directly from combining those two already-cited requirements, without
+borrowing an anchor from the tool/write-path family of SysRs that belongs
+to a different component boundary (SRS-MIT/SRS-APR, not SRS-RET).
+
+**Rationale:** A trace should be textually honest — grounded in what the
+cited SysR's own text actually says, not in surface-level topical
+similarity ("write," "deny path") to a requirement scoped to a different
+boundary. `srs/SRS-RET.md`'s own orphan-check note already applies this
+discipline to the SysR-P-IF-03 boundary question; this decision records
+the same discipline applied to SEC-02's trace, so a future reviewer sees
+the substitution was deliberate, not an oversight.
+
+**Status:** Resolved — reflected directly in `srs/SRS-RET.md`'s committed
+text (SRS-RET-SEC-02's trace line and its inline "considered and not
+cited" note).

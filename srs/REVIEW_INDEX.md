@@ -68,3 +68,51 @@ Checkpoint B0-a):**
   negative behavior (SRS-AGT-F-02/IF-03) or classification-ambiguous
   actions (SRS-AGT-SEC-03) — both recommended as future eval-set additions
   in `eval/cases/domain/`.
+
+## srs/SRS-RET.md (Checkpoint B0-a continuation, unattended iteration; Medium depth)
+
+11 requirements (F-01..04, IF-01..03, DATA-01..02, SEC-01..02). Same
+adversarial-verify-then-repair process as SRS-AGT.md; 5 issues found (all
+minor: a stale requirement-count comparison, an under-disclosed scaffold
+divergence, a trace-table/prose mismatch, and an unmarked design decision)
+and fixed. Notably: this document is the retrieval-service *provider* side
+of the contract `srs/SRS-AGT.md`'s SRS-AGT-IF-03 already states as the
+*consumer's* requirement — SRS-RET-IF-01 was checked field-for-field
+against SRS-AGT-IF-03 and confirmed to satisfy and widen it, never narrow
+it (see `DECISIONS.md` DEC-001).
+
+**2 PROPOSED items — owner must decide each:**
+
+1. **SRS-RET-DATA-02** — a superseded corpus document version remains
+   retrievable (by explicit version, via SRS-RET-IF-02) after a refresh,
+   rather than being deleted. **Tied to FIND-005** in `srs/FINDINGS.md` —
+   read that first: this closes a real gap where an approval proposal's
+   `evidence_refs` (in the already-approved `srs/SRS-APR.md`) could cite a
+   corpus version that later becomes unverifiable if superseded versions
+   aren't retained.
+2. **SRS-RET-IF-01** — the `top_k` result-count default, when omitted by
+   the caller, is sourced from deployment configuration rather than a
+   fixed/hardcoded value (the existing `agent/retrieval_client.py` scaffold
+   hardcodes `top_k: int = 5`, but that scaffold is a pre-existing
+   `TODO(domain)` placeholder, not a normative source).
+
+**Also needs owner attention:**
+
+- **FIND-005** in `srs/FINDINGS.md` — new finding from this derivation,
+  see above.
+- **DEC-003** in `DECISIONS.md` — records why SRS-RET-SEC-02 (no
+  client-facing write path) traces to SysR-P-IF-04/SysR-P-F-10 rather than
+  the SysR-P-SEC-03/SysR-P-SEC-05 anchors a naive pattern-match to
+  SRS-AGT-SEC-02 would have suggested; worth a skim to confirm the
+  reasoning holds.
+- Two things the derivation flagged as *pre-existing scaffold divergence*,
+  not SRS defects, but worth the owner's awareness before Phase B starts:
+  `agent/retrieval_client.py`'s `RetrievedChunk` dataclass uses different
+  field names (`snippet`, `source_uri`, no `owner_role`/`effective_date`)
+  than SRS-RET-IF-01's authoritative naming (`passage_text`, `source`,
+  `owner_role`, `effective_date`) — both are `TODO(domain)` placeholders
+  Phase B will need to update to match this SRS, not the reverse.
+- One coverage gap already noted at `srs/SRS-AGT.md`'s SRS-AGT-F-02,
+  restated here from the provider side (SRS-RET-F-03/IF-01): no Phase A
+  eval case exercises retrieval-authorization-negative behavior. Same
+  future eval-set addition would close both.

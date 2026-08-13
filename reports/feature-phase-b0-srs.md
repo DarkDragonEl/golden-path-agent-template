@@ -301,3 +301,143 @@ negative behavior).
 
 **`srs/SRS-RET.md` begins next, same unattended process, same per-document
 workflow scoping.**
+
+---
+
+## Checkpoint B0-a continuation — SRS-RET (medium), unattended iteration
+
+Same authorization scope as the SRS-AGT checkpoint above (`DECISIONS.md`
+DEC-002) — this is the second and, per the owner's actual instruction this
+session, final document of this unattended run (SRS-EVH and
+`tools/trace-check` are the next mission items but were not authorized for
+this session).
+
+### Process
+
+Same four-phase, single-document-scoped workflow as SRS-AGT (map → derive
+→ three-lens adversarial verify → repair). Medium depth per
+`MISSION_PHASE_B0.md`'s deliverable table ("Retrieval + ingestion service
+| Medium | SysR-P-IF-04, SysR-P-F-10"): full seven-section skeleton kept
+(unlike `SRS-MIT.md`'s structural omission at interface-only depth), but
+11 requirements total — noticeably lighter than `SRS-APR.md`'s 18 or
+`SRS-AGT.md`'s 25.
+
+The Map phase did unusually rigorous, independent boundary analysis: it
+was asked to judge for itself (not just accept a framing) whether
+`SysR-P-IF-03` (tool contract metadata) reaches retrieval, and concluded
+no — grounded in the SyRS's own Annex T traceability groupings (IF-03
+traces to StR-ORG-03 alongside reuse/substitutability SysRs; IF-04 traces
+to StR-USR-01/StR-SEC-02/StR-SEC-03, a disjoint grounded-answer-trust
+lineage) rather than surface-level "both are interfaces" reasoning. It
+also caught an internal contradiction in the supplied content plan — the
+plan suggested tracing `SRS-RET-SEC-02` to `SysR-P-SEC-03`/`SysR-P-SEC-05`
+in one place while its own analysis had already rejected both as
+mis-scoped (tool/write-path concepts, not retrieval) in another. The
+Derive phase caught this itself and resolved it correctly — recorded as
+`DECISIONS.md` DEC-003.
+
+### What the adversarial pass caught
+
+Lighter than the SRS-AGT pass (5 issues, all minor — no blockers, no
+false completed-state claims this time, since the derive prompt was
+updated to warn against that exact mistake after it happened last time):
+
+- A stale cross-document figure: the document twice cited `srs/SRS-APR.md`
+  as having "17 requirements" (it actually has 18 — direct count: 7 F + 4
+  IF + 2 DATA + 4 SEC + 1 QUAL). Fixed.
+- An under-disclosed scaffold divergence: `SRS-RET-IF-01` flagged that its
+  `top_k` field diverges from `agent/retrieval_client.py`'s hardcoded
+  default, but didn't flag that the same file's `RetrievedChunk` dataclass
+  uses different field names entirely (`snippet`/`source_uri`, no
+  `owner_role`/`effective_date`) than this document's authoritative
+  naming. Fixed — both scaffold divergences are now flagged consistently,
+  as Phase B update targets, not defects in this SRS.
+- A trace-table/prose mismatch: the §7 table listed `SysR-A-F-01,
+  SysR-A-F-02` as plain co-equal traces for `SRS-RET-IF-01`, while the
+  prose correctly qualified them as secondary/referenced. Fixed — table
+  now reads `SysR-P-IF-04; SysR-A-F-01, SysR-A-F-02 (ref.)`.
+- An unmarked design decision: the `top_k` default-sourcing rule
+  (config-sourced vs. hardcoded) was stated as a plain requirement, but
+  `SysR-P-IF-08`'s own enumerated config-schema fields don't list a
+  retrieval result-count default — this is an extension by analogy, not
+  forced text. Fixed — now `PROPOSED`, with the count updated everywhere
+  it's cited (1 → 2).
+
+### Orchestrator follow-up after the workflow
+
+- Populated `srs/FINDINGS.md` with **FIND-005** (no disposition specified
+  for superseded corpus versions — a real audit-trail risk against
+  `srs/SRS-APR.md`'s already-approved `evidence_refs`/retention guarantees,
+  closed at the SRS level by the `PROPOSED` `SRS-RET-DATA-02`).
+- Populated `DECISIONS.md` with **DEC-003** (the SRS-RET-SEC-02 trace-anchor
+  correction described above).
+- Populated `srs/REVIEW_INDEX.md` with SRS-RET.md's 2 PROPOSED items and
+  pointers to FIND-005/DEC-003.
+- Updated `srs/SRS-RET.md`'s self-referential notes (Revision History,
+  Associated Documents, SRS-RET-DATA-02, the closing PROPOSED line) to
+  point at the now-populated entries instead of pending-tense placeholders.
+
+### Manual traceability verification (same protocol)
+
+**1. SysR/StR reference resolution:** 27 distinct IDs cited (21 SysR-*, 6
+StR-*, including ones mentioned only in the orphan-check "considered and
+not cited" discussion) — all resolve exactly once in their source
+document.
+
+**2. Requirement-ID uniqueness:**
+```
+$ grep -oE '\*\*SRS-RET-[A-Z]+-[0-9]+' srs/SRS-RET.md | sort | uniq -c | awk '$1>1'
+(empty — no duplicates; 11 distinct SRS-RET-* IDs)
+```
+
+**3. Trace/Verification completeness:**
+```
+SRS-RET.md: 11 requirement headers, 11 Trace lines, 11 Verification lines
+```
+
+**4. Eval-case / corpus-manifest cross-references resolve** — spot-checked
+KQA-001/008/015 against `eval/cases/domain/knowledge_qa.yaml` and
+PLAT-001/002/003, PROC-001 against `eval/corpus-manifest.yaml`: 0 missing.
+
+**5. Cross-document ID references resolve** — 10 distinct `SRS-AGT-*`
+IDs, 3 distinct `SRS-APR-*` IDs, 3 distinct `SRS-MIT-*` IDs cited, all
+confirmed present in their respective documents. None of the three
+already-approved documents (`SRS-APR.md`, `SRS-MIT.md`, `SRS-AGT.md`) was
+modified.
+
+**6. Scope confirmation:**
+```
+$ git diff --stat main -- agent mcp_server eval
+(empty — no output)
+```
+
+**7. PROPOSED-marker count:** 2 raw occurrences, matching the document's
+own closing claim exactly — no false positives this time (unlike
+SRS-AGT.md's 11-raw-vs-9-real discrepancy from other artifacts' own
+PROPOSED status).
+
+### What this verification does NOT cover
+
+Same caveats as the SRS-AGT checkpoint above: `tools/trace-check` doesn't
+exist yet; check (b) is satisfied by construction, not machine-enforced;
+check (d) is out of scope until Phase B. The semantic accuracy of each
+trace was checked by the workflow's three adversarial verifiers and the
+repair pass, not independently re-derived by this manual grep pass.
+
+### Outstanding for owner review
+
+Full detail in `srs/REVIEW_INDEX.md`'s `srs/SRS-RET.md` section. In
+brief: 2 PROPOSED requirements, 1 new finding (FIND-005, tied to
+SRS-RET-DATA-02), 1 new decision (DEC-003), two pre-existing scaffold
+field-name divergences flagged for Phase B (not SRS defects), and the
+same retrieval-authorization-negative eval-coverage gap already noted at
+`SRS-AGT-F-02`, now also visible from the provider side.
+
+### End of this unattended session's authorized scope
+
+Per the owner's instruction this session, unattended work stops here.
+`srs/SRS-EVH.md`, `tools/trace-check/`, and any re-verification of
+`SRS-APR.md`/`SRS-MIT.md` against `tools/trace-check` remain the next
+mission items but require a fresh authorization check (per `DECISIONS.md`
+DEC-002's own stated limits) before an agent proceeds unattended into
+them.

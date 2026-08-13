@@ -134,6 +134,42 @@ query-interface coverage is resolved.
 
 ---
 
+## FIND-005 — No disposition specified for superseded corpus document versions
+
+**Affected:** SysR-P-F-10 (Corpus management); SysR-P-SEC-06 (Audit evidence
+on demand), SysR-P-INFO-03 (Retention and retrievability), by analogy.
+
+**Description:** SysR-P-F-10 requires a documented refresh process such
+that an updated document version is cited by subsequent answers, but says
+nothing about what happens to the version a refresh supersedes — retained,
+archived, or deleted. This matters beyond the corpus itself:
+`srs/SRS-APR.md`'s already-approved `SRS-APR-IF-01` proposal schema
+requires `evidence_refs` (retrieval citation IDs) at intake, and
+`SRS-APR-DATA-02` requires those decision records remain retrievable as
+audit evidence for the pilot's duration. If a corpus document a past
+proposal's `evidence_refs` cited is later superseded and the superseded
+version is not retained, that evidence reference becomes permanently
+unverifiable — a citation trail severed by an unrelated document refresh.
+As derived, a corpus-management implementation satisfying SysR-P-F-10's
+literal text could plausibly delete or overwrite a superseded version,
+which would be difficult to reconcile with the audit-evidence retention
+posture the platform applies elsewhere (SysR-P-SEC-06, SysR-P-INFO-03 —
+for approval/audit records specifically, not corpus content, so the
+connection is by analogy, not a direct SyRS requirement).
+
+**Proposed disposition:** Add `SRS-RET-DATA-02 — Superseded-version
+retrievability` (done, marked `PROPOSED — pending owner review` in
+`srs/SRS-RET.md`): a superseded version remains retrievable by explicit
+version (not as current) rather than being deleted. This is an addition
+to SRS-RET, not a change to the SyRS; the owner may decide whether
+corpus-version retention should also be stated explicitly at the SyRS
+level in a future revision, the same open question FIND-001/FIND-002 left
+for SysR-P-F-08/SEC-06 respectively.
+
+**Status:** Open — pending owner adjudication at Checkpoint B0-a.
+
+---
+
 ## Findings not raised (considered and set aside)
 
 For transparency: two other candidate gaps were considered during
@@ -158,3 +194,13 @@ design decision with rationale and an alternative considered, within
 adjacency, and a cross-document interface hole affecting an already-frozen
 document) to warrant owner adjudication above the SRS-level `PROPOSED`
 mechanism.
+
+During SRS-RET derivation, one further candidate gap was considered and
+set aside the same way — the `top_k` result-count default's
+configuration-sourced-vs-hardcoded question (SRS-RET-IF-01) — handled as
+an inline `PROPOSED` design decision, not a finding, since it is an
+ordinary interface-default choice with no audit or security-adjacent
+risk. FIND-005 (above), by contrast, was raised because a superseded
+corpus version's disposition has a real downstream implication for
+`srs/SRS-APR.md`'s already-approved audit-evidence guarantees, the same
+risk-bearing threshold FIND-001/002/003 apply.
