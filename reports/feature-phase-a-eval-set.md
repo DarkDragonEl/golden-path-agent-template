@@ -2,6 +2,18 @@
 
 Branch: `feature/phase-a-eval-set` (based on baseline commit on `main`).
 
+**StR-EVL-03 / SysR-P-LC-04 evidence (repository-history inspection):** the
+baseline tree at `72c1c15` contains no domain implementation — see
+`TODO_DOMAIN.md` at that commit, which lists every domain surface
+(`corpus/`, `agent/retrieval_client.py::retrieve()`,
+`agent/prompts/system_prompt.md`, `mcp_server/schemas.py`'s placeholder
+tool, `agent/policy.py::classify_action`, `eval/cases/`, deploy config
+bindings) as an unfilled `TODO(domain)`. This eval set is authored and
+committed on `feature/phase-a-eval-set`, branched from that same
+implementation-free baseline, making the "before the complete agent
+implementation is built" ordering self-contained in the git history rather
+than requiring an external claim.
+
 ## Checkpoint 1 — exemplars
 
 Scope: `eval/schema.json`, `eval/corpus-manifest.yaml` (20 docs, complete),

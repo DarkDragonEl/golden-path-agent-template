@@ -61,6 +61,16 @@ under `domain/` keeps that command passing 2/2 with zero changes to
 file-layout choice, not a schema change — noted here for visibility since
 it's a deviation from a literal flat `eval/cases/<category>.yaml` layout.
 
+**This is a mandatory input to Phase B0/B, approved at Checkpoint 1, not a
+detail Phase B is free to silently redo.** The authoritative home for the
+extended evaluation harness is **SRS-EVH**, to be drafted in Phase B0
+alongside SRS-MIT/SRS-AGT. SRS-EVH must explicitly specify that the
+harness reads cases from `eval/cases/domain/` — or, if Phase B0 decides to
+unify the layout with `EXAMPLE-*.yaml` some other way, that unification
+must be a deliberate, documented SRS-EVH decision. A Phase B change that
+quietly moves or reshapes `cases/domain/` without updating SRS-EVH is a
+violation of this checkpoint's approval, not a routine refactor.
+
 ## Case format
 
 Each `eval/cases/domain/<category>.yaml` file is a top-level **YAML
@@ -212,6 +222,16 @@ failure, not a standing exemption.
 - `req:<id>` — optional requirement-trace tag, e.g. `req:SysR-A-F-06`, for
   greppable traceability back to the SyRS.
 
+## Report naming convention
+
+Test reports for this work live at `reports/<branch-name>.md` — here,
+`reports/feature-phase-a-eval-set.md` — not the literal
+`reports/<branch>.md` shorthand in the mission text (that shorthand is
+superseded by this concrete convention). **Confirmed at Checkpoint 1**: the
+Phase B0 trace-check will consume reports by this convention, so later
+phases should keep naming their reports `reports/<branch-name>.md` rather
+than inventing a different scheme per branch.
+
 ## Review Log
 
 Human-readable pointer to the git-history sign-off evidence StR-EVL-04 /
@@ -220,5 +240,5 @@ SysR-P-INFO-02 require. Each row corresponds to a commit on
 
 | Date | Reviewer | Checkpoint | Outcome |
 |---|---|---|---|
-| _pending_ | _pending_ | 1 — exemplars (2-3 cases/category, schema, manifest, thresholds draft) | _pending owner review_ |
+| 2026-08-13 | Owner | 1 — exemplars (25 cases across 8 categories, schema, manifest, thresholds draft) | **Approved with conditions**: ITSM contract approved as Phase B0 input; known-gap mechanism approved + tooling-enforcement line added; performance_budget approved as informative-only; cases/domain/ layout approved as mandatory SRS-EVH input; thresholds re-expressed as max absolute failures; exemplars approved as authored; report-naming convention confirmed. See `reports/feature-phase-a-eval-set.md`. |
 | _pending_ | _pending_ | 2 — full set (~62 cases, approved-pattern variants) | _pending_ |
