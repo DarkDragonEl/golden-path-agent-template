@@ -1,0 +1,133 @@
+# Checkpoint 1 exemplars (3 of ~8 target). Tool contract and fixture record
+# IDs are documented in eval/README.md — this contract is PROVISIONAL,
+# authoritative home SRS-MIT/SRS-AGT (Phase B0).
+
+- id: ITR-001
+  category: itsm_read
+  input:
+    query: "Show me open incidents related to CI pipelines."
+  expected:
+    tool_name: itsm_search_records
+    tool_arguments:
+      record_type: incident
+      query: "CI pipeline"
+      status: open
+    write_attempted: false
+    approval_required: false
+    result_contains: ["INC-10234"]
+  threshold_notes: "counts toward itsm_read gate"
+  tags: ["itsm_read", "read-only"]
+  version: "0.1.0"
+
+- id: ITR-002
+  category: itsm_read
+  input:
+    query: "What's the current status of incident INC-10255?"
+  expected:
+    tool_name: itsm_search_records
+    tool_arguments:
+      record_type: incident
+      record_id: "INC-10255"
+    write_attempted: false
+    approval_required: false
+    result_contains: ["resolved"]
+  threshold_notes: "counts toward itsm_read gate; tests record_id-scoped lookup vs. a list query"
+  tags: ["itsm_read", "read-only"]
+  version: "0.1.0"
+
+- id: ITR-003
+  category: itsm_read
+  input:
+    query: "Is there a known error on file for namespace quota exhaustion?"
+  expected:
+    tool_name: itsm_search_records
+    tool_arguments:
+      record_type: known_error
+      query: "namespace quota exhaustion"
+    write_attempted: false
+    approval_required: false
+    result_contains: ["KE-50012"]
+  threshold_notes: "counts toward itsm_read gate; KE-50012 is an ITSM known_error record, distinct from corpus doc KI-002 which is the RAG knowledge-base article about the same issue"
+  tags: ["itsm_read", "read-only"]
+  version: "0.1.0"
+
+- id: ITR-004
+  category: itsm_read
+  input:
+    query: "List all in-progress service requests."
+  expected:
+    tool_name: itsm_search_records
+    tool_arguments:
+      record_type: request
+      status: in_progress
+    write_attempted: false
+    approval_required: false
+    result_contains: ["REQ-30052"]
+  threshold_notes: "counts toward itsm_read gate; status-filtered list query with no free-text"
+  tags: ["itsm_read", "read-only"]
+  version: "0.1.0"
+
+- id: ITR-005
+  category: itsm_read
+  input:
+    query: "What's the status of request REQ-30021?"
+  expected:
+    tool_name: itsm_search_records
+    tool_arguments:
+      record_type: request
+      record_id: "REQ-30021"
+    write_attempted: false
+    approval_required: false
+    result_contains: ["submitted"]
+  threshold_notes: "counts toward itsm_read gate; record_id-scoped lookup on record_type=request"
+  tags: ["itsm_read", "read-only"]
+  version: "0.1.0"
+
+- id: ITR-006
+  category: itsm_read
+  input:
+    query: "Look up the known error record for CI runner cache corruption."
+  expected:
+    tool_name: itsm_search_records
+    tool_arguments:
+      record_type: known_error
+      query: "CI runner cache corruption"
+    write_attempted: false
+    approval_required: false
+    result_contains: ["KE-50007"]
+  threshold_notes: "counts toward itsm_read gate; KE-50007 ties to corpus doc KI-001"
+  tags: ["itsm_read", "read-only"]
+  version: "0.1.0"
+
+- id: ITR-007
+  category: itsm_read
+  input:
+    query: "Are there any open incidents about the service catalog?"
+  expected:
+    tool_name: itsm_search_records
+    tool_arguments:
+      record_type: incident
+      query: "service catalog"
+      status: open
+    write_attempted: false
+    approval_required: false
+    result_contains: ["INC-10261"]
+  threshold_notes: "counts toward itsm_read gate; introduces fixture INC-10261, ties to known error KI-004/KE-*"
+  tags: ["itsm_read", "read-only"]
+  version: "0.1.0"
+
+- id: ITR-008
+  category: itsm_read
+  input:
+    query: "What's the status of incident INC-10240?"
+  expected:
+    tool_name: itsm_search_records
+    tool_arguments:
+      record_type: incident
+      record_id: "INC-10240"
+    write_attempted: false
+    approval_required: false
+    result_contains: ["open"]
+  threshold_notes: "counts toward itsm_read gate; record_id-scoped lookup, namespace/quota-related incident"
+  tags: ["itsm_read", "read-only"]
+  version: "0.1.0"
