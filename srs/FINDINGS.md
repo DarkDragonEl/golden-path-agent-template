@@ -68,6 +68,72 @@ level.
 
 ---
 
+## FIND-003 — No explicit tie-breaking rule for a classification-ambiguous proposed action
+
+**Affected:** SysR-P-SEC-05 (Enforced deny path); SysR-P-POL-01 (Read-only
+default posture).
+
+**Description:** SysR-P-SEC-05 requires at least one policy deny path
+enforced at runtime; SysR-P-POL-01 requires the default policy bundle to
+grant no write-capable tool operations. Neither states what the system
+should do when the loaded policy's classification rules cannot determine
+whether a specific proposed action is read-only or write-capable (an
+unrecognized or ambiguous action type). As derived, a policy engine
+satisfying both requirements' literal text could plausibly default a
+classification-ambiguous action to read-only/directly-executable (since
+only recognized write-capable operations are enumerated as requiring
+gating), which would be difficult to reconcile with the fail-closed
+posture applied everywhere else in the platform.
+
+**Proposed disposition:** Add `SRS-AGT-SEC-03 — Fail closed on ambiguous
+action classification` (done, marked `PROPOSED — pending owner review` in
+`srs/SRS-AGT.md`): a classification-ambiguous action is always treated as
+write-capable and routed to approval, never executed directly or treated
+as read-only. This is an addition to SRS-AGT, not a change to the SyRS;
+the owner may decide whether the gap should also be closed at the SyRS
+level in a future revision.
+
+**Status:** Open — pending owner adjudication at Checkpoint B0-a.
+
+---
+
+## FIND-004 — No terminal-state query interface for a decided proposal
+
+**Affected:** SysR-P-F-08 (Human approval workflow); SysR-A-F-04 (Draft,
+approve, execute).
+
+**Description:** SysR-A-F-04 requires the agent to "execute the action
+only upon recorded approval" and, on rejection or expiry, to "inform the
+user" — both presuppose the agent has a way to learn a submitted
+proposal's decided outcome. SysR-P-F-08 requires the approval workflow to
+record each decision but does not require it to expose that decision back
+to the proposal's originator through a queryable interface once the
+proposal leaves the `pending` state. As derived in `srs/SRS-APR.md`
+(already approved, Checkpoint B0-a), the two existing query surfaces —
+SRS-APR-IF-04 (pending-proposal query) and SRS-APR-F-05 (decision-context
+availability) — are both explicitly scoped to proposals in the `pending`
+state; neither defines a query for a proposal's terminal state
+(`approved`/`rejected`/`expired`) by `proposal_id`. This gap was surfaced
+while deriving `srs/SRS-AGT.md`'s SRS-AGT-F-04 (draft, approve, execute),
+which must assume some mechanism for the agent to obtain the decision
+outcome and currently cannot cite one.
+
+**Proposed disposition:** Not closed by this document. `srs/SRS-APR.md`
+is already approved and frozen (additive-only per
+`MISSION_UNATTENDED.md`'s hard rules); this finding is recorded for the
+owner to decide whether to add a new, purely additive `SRS-APR-IF-05 —
+Terminal-state proposal query` requirement in a future revision of
+`srs/SRS-APR.md`, or an equivalent push/notification mechanism.
+`srs/SRS-AGT.md`'s SRS-AGT-F-04 states the agent's dependency on this
+mechanism honestly as an open, `PROPOSED` item pending this finding's
+resolution, rather than assuming an interface that does not yet exist.
+
+**Status:** Open — pending owner adjudication; blocks closing
+SRS-AGT-F-04's PROPOSED marker with full confidence until SRS-APR's
+query-interface coverage is resolved.
+
+---
+
 ## Findings not raised (considered and set aside)
 
 For transparency: two other candidate gaps were considered during
@@ -78,3 +144,17 @@ rather than a requirements-level gap needing owner disposition —
 choice inside `SRS-APR-F-04` (synchronous vs. event-style execution
 release). Both are handled as inline `PROPOSED` design decisions within
 `srs/SRS-APR.md` itself, not as findings here.
+
+Similarly, during SRS-AGT derivation, seven further candidate gaps were
+considered and set aside the same way — citation granularity
+(SRS-AGT-F-01), single-output-per-turn (SRS-AGT-F-03), the escalation
+mechanism (SRS-AGT-F-05), the injection-detection-for-logging mechanism
+(SRS-AGT-F-06), the step-counting definition (SRS-AGT-F-07), the
+policy-bundle reload cadence (SRS-AGT-F-09), and runtime tool-catalog
+metadata lookup (SRS-AGT-IF-04) — each handled as an inline `PROPOSED`
+design decision with rationale and an alternative considered, within
+`srs/SRS-AGT.md` itself, not as findings here. Only the two gaps above
+(FIND-003, FIND-004) read as carrying enough risk (an unauthorized-write
+adjacency, and a cross-document interface hole affecting an already-frozen
+document) to warrant owner adjudication above the SRS-level `PROPOSED`
+mechanism.
