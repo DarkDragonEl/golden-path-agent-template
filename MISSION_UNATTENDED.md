@@ -30,3 +30,12 @@ Opero sin checkpoints humanos hasta terminar B0. En lugar de detenerme:
 ## Estado
 El estado real es git + este archivo + REVIEW_INDEX.md. Cada corrida empieza
 leyendo `git log --oneline -10` y REVIEW_INDEX.md para saber dónde retomar.
+
+## Uso de workflows (modo xhigh/ultracode)
+- Un workflow por documento SRS, nunca uno que abarque varios: los workflows
+  no sobreviven entre sesiones y cada corrida cron es sesión nueva.
+- Estructura sugerida por documento: (1) mapear requisitos SysR-* aplicables,
+  (2) derivar requisitos SRS, (3) verificación adversarial de trazabilidad.
+- El commit del documento es el único checkpoint válido. Un workflow
+  interrumpido a media derivación se descarta y se rehace: por eso, commit
+  inmediato al cerrar cada documento.
