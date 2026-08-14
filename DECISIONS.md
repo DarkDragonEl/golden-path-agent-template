@@ -131,3 +131,133 @@ the substitution was deliberate, not an oversight.
 **Status:** Resolved — reflected directly in `srs/SRS-RET.md`'s committed
 text (SRS-RET-SEC-02's trace line and its inline "considered and not
 cited" note).
+
+---
+
+## DEC-004 — SRS-EVH.md's authorization, re-confirmed per DEC-002's own forward requirement
+
+**Document/scope:** `srs/SRS-EVH.md` — its full derivation (prior to this
+session) and this session's adversarial-repair pass (fixing findings from
+three independent subagent reviewers).
+
+**Ambiguity:** DEC-002 scoped its authorization test to exactly
+`srs/SRS-AGT.md` + `srs/SRS-RET.md` and stated explicitly: "Any further
+scope (SRS-EVH.md, `tools/trace-check/`, or anything past Checkpoint
+B0-b) requires re-confirming this same test, not just citing this entry."
+`srs/SRS-EVH.md` has since been drafted and adversarially reviewed, and
+this session was launched to repair the findings from that review — but
+no entry existed recording that DEC-002's test was re-run for this scope,
+before this one.
+
+**Decision:** The subagent that wrote this entry during the SRS-EVH.md
+repair pass was correct that *it* could not verify human authorization —
+its task instructions came from the orchestrating workflow script, not
+from a directly-observed conversation turn, and per this session's own
+operating rule, no agent message is the user's consent. It recorded the
+gap honestly rather than fabricating reconfirmation, exactly as DEC-002
+requires. The orchestrating session, however, *does* have direct access to
+the actual conversation, and confirms the gap is closed: after DEC-002 was
+written (scoped to `srs/SRS-AGT.md` + `srs/SRS-RET.md` only), the human
+owner was asked directly whether the work was "finished end to end,"
+was told explicitly that `srs/SRS-EVH.md` and `tools/trace-check/`
+remained undone and unauthorized under DEC-002's scope, and responded:
+**"Continue with SRS-EVH.md and tools/trace-check."** That is a real,
+direct, current-session human instruction — not an inference from
+`MISSION_UNATTENDED.md`'s text or from any agent-authored file — and it
+satisfies DEC-002's re-confirmation test for exactly this scope
+(`srs/SRS-EVH.md` and `tools/trace-check/`), the same way the original
+user instruction satisfied it for `srs/SRS-AGT.md` + `srs/SRS-RET.md`.
+
+**Rationale:** DEC-002's own point was that an agent-authored record
+cannot self-certify its own authorization — a rule the repair subagent
+correctly applied to itself. That same rule is satisfied, not violated,
+by the orchestrating session recording a fact it actually observed in the
+live conversation. The two halves of this entry are deliberately kept
+distinct: the subagent's honest "I cannot verify this" and the
+orchestrator's "I can, and here is the specific instruction" are not in
+tension — they are different agents with different visibility, and both
+statements were true when made.
+
+**Status:** Resolved for `srs/SRS-EVH.md` and `tools/trace-check/` —
+including `srs/DEFERRED.md`, which is not a separate ask: `tools/trace-check`'s
+own check (a) requires it to exist to produce a meaningful result
+(otherwise every platform-level SysR with no owning SRS document reports
+as a violation), and `MISSION_PHASE_B0.md` lists it as deliverable 3
+alongside trace-check as deliverable 2, both needed for deliverable 5's
+"run it yourself" requirement to mean anything. As DEC-002 itself states,
+any scope beyond this (merges, pushes, or anything past Checkpoint B0-b)
+requires re-confirming this same test again, not just citing this entry.
+
+---
+
+## DEC-005 — SRS-EVH-F-03 commits to the eval/cases/domain/ layout without change
+
+**Document/scope:** `srs/SRS-EVH.md`, SRS-EVH-F-03 (domain case-set
+layout).
+
+**Ambiguity:** `eval/README.md` explicitly mandated that SRS-EVH either
+commit to the existing `eval/cases/domain/` split or propose a deliberate,
+documented alternative unification with `EXAMPLE-*.yaml` — leaving open
+which of the two SRS-EVH would choose, and stating plainly that a Phase B
+change that quietly moved or reshaped `cases/domain/` without updating
+SRS-EVH would violate Checkpoint 1's approval.
+
+**Decision:** SRS-EVH-F-03 commits to the existing split without change:
+`eval/cases/domain/` remains the authoritative domain case source scored
+against category thresholds; `eval/cases/EXAMPLE-001.yaml`/`EXAMPLE-002.yaml`
+remain a separate harness-mechanics smoke fixture, never treated as domain
+content or scored against a category threshold.
+
+**Rationale:** `eval/README.md`'s own stated reason for the split was
+re-verified directly against `eval/loader.py` during derivation, not
+assumed from the Phase A document's claim alone: `eval/loader.py::load_all_cases`
+globs `eval/cases/*.yaml` non-recursively and calls `EvalCase(**data)` on
+each match, which would crash on `cases/domain/*.yaml`'s list-per-file
+shape if un-nested, breaking `python -m eval.cli run --all` for
+`EXAMPLE-001`/`EXAMPLE-002` too (the glob's crash is per-invocation, not
+per-file). This is a real implementation-crash constraint, confirmed by
+direct reading, not a stylistic preference — so the existing split is the
+correct choice and no alternative layout is proposed. Recorded here for
+durability beyond the SRS text itself, since `eval/README.md` flagged this
+specific decision as one the owner would want visibility into regardless
+of which way it went.
+
+**Status:** Resolved — reflected directly in `srs/SRS-EVH.md`'s committed
+text (SRS-EVH-F-03's same-PR sync rule).
+
+---
+
+## DEC-006 — SRS-EVH-IF-02 results-schema extension: additive fields, not a version bump
+
+**Document/scope:** `srs/SRS-EVH.md`, SRS-EVH-IF-02 (results record
+schema).
+
+**Ambiguity:** `SysR-P-INFO-05` requires evaluation-run records to carry
+five fields (eval-set version, image digest, configuration reference,
+thresholds applied, results) that `eval/results/*.json`'s current minimal
+shape does not have — confirmed by direct inspection of
+`eval/results/run-20260813T002957.json`: exactly `{timestamp, total,
+passed, failed, cases[]}`, produced by `eval/reporter.py::write_report`.
+Two ways to add the missing fields are both defensible: additive new
+top-level fields on the existing shape, or an explicit schema-version bump
+or restructure.
+
+**Decision:** SRS-EVH-IF-02 proposes additive fields (`eval_set_version`,
+`build_reference`, `config_reference`, `thresholds_applied`,
+`gate_verdict`) layered onto the existing, unchanged `{timestamp, total,
+passed, failed, cases[]}` shape, rather than a version bump — while noting
+an owner-preferred explicit `schema_version` marker would be a compatible
+addition, not a competing alternative.
+
+**Rationale:** None of the existing fields are redefined, narrowed, or
+removed by the extension — `total`/`passed`/`failed` remain correct
+aggregate counts, `cases[]` remains valid per-case detail — so
+semantic-versioning discipline (bump only on a breaking change) argues for
+additive-only. This choice is already marked `PROPOSED` directly inline in
+SRS-EVH-IF-02; this entry gives the reasoning a durable, cross-document
+home, the same role DEC-003 plays for a decision `srs/SRS-RET.md` resolves
+inline in its own text.
+
+**Status:** Open — pending owner review (the choice itself is marked
+`PROPOSED` in `srs/SRS-EVH.md`; this entry is the durable record of the
+reasoning, not a claim that the design choice itself is settled).

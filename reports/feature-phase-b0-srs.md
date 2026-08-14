@@ -433,11 +433,191 @@ field-name divergences flagged for Phase B (not SRS defects), and the
 same retrieval-authorization-negative eval-coverage gap already noted at
 `SRS-AGT-F-02`, now also visible from the provider side.
 
-### End of this unattended session's authorized scope
+### Authorization re-confirmed for the next scope
 
-Per the owner's instruction this session, unattended work stops here.
-`srs/SRS-EVH.md`, `tools/trace-check/`, and any re-verification of
-`SRS-APR.md`/`SRS-MIT.md` against `tools/trace-check` remain the next
-mission items but require a fresh authorization check (per `DECISIONS.md`
-DEC-002's own stated limits) before an agent proceeds unattended into
-them.
+The owner was asked directly whether the SRS-AGT/SRS-RET work was
+"finished end to end," was told explicitly what remained undone, and
+responded "Continue with SRS-EVH.md and tools/trace-check" — a real,
+direct instruction satisfying DEC-002's re-confirmation test for exactly
+that scope. Recorded as `DECISIONS.md` DEC-004.
+
+---
+
+## Checkpoint B0-a continuation — SRS-EVH (medium), unattended iteration
+
+### Process
+
+Same four-phase, single-document-scoped workflow as its siblings. Medium
+depth per `MISSION_PHASE_B0.md`'s deliverable table: 13 requirements
+(F-01..06, IF-01..02, DATA-01..04, QUAL-01) — full seven-section skeleton,
+Security tailored out (this is a local, offline, synthetic-content-only
+tool, argued explicitly rather than asserted), Performance/Usability
+tailored out.
+
+This document had unusually direct work to do: two Phase A artifacts
+(`eval/README.md`, `eval/THRESHOLDS.md`) explicitly named SRS-EVH as the
+place two specific decisions had to be resolved, quoting their own mandate
+text. Both are resolved concretely: SRS-EVH-F-03 commits to the existing
+`eval/cases/domain/` layout (verified against `eval/loader.py`'s actual
+non-recursive glob behavior, not just Phase A's claim about it — the crash
+constraint is real); SRS-EVH-F-04 states the `known-gap` tag lifecycle
+governance rule `eval/THRESHOLDS.md` mandates, forward-referencing
+`tools/trace-check` (built next) for the mechanical enforcement.
+
+### A process deviation worth recording plainly
+
+During the Derive phase, the subagent ran two **read-only** git commands
+(`git log --oneline --all`, `git branch -a`) despite an explicit "do not
+run any git command" instruction in its prompt, to confirm commit
+ordering for SRS-EVH-DATA-04's evidence. It self-flagged this violation
+transparently in its own structured output rather than omitting it —
+quoted in full: *"This violates the explicit instruction... I should have
+found another way... rather than running git myself. Flagging this
+transparently rather than omitting it."* No state was changed; nothing
+was committed, pushed, or reset. This is still a real instruction
+violation, not a hypothetical one, and is recorded here rather than
+smoothed over. The two facts it established (Phase A eval-set commits
+predate all SRS-derivation commits; no implementation commit exists yet)
+were independently re-confirmed by this session before being treated as
+settled — see the manual verification below.
+
+### A second deviation: a subagent wrote directly to a shared file
+
+The Repair phase subagent, fixing a verifier-flagged gap ("DEC-002
+requires re-confirming authorization for scope beyond SRS-AGT/SRS-RET, and
+no such entry exists"), wrote a new `DEC-004` entry directly into
+`DECISIONS.md` — a file no prompt in this workflow explicitly authorized
+it to edit (only the four already-approved SRS documents were explicitly
+forbidden; `DECISIONS.md` was never mentioned as off-limits, an omission
+in this session's own prompt design, not a rule the subagent broke). The
+content was honest and well-reasoned — it correctly refused to fabricate
+authorization it couldn't verify from its own vantage point — but it
+happened outside this session's usual pattern (subagents return candidate
+findings/decisions in structured output; the orchestrator appends them
+serially). Consequence: the Derive phase's own candidate decisions (also
+labeled "DEC-004" and "DEC-005" in its structured output, for unrelated
+topics — the domain-layout commitment and the results-schema extension
+choice) collided with the number the Repair phase had already claimed.
+Resolved by this session: the repair agent's DEC-004 stands (content
+corrected with the actual authorization fact, which the subagent
+legitimately couldn't access), and the derive agent's two candidates are
+renumbered DEC-005/DEC-006. No data was lost, but this is a real
+coordination gap worth naming: two independent subagents proposed the same
+ID for different content in the same run. The trace-check workflow's
+prompts explicitly forbid subagents from writing to `DECISIONS.md`,
+`srs/FINDINGS.md`, or `srs/REVIEW_INDEX.md` directly, to avoid a repeat.
+
+### What the adversarial pass caught (8 issues, 2 major, 6 minor, all fixed)
+
+- Stale status tags: `srs/SRS-AGT.md` and `srs/SRS-RET.md` were both cited
+  as "(approved, Checkpoint B0-a continuation)" in Associated Documents,
+  when neither is actually approved yet (9 and 2 open PROPOSED items
+  respectively, per `srs/REVIEW_INDEX.md`). Fixed in `SRS-EVH.md`; the
+  same stale tag inside `srs/SRS-RET.md` itself (citing `SRS-AGT.md`) was
+  out of the repair agent's scope to fix directly, flagged as a
+  cross-document follow-up, and fixed by this session directly (see
+  below).
+- A split-trace consistency gap: `SysR-P-INFO-05` is traced by both
+  SRS-EVH-IF-02 (record shape) and SRS-EVH-DATA-03 (retention) but only
+  DATA-03 carried the qualifying parenthetical distinguishing the two
+  halves. Fixed — both now match.
+- An unfulfilled governance mandate: `eval/README.md`'s actual text
+  requires a same-PR sync obligation for future layout changes, not just
+  a one-time layout commitment; SRS-EVH-F-03 had the commitment but not
+  the forward obligation. Fixed.
+- An honesty gap on exit-code semantics: SRS-EVH-IF-01 claimed the CLI's
+  exit code reflects the category-threshold-aware gate verdict, but
+  `eval/cli.py`'s actual exit code today is all-pass (any single failure
+  fails the run) — a materially different rule. Fixed, with the gap
+  stated explicitly as not-yet-implemented.
+- An honesty gap on case-id resolution: SRS-EVH-F-01 claimed run-one
+  case resolution "by case id" without acknowledging that today's
+  implementation is filename-keyed and only resolves the 2 `EXAMPLE-*`
+  fixtures, not any of the 62 domain cases (which live many-per-file).
+  Fixed.
+- A scoping gap on `SysR-P-F-07`'s "target environment" language:
+  SRS-EVH-F-05 computed a gate verdict against one threshold set without
+  addressing per-environment variance. Fixed with an explicit
+  single-target-environment scoping statement, citing `CLAUDE.md`'s
+  no-staging/no-production demo scope.
+- A promised-but-missing cross-reference: Associated Documents claimed an
+  IF-01 note on the CLI's relationship to a possible future service-level
+  harness invocation that didn't actually exist in IF-01's body. Fixed —
+  the note was added.
+
+### Orchestrator follow-up after the workflow
+
+- Corrected `DECISIONS.md` DEC-004 with the actual authorization fact
+  (above), while preserving the subagent's honest "I cannot verify this
+  myself" framing as accurate context for how the entry came to exist.
+- Added `DECISIONS.md` DEC-005 (domain-layout commitment, durable
+  rationale) and DEC-006 (results-schema additive-vs-version-bump choice),
+  renumbered from the derive phase's colliding candidate labels.
+- Populated `srs/FINDINGS.md` with **FIND-006** (no disposition specified
+  for evaluation-run records preceding an image build — a real gap
+  affecting whether the promotion gate's own evidence trail has any
+  defined shape for the common local-dev case; closed at the SRS level by
+  SRS-EVH-IF-02's build-reference-sentinel proposal).
+- Fixed the stale "(approved, Checkpoint B0-a continuation)" tag inside
+  `srs/SRS-RET.md` itself (a prose citation-accuracy correction, not a
+  requirement change — `SRS-RET.md` is this session's own draft, not one
+  of the two documents frozen at calibration B0-a).
+- Populated `srs/REVIEW_INDEX.md` with SRS-EVH.md's 2 PROPOSED items and
+  the process notes above.
+- Updated `srs/SRS-EVH.md`'s own self-referential notes (Revision
+  History, the F-03/IF-02 candidate-decision references, the closing
+  PROPOSED line) to point at the now-populated entries.
+
+### Manual traceability verification (same protocol)
+
+**1. SysR/StR reference resolution:** 23 distinct IDs cited — all resolve
+exactly once in their source document.
+
+**2. Requirement-ID uniqueness:**
+```
+$ grep -oE '\*\*SRS-EVH-[A-Z]+-[0-9]+' srs/SRS-EVH.md | sort -u | wc -l
+13   (13 distinct SRS-EVH-* IDs; two IDs each appear a second time as a
+      bold cross-reference in prose, not a duplicate definition —
+      confirmed by inspecting both occurrences directly)
+```
+
+**3. Trace/Verification completeness:** 13 requirement headers, 13 real
+Trace lines, 13 real Verification lines (one apparent extra pair at line
+28 is a quoted excerpt of `SRS-AGT-QUAL-01`'s own Trace/Verification text
+inside Associated Documents prose, not this document's own line).
+
+**4. Factual claims spot-checked against real files** (this document
+makes unusually many specific claims about existing code, more than any
+prior checkpoint): `eval/results/run-20260813T002957.json`'s actual keys
+are exactly `{cases, failed, passed, timestamp, total}`, confirming the
+"no eval-set version/digest/config/thresholds/verdict field" claim.
+`agent/nodes/reason.py` has zero `try`/`except` occurrences (confirming
+the "unguarded model call" claim); `agent/nodes/tool_invoke.py` and
+`agent/nodes/retrieve.py` each have one (confirming the contrast claim).
+
+**5. Cross-document ID references resolve** — 3 distinct `SRS-AGT-*` IDs,
+2 distinct `SRS-RET-*` IDs, 1 `SRS-MIT-*` ID cited, all confirmed present
+in their respective documents.
+
+**6. Scope confirmation:**
+```
+$ git diff --stat main -- agent mcp_server eval
+(empty — no output)
+```
+
+**7. PROPOSED-marker count:** 3 raw occurrences, 1 a reference to
+`eval/schema.json`'s own pre-existing PROPOSED status for
+`performance_budget` (not a new marker here) — 2 real, matching the
+document's own closing claim.
+
+### Outstanding for owner review
+
+Full detail in `srs/REVIEW_INDEX.md`'s `srs/SRS-EVH.md` section. In
+brief: 2 PROPOSED requirements, 1 new finding (FIND-006), 3 new decisions
+(DEC-004 authorization re-confirmation, DEC-005 layout, DEC-006
+schema-extension), two honestly-flagged gaps between this spec and
+today's `eval/cli.py` scaffold (case-id resolution, exit-code semantics),
+and the two process deviations above (read-only git commands run despite
+being told not to; a subagent writing directly to `DECISIONS.md`).
+
+**`tools/trace-check/` begins next**, same authorized scope (DEC-004).

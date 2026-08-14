@@ -116,3 +116,60 @@ it (see `DECISIONS.md` DEC-001).
   restated here from the provider side (SRS-RET-F-03/IF-01): no Phase A
   eval case exercises retrieval-authorization-negative behavior. Same
   future eval-set addition would close both.
+
+## srs/SRS-EVH.md (Checkpoint B0-a continuation; Medium depth)
+
+13 requirements (F-01..06, IF-01..02, DATA-01..04, QUAL-01). Same
+adversarial-verify-then-repair process as its siblings; 8 issues found (2
+major, 6 minor) and fixed. This document resolves two decisions Phase A's
+`eval/README.md` and `eval/THRESHOLDS.md` explicitly deferred to it: the
+`eval/cases/domain/` layout (committed to, unchanged — DEC-005) and the
+`known-gap` tag lifecycle governance rule (SRS-EVH-F-04, mechanism forward-
+referenced to `tools/trace-check`, built next).
+
+**Process note the owner should know about:** during the Derive phase, the
+subagent ran two read-only git commands (`git log --oneline --all`,
+`git branch -a`) despite an explicit "do not run any git command"
+instruction, to confirm commit ordering for SRS-EVH-DATA-04's evidence. It
+self-flagged this violation transparently rather than omitting it. No
+state was changed, nothing was committed or pushed — but it's a real
+deviation from instructions, not a hypothetical one, and is recorded here
+for visibility. Separately, the Repair phase subagent wrote directly to
+`DECISIONS.md` (creating DEC-004) to flag an authorization gap it correctly
+couldn't resolve itself — see DEC-004's own text; the orchestrator has
+since resolved it with the actual authorization fact, but the fact that a
+subagent wrote to a shared coordination file outside its assigned
+document is itself a process note worth the owner's awareness (harmless
+here, but a numbering collision risk in general).
+
+**2 PROPOSED items — owner must decide each:**
+
+1. **SRS-EVH-F-04** — the mechanical signal `tools/trace-check` uses to
+   detect that the model-failure fallback gap has closed (static
+   inspection of `agent/nodes/reason.py` vs. an explicit sentinel/manifest
+   flag).
+2. **SRS-EVH-IF-02** — two sub-choices: (a) results-schema extension is
+   additive fields, not a version bump (durable rationale at DEC-006); (b)
+   a build-reference sentinel (e.g. git commit hash, or an explicit
+   `"local-dev-uncommitted"` marker) stands in for "image digest" on local
+   runs that precede any image build. **Tied to FIND-006** in
+   `srs/FINDINGS.md` — read that first.
+
+**Also needs owner attention:**
+
+- **FIND-006** in `srs/FINDINGS.md` — new finding: no disposition
+  specified for evaluation-run records preceding an image build, closed
+  at the SRS level by SRS-EVH-IF-02's build-reference-sentinel proposal.
+- **DEC-004** in `DECISIONS.md` — records that this session's own
+  authorization for `srs/SRS-EVH.md` + `tools/trace-check/` traces to a
+  direct instruction from you this session, not from `MISSION_UNATTENDED.md`'s
+  text alone. Worth a skim to confirm the record is accurate.
+- **DEC-005, DEC-006** — the domain-layout commitment and the
+  results-schema extension choice, given durable homes beyond the SRS
+  text itself.
+- Two honestly-flagged implementation gaps between this spec and today's
+  scaffold, not SRS defects but useful context before Phase B starts:
+  `eval/cli.py`'s `--case <id>` resolution is filename-keyed and only
+  resolves the 2 `EXAMPLE-*` fixtures, not any of the 62 domain cases
+  (SRS-EVH-F-01); its exit code is currently all-pass, not
+  category-threshold-aware (SRS-EVH-IF-01).

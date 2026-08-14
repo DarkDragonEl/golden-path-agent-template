@@ -170,6 +170,42 @@ for SysR-P-F-08/SEC-06 respectively.
 
 ---
 
+## FIND-006 — No disposition specified for evaluation-run records preceding an image build
+
+**Affected:** SysR-P-INFO-05 (Evaluation run records); SysR-P-F-03 (Local
+evaluation CLI); SysR-P-F-06 (Single immutable artifact promotion).
+
+**Description:** SysR-P-INFO-05 requires every evaluation run to be
+recorded with an "image digest" among other fields, framed explicitly as
+promotion evidence ("such that any promotion decision is reproducible from
+its records"). SysR-P-F-03 requires a local CLI that executes the
+evaluation suite "on the developer workstation" — a context in which, per
+SysR-P-F-02's local development environment, no OCI image has necessarily
+been built yet at all (SysR-P-F-06's build step is a CI/pipeline event,
+not a workstation one). Neither requirement states what satisfies the
+"image digest" field for a run that precedes any image build, or whether
+such local, pre-build runs are even in scope for SysR-P-INFO-05's tracking
+obligation at all. As derived, a literal reading of SysR-P-INFO-05 could
+be satisfied by simply exempting local runs from it entirely — but then a
+local run's results record has no defined shape at all outside CI, which
+sits awkwardly against SysR-P-F-03's own requirement that local and CI
+results share "the same schema."
+
+**Proposed disposition:** `SRS-EVH-IF-02` (`srs/SRS-EVH.md`) proposes a
+build-reference sentinel (e.g., a git commit hash, or an explicit
+`"local-dev-uncommitted"` marker) as a substitute value for the
+image-digest field on pre-build local runs, applying SysR-P-INFO-05's
+tracking obligation uniformly to both local and CI runs rather than
+exempting local runs from it — marked `PROPOSED` in that requirement. This
+is an SRS-level addition, not a change to the SyRS; the owner may decide
+whether SysR-P-INFO-05 itself should be revised in a future SyRS revision
+to state explicitly "image digest, or an equivalent build reference where
+no image yet exists."
+
+**Status:** Open — pending owner adjudication at Checkpoint B0-a.
+
+---
+
 ## Findings not raised (considered and set aside)
 
 For transparency: two other candidate gaps were considered during
@@ -204,3 +240,14 @@ risk. FIND-005 (above), by contrast, was raised because a superseded
 corpus version's disposition has a real downstream implication for
 `srs/SRS-APR.md`'s already-approved audit-evidence guarantees, the same
 risk-bearing threshold FIND-001/002/003 apply.
+
+During SRS-EVH derivation, the `known-gap` tag detection mechanism
+(SRS-EVH-F-04) and the results-schema additive-vs-version-bump choice
+(SRS-EVH-IF-02, part (a)) were set aside as ordinary inline `PROPOSED`
+design decisions, not findings — both are implementation-mechanism
+choices, not gaps with a downstream audit-integrity or security
+implication. FIND-006 (above) was raised because it affects whether the
+promotion-gate's own evidence trail (SysR-P-INFO-05, feeding
+SysR-P-F-07's promotion decision) has any defined shape at all for the
+common case of a local, pre-image-build run — the same risk-bearing
+threshold as FIND-002/FIND-005.
