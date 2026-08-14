@@ -261,3 +261,48 @@ inline in its own text.
 **Status:** Open — pending owner review (the choice itself is marked
 `PROPOSED` in `srs/SRS-EVH.md`; this entry is the durable record of the
 reasoning, not a claim that the design choice itself is settled).
+
+---
+
+## DEC-007 — SysR-P-OPS-03 added to SRS-AGT-F-09's trace instead of being deferred
+
+**Document/scope:** `srs/SRS-AGT.md`, SRS-AGT-F-09 (policy-bundle-governed
+operation); `srs/DEFERRED.md` (what it does *not* contain).
+
+**Ambiguity:** Running `tools/trace-check` for real reported `SysR-P-OPS-03`
+(independent write kill switch — "operators shall be able to disable the
+agent's write pathway independently of its read/answer pathway through a
+configuration or policy change, without redeploying the image") as
+untraced, alongside 19 other genuinely out-of-scope platform-level SysRs
+being adjudicated for `srs/DEFERRED.md` at the same time. Unlike those 19,
+`SysR-P-OPS-03` is not actually out of scope: `SRS-AGT-F-09` already
+requires the agent to load its permitted-tool-operations list from a
+versioned policy bundle at runtime, re-evaluated on every decision, with
+no operating-policy value compiled into the image — which is exactly the
+mechanism `SysR-P-OPS-03` needs (an operator removes the write-capable
+operation from the next policy bundle, leaving read operations
+permitted, no redeploy required). The gap was that this connection had
+never been traced, not that the capability was missing.
+
+**Decision:** Added `SysR-P-OPS-03` to `SRS-AGT-F-09`'s Trace line and a
+one-sentence note connecting the two, rather than listing `SysR-P-OPS-03`
+in `srs/DEFERRED.md`. Also updated the header's derivation-basis list, the
+§7 traceability table row, and the SysR-coverage summary paragraph to
+match.
+
+**Rationale:** `srs/DEFERRED.md`'s stated purpose is SysRs "intentionally
+out of demo scope" — listing `SysR-P-OPS-03` there would have been
+inaccurate (it is in scope and already substantively satisfied) and would
+have obscured a genuine, low-risk documentation fix behind a
+scope-exclusion label that doesn't fit. The edit is purely additive to an
+already-committed but not-yet-approved draft of this session's own
+authorship (`srs/SRS-AGT.md` carries 9 open PROPOSED items, per
+`srs/REVIEW_INDEX.md` — it is not one of the two documents frozen at
+calibration B0-a), adds no new PROPOSED marker (the mechanism was already
+specified, not newly designed), and is exactly the kind of coverage gap
+`tools/trace-check` exists to surface and close.
+
+**Status:** Resolved — reflected directly in `srs/SRS-AGT.md`'s committed
+text; confirmed by re-running `tools/trace-check`, which now reports 44/63
+SysRs traced, 19/19 remaining correctly deferred, checks (a)/(b)/(c) all
+PASS.

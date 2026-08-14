@@ -121,9 +121,12 @@ outcome and currently cannot cite one.
 **Proposed disposition:** Not closed by this document. `srs/SRS-APR.md`
 is already approved and frozen (additive-only per
 `MISSION_UNATTENDED.md`'s hard rules); this finding is recorded for the
-owner to decide whether to add a new, purely additive `SRS-APR-IF-05 —
-Terminal-state proposal query` requirement in a future revision of
-`srs/SRS-APR.md`, or an equivalent push/notification mechanism.
+owner to decide whether to add a new, purely additive terminal-state
+proposal query requirement (interface ID not yet assigned — assign the
+next available `SRS-APR-IF-*` number when this is adopted, so this
+finding does not itself create a forward reference `tools/trace-check`
+would flag as an orphan ID) in a future revision of `srs/SRS-APR.md`, or
+an equivalent push/notification mechanism.
 `srs/SRS-AGT.md`'s SRS-AGT-F-04 states the agent's dependency on this
 mechanism honestly as an open, `PROPOSED` item pending this finding's
 resolution, rather than assuming an interface that does not yet exist.

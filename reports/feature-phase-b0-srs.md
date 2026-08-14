@@ -621,3 +621,151 @@ and the two process deviations above (read-only git commands run despite
 being told not to; a subagent writing directly to `DECISIONS.md`).
 
 **`tools/trace-check/` begins next**, same authorized scope (DEC-004).
+
+---
+
+## Checkpoint B0-b (partial) — tools/trace-check/ built and run; srs/DEFERRED.md populated
+
+### Process
+
+Different shape from the SRS-document workflows: implement (write the
+parser/checks/report/CLI, unit tests, README, Makefile target; run it for
+real against the repository) → three parallel adversarial verification
+lenses (independent recount against source documents; line-by-line spec
+compliance against `MISSION_PHASE_B0.md`'s own text; adversarial fixture
+construction specifically hunting for false negatives — cases where the
+tool wrongly reports PASS) → repair. Code, not prose, so verification
+targeted "does it actually catch violations" rather than "is this
+well-reasoned prose," per `CLAUDE.md`'s "prove the negative case with a
+test, not a claim" rule.
+
+### What the adversarial pass caught (7 issues; 2 blocker, 1 major, 4 minor — all fixed)
+
+The two blocker-severity findings are worth stating plainly since they are
+real defects a less thorough pass would have missed, both false
+*negatives* (the tool wrongly reporting PASS on a real violation):
+
+- **Self-contamination**: `find_py_files()` sweeps every `.py` file under
+  `tests/`, which includes `tools/trace-check`'s own test suite. That
+  file's fixture data — sample text like `# verifies: SRS-APR-F-03,
+  SRS-APR-F-05`, written to unit-test the comment parser in isolation —
+  was being read by the tool's own naive whole-file text scan as if it
+  were a real verification comment, silently crediting two real,
+  currently-unverified requirements as "covered." A tool whose own tests
+  can corrupt its own results is a serious defect. Fixed by rewriting the
+  comment scanner to use Python's `tokenize` module, which resolves
+  string-literal boundaries before emitting comment tokens — text inside
+  a string literal can no longer be mistaken for a real comment, by
+  construction, not by convention.
+- **Unrestricted-prefix blind spot**: the eval-case-reference check only
+  ever recognized a token as a "reference to resolve" if its prefix
+  already existed in the real, loaded case-id set — so a wholly
+  fabricated citation (a hallucinated `FAKE-001..999`, or any typo'd
+  prefix) was never even matched, let alone flagged as broken. Fixed by
+  adding a second, path-adjacency-scoped scan (any ID-shaped token
+  immediately following a real `` `eval/cases/...yaml` `` path mention)
+  that isn't restricted to known prefixes.
+
+One major false positive was also found and fixed: the known-prefix
+scan's regex had no boundary guard, so the eval-case prefix `OPS` (from
+`operational.yaml`) matched as a bare substring inside the unrelated,
+valid SysR id `SysR-P-OPS-02` — meaning the moment any SRS document wrote
+a legitimate citation like that, the tool would have flagged it as
+broken. Fixed with a negative-lookbehind guard. All three fixes carry
+dedicated regression tests; 34 tests grew to 42 (later 56 including the
+rest of the repository's existing suite) over the course of repair.
+
+Minor fixes: a README claim about which file pins `pyyaml` was imprecise
+(`requirements.txt`, not `requirements-dev.txt` directly — the latter
+just includes the former); `counts.srs_requirement_total` counted raw
+bold-definition occurrences instead of distinct IDs, inconsistent with
+every other count in the same report; check (a)'s OR semantics (a SysR
+can be both traced AND listed in `srs/DEFERRED.md` with zero warning) is
+correct per the mission's own spec, left unchanged, but now surfaces a
+non-fatal warning in the human-readable report so a reviewer notices the
+contradiction if it ever happens.
+
+### Real run against the repository
+
+```
+$ make trace
+(a) SysR -> SRS coverage                 PASS                0
+(b) SRS -> SysR trace validity           PASS                0
+(c) No broken/orphan IDs                 PASS                0
+(d) SRS-F -> test/eval coverage          SKIPPED             0
+44/63 SysRs traced by >=1 SRS requirement
+19 SysR(s) listed in srs/DEFERRED.md (of 19 untraced)
+73 SRS requirements across 5 documents
+26 SRS-F requirements
+64 eval cases loaded
+exit code 0
+
+$ make test
+56 passed
+```
+
+Independently re-verified by this session (not trusted from the tool's
+own claim): `SyRS-AGP-001_EN.md` really does define exactly 63 distinct
+SysR IDs and `StRS_Agentic_AI_Platform_EN.md` really does define exactly
+29 distinct StR IDs, matching each document's own closing index claims.
+
+Check (c) initially found one real violation (not a tool bug): `srs/FINDINGS.md`'s
+FIND-004 text literally wrote `SRS-APR-IF-05` as the ID of a *proposed,
+not-yet-adopted* future requirement — a genuine orphan token by the
+strict letter of "no broken or orphan IDs." Fixed by rewording FIND-004
+to describe the proposed requirement without using ID-shaped text for an
+ID that doesn't exist yet, preserving the finding's content while keeping
+check (c) meaningful.
+
+### srs/DEFERRED.md: 19 SysRs adjudicated, one resolved differently
+
+Of the 20 SysRs `tools/trace-check` originally reported as untraced, 19
+are genuinely out of scope for the five component-level SRS documents —
+each got an individual, specific reason in `srs/DEFERRED.md` (not a
+generic "platform concern" boilerplate), grouped by theme: platform
+scaffolding/packaging (`F-01`, `F-02`, `F-04`, `F-06`, `F-13`, `IF-07`,
+`PKG-01`, `PKG-02`), CI/pipeline mechanics (`F-05`), operations
+(`OPS-01`, `OPS-02`, `PERF-03`), lifecycle/realization-table governance
+(`LC-01`, `LC-02`, `LC-03`, `POL-02`), and cross-cutting/whole-golden-path
+measures (`ADP-01`, `MODE-01`, `PERF-01`).
+
+The twentieth, **`SysR-P-OPS-03`** (independent write kill switch), was
+**not** deferred — it turned out to already be substantively satisfied by
+`srs/SRS-AGT.md`'s SRS-AGT-F-09 (policy-bundle-governed operation: an
+operator removing the write-capable tool operation from the next
+deployed policy bundle disables writes without a redeploy, exactly what
+`SysR-P-OPS-03` asks for), just never traced there. Fixed with an added
+trace and a one-sentence connecting note, not a deferral — recorded as
+`DECISIONS.md` DEC-007. This is the one place this checkpoint reached
+back into an already-committed document (`srs/SRS-AGT.md`, still an open
+draft — 9 PROPOSED items pending, not one of the two documents frozen at
+calibration B0-a) rather than only adding new files; done because listing
+a substantively-covered SysR as "deferred" in `srs/DEFERRED.md` would
+have been inaccurate, not because it was convenient.
+
+### Outstanding for owner review
+
+Full detail in `srs/REVIEW_INDEX.md`'s `tools/trace-check/` section. In
+brief: two real tool bugs found and fixed before this was trustworthy
+(both false negatives — worth a spot-check given how easy this class of
+self-referential bug is to miss), `srs/DEFERRED.md`'s 19 adjudications
+(each with a real reason, not boilerplate), and `DECISIONS.md` DEC-007
+(the one SysR resolved by fixing a trace rather than deferring).
+
+### This unattended session's authorized scope is now complete
+
+Per `DECISIONS.md` DEC-004, this session's authorization covered exactly
+`srs/SRS-EVH.md` and `tools/trace-check/` (including `srs/DEFERRED.md` as
+a necessary part of making the latter meaningful). Both are done,
+committed, and passing. Checkpoint B0-b's full closing conditions
+(`MISSION_PHASE_B0.md`: all five SRS complete ✓, trace-check green in
+`--docs-only` mode ✓, `srs/FINDINGS.md` and `srs/DEFERRED.md` populated
+✓, every PROPOSED item listed in `srs/REVIEW_INDEX.md` ✓) all now hold —
+but B0-b is explicitly the owner's checkpoint to close, not something an
+agent can self-certify. Re-verifying `srs/SRS-APR.md` and `srs/SRS-MIT.md`
+against `tools/trace-check` (`MISSION_UNATTENDED.md`'s optional item 5)
+was not part of this session's authorized scope and was not done; both
+already pass checks (b)/(c) as a side effect of this run (confirmed by
+`reports/trace-check.json` covering all five documents uniformly), but
+check (a)'s coverage claims for their specific SysRs were not
+independently re-audited beyond what the tool itself already confirms.

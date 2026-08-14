@@ -173,3 +173,59 @@ here, but a numbering collision risk in general).
   resolves the 2 `EXAMPLE-*` fixtures, not any of the 62 domain cases
   (SRS-EVH-F-01); its exit code is currently all-pass, not
   category-threshold-aware (SRS-EVH-IF-01).
+
+## tools/trace-check/ and srs/DEFERRED.md (Checkpoint B0-a continuation)
+
+Not an SRS document — the executable traceability CLI `MISSION_PHASE_B0.md`
+deliverable 2 requires, plus `srs/DEFERRED.md` (deliverable 3, populated
+from the tool's own real output). No PROPOSED items (this is code, not a
+requirements document), but several things worth the owner's attention.
+
+**What it does:** parses StR/SysR/SRS IDs and inline Trace lines from
+`StRS_Agentic_AI_Platform_EN.md`, `SyRS-AGP-001_EN.md`, and all five
+`srs/SRS-*.md` files; parses eval case IDs from `eval/cases/`; implements
+checks (a) SysR→SRS coverage, (b) SRS→SysR trace validity, (c) no
+broken/orphan IDs, (d) SRS-F→test/eval coverage (skipped in `--docs-only`
+mode, since Phase B has no tests yet); emits a human-readable report and
+`reports/trace-check.json`; exits non-zero on any active-check violation.
+`make trace` runs it. 56 tests pass (`make test`), including 42 dedicated
+to this tool.
+
+**Current real state (dogfooded, not just built):** checks (a)/(b)/(c) all
+**PASS** — 44/63 SysRs traced by the five SRS documents, 19/19 remaining
+correctly listed in `srs/DEFERRED.md` with individual reasons, 0 broken
+IDs, 0 trace-validity violations. Check (d) is SKIPPED as designed. Exit
+code 0.
+
+**Adversarial verification caught two real bugs before this was trustworthy
+— worth knowing about, not just "it was reviewed":**
+1. A **blocker-severity false negative**: the tool's own test fixture data
+   (containing text shaped like `# verifies: SRS-APR-F-03`) was being
+   picked up by its own naive text scan when it swept its own test file —
+   meaning check (d), once Phase B exists, would have silently under-
+   reported real violations because its own tests looked like coverage
+   evidence. Fixed by switching to Python's `tokenize` module so text
+   inside string literals can never be mistaken for a real comment; a
+   second blocker-severity false negative (a wholly fabricated eval-case
+   citation like `FAKE-001..999` was never even recognized as a
+   reference, since the scan only matched already-known prefixes) was
+   also found and fixed. Both are exactly the "tool wrongly says PASS"
+   failure mode that matters most for a tool whose entire job is catching
+   violations — see `tools/trace-check/README.md` and the source
+   comments for full detail.
+2. A **major false positive**: a known eval-case prefix ('OPS', from
+   `operational.yaml`) matched as a bare substring inside the unrelated,
+   valid SysR id `SysR-P-OPS-02`, which would have flagged a correct
+   citation as broken the moment any SRS document wrote one. Fixed with a
+   negative-lookbehind guard.
+
+Both fixes have dedicated regression tests. Worth the owner's spot-check
+given how easy this class of self-referential bug is to miss.
+
+**One SysR resolved differently than the other 19:** `SysR-P-OPS-03` was
+not deferred — `tools/trace-check` surfaced it as untraced, but on
+inspection it was already substantively covered by `SRS-AGT-F-09`, just
+never traced there. Fixed with an added trace, not a deferral — see
+`DECISIONS.md` DEC-007. This is the one place this checkpoint reached back
+into an earlier document (`srs/SRS-AGT.md`, still an open draft, not
+frozen) rather than only writing new files.

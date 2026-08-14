@@ -4,5 +4,6 @@ __pycache__/
 .env
 state/
 eval/results/*.json
+reports/trace-check.json
 corpus/seed/*
 !corpus/seed/.gitkeep
