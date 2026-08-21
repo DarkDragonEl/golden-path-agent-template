@@ -1,6 +1,6 @@
 CONTAINER_ENGINE ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo docker)
 
-.PHONY: build up up-offline down logs eval validate-eval-set test lint
+.PHONY: build up up-offline down logs eval validate-eval-set trace test lint
 
 build:
 	$(CONTAINER_ENGINE) build -t golden-path-agent:dev .
@@ -22,6 +22,9 @@ eval:
 
 validate-eval-set:
 	python eval/validate.py
+
+trace:
+	python tools/trace-check/trace_check.py --docs-only
 
 test:
 	pytest -q
