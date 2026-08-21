@@ -199,12 +199,13 @@ overrides its taxonomy default — every other tool, including
 `placeholder_lookup`'s own baseline, is classified purely by name. This
 is scoped to keep one pinned fixture green, not a general mechanism.
 
-`tests/test_policy_limits.py`'s inverse test, per the kickoff ask:
-`test_unrecognized_tool_fails_closed_to_write` asserts an unlisted tool
-name classifies as `write` via both `classify_action` and
-`requires_approval` — the exact predicate `tool_invoke_node`'s read/write
-branch depends on, so this is equivalent to "would pause," not just a
-classification-in-isolation check. `srs/SRS-AGT.md`'s own Verification
+The inverse test, per the kickoff ask, exists in two places:
+`tests/test_policy_limits.py::test_unknown_tool_fails_closed_to_write`
+(unit-level: `classify_action`/`requires_approval` on an unlisted name)
+and `tests/test_write_gating.py::test_unrecognized_tool_classifies_as_write_and_would_pause`
+(same assertion, phrased against the exact predicate `tool_invoke_node`'s
+read/write branch depends on, so it's equivalent to "would pause," not
+just a classification-in-isolation check). `srs/SRS-AGT.md`'s own Verification
 table already flags this as a gap the Phase A eval set doesn't cover.
 
 ### Design point 3: reject/expiry/no-resume verified at the store
@@ -254,7 +255,7 @@ primary check, so this doesn't undermine B2's own tests — but note it.
 | Criterion | Evidence |
 |---|---|
 | Pre-existing policy tests replaced, not silently deleted | `tests/test_policy_limits.py`: `test_read_action_not_classified_as_write` → renamed `test_placeholder_lookup_without_write_flag_classified_as_read`; `test_write_flag_classified_as_write` → renamed `test_placeholder_lookup_write_flag_legacy_carveout_classified_as_write` (module docstring explains why: they now test a narrow legacy carve-out, not the general mechanism) |
-| New classification tests | `test_itsm_search_records_classified_as_read`, `test_itsm_create_request_classified_as_write`, `test_unknown_tool_fails_closed_to_write` (+ its `requires_approval` companion) |
+| New classification tests | `test_itsm_search_records_classified_as_read`, `test_itsm_create_request_classified_as_write`, `test_unknown_tool_fails_closed_to_write`, `test_only_a_recognized_write_flag_absent_placeholder_call_is_read_only_by_default` (`test_policy_limits.py`) + `test_unrecognized_tool_classifies_as_write_and_would_pause` (`test_write_gating.py`) |
 | Pause/invoke/reject/expiry/round-trip tests | `tests/test_write_gating.py` (6 tests, listed above) |
 | EXAMPLE-001/002 still green | `python -m eval.cli run --all` → `[PASS] EXAMPLE-001`, `[PASS] EXAMPLE-002`, 2/2 |
 | trace-check unaffected | `python tools/trace-check/trace_check.py --docs-only` → checks (a)/(b)/(c) PASS, 74 SRS requirements (unchanged — no `srs/` edits this pass) |
