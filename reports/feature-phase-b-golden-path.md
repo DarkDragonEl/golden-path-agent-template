@@ -870,3 +870,139 @@ assumed either way.
   Not resolved by this report, and not this cycle's call to make — per the
   owner's explicit boundary, no further prompt iteration, eval-case edits, or
   model swaps were made this cycle.
+
+## Mission Step R0 — plan-position reconciliation (2026-08-21)
+
+Owner mission: resume the accepted delivery plan (B0 → B → C → D → E) via a
+sequence of owner-gated steps. Step R0's job: the branch's own work-log
+numbers its passes B1→B4 differently from `E2E_DEMO_PLAN.md`'s original Phase
+B sub-steps (B1 contracts, B2 mock ITSM, B3 corpus+retrieval, B4 agentic loop,
+B5 eval harness, B6 OTel), with no artifact proving coverage — reconcile the
+two, audit plan-B6 (suspected orphaned) precisely, and check the accepted
+plan's other open items. No code changes in this step — documentation/audit
+only.
+
+### Crosswalk: `E2E_DEMO_PLAN.md`'s Phase B sub-steps vs. what was actually built
+
+| Plan-B step (`E2E_DEMO_PLAN.md`) | Accepted-plan mapping | Status | Evidence |
+|---|---|---|---|
+| B1 — SRS-interface implementation (model-client route/reason-code, MCP contract, retrieval contract) | `E2E_DEMO_PLAN.md` itself already states "the former 'B1 contracts' become the interface sections of" the Phase B0 SRS documents — absorbed into B0, then implemented across accepted-plan B1/B3/B3.5 | Done | `srs/SRS-AGT.md`/`SRS-MIT.md`/`SRS-RET.md` interface sections; `agent/model_client.py`, `mcp_server/`, `agent/retrieval_client.py` |
+| B2 — Stateful mock ITSM, **persistent volume** | Accepted-plan B1 (`mcp_server/`) | Done, with a recorded deliberate deviation: `srs/SRS-MIT.md` explicitly scoped persistence design OUT ("no database needed") — in-process singleton store, not a PVC. Already adjudicated at the SRS level, not a silent gap. | `mcp_server/itsm_store.py` |
+| B3 — Corpus + ingestion + retrieval + **vector DB** | Accepted-plan B3.5 | Done, with a recorded deliberate deviation: lexical/keyword retrieval chosen over a vector DB per the accepted plan's own B3.5 text ("try lexical/keyword retrieval... first"); worked for all `knowledge_qa` cases, no escalation needed | `corpus/`, `agent/retrieval_client.py` |
+| B4 — Agentic loop, **4-category routing** (default/cheap-task/fallback/forced-sensitive) | Accepted-plan B2 (write-gating) + B3 (routing) + this session's decide/generate redesign | **Adjudicated source conflict, resolved** — see below | `agent/model_client.py::RoutedModelClient` (primary+fallback only); `CLAUDE.md` scope guard |
+| B5 — Eval harness, `make eval` runs full set | Accepted-plan B4 (domain harness wiring) | **Functionally done, but a real Makefile-level gap remains** (see below) | `eval/domain_loader.py`, `domain_executor.py`, `domain_scorer.py`, `thresholds.yaml`; `Makefile` |
+| B6 — OTel on every run (session, identities, retrieval, route+reason code, tool calls, policy decisions, output ref) | Never an explicit numbered step in the accepted plan; `agent/telemetry.py`/`agent/api.py` exist as prior partial work | **Substantially incomplete, confirmed orphaned** — see detailed table below | `agent/telemetry.py`, `agent/api.py`, `.env`, `deploy/kustomize/base/configmap.yaml`, `scripts/dev.sh` |
+
+### Plan-B4's routing model — an adjudicated source conflict, not a silent simplification
+
+`E2E_DEMO_PLAN.md`'s B4 describes four routing categories: "default /
+cheap-task / fallback / forced-sensitive." `CLAUDE.md`'s scope guard — a hard
+rule, not a suggestion ("If you find yourself adding... semantic routing...
+STOP. Name it as scope creep and ask before proceeding") — mandates "One model
+route + one fallback, rules-based routing with logged reason codes." These two
+sources directly conflict on the same requirement. Per `CLAUDE.md`'s own
+"Sources of truth (read in this order, never contradict them)" discipline
+(the same discipline `encapsulated-wobbling-conway.md`'s "Requirement-ID
+corrections" table already applied to other SyRS/StRS conflicts), `CLAUDE.md`'s
+hard scope-guard rule wins: it is the more restrictive, explicitly-authoritative
+constraint, and building four routing categories (cheap-task classification,
+forced-sensitive routing) would itself be the scope creep `CLAUDE.md` instructs
+to stop and ask about, not a legitimate B4 deliverable. **Resolution:** the
+two-route (primary + one fallback, `DEC-009`/`DEC-011`) realization actually
+built is the correct, compliant one. `E2E_DEMO_PLAN.md`'s B4 text is superseded
+by `CLAUDE.md`'s scope guard on this specific point — recorded here as an
+adjudicated conflict so a future reader doesn't mistake the simpler routing
+model for an unfinished B4, and doesn't propose adding the missing categories.
+
+### Concrete gap #1 (new finding): `make eval` does not exercise the domain gate
+
+`Makefile`'s `eval:` target runs `python -m eval.cli run --all` (the 2-case
+`EXAMPLE-*.yaml` harness-mechanics pair only). The 8 domain categories require
+the separate `eval-domain:` target — whose own comment self-identifies as
+*"Checkpoint B2's exit criterion."* But the accepted plan's own Checkpoint B2
+text says **`make eval`** (not `make eval-domain`) should be green "including
+all 8 domain categories." As currently wired, literally running `make up &&
+make eval` per the checkpoint's own words would report a false green (2/2)
+regardless of the domain gate's actual state. This must be closed before
+Checkpoint B2 can be truthfully claimed — proposed fix (not applied in R0):
+either fold `--domain` into the `eval` target, or correct Checkpoint B2's
+documented exit command to name both targets explicitly. Decision deferred to
+Step R4 (closing remaining Phase B obligations), not made here.
+
+### Concrete gap #2: plan-B6 (OTel) — detailed classification
+
+None of B6's seven listed items qualify as "fully implemented and fires on
+every run." Confirmed by direct code/config inspection:
+
+| B6 item | Classification |
+|---|---|
+| session | Partial + effectively dead: `agent/telemetry.py::record_invocation_span` sets `session.id` correctly, fires only from `agent/api.py`'s two HTTP handlers — **never** from `eval/executor.py`/`eval/domain_executor.py` (confirmed by grep, zero hits) — and is a no-op even there since `OTEL_EXPORTER_OTLP_ENDPOINT` is empty in `.env`, `.env.example`, and `deploy/kustomize/base/configmap.yaml`, with no OTel Collector defined anywhere in the local dev stack (no compose file, no extra container in `scripts/dev.sh`) |
+| identities | Partial: `user.id` only — no distinct "agent workload identity" attribute exists anywhere in the code |
+| retrieval | Partial (same wiring/no-op caveats): `retrieved_doc.ids` fully set when it fires |
+| route + reason code | Partial, plus a **new structural gap this session's redesign introduced**: `record_invocation_span` reads only the last-write-wins scalar `model_route`/`model_route_reason_code`, not the new `state["model_calls"]` list — on a `decide`+`generate` turn, `decide`'s routing is invisible on the span, directly violating `SRS-AGT-IF-08`'s "for every model call" language |
+| tool calls | Partial: `tool_calls.count` only — never tool name/arguments/result/error, even though `state["tool_calls"]` already carries all of it |
+| policy decisions | Partial: final `approval.decision` only — never per-tool-call `classify_action()` classification results |
+| output ref | **Not implemented at all** — no attribute references `final_output` anywhere |
+
+Also not implemented at all: latency, token consumption, errors (explicit
+`TODO(domain)` in the code), the prompt-template version (`SRS-AGT-DATA-01` —
+no version marker exists for either prompt file), and a distinct request
+identifier (only session id exists). This closure is Step R4's job, not R0's —
+R0 only classifies.
+
+**Two forward-notes for whoever executes R4's OTel closure, recorded now so
+they aren't rediscovered the hard way:**
+
+1. **`SRS-AGT-DATA-01`'s prompt-version marker must not become model-visible
+   text.** If the version identifier is embedded inside
+   `decide_system_prompt.md`/`generate_system_prompt.md`'s own content (e.g.
+   a line the model reads), that changes the model-visible prompt — which
+   `DEC-012`'s standing rule treats as a measurement-instrument change,
+   requiring a fresh frozen-state, multi-pass re-baseline before any result
+   is compared against anything measured before it. The version marker must
+   live out-of-band instead (e.g. a constant/hash computed from the prompt
+   file's content, attached only as a telemetry attribute) — closing
+   `SRS-AGT-DATA-01` should not, by itself, trigger a re-baseline obligation.
+2. **R4's OTel instrumentation must be strictly read-only with respect to
+   model inputs.** Adding spans/attributes around `decide_node`/`generate_node`
+   must only observe and record state — never alter the system prompt, the
+   user message, the `tools=` argument, or any other input actually sent to
+   the model. Any change that touches what the model receives is, again, an
+   instrument change under `DEC-012`'s rule and requires the same
+   re-baseline discipline; telemetry work should not be the thing that
+   quietly triggers it.
+
+### Other accepted-plan open items — confirmed status
+
+- **REST/MCP coexistence** — **confirmed resolved.** One ASGI app, one port
+  (`mcp_server/server.py::build_app()` mounts the MCP app under the REST
+  FastAPI app via an explicit lifespan hand-off). Documented in the module
+  docstring and the B1 report section above — not in `docs/architecture.md` or
+  `srs/SRS-MIT.md` (a minor doc-location gap, not blocking).
+- **`demo-prod` overlay** — confirmed does not exist (`deploy/kustomize/overlays/`
+  has `base`, `staging`, `pilot-prod`, `ephemeral-test` only; zero repo-wide
+  mentions of `demo-prod`). Correctly a Phase C kickoff item per the accepted
+  plan's own C4 section ("a new overlay, not a repurposed one") — not a
+  current gap.
+- **Keycloak realization** — confirmed fully open, zero references anywhere in
+  the repo. Correctly a Phase D item.
+- **OTel Collector research** — confirmed fully open (only the app-side OTLP
+  exporter env vars exist, empty). Needed twice: once for Step R4 (a *local*
+  collector realization to make B6 real for Phase B) and again, formally
+  pinned, in `PINS.md` at Phase C.
+- **`PINS.md`** — confirmed does not exist; already self-flagged as open work
+  in `srs/DEFERRED.md` (`SysR-P-LC-01`).
+- **Tekton/CI pipelines** — only `ci/pr-checks.yaml` exists, an explicitly
+  generic, product-agnostic definition awaiting adaptation; no `pipelines/`
+  dir, no Tekton artifacts. Fully open Phase C work, as expected.
+- **Fallback model pick** (accepted plan's open-decisions item 5) — originally
+  marked "done" via `DEC-009`, but the story continued through
+  `DEC-010`→`DEC-011`→`DEC-012`→`DEC-013` (candidate, not yet locked). Status
+  corrected here from "done" to "superseded, in progress via this mission's
+  Step R1" — not silently left reading "done."
+
+### R0 status
+
+Documentation/audit only, no code changes, per the mission's own scope for
+this step. **Holding at Checkpoint R0** for owner acknowledgment before Step
+R1 (DEC-013 lock + forensic triage of the firm-ceiling cases) begins.

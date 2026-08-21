@@ -6,23 +6,43 @@
 - **Last commit:** `d5913f1` — "Phase B4: domain harness wiring,
   DEC-009..DEC-012 investigation, decide-then-retrieve redesign (DEC-013
   candidate)"
-- **Working tree:** dirty. Modified: `reports/feature-phase-b-golden-path.md`
-  (this session's redesign report appended), `HANDOFF.md` (this file).
-  Nothing else — the redesign itself, the B4 harness files, and the
-  DEC-009..DEC-012 investigation content are all committed as of `d5913f1`.
+- **Working tree:** about to be committed as part of this same change —
+  `reports/feature-phase-b-golden-path.md` (Mission Step R0's crosswalk
+  section appended) and `HANDOFF.md` (this file, updated to match). No code
+  changes in this commit, documentation/audit only per Step R0's scope. The
+  redesign itself, the B4 harness files, and the DEC-009..DEC-012
+  investigation content were already committed as of `d5913f1`; this
+  session's post-redesign report was committed as of `f77a03b`.
 
 ## Phase position
 
-**B4 (domain harness live-testing) in progress, blocked on an owner
-decision — not blocked on running anything.** `DEC-012`'s frozen-config
-re-baseline (evidence for the "something is broken" call) and this
-session's decide-then-retrieve redesign (evidence for "here's a fix, how
-far did it get") are both done and both committed. What's blocking forward
-progress is the owner's read of the redesign's *partial* recovery plus one
-new safety-adjacent finding — not a pending measurement. Checkpoint B2
-(`make up && make eval` green across all 8 domain categories) is not
-reachable until that decision lands and whatever it prescribes is
-implemented and re-verified.
+Numbering below follows the **accepted plan**
+(`~/.claude/plans/encapsulated-wobbling-conway.md`), not
+`E2E_DEMO_PLAN.md`'s original Phase B sub-steps (B1 contracts, B2 mock ITSM,
+B3 corpus+retrieval, B4 agentic loop, B5 eval harness, B6 OTel) — the two
+numberings diverged during execution and are now reconciled by a crosswalk
+in `reports/feature-phase-b-golden-path.md`'s "Mission Step R0" section. Read
+that section if anything below seems to skip a step you remember from
+`E2E_DEMO_PLAN.md`.
+
+**Accepted-plan B1/B2/B3/B3.5/B4 all done and committed. `E2E_DEMO_PLAN.md`'s
+B6 (OTel) is confirmed substantially incomplete/orphaned — see the R0
+crosswalk for the exact per-field classification.** `DEC-012`'s frozen-config
+re-baseline (evidence for the "something is broken" call) and this session's
+decide-then-retrieve redesign (evidence for "here's a fix, how far did it
+get") are both done and both committed. Checkpoint B2
+(`make up && make eval` green across all 8 domain categories — note: the
+literal `make eval` target does **not** currently run the domain suite, that's
+`make eval-domain`; also flagged in the R0 crosswalk as a gap to close) is not
+reachable until the owner's `DEC-013` decision lands and whatever it
+prescribes is implemented and re-verified.
+
+**Mission in progress** (owner-issued, sequenced R0 → R1 → R2 → R3 → R4 →
+Checkpoint B2 → Phase C → Phase D → Phase E, each step ending in a mandatory
+owner STOP): **Step R0 (plan-position reconciliation) is done, holding at
+Checkpoint R0 for owner acknowledgment.** Step R1 (lock `DEC-013` + forensic
+triage of the firm-ceiling cases) is next, not started — do not begin it
+without acknowledgment of R0's findings first.
 
 ## This session's work: decide-then-retrieve reordering (DEC-013 candidate)
 
@@ -118,6 +138,16 @@ not silently drift from them while doing other work:
    `generate`'s call) resurrects `DEC-012`'s diagnosed failure mode.
    Regression-guarded by `tests/test_decide_node.py::test_context_never_reaches_decide_prompt`
    and `tests/test_generate_node.py::test_called_without_tools_kwarg`.
+6. **Forward constraints on Step R4's OTel closure (recorded at R0, not yet
+   applicable to anything committed today).** When plan-B6's gap is closed:
+   (a) `SRS-AGT-DATA-01`'s prompt-version marker must live out-of-band (e.g. a
+   constant/hash attached only as a telemetry attribute), never embedded in
+   `decide_system_prompt.md`/`generate_system_prompt.md`'s own model-visible
+   content — doing the latter would make prompt-versioning itself trigger
+   `DEC-012`'s re-baseline rule. (b) OTel instrumentation must be strictly
+   read-only with respect to model inputs — spans/attributes may observe
+   state, never alter the system prompt, user message, or `tools=` argument
+   actually sent to the model, for the same reason.
 
 ## Pointers
 
