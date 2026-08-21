@@ -18,14 +18,26 @@ def check_step_limit(state: dict) -> None:
         )
 
 
+# eval/cases/EXAMPLE-002.yaml is a frozen harness-mechanics fixture (never
+# domain content — eval/README.md, DECISIONS.md DEC-005) whose write-
+# classified case predates the tool-name taxonomy below: it signals via a
+# legacy `write: true` argument flag on placeholder_lookup, not by calling
+# a different tool. This is a narrow, explicitly-scoped carve-out that
+# exists only to keep that pinned fixture green — every other tool call,
+# including placeholder_lookup's own default (see
+# policy/approval_rules.yaml), is classified purely by name.
+_LEGACY_WRITE_FLAG_TOOLS = {"placeholder_lookup"}
+
+
 def classify_action(tool_name: str, arguments: dict) -> str:
-    """TODO(domain): define the real consequential-action taxonomy for this
-    agent's one primary tool integration (e.g. specific operations that
-    count as writes). Until a real tool exists, the only signal available
-    is an explicit `write` flag on the call arguments; anything without it
-    defaults to "read" per the proposal's read-only-by-default principle.
+    """Tool-name classification taxonomy (SRS-AGT-SEC-03), loaded from
+    policy/approval_rules.yaml via agent/config.py. An unrecognized or
+    ambiguous tool name fails closed to "write" (config.DEFAULT_TOOL_CLASSIFICATION)
+    — it is never treated as read-only or directly executable.
     """
-    return "write" if arguments.get("write") else "read"
+    if tool_name in _LEGACY_WRITE_FLAG_TOOLS and arguments.get("write"):
+        return "write"
+    return config.TOOL_CLASSIFICATION.get(tool_name, config.DEFAULT_TOOL_CLASSIFICATION)
 
 
 def requires_approval(tool_name: str, arguments: dict) -> bool:

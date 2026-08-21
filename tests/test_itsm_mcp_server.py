@@ -2,11 +2,9 @@ import asyncio
 import inspect
 
 import pytest
-from starlette.testclient import TestClient
 
 from mcp_server import itsm_store
 from mcp_server.server import (
-    build_app,
     healthcheck,
     itsm_create_request,
     itsm_search_records,
@@ -14,12 +12,9 @@ from mcp_server.server import (
     placeholder_lookup,
 )
 
-
-@pytest.fixture(autouse=True)
-def reset_singleton_store():
-    itsm_store.store.reset()
-    yield
-    itsm_store.store.reset()
+# Store reset-per-test and the shared `rest_client` fixture both live in
+# tests/conftest.py now -- see its docstring for why `rest_client` must be
+# process-session-scoped, not module-scoped.
 
 
 def test_both_itsm_tools_registered_with_catalog_metadata():
@@ -103,20 +98,6 @@ def test_healthcheck_unaffected():
 
 
 # --- REST introspection surface (SRS-MIT-IF-04) ---
-
-
-@pytest.fixture(scope="module")
-def rest_client():
-    # `mcp` (the FastMCP instance imported above) is a module-level
-    # singleton that lazily creates and caches its own
-    # StreamableHTTPSessionManager on first `streamable_http_app()` call;
-    # that session manager's `.run()` can only be entered once per
-    # instance's lifetime (a real API constraint found while writing this
-    # test, not assumed) -- so build_app() must be called, and its
-    # lifespan entered, exactly once for this whole test module, matching
-    # how main() calls it exactly once in production.
-    with TestClient(build_app()) as client:
-        yield client
 
 
 def test_rest_get_records_lists_seed_set(rest_client):

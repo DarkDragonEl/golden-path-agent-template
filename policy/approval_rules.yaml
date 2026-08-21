@@ -1,9 +1,24 @@
-# TODO(domain): define the real consequential-action taxonomy here once the
-# 1-2 domain tools are selected. Until then, agent/policy.py::classify_action
-# treats any tool call carrying an explicit `write: true` argument as a
-# write requiring approval, and everything else as read (auto-approved) —
-# per the proposal's read-only-by-default principle. This file is the
-# intended future home for a declarative rule set the code will load
-# instead of that hardcoded fallback.
+# Tool-name classification taxonomy, loaded by agent/config.py and
+# consumed by agent/policy.py::classify_action() (Phase B2 — replaces the
+# arguments.get("write") flag this file's earlier placeholder text
+# described). See srs/SRS-AGT.md's SRS-AGT-SEC-03 for the fail-closed
+# rationale behind default_classification.
+rules:
+  - tool_name: itsm_search_records
+    classification: read
+  - tool_name: itsm_create_request
+    classification: write
+  - tool_name: placeholder_lookup
+    classification: read  # eval/cases/EXAMPLE-*.yaml harness fixture, not
+    # domain content (see eval/README.md, DECISIONS.md DEC-005) — explicit
+    # here so SEC-03's fail-closed default doesn't route EXAMPLE-001's read
+    # call to approval. EXAMPLE-002's write-classified case still relies on
+    # a narrow legacy write:true argument carve-out in agent/policy.py,
+    # kept only for that pinned fixture — this taxonomy entry is its
+    # unconditional default (used whenever that legacy flag is absent).
 
-rules: []
+# SRS-AGT-SEC-03 — fail closed: an action whose tool name is not listed
+# above (ambiguous or unrecognized against this policy's classification
+# rules) is always treated as write-capable and routed to approval, never
+# executed directly or treated as read-only.
+default_classification: write

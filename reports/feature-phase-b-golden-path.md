@@ -152,11 +152,140 @@ New: `mcp_server/itsm_store.py`, `tests/test_itsm_store.py`,
 `tests/test_itsm_mcp_server.py`. Modified: `mcp_server/schemas.py`,
 `mcp_server/server.py`.
 
-## Pausing for B2 confirmation
+## B2 — Write-gating restructure (2026-08-21)
 
-Per the kickoff instructions: B1 is done, evidence above. B2 (the
-write-gating restructure — `policy/approval_rules.yaml`'s taxonomy,
-`agent/policy.py::classify_action()`, splitting `tool_invoke.py`'s eager
-write into a draft-only path, and `human_approval.py` becoming the actual
-invoker on approval) is where the `DECISIONS.md` DEC-008 arguments-sourcing
-condition lands — pausing here for review before implementing it.
+### Design point 1: DEC-008, translated to the Phase B interim mechanism
+
+Phase B has no standalone approval service — the "service" is the graph's
+own checkpointed state (LangGraph `MemorySaver`, resumed via
+`POST /approvals/{id}/resume`). Implemented exactly as specified:
+
+- `agent/nodes/tool_invoke.py` — a write-classified action is drafted
+  only: a `tool_calls` entry with `result: None, error: None` is appended,
+  and `approval_action={tool_name, arguments}` is persisted into state.
+  The tool is never invoked here.
+- `agent/nodes/human_approval.py` — on `approve`, reads `tool_name`/
+  `arguments` back from the persisted `approval_action` (never from a
+  node-scope variable, never re-derived) and is now the sole invoker.
+- `tests/test_write_gating.py::test_approve_invokes_with_exactly_the_persisted_approval_action_arguments`
+  and `::test_approve_reads_arguments_from_persisted_state_not_a_stale_local_copy`
+  assert `arguments_executed == arguments_approved` by comparing the mock
+  ITSM's created record (fetched via REST, full field set) against
+  `approval_action`'s arguments — not by trusting the node's return value.
+
+When Phase D swaps in the standalone `approval_service`, only the
+read-back *source* changes (a terminal-state query, `SRS-APR-IF-05`,
+instead of graph-checkpointed state) — the invariant and this same test
+shape carry over unchanged, which is the point of landing it now.
+
+### Design point 2: fail-closed default + explicit `placeholder_lookup` classification
+
+`policy/approval_rules.yaml`: `itsm_search_records → read`,
+`itsm_create_request → write`, `placeholder_lookup → read` (explicit, with
+an inline comment — harness fixture per `eval/README.md`/`DECISIONS.md`
+DEC-005, not domain content), `default_classification: write`
+(SRS-AGT-SEC-03).
+
+One real wrinkle found while implementing this: `eval/cases/EXAMPLE-002.yaml`
+(pinned, harness-mechanics, untouchable) signals its write-classified case
+via a legacy `write: true` *argument* flag on `placeholder_lookup` — not
+by naming a different tool. A pure name-based taxonomy would classify
+every `placeholder_lookup` call as `read` unconditionally, silently
+breaking EXAMPLE-002 (its whole point is to pause for approval). Resolved
+with a narrow, explicitly-commented carve-out in
+`agent/policy.py::classify_action()` (`_LEGACY_WRITE_FLAG_TOOLS`): only
+for `placeholder_lookup`, an explicit `write: true` argument still
+overrides its taxonomy default — every other tool, including
+`placeholder_lookup`'s own baseline, is classified purely by name. This
+is scoped to keep one pinned fixture green, not a general mechanism.
+
+`tests/test_policy_limits.py`'s inverse test, per the kickoff ask:
+`test_unrecognized_tool_fails_closed_to_write` asserts an unlisted tool
+name classifies as `write` via both `classify_action` and
+`requires_approval` — the exact predicate `tool_invoke_node`'s read/write
+branch depends on, so this is equivalent to "would pause," not just a
+classification-in-isolation check. `srs/SRS-AGT.md`'s own Verification
+table already flags this as a gap the Phase A eval set doesn't cover.
+
+### Design point 3: reject/expiry/no-resume verified at the store
+
+`tests/test_write_gating.py`'s reject, synthetic-`expired`, and no-resume
+(`bypass_attempt`/`not_requested`) tests each assert a `GET /records` diff
+on `record_type=request` shows **zero new records** — the mock ITSM's own
+state, via the same REST surface a demo operator or CI pipeline test would
+use — with the agent's own `pending_approval`/`fallback_reason` checked
+first as corroborating evidence only, never the primary check. This is
+only possible now that B1's REST introspection surface exists. The
+no-resume test drives the real `tool_invoke_node` write branch (today
+reachable through the legacy `placeholder_lookup` path) rather than a
+hand-built state, so it exercises the actual drafting code.
+
+### What was deliberately not done
+
+`agent/nodes/tool_invoke.py` still hardcodes `tool_name = "placeholder_lookup"`
+— it does not dynamically dispatch to `itsm_create_request` in the
+production graph path. Wiring real tool selection (the model choosing
+between `itsm_search_records`/`itsm_create_request` via OpenAI-style
+`tools=`) is Phase B3's job, not B2's; changing tool_invoke_node's
+dispatch now would have broken `EXAMPLE-002.yaml`'s pinned assertion that
+the write path's `final_output` contains `PLACEHOLDER_TOOL_RESPONSE_MARKER`.
+The DEC-008 tests above exercise the real `itsm_create_request` tool by
+constructing `approval_action` directly and calling `human_approval_node`
+in isolation — a legitimate test of the actual invoker logic, independent
+of upstream tool selection.
+
+`mcp_server/client.py::call_tool` was extended (mock mode) to dispatch to
+`itsm_search_records`/`itsm_create_request`, not just `placeholder_lookup`
+— required for `human_approval_node` to be able to invoke the new tools at
+all; without it every DEC-008 test above would fail with "unknown tool."
+
+A known, unfixed gap for B3: `human_approval_node`'s `final_output`
+formatting (`result.get("result", "")`) matches `placeholder_lookup`'s
+output shape but not `itsm_create_request`'s (`{record_id, status,
+source}`, no `"result"` key) — a real approval today would produce an
+empty `final_output` string. Left alone deliberately: composing a good
+confirmation message depends on knowing which tool ran, which is B3's
+response-composition territory, not B2's write-gating mechanism. Design
+point 3 already treats `final_output` as corroborating evidence, not the
+primary check, so this doesn't undermine B2's own tests — but note it.
+
+### B2 exit criteria — evidence
+
+| Criterion | Evidence |
+|---|---|
+| Pre-existing policy tests replaced, not silently deleted | `tests/test_policy_limits.py`: `test_read_action_not_classified_as_write` → renamed `test_placeholder_lookup_without_write_flag_classified_as_read`; `test_write_flag_classified_as_write` → renamed `test_placeholder_lookup_write_flag_legacy_carveout_classified_as_write` (module docstring explains why: they now test a narrow legacy carve-out, not the general mechanism) |
+| New classification tests | `test_itsm_search_records_classified_as_read`, `test_itsm_create_request_classified_as_write`, `test_unknown_tool_fails_closed_to_write` (+ its `requires_approval` companion) |
+| Pause/invoke/reject/expiry/round-trip tests | `tests/test_write_gating.py` (6 tests, listed above) |
+| EXAMPLE-001/002 still green | `python -m eval.cli run --all` → `[PASS] EXAMPLE-001`, `[PASS] EXAMPLE-002`, 2/2 |
+| trace-check unaffected | `python tools/trace-check/trace_check.py --docs-only` → checks (a)/(b)/(c) PASS, 74 SRS requirements (unchanged — no `srs/` edits this pass) |
+| Report updated | this section |
+
+```
+$ .venv/bin/python -m pytest -q
+102 passed   (92 pre-B2 + 6 in test_write_gating.py + 4 net-new in test_policy_limits.py)
+$ .venv/bin/python -m eval.cli run --all
+[PASS] EXAMPLE-001
+[PASS] EXAMPLE-002
+2/2 cases passed
+$ .venv/bin/python eval/validate.py
+All cases valid. (62 cases, unchanged)
+```
+
+### Files changed
+
+New: `tests/test_write_gating.py`, `tests/conftest.py` (session-scoped
+`rest_client` fixture, shared with `tests/test_itsm_mcp_server.py` — the
+process-wide session-manager singleton found in B1 means only one
+`build_app()`/`TestClient` cycle can ever run per test process, not one
+per module; refactored `test_itsm_mcp_server.py` to use the shared
+fixture too). Modified: `policy/approval_rules.yaml`, `agent/config.py`,
+`agent/policy.py`, `agent/nodes/tool_invoke.py`,
+`agent/nodes/human_approval.py`, `mcp_server/client.py`,
+`tests/test_policy_limits.py`.
+
+## Pausing for B3/B4 confirmation
+
+Per the kickoff instructions: B2 is done, evidence above. Pausing here
+before B3 (model routing/fallback wiring, real tool-selection via
+`tools=`) and B4 (eval harness domain wiring, where the DEC-009
+compensating control lands).

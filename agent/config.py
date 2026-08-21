@@ -28,6 +28,16 @@ def _load_policy_bundle() -> dict:
     return {}
 
 
+def _load_approval_rules() -> dict:
+    ref = _env("APPROVAL_RULES_REF", "policy/approval_rules.yaml")
+    path = Path(ref)
+    if not path.is_absolute():
+        path = _REPO_ROOT / ref
+    if path.exists():
+        return yaml.safe_load(path.read_text()) or {}
+    return {}
+
+
 def _env_int(name, bundle_key, hard_default):
     raw = os.environ.get(name)
     if raw is not None:
@@ -43,6 +53,7 @@ def _env_str(name, bundle_key, hard_default):
 
 
 _POLICY_BUNDLE = _load_policy_bundle()
+_APPROVAL_RULES_BUNDLE = _load_approval_rules()
 
 # Model contract
 MODEL_API_BASE_URL = _env("MODEL_API_BASE_URL", "http://localhost:11434/v1")
@@ -66,6 +77,14 @@ TOOL_TIMEOUT_SECONDS = float(_env_str("TOOL_TIMEOUT_SECONDS", "tool_timeout_seco
 TOOL_RETRY_LIMIT = _env_int("TOOL_RETRY_LIMIT", "tool_retry_limit", 2)
 APPROVAL_MODE = _env_str("APPROVAL_MODE", "approval_mode", "required")  # required | auto
 AUTO_APPROVE_IN_DEV = _env("AUTO_APPROVE_IN_DEV", "false").lower() == "true"
+
+# Tool-name classification taxonomy (SRS-AGT-SEC-03 fail-closed default —
+# see policy/approval_rules.yaml). Consumed by agent/policy.py::classify_action.
+APPROVAL_RULES_REF = _env("APPROVAL_RULES_REF", "policy/approval_rules.yaml")
+TOOL_CLASSIFICATION: dict = {
+    r["tool_name"]: r["classification"] for r in _APPROVAL_RULES_BUNDLE.get("rules", [])
+}
+DEFAULT_TOOL_CLASSIFICATION = _APPROVAL_RULES_BUNDLE.get("default_classification", "write")
 
 # Telemetry
 OTEL_EXPORTER_OTLP_ENDPOINT = _env("OTEL_EXPORTER_OTLP_ENDPOINT")
