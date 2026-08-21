@@ -39,12 +39,13 @@ prescribes is implemented and re-verified.
 
 **Mission in progress** (owner-issued, sequenced R0 → R1 → R2 → R3 → R4 →
 Checkpoint B2 → Phase C → Phase D → Phase E, each step ending in a mandatory
-owner STOP): **Step R0 (plan-position reconciliation) is done, holding at
-Checkpoint R0 for owner acknowledgment.** Step R1 (lock `DEC-013` + forensic
-triage of the firm-ceiling cases) is next, not started — do not begin it
-without acknowledgment of R0's findings first.
+owner STOP): **Step R0 acknowledged. Step R1 (lock `DEC-013` + forensic
+triage of the firm-ceiling cases) is done, holding at Checkpoint R1 for owner
+adjudication of the proposed-remedy table.** Step R2 (batch owner-approved
+remedies + single re-baseline) is next, not started — do not apply any remedy
+without adjudication of R1's table first.
 
-## This session's work: decide-then-retrieve reordering (DEC-013 candidate)
+## This session's work: decide-then-retrieve reordering (`DEC-013`, locked)
 
 Full narrative, root cause, and the complete 3-pass evidence table are in
 `reports/feature-phase-b-golden-path.md`'s "DEC-013 candidate" section —
@@ -78,22 +79,34 @@ read that before doing anything else that touches `agent/graph.py`,
   still held, `write_blocked` was 0 failures across every case in all 3
   passes, but the corroborating "no write drafted from injected content"
   check regressed)**. Full table and per-case detail in the report.
-- **No `DEC-013` written.** Per this cycle's explicit boundary: report the
-  evidence, do not unilaterally pick a resolution, no further prompt
-  iteration, no eval-case edits, no model swaps.
+- **`DEC-013` written and locked** (Step R1, this session). Redesign is now
+  the accepted architecture — not a candidate awaiting sign-off.
 
-## Open decision, pending owner sign-off
+## Step R1: forensic triage, holding for owner adjudication
 
-Whether this partial recovery plus the `INJ-006` regression is enough to
-lock in the redesign as `DEC-013` and move to a narrower conversation about
-what's left: the firm-ceiling cases (`ITR-001`, `ITR-007`, `KQA-002`,
-`KQA-010`, `KQA-012`, `INJ-006`, `UAW-002`, `UAW-005`, `DRQ-006` — identical
-across all 3 passes) as a documented known-gap for the demo milestone, a
-targeted `decide_system_prompt.md` adjustment for the jailbreak-framing
-case specifically, or a model swap subject to `DEC-011`'s full-5-category
-rule (`granite-4-0-h-tiny` is now confirmed available on the MaaS — logged
-as a future candidate, not tested this cycle). **Do not pick one of these
-unilaterally** — same discipline `DEC-011`/`DEC-012` already established.
+`DEC-013` also records a forensic triage of the 9 firm-ceiling cases
+(`tools/diagnose_r1_forensic_triage.py`, 2 fresh live reps each, full state
+captured — not just pass/fail). **Two findings from that triage change the
+picture from what R0/the original re-baseline suggested:** `ITR-007` and
+`KQA-012` did **not** reproduce as failures on independent fresh evidence
+(both passed cleanly on at least one of two fresh reps), despite failing
+identically across all 3 of the original passes — reported as "needs more
+measurement," not accepted as known-gaps. The other 7 cases did reproduce,
+each with a specific diagnosis and a proposed remedy (never applied) in
+`reports/feature-phase-b-golden-path.md`'s "Mission Step R1" adjudication
+table: a mock-store matching bug (`ITR-001`), a `decide`-layer
+misclassification with a proposed prompt-hardening diff (`DRQ-006`), the
+confirmed `INJ-006` jailbreak regression with a proposed prompt-hardening
+diff, two cases where the model's actual behavior looks *more* correct than
+the eval case's literal expectation (`UAW-002`, `UAW-005` — a genuine
+eval-case-design tension, not a model gap), and two knowledge_qa cases
+(`KQA-002`, `KQA-010`) where the model answers the literal question
+correctly but the case's `must_contain_facts` also requires a tangential
+second fact the question didn't ask about. **No remedy has been applied —
+holding at Checkpoint R1** for the owner to adjudicate which remedies to
+approve (and in what batch, per `DEC-012`'s instrument-change discipline),
+which cases need more measurement first, and which become documented
+known-gaps.
 
 ## Invariants that must survive any future session
 
@@ -159,6 +172,8 @@ not silently drift from them while doing other work:
   report for this branch; the "DEC-013 candidate" section (this session)
   has the full redesign narrative and 3-pass evidence table.
 - `reports/tool-call-raw-diagnostic.json` — Step 0's raw forensic capture.
+- `reports/r1-forensic-triage-raw.json` — Step R1's raw forensic capture
+  (2 fresh reps per firm-ceiling case, full state).
 - `~/.claude/plans/read-claude-md-handoff-md-decisions-md-vast-hare.md` —
   this session's approved implementation plan, if useful for context on
   design choices made along the way.
