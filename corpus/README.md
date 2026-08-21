@@ -1,6 +1,10 @@
 # Corpus
 
-Empty by design — this is a template, not a domain deployment.
+Populated at Phase B3.5 with this blueprint's own synthetic demo corpus
+(20 documents, `corpus/seed/*.md`) — the ITSM scenario per Annex A OI-02,
+identities fixed in `eval/corpus-manifest.yaml`. A second adopting team
+replaces this content with its own domain's documents; the mechanism
+(`corpus/ingest.py`, `agent/retrieval_client.py`) stays the same.
 
 Each document added here must carry:
 
@@ -12,6 +16,10 @@ Each document added here must carry:
 - **Refresh process** — how staleness gets caught
 
 `seed/` is where locally-seeded documents live for local dev (bind-mounted
-into the agent container at `AGENT_CORPUS_DIR`). `ingest.py` is a
-TODO(domain) stub for the chunk/embed/load pipeline — see
-[`../TODO_DOMAIN.md`](../TODO_DOMAIN.md).
+into the agent container at `AGENT_CORPUS_DIR`). `ingest.py` joins each
+`eval/corpus-manifest.yaml` entry with its `seed/<doc_id>.md` body text
+and gates retrievability on governance-metadata completeness
+(`SRS-RET-F-01`) — no chunk/embed/vector-store pipeline; retrieval
+(`agent/retrieval_client.py`) is lexical keyword-overlap, sufficient for
+20 documents (Phase B3.5 scope decision — escalate to a real vector store
+only if that stops being true).

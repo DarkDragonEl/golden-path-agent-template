@@ -15,7 +15,14 @@ def reason_node(state):
     steps = state.get("reasoning_steps", 0) + 1
     model = get_model_client()
 
-    context = "\n\n".join(d.get("passage_text", d.get("snippet", "")) for d in state.get("retrieved_docs", []))
+    # SRS-AGT-F-01: every corpus-derived claim needs a citation naming the
+    # source doc_id and version -- the model can't produce one unless the
+    # context tells it which passage came from which document.
+    context = "\n\n".join(
+        f"[Source: {d.get('doc_id', '?')}, version {d.get('version', '?')}]\n"
+        f"{d.get('passage_text', d.get('snippet', ''))}"
+        for d in state.get("retrieved_docs", [])
+    )
     user_message = state["input_query"]
     if context:
         user_message = f"Context:\n{context}\n\nQuestion: {user_message}"

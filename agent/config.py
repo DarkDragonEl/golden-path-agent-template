@@ -76,6 +76,8 @@ MCP_MODE = _env("MCP_MODE", "mock")  # mock | live
 DATA_SOURCE_BINDING = _env("DATA_SOURCE_BINDING", "none")
 AGENT_CORPUS_DIR = _env("AGENT_CORPUS_DIR", "./corpus/seed")
 AGENT_STATE_DIR = _env("AGENT_STATE_DIR", "./state")
+# SRS-RET-IF-01 (resolved): top_k default is config-sourced, not hardcoded.
+RETRIEVAL_TOP_K = _env_int("RETRIEVAL_TOP_K", "retrieval_top_k", 5)
 
 # Policy bundle + constrained-agent guardrails (bundle default, env overrides)
 POLICY_BUNDLE_REF = _env("POLICY_BUNDLE_REF", "policy/baseline_policy.yaml")

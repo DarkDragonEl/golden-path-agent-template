@@ -5,5 +5,7 @@ __pycache__/
 state/
 eval/results/*.json
 reports/trace-check.json
-corpus/seed/*
-!corpus/seed/.gitkeep
+# corpus/seed/*.md was gitignored while corpus/README.md said "empty by
+# design" (local-only content for whoever adopts this template). Phase
+# B3.5 populated it with this blueprint's own synthetic demo corpus,
+# which the golden path actually depends on -- tracked from here on.

@@ -386,9 +386,72 @@ New: `agent/tool_schemas.py`, `agent/tool_result_format.py`,
 `tests/test_write_gating.py` (one test updated for the new
 `selected_tool`-driven contract).
 
-## Pausing briefly before B3.5 (corpus + retrieval)
+## B3.5 — Corpus content + minimal retrieval (2026-08-21)
 
-Per the kickoff instructions, continuing straight to B3.5 (not a full
-stop) — evidence above is the checkpoint. B3.5 is scoped narrowly:
-~20 synthetic corpus documents + minimal lexical retrieval, per the plan
-document's itemized insertion.
+`corpus/seed/*.md` (new, 20 files): one per `eval/corpus-manifest.yaml`
+entry, content authored directly from each citing `knowledge_qa` case's
+`must_contain_facts`. Both `must_refuse_if_absent` facts (KQA-003's "no
+maximum execution time" for `PLAT-003`, KQA-015's "no documented backup
+frequency" for `SVC-003`) verified absent corpus-wide by grep, not just
+handled correctly in their own cited document — and covered by a
+dedicated test (`test_must_refuse_if_absent_facts_are_genuinely_absent_from_every_document`).
+Both `forbidden_claims` (KQA-002, KQA-009) are stated as explicit
+negations in their respective documents, not just omitted.
+
+`corpus/ingest.py` (was a `TODO(domain)` stub): joins each manifest entry
+with its seed file's body text; a manifest entry missing any required
+governance field, or with no seed file, is silently excluded from the
+retrievable set — `SRS-RET-F-01`'s gating, tested directly with
+synthetic incomplete-metadata and missing-file cases (not exercised via
+the real 20-document corpus, which is complete by construction).
+
+`agent/retrieval_client.py`: `RetrievedChunk`'s field names corrected to
+the approved `SRS-RET-IF-01` shape (`snippet`→`passage_text`,
+`source_uri`→`source`, added `owner_role`/`effective_date`) — the
+mismatch `srs/REVIEW_INDEX.md` already flagged as a Phase B update
+target. Lexical (keyword-overlap) retrieval, not embeddings: title
+matches score double so a query naming a document by title ranks it
+first. `RETRIEVAL_TOP_K` added to `agent/config.py`, config-sourced per
+the resolved `SRS-RET-IF-01`, replacing the hardcoded `top_k=5` call site.
+`user_id` flows through the retrieval call signature (`SRS-RET-F-03`) but
+applies no filtering yet — interface-correct only, per the B3.5 scope
+decision; the authorization-negative eval case stays a recorded Phase A
+gap, not built now.
+
+**A second real gap found via live testing**: `reason_node`'s context
+construction sent only raw passage text to the model, with no `doc_id`
+attached — the model had no way to produce a citation at all, regardless
+of prompt wording. Fixed by tagging each passage `[Source: <doc_id>,
+version <n>]` in the context, and the system prompt now asks for an
+explicit trailing `Sources:` line. First attempt (a citation
+example inline in prose) was inconsistent — cited on 2 of 3 live test
+queries; the explicit-line instruction fixed it to 3/3, including a
+verified multi-document case (`SVC-002, PLAT-003` for a query
+structurally identical to KQA-014, matching its `source_doc_ids` exactly).
+
+**Live-verified against the real MaaS**: single-doc citation + correct
+answer (CI pipeline stages, PLAT-003); the `must_refuse_if_absent` case
+(no maximum execution time, correctly refused-to-fabricate, cited);
+approver-identity question (PLAT-002); multi-step procedure question
+(PROC-001); multi-document citation (SVC-002 + PLAT-003, exact match to
+KQA-014's expected `source_doc_ids`).
+
+**New unit tests**: `tests/test_corpus_ingest.py` (5 — all 20 docs
+retrievable, governance-field completeness, metadata/file-gating on
+synthetic fixtures), `tests/test_retrieval_client.py` (5 — field shape,
+`top_k`, empty-query handling, 11 real KQA-style queries retrieving their
+expected document in the top 3, corpus-wide absence check). **133 tests
+pass** (123 + 10 new). `EXAMPLE-001`/`EXAMPLE-002` still green.
+
+### Files changed
+
+New: `corpus/seed/*.md` (20 files), `tests/test_corpus_ingest.py`,
+`tests/test_retrieval_client.py`. Modified: `corpus/ingest.py`,
+`agent/retrieval_client.py`, `agent/nodes/retrieve.py`,
+`agent/nodes/reason.py`, `agent/config.py`, `agent/prompts/system_prompt.md`.
+
+## Pausing briefly before B4
+
+Per the kickoff instructions, continuing straight to B4 (not a full
+stop) — evidence above is the checkpoint. `knowledge_qa` is now a real,
+verified category, not a placeholder — B4 wires all 8 into the harness.
