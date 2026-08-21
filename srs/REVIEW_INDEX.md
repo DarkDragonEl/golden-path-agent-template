@@ -13,7 +13,16 @@ checkpoint).
 
 ---
 
-## srs/SRS-AGT.md (Checkpoint B0-a continuation, unattended iteration)
+## srs/SRS-AGT.md (Checkpoint B0-a continuation, unattended iteration) — RESOLVED at Checkpoint B0-b (2026-08-21)
+
+**All 9 PROPOSED items below were reviewed and accepted as drafted by the
+owner at Checkpoint B0-b.** Item 3 (SRS-AGT-F-04) was adjudicated jointly
+with `srs/SRS-APR.md`'s SRS-APR-F-04 under the agent-as-invoker model —
+see `DECISIONS.md` DEC-008, which also closes FIND-004 via a new, additive
+`SRS-APR-IF-05`. Item 9 (SRS-AGT-SEC-03) closes FIND-003 at the SRS level;
+the SyRS-level clause is explicitly deferred to a future SyRS revision,
+per the owner's own instruction, not silently dropped. The list below is
+kept as the historical record of what was reviewed.
 
 Full-depth derivation, 25 requirements (F-01..09, IF-01..09, DATA-01,
 SEC-01..04, PERF-01, QUAL-01). Adversarially verified by three independent
@@ -69,7 +78,11 @@ Checkpoint B0-a):**
   actions (SRS-AGT-SEC-03) — both recommended as future eval-set additions
   in `eval/cases/domain/`.
 
-## srs/SRS-RET.md (Checkpoint B0-a continuation, unattended iteration; Medium depth)
+## srs/SRS-RET.md (Checkpoint B0-a continuation, unattended iteration; Medium depth) — RESOLVED at Checkpoint B0-b (2026-08-21)
+
+**Both PROPOSED items below were reviewed and accepted as drafted by the
+owner at Checkpoint B0-b.** Item 1 (SRS-RET-DATA-02) closes FIND-005. The
+list below is kept as the historical record of what was reviewed.
 
 11 requirements (F-01..04, IF-01..03, DATA-01..02, SEC-01..02). Same
 adversarial-verify-then-repair process as SRS-AGT.md; 5 issues found (all
@@ -117,7 +130,15 @@ it (see `DECISIONS.md` DEC-001).
   eval case exercises retrieval-authorization-negative behavior. Same
   future eval-set addition would close both.
 
-## srs/SRS-EVH.md (Checkpoint B0-a continuation; Medium depth)
+## srs/SRS-EVH.md (Checkpoint B0-a continuation; Medium depth) — HELD, pending owner review (as of 2026-08-21)
+
+**The 2 PROPOSED items below, `srs/FINDINGS.md` FIND-006, and
+`DECISIONS.md` DEC-006 (the durable rationale for SRS-EVH-IF-02(a)) were
+explicitly held out of the Checkpoint B0-b closure pass** — the owner
+could not adjudicate them sight-unseen from the review package alone and
+asked to see the two PROPOSED texts and FIND-006's description directly
+before deciding. This is the one remaining item before Checkpoint B0-b is
+fully closed and `feature/phase-b0-srs` merges to `main`.
 
 13 requirements (F-01..06, IF-01..02, DATA-01..04, QUAL-01). Same
 adversarial-verify-then-repair process as its siblings; 8 issues found (2

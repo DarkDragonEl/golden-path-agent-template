@@ -38,7 +38,7 @@ this finding and its disposition exist so the owner can decide whether the
 gap should *also* be closed at the SyRS level in a future revision (out of
 scope for this document to decide).
 
-**Status:** Open — pending owner adjudication at Checkpoint B0-a.
+**Status:** Resolved at Checkpoint B0-b. `SRS-APR-SEC-02` adopted as drafted. The owner did not additionally elect to close the gap at the SyRS level in this pass.
 
 ---
 
@@ -64,7 +64,7 @@ choose to fold an explicit immutability clause into a future SyRS
 revision instead of (or in addition to) carrying it only at the SRS
 level.
 
-**Status:** Open — pending owner adjudication at Checkpoint B0-a.
+**Status:** Resolved at Checkpoint B0-b. `SRS-APR-SEC-04` adopted as drafted. The owner did not additionally elect to close the gap at the SyRS level in this pass.
 
 ---
 
@@ -93,7 +93,7 @@ as read-only. This is an addition to SRS-AGT, not a change to the SyRS;
 the owner may decide whether the gap should also be closed at the SyRS
 level in a future revision.
 
-**Status:** Open — pending owner adjudication at Checkpoint B0-a.
+**Status:** Resolved at Checkpoint B0-b, at the SRS level only. `SRS-AGT-SEC-03` adopted as drafted, treated as the highest-leverage item in this checkpoint's review (it directly shapes `policy/approval_rules.yaml`'s `default_classification: write` in Phase B2). **The SyRS-level clause is explicitly deferred, not dropped:** the owner did not close this gap at SysR-P-SEC-05/SysR-P-POL-01 themselves in this pass; an explicit tie-breaking rule at the SyRS level remains an open question for a future SyRS revision.
 
 ---
 
@@ -131,9 +131,7 @@ an equivalent push/notification mechanism.
 mechanism honestly as an open, `PROPOSED` item pending this finding's
 resolution, rather than assuming an interface that does not yet exist.
 
-**Status:** Open — pending owner adjudication; blocks closing
-SRS-AGT-F-04's PROPOSED marker with full confidence until SRS-APR's
-query-interface coverage is resolved.
+**Status:** Resolved at Checkpoint B0-b. Adjudicated jointly with `SRS-AGT-F-04` and `SRS-APR-F-04` under the agent-as-invoker model (see `DECISIONS.md` DEC-008): a new, additive `SRS-APR-IF-05 — Terminal-state proposal query` was adopted, giving the agent a defined mechanism to learn a decided proposal's outcome and the unmodified arguments to execute. Phase B realizes this via an explicitly-labeled interim mechanism (the agent's own in-process interrupt/resume, plus a `GET /approvals/{session_id}` read endpoint); Phase D's standalone approval service implements SRS-APR-IF-05 as specified.
 
 ---
 
@@ -169,7 +167,7 @@ corpus-version retention should also be stated explicitly at the SyRS
 level in a future revision, the same open question FIND-001/FIND-002 left
 for SysR-P-F-08/SEC-06 respectively.
 
-**Status:** Open — pending owner adjudication at Checkpoint B0-a.
+**Status:** Resolved at Checkpoint B0-b. `SRS-RET-DATA-02` adopted as drafted. The owner did not additionally elect to close the gap at the SyRS level in this pass.
 
 ---
 

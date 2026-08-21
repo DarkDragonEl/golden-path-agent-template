@@ -42,9 +42,14 @@ ambiguous than leaving the shape undefined until `SRS-RET` exists, and
 avoids two independently-invented, possibly-divergent shapes for the same
 contract.
 
-**Status:** Open — pending owner review; to be confirmed (or revised) once
-`srs/SRS-RET.md` is drafted and this session verifies the two documents
-actually agree field-for-field.
+**Status:** Resolved at Checkpoint B0-b. `srs/SRS-RET.md` is now drafted;
+its own text confirms the field-for-field check was performed during
+derivation and found `SRS-RET-IF-01` satisfies and widens `SRS-AGT-IF-03`'s
+shape without narrowing or redefining it (extra fields `title`/`source`,
+both `version` and `effective_date` returned where SRS-AGT-IF-03 asks for
+either) — see `srs/SRS-RET.md`'s SRS-RET-IF-01 note and
+`srs/REVIEW_INDEX.md`'s SRS-RET section. The derivation-order exception
+this decision authorized worked as intended; no revision needed.
 
 ---
 
@@ -306,3 +311,69 @@ specified, not newly designed), and is exactly the kind of coverage gap
 text; confirmed by re-running `tools/trace-check`, which now reports 44/63
 SysRs traced, 19/19 remaining correctly deferred, checks (a)/(b)/(c) all
 PASS.
+
+---
+
+## DEC-008 — Approval-service architecture: agent-as-invoker model, Phase B interim mechanism, Phase D standalone service with new SRS-APR-IF-05
+
+**Document/scope:** `srs/SRS-AGT.md` (SRS-AGT-F-04), `srs/SRS-APR.md`
+(SRS-APR-F-04, new SRS-APR-IF-05) — adjudicated jointly at Checkpoint B0-b,
+closing `srs/FINDINGS.md` FIND-004.
+
+**Ambiguity:** As drafted, `SRS-APR-F-04` and `SRS-AGT-F-04` conflicted.
+`SRS-APR-F-04`'s `PROPOSED` text offered "synchronous invoke-and-record"
+(read literally, the approval service invokes the write-capable tool
+itself) as one option. `SRS-AGT-F-04`'s `PROPOSED` text assigned the
+literal `SRS-MIT-IF-03` (`itsm_create_request`) invocation to the agent.
+Both could not be true as separately drafted. Underlying this,
+`srs/FINDINGS.md` FIND-004 recorded that neither of `SRS-APR`'s published
+query interfaces (`IF-04`, `F-05`) is scoped to a proposal's terminal
+state, so the agent — under either reading — had no defined way to learn
+a decided proposal's outcome.
+
+**Decision:** Adopt the **agent-as-invoker model** for both requirements,
+resolved together, not independently:
+
+- `SRS-APR-F-04` — "release" is the approval service's atomic transition
+  of a proposal to `approved`, plus making the approved proposal
+  (including its unmodified `action_arguments`) queryable. The service
+  itself never issues the literal tool-contract call.
+- `SRS-AGT-F-04` — execution is the agent's act. On `approved`, the agent
+  invokes `SRS-MIT-IF-03` directly, per `SRS-MIT-SEC-01`'s "reachable by
+  the agent" language and the frozen `SysR-A-F-04` ("the agent shall...
+  execute the action").
+- **Added condition, preserving SRS-APR-F-04's "unmodified arguments"
+  guarantee under this model:** on `approved`, the agent shall execute the
+  `action_arguments` exactly as returned by the approval service's
+  decision/terminal-state query — never a locally cached copy retained
+  from drafting time. A Phase B integration test shall assert
+  `arguments_executed == arguments_approved`.
+- **FIND-004 closure:** a new, purely additive `SRS-APR-IF-05 —
+  Terminal-state proposal query` is adopted in `srs/SRS-APR.md`, giving
+  the agent the query surface this model requires.
+- **Sequencing:** Phase B has no standalone approval service, so it
+  realizes this requirement's functional intent through an explicitly
+  labeled **interim mechanism** — the agent's existing in-process
+  `interrupt_before=["human_approval"]`/`MemorySaver`/resume flow, plus a
+  new `GET /approvals/{session_id}` read endpoint on the agent itself.
+  This label must appear wherever the interim mechanism is described —
+  the demo script and `docs/DEPLOY_AND_DEMO_MANUAL.md`, not only this
+  entry — so no audience mistakes it for the real, persistent `SRS-APR`
+  service. Phase D builds the real standalone `approval_service`
+  component per `SRS-APR-IF-01..05`/`DATA-01..02`/`SEC-01..04`, and the
+  agent is refactored to call **out** to it instead of pausing in-process.
+
+**Rationale:** `SysR-A-F-04`'s frozen text explicitly assigns execution to
+the agent, and `SRS-MIT-SEC-01` (already approved) already states the
+write operation is agent-reachable — a service-side literal invocation
+would conflict with both. Reading `SRS-APR-F-04`'s "release... by invoking
+the tool-contract path" as the service's state-transition-plus-query-
+exposure step, rather than a literal call, resolves the conflict without
+reopening either frozen SyRS text or `SRS-MIT.md`. The added
+arguments-equality condition is what keeps SRS-APR-F-04's core guarantee
+(unmodified arguments) true end to end once the literal invocation moves
+to the agent side — without it, this reading would have quietly weakened
+that guarantee instead of relocating it.
+
+**Status:** Resolved — reflected directly in `srs/SRS-AGT.md`'s
+SRS-AGT-F-04 and `srs/SRS-APR.md`'s SRS-APR-F-04/new SRS-APR-IF-05.

@@ -769,3 +769,100 @@ already pass checks (b)/(c) as a side effect of this run (confirmed by
 `reports/trace-check.json` covering all five documents uniformly), but
 check (a)'s coverage claims for their specific SysRs were not
 independently re-audited beyond what the tool itself already confirms.
+
+---
+
+## Checkpoint B0-b (owner review pass) — 2026-08-21 — PARTIAL, merge pending
+
+The owner reviewed the 17 `PROPOSED` items across `srs/SRS-AGT.md`,
+`srs/SRS-APR.md`, `srs/SRS-RET.md`, and `srs/SRS-EVH.md`, plus the 6
+findings in `srs/FINDINGS.md` and the outstanding entries in
+`DECISIONS.md`, live in conversation rather than by reading the source
+files directly. Three corrections were made to the reviewer's initial
+resolution package before proceeding (an omitted item, a cross-document
+conflict needing joint adjudication, and three items the reviewer could
+not adjudicate sight-unseen). **This checkpoint is not fully closed**:
+`srs/SRS-EVH.md`'s 2 `PROPOSED` items, `srs/FINDINGS.md` FIND-006, and
+`DECISIONS.md` DEC-006 remain open, explicitly held out at the owner's
+request pending a follow-up review of their exact text. `main` has not
+been merged into.
+
+### Audit table — all 17 `PROPOSED` items, explicit verdict
+
+| # | Item | Verdict | Note |
+|---|---|---|---|
+| 1 | SRS-AGT-F-01 (citation granularity) | Accepted as drafted | Owner note added: Phase A cases check answer-level presence only, per-claim density is a Phase B scorer concern |
+| 2 | SRS-AGT-F-03 (one output/turn) | Accepted as drafted | — |
+| 3 | SRS-AGT-F-04 (decision-outcome query, literal invoker) | Accepted, with condition | Adjudicated jointly with SRS-APR-F-04 — agent-as-invoker model, `DECISIONS.md` DEC-008; added condition: agent executes `action_arguments` from the approval service's terminal-state query, never a cached copy; Phase B integration test required |
+| 4 | SRS-AGT-F-05 (static escalation contact) | Accepted as drafted | — |
+| 5 | SRS-AGT-F-06 ("detected injection" = policy refusal) | Accepted as drafted | — |
+| 6 | SRS-AGT-F-07 (step = one loop cycle) | Accepted as drafted | — |
+| 7 | SRS-AGT-F-09 (policy read once at task start) | Accepted as drafted | — |
+| 8 | SRS-AGT-IF-04 (runtime tool-catalog lookup) | Accepted as drafted | — |
+| 9 | SRS-AGT-SEC-03 (fail-closed on ambiguous classification) | Accepted as drafted | Highest-leverage item — shapes `policy/approval_rules.yaml`'s `default_classification: write` in B2; closes FIND-003 at SRS level, SyRS-level clause explicitly deferred to a future SyRS revision |
+| 10 | SRS-RET-DATA-02 (superseded-version retrievability) | Accepted as drafted | Closes FIND-005 |
+| 11 | SRS-RET-IF-01 (top_k default sourced from config) | Accepted as drafted | — |
+| 12 | SRS-EVH-F-04 (known-gap mechanical detection signal) | **Held** | Owner asked to see the exact text before adjudicating; not yet reviewed |
+| 13 | SRS-EVH-IF-02 (additive results-schema fields) | **Held** | Same as above; tied to FIND-006 and DEC-006 |
+| 14 | SRS-APR-F-04 (sync release vs. event) | Accepted, with condition | Same joint adjudication as item 3 — "release" = atomic state transition + queryable proposal, not a literal service-side tool invocation; new SRS-APR-IF-05 added to close FIND-004 |
+| 15 | SRS-APR-F-07 (idempotent submission) | Accepted as drafted | — |
+| 16 | SRS-APR-SEC-02 (approver authorization) | Accepted as drafted | Closes FIND-001; owner-noted known limitation: does not forbid initiator-as-approver — acceptable at demo tier, four-eyes separation is a staging/phase-two concern |
+| 17 | SRS-APR-SEC-04 (audit-record integrity) | Accepted as drafted | Closes FIND-002 |
+
+### Findings disposition
+
+FIND-001 → Resolved (SEC-02). FIND-002 → Resolved (SEC-04). FIND-003 →
+Resolved at the SRS level only (SEC-03); SyRS-level clause explicitly
+deferred to a future SyRS revision, not dropped. FIND-004 → Resolved
+(DEC-008, new SRS-APR-IF-05). FIND-005 → Resolved (RET-DATA-02). FIND-006
+→ **held**, untouched, pending the owner's review of its exact text.
+
+### `DECISIONS.md` — closed/added this pass
+
+- **DEC-001** (SRS-AGT-before-SRS-RET derivation order) — closed. `srs/SRS-RET.md`'s own text confirms the field-for-field check was performed and `SRS-RET-IF-01` satisfies and widens `SRS-AGT-IF-03`'s shape without narrowing it; the derivation-order exception worked as intended.
+- **DEC-008** (new) — the approval-service architecture decision: agent-as-invoker model for SRS-AGT-F-04/SRS-APR-F-04, Phase B interim mechanism (in-agent interrupt/resume + `GET /approvals/{session_id}`) explicitly labeled as interim in the demo script and deploy manual (not only here), Phase D standalone `approval_service` per the new `SRS-APR-IF-05`.
+- **DEC-006** — **left open, not closed.** It is the durable-rationale record for SRS-EVH-IF-02(a) (additive fields vs. version bump), one of the three items the owner held out this pass. Closing it now would have pre-empted that review.
+
+### Commands run and results
+
+```
+$ python3 tools/trace-check/trace_check.py --docs-only
+(a) SysR -> SRS coverage                 PASS      0
+(b) SRS -> SysR trace validity           PASS      0
+(c) No broken/orphan IDs                 PASS      0
+(d) SRS-F -> test/eval coverage          SKIPPED   0
+74 SRS requirements across 5 documents (was 73; +1 for new SRS-APR-IF-05)
+44/63 SysRs traced, 19/19 remaining correctly deferred
+exit code 0
+```
+
+```
+$ python3 -m pytest -q
+No module named pytest
+```
+**Honest gap, not glossed over:** this sandbox has neither `make` nor
+`pytest` installed (no `.venv`, no global `pytest` binary found). This
+pass touched only `.md` files — confirmed by `git diff --stat -- agent
+mcp_server eval tools tests` returning empty — so the test-suite gap does
+not bear on this checkpoint's content, but it could not be independently
+re-confirmed here as prior checkpoints' reports did (`make test`, 56
+passed). Flagged for the owner: install `pytest`/set up the venv before
+the next code-touching checkpoint, since this report cannot claim `make
+test` still passes.
+
+### Files changed this pass
+
+`DECISIONS.md`, `srs/FINDINGS.md`, `srs/REVIEW_INDEX.md`, `srs/SRS-AGT.md`,
+`srs/SRS-APR.md`, `srs/SRS-RET.md`. `srs/SRS-EVH.md` deliberately
+untouched (held). Not yet committed or merged — see below.
+
+### What's still needed to actually close Checkpoint B0-b
+
+1. Owner reviews SRS-EVH-F-04, SRS-EVH-IF-02, and FIND-006's exact text
+   (paste follows in conversation) and renders a verdict.
+2. `srs/SRS-EVH.md` and `srs/FINDINGS.md` FIND-006 updated accordingly;
+   `DECISIONS.md` DEC-006 closed or revised.
+3. `make trace` (or the direct `python3 tools/trace-check/trace_check.py
+   --docs-only` equivalent) re-run to confirm still green.
+4. Commit, then merge `feature/phase-b0-srs` → `main` — the literal
+   Checkpoint B0-b closing action.
