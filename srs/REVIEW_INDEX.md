@@ -130,15 +130,18 @@ it (see `DECISIONS.md` DEC-001).
   eval case exercises retrieval-authorization-negative behavior. Same
   future eval-set addition would close both.
 
-## srs/SRS-EVH.md (Checkpoint B0-a continuation; Medium depth) — HELD, pending owner review (as of 2026-08-21)
+## srs/SRS-EVH.md (Checkpoint B0-a continuation; Medium depth) — RESOLVED at Checkpoint B0-b (2026-08-21)
 
-**The 2 PROPOSED items below, `srs/FINDINGS.md` FIND-006, and
-`DECISIONS.md` DEC-006 (the durable rationale for SRS-EVH-IF-02(a)) were
-explicitly held out of the Checkpoint B0-b closure pass** — the owner
-could not adjudicate them sight-unseen from the review package alone and
-asked to see the two PROPOSED texts and FIND-006's description directly
-before deciding. This is the one remaining item before Checkpoint B0-b is
-fully closed and `feature/phase-b0-srs` merges to `main`.
+**Both PROPOSED items below were reviewed and resolved by the owner at
+Checkpoint B0-b**, after being held out of the initial closure pass
+pending direct review of their exact text. SRS-EVH-F-04 was resolved as a
+declarative signal (the `known-gap` tag itself, read from the
+version-controlled thresholds file) rather than static code inspection —
+self-verifying, since a dishonestly-removed tag fails the gate unless the
+fallback actually works. SRS-EVH-IF-02 was accepted with one added
+condition: a `build_reference_type` companion field, closing FIND-006 and
+`DECISIONS.md` DEC-006. The list below is kept as the historical record of
+what was reviewed.
 
 13 requirements (F-01..06, IF-01..02, DATA-01..04, QUAL-01). Same
 adversarial-verify-then-repair process as its siblings; 8 issues found (2

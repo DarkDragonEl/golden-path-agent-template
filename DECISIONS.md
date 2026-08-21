@@ -263,9 +263,15 @@ SRS-EVH-IF-02; this entry gives the reasoning a durable, cross-document
 home, the same role DEC-003 plays for a decision `srs/SRS-RET.md` resolves
 inline in its own text.
 
-**Status:** Open — pending owner review (the choice itself is marked
-`PROPOSED` in `srs/SRS-EVH.md`; this entry is the durable record of the
-reasoning, not a claim that the design choice itself is settled).
+**Status:** Resolved at Checkpoint B0-b. The additive-fields choice is
+accepted as drafted — a restructure would break `eval/reporter.py`
+consumers and the local/CI schema-parity posture (SysR-P-F-03) for no
+benefit. One addition made at the same checkpoint, not part of this
+entry's original ambiguity but recorded here for the same durable-rationale
+reason: the results record also carries a `build_reference_type`
+companion field, so a downstream consumer can distinguish a real image
+digest from a pre-build git-commit sentinel — see `srs/FINDINGS.md`
+FIND-006 and `srs/SRS-EVH.md`'s SRS-EVH-IF-02 for the full disposition.
 
 ---
 

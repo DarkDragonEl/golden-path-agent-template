@@ -772,7 +772,7 @@ independently re-audited beyond what the tool itself already confirms.
 
 ---
 
-## Checkpoint B0-b (owner review pass) — 2026-08-21 — PARTIAL, merge pending
+## Checkpoint B0-b (owner review pass) — 2026-08-21 — CLOSED
 
 The owner reviewed the 17 `PROPOSED` items across `srs/SRS-AGT.md`,
 `srs/SRS-APR.md`, `srs/SRS-RET.md`, and `srs/SRS-EVH.md`, plus the 6
@@ -781,11 +781,11 @@ findings in `srs/FINDINGS.md` and the outstanding entries in
 files directly. Three corrections were made to the reviewer's initial
 resolution package before proceeding (an omitted item, a cross-document
 conflict needing joint adjudication, and three items the reviewer could
-not adjudicate sight-unseen). **This checkpoint is not fully closed**:
-`srs/SRS-EVH.md`'s 2 `PROPOSED` items, `srs/FINDINGS.md` FIND-006, and
-`DECISIONS.md` DEC-006 remain open, explicitly held out at the owner's
-request pending a follow-up review of their exact text. `main` has not
-been merged into.
+not adjudicate sight-unseen). `srs/SRS-EVH.md`'s 2 `PROPOSED` items,
+`srs/FINDINGS.md` FIND-006, and `DECISIONS.md` DEC-006 were initially held
+out at the owner's request, pending a follow-up review of their exact
+text — resolved in a second pass, below, once that text was reviewed. All
+17 items are now closed and `feature/phase-b0-srs` is merged to `main`.
 
 ### Audit table — all 17 `PROPOSED` items, explicit verdict
 
@@ -802,8 +802,8 @@ been merged into.
 | 9 | SRS-AGT-SEC-03 (fail-closed on ambiguous classification) | Accepted as drafted | Highest-leverage item — shapes `policy/approval_rules.yaml`'s `default_classification: write` in B2; closes FIND-003 at SRS level, SyRS-level clause explicitly deferred to a future SyRS revision |
 | 10 | SRS-RET-DATA-02 (superseded-version retrievability) | Accepted as drafted | Closes FIND-005 |
 | 11 | SRS-RET-IF-01 (top_k default sourced from config) | Accepted as drafted | — |
-| 12 | SRS-EVH-F-04 (known-gap mechanical detection signal) | **Held** | Owner asked to see the exact text before adjudicating; not yet reviewed |
-| 13 | SRS-EVH-IF-02 (additive results-schema fields) | **Held** | Same as above; tied to FIND-006 and DEC-006 |
+| 12 | SRS-EVH-F-04 (known-gap mechanical detection signal) | Accepted, revised design | Declarative signal (the `known-gap` tag itself, in `eval/THRESHOLDS.md`/`eval/thresholds.yaml`) adopted instead of static code inspection — self-verifying: a dishonestly-removed tag fails the gate unless the fallback actually works |
+| 13 | SRS-EVH-IF-02 (additive results-schema fields) | Accepted, (a) as drafted / (b) with condition | (a) additive fields, no version bump, confirmed. (b) build-reference sentinel accepted, with an added `build_reference_type` companion field (`image_digest` \| `git_commit` \| `local_dev_uncommitted`) so a digest can never be mistaken for a commit hash — closes FIND-006 and DEC-006 |
 | 14 | SRS-APR-F-04 (sync release vs. event) | Accepted, with condition | Same joint adjudication as item 3 — "release" = atomic state transition + queryable proposal, not a literal service-side tool invocation; new SRS-APR-IF-05 added to close FIND-004 |
 | 15 | SRS-APR-F-07 (idempotent submission) | Accepted as drafted | — |
 | 16 | SRS-APR-SEC-02 (approver authorization) | Accepted as drafted | Closes FIND-001; owner-noted known limitation: does not forbid initiator-as-approver — acceptable at demo tier, four-eyes separation is a staging/phase-two concern |
@@ -814,14 +814,15 @@ been merged into.
 FIND-001 → Resolved (SEC-02). FIND-002 → Resolved (SEC-04). FIND-003 →
 Resolved at the SRS level only (SEC-03); SyRS-level clause explicitly
 deferred to a future SyRS revision, not dropped. FIND-004 → Resolved
-(DEC-008, new SRS-APR-IF-05). FIND-005 → Resolved (RET-DATA-02). FIND-006
-→ **held**, untouched, pending the owner's review of its exact text.
+(DEC-008, new SRS-APR-IF-05). FIND-005 → Resolved (RET-DATA-02). FIND-006 → Resolved (build-reference
+sentinel + `build_reference_type` companion field, uniform local/CI
+tracking obligation preserved).
 
 ### `DECISIONS.md` — closed/added this pass
 
 - **DEC-001** (SRS-AGT-before-SRS-RET derivation order) — closed. `srs/SRS-RET.md`'s own text confirms the field-for-field check was performed and `SRS-RET-IF-01` satisfies and widens `SRS-AGT-IF-03`'s shape without narrowing it; the derivation-order exception worked as intended.
 - **DEC-008** (new) — the approval-service architecture decision: agent-as-invoker model for SRS-AGT-F-04/SRS-APR-F-04, Phase B interim mechanism (in-agent interrupt/resume + `GET /approvals/{session_id}`) explicitly labeled as interim in the demo script and deploy manual (not only here), Phase D standalone `approval_service` per the new `SRS-APR-IF-05`.
-- **DEC-006** — **left open, not closed.** It is the durable-rationale record for SRS-EVH-IF-02(a) (additive fields vs. version bump), one of the three items the owner held out this pass. Closing it now would have pre-empted that review.
+- **DEC-006** — closed. The additive-fields choice for SRS-EVH-IF-02(a) is accepted as drafted (a restructure would break `eval/reporter.py` consumers and local/CI schema parity for no benefit); the entry also now records the `build_reference_type` companion field added at this checkpoint.
 
 ### Commands run and results
 
@@ -850,19 +851,58 @@ passed). Flagged for the owner: install `pytest`/set up the venv before
 the next code-touching checkpoint, since this report cannot claim `make
 test` still passes.
 
-### Files changed this pass
+### Second pass — the three held items resolved, 2026-08-21
+
+The owner reviewed the pasted texts for SRS-EVH-F-04, SRS-EVH-IF-02, and
+FIND-006 and rendered verdicts (table updated above to 17/17). Also
+addressed: `SRS-EVH-F-04`'s resolution deliberately does **not** use
+static inspection of `agent/nodes/reason.py` — the owner judged that
+approach fragile in both directions (a legitimate refactor could fail the
+check falsely; an unrelated try/except could pass it falsely) and adopted
+the version-controlled `known-gap` tag itself as the self-verifying
+signal instead. `SRS-EVH-IF-02`'s build-reference sentinel gained one
+added field, `build_reference_type`, so a git-commit sentinel can never be
+mistaken for a real image digest downstream (the Phase C MLflow record).
+
+```
+$ python3 tools/trace-check/trace_check.py --docs-only
+(a) SysR -> SRS coverage                 PASS      0
+(b) SRS -> SysR trace validity           PASS      0
+(c) No broken/orphan IDs                 PASS      0
+(d) SRS-F -> test/eval coverage          SKIPPED   0
+74 SRS requirements across 5 documents (unchanged — no new requirement IDs
+this pass, only marker resolutions and one additive field on an existing
+requirement)
+44/63 SysRs traced, 19/19 remaining correctly deferred
+exit code 0
+```
+
+On the `make`/`pytest` gap: the owner accepted this as sufficient evidence
+for a docs-only change (confirmed by empty `git diff --stat` on
+`agent`/`mcp_server`/`eval`/`tools`/`tests` across both passes) and set two
+explicit follow-ups, recorded here for whoever starts Phase B:
+
+1. **`make test && make eval` (the `EXAMPLE-*` harness set) must be the
+   literal first command run at Phase B kickoff**, on a real environment
+   with `make`/`pytest` actually installed — before any B1 implementation
+   work — so a stale-environment surprise surfaces at minute one, not
+   mid-B1.
+2. This limitation (no `make`/`pytest` in the sandbox this checkpoint was
+   closed from) is recorded here explicitly, not glossed over.
+
+### Files changed across both passes
 
 `DECISIONS.md`, `srs/FINDINGS.md`, `srs/REVIEW_INDEX.md`, `srs/SRS-AGT.md`,
-`srs/SRS-APR.md`, `srs/SRS-RET.md`. `srs/SRS-EVH.md` deliberately
-untouched (held). Not yet committed or merged — see below.
+`srs/SRS-APR.md`, `srs/SRS-RET.md`, `srs/SRS-EVH.md`.
 
-### What's still needed to actually close Checkpoint B0-b
+### Checkpoint B0-b — closed
 
-1. Owner reviews SRS-EVH-F-04, SRS-EVH-IF-02, and FIND-006's exact text
-   (paste follows in conversation) and renders a verdict.
-2. `srs/SRS-EVH.md` and `srs/FINDINGS.md` FIND-006 updated accordingly;
-   `DECISIONS.md` DEC-006 closed or revised.
-3. `make trace` (or the direct `python3 tools/trace-check/trace_check.py
-   --docs-only` equivalent) re-run to confirm still green.
-4. Commit, then merge `feature/phase-b0-srs` → `main` — the literal
-   Checkpoint B0-b closing action.
+All 17 `PROPOSED` items resolved, all 6 findings resolved, `DEC-001`
+through `DEC-008` all closed or resolved. `trace-check --docs-only` green.
+Committed and merged to `main` — see the merge commit for the exact SHA.
+
+**Phase B kickoff is explicitly not started by this merge.** Per the
+owner's own instruction, three items are pending confirmation before B1
+work begins: the fallback model pick (from the 19 MaaS-hosted models), the
+tool-calling spike against `granite-3-2-8b-instruct` as the literal first
+implementation task, and the `make test`/`make eval` baseline run above.

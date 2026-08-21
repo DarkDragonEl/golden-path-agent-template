@@ -203,7 +203,7 @@ whether SysR-P-INFO-05 itself should be revised in a future SyRS revision
 to state explicitly "image digest, or an equivalent build reference where
 no image yet exists."
 
-**Status:** Open — pending owner adjudication at Checkpoint B0-a.
+**Status:** Resolved at Checkpoint B0-b. `SRS-EVH-IF-02`'s build-reference-sentinel proposal adopted as drafted, with an added condition: the results record also carries a `build_reference_type` companion field (`image_digest` \| `git_commit` \| `local_dev_uncommitted`), so a downstream consumer (the Phase C MLflow record, promotion evidence) can never mistake a git commit hash for a real image digest. SysR-P-INFO-05's tracking obligation applies uniformly to local and CI runs — local runs are not exempted, preserving local/CI comparability under the laptop-to-production parity posture.
 
 ---
 
