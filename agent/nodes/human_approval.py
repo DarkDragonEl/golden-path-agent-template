@@ -21,6 +21,7 @@ record, not a cached copy — is identical in both phases.
 """
 
 from .. import config
+from ..tool_result_format import format_tool_result
 from mcp_server.client import call_tool
 
 
@@ -54,7 +55,7 @@ def human_approval_node(state):
                 "fallback_reason": f"tool_error:{error}",
             }
 
-        final_output = result.get("result", "") if isinstance(result, dict) else str(result)
+        final_output = format_tool_result(tool_name, result)
         return {"tool_calls": tool_calls, "final_output": final_output, "pending_approval": False}
 
     return {

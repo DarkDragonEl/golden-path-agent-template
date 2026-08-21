@@ -17,6 +17,9 @@ class AgentState(TypedDict, total=False):
     retrieval_unavailable: bool
     retrieved_docs: list
     reasoning_steps: int
+    selected_tool: Optional[dict]  # {tool_name, arguments} or None -- set by reason_node (Phase B3)
+    model_route: Optional[str]  # "primary" | "fallback" | "none" (total failure)
+    model_route_reason_code: Optional[str]  # SysR-P-F-12 reason code
     tool_calls: list[ToolCallRecord]
     pending_approval: bool
     approval_action: Optional[dict]

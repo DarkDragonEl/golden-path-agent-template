@@ -61,6 +61,13 @@ MODEL_NAME = _env("MODEL_NAME", "placeholder-model")
 MODEL_API_KEY = _env("MODEL_API_KEY", "not-needed")
 AGENT_MODEL_MODE = _env("AGENT_MODEL_MODE", "live")  # live | fake
 
+# Fallback route (SysR-P-F-12, DECISIONS.md DEC-009). Unset => no fallback
+# configured; RoutedModelClient re-raises on primary failure instead of
+# retrying. Same API key as primary -- both routes are the same MaaS today
+# (DEC-009); a separate key isn't needed until that's no longer true.
+MODEL_FALLBACK_API_BASE_URL = _env("MODEL_FALLBACK_API_BASE_URL")
+MODEL_FALLBACK_NAME = _env("MODEL_FALLBACK_NAME")
+
 # MCP tool contract
 MCP_TOOL_ENDPOINT = _env("MCP_TOOL_ENDPOINT", "http://localhost:8081")
 MCP_MODE = _env("MCP_MODE", "mock")  # mock | live

@@ -195,6 +195,14 @@ class ItsmStore:
 
             if record_id is not None:
                 matches = [r for r in candidates if r["record_id"] == record_id]
+            elif query and query.strip().upper() in {r["record_id"] for r in candidates}:
+                # Tolerate a caller passing an exact record ID as `query`
+                # instead of `record_id` -- observed empirically: a
+                # capable, correctly-prompted model still sometimes makes
+                # this choice, and a real ITSM search box would be no
+                # stricter about it. Exact match only, case-insensitive;
+                # does not affect any free-text substring match below.
+                matches = [r for r in candidates if r["record_id"] == query.strip().upper()]
             else:
                 matches = candidates
                 if status is not None:

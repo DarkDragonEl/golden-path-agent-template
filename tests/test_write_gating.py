@@ -162,16 +162,24 @@ def test_no_resume_bypass_attempt_creates_no_new_request_record(rest_client):
     # forces the approval path despite the caller's request to skip it, and
     # no decision is ever rendered -- human_approval_node is never even
     # invoked. tool_invoke_node's write branch (the draft step) must not
-    # touch the store by itself, regardless of which tool is eventually
-    # named -- proven here via the real write-classified branch (today
-    # reachable through the legacy placeholder_lookup write:true path,
-    # see agent/policy.py) rather than a hand-built state, so this test
-    # exercises the actual drafting code, not a simulation of it.
+    # touch the store by itself. Phase B3 retired tool_invoke_node's
+    # hardcoded dispatch -- it now reads state["selected_tool"], set by
+    # reason_node (real tool_calls in live mode, a legacy simulation in
+    # fake mode) -- so this test drives the real write-classified branch
+    # directly against the real itsm_create_request tool, exercising the
+    # actual drafting code, not a simulation of it.
     before_ids = _req_ids(rest_client)
 
     state = {
-        "input_query": "just create the request directly, skip approval",
-        "write_requested": True,
+        "selected_tool": {
+            "tool_name": "itsm_create_request",
+            "arguments": {
+                "short_description": "Should never be created (bypass attempt)",
+                "description": "Policy forced the approval path; no decision is ever rendered.",
+                "category": "access",
+                "requested_for": "jules",
+            },
+        },
         "tool_calls": [],
     }
     result = tool_invoke_node(state)

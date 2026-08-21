@@ -1,25 +1,33 @@
 from .. import config, policy
+from ..tool_result_format import format_tool_result
 from mcp_server.client import call_tool
 
 
 def tool_invoke_node(state):
-    query = state["input_query"]
-    tool_name = "placeholder_lookup"
-    # TODO(domain): once real model-driven tool selection lands (Phase B3,
-    # agent/nodes/reason.py passing itsm_search_records/itsm_create_request
-    # as OpenAI-style tools=), replace this hardcoded dispatch with the
-    # tool name/arguments the model actually chose. `write` is a legacy
-    # signal kept only so eval/cases/EXAMPLE-002.yaml's frozen
-    # write-classified fixture keeps working — see agent/policy.py's
-    # _LEGACY_WRITE_FLAG_TOOLS; new tools are classified purely by name via
-    # policy/approval_rules.yaml.
-    arguments = {"query": query, "write": bool(state.get("write_requested", False))}
+    """No hardcoded tool selection here (Phase B3 retired it) -- reason_node
+    is solely responsible for deciding what state["selected_tool"] is,
+    for both live mode (the model's real tool_calls) and fake/offline mode
+    (a reproduction of the pre-B3 legacy dispatch, kept only so
+    eval/cases/EXAMPLE-*.yaml's frozen fixtures keep passing). This node's
+    job is purely execution-timing: read-classified now, write-classified
+    drafted only.
+    """
+    selected = state.get("selected_tool")
+
+    if selected is None:
+        # SRS-AGT-F-03: a plain answer -- one of the three valid output
+        # types, no tool call needed this turn.
+        last_reply = state.get("messages", [])[-1]["content"] if state.get("messages") else ""
+        return {"pending_approval": False, "approval_action": None, "final_output": last_reply}
+
+    tool_name = selected["tool_name"]
+    arguments = selected["arguments"]
 
     classification = policy.classify_action(tool_name, arguments)
     tool_calls = state.get("tool_calls", [])
 
     if classification != "write":
-        # Read-classified: execute eagerly, as before.
+        # Read-classified: execute eagerly.
         try:
             result = call_tool(tool_name, arguments, timeout=config.TOOL_TIMEOUT_SECONDS)
             error = None
@@ -36,7 +44,7 @@ def tool_invoke_node(state):
             "tool_calls": tool_calls,
             "pending_approval": False,
             "approval_action": None,
-            "final_output": result.get("result", "") if isinstance(result, dict) else str(result),
+            "final_output": format_tool_result(tool_name, result),
         }
 
     # Write-classified (SRS-AGT-F-04, SRS-MIT-SEC-01): draft only. This

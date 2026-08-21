@@ -10,6 +10,10 @@ def decide_after_retrieve(state):
 
 
 def decide_after_reason(state):
+    if state.get("fallback_reason"):
+        # reason_node sets this on total model failure (both routes
+        # exhausted, or none configured) -- SysR-A-F-05/SysR-P-F-12.
+        return "fallback"
     try:
         policy.check_step_limit(state)
     except policy.StepLimitExceeded:

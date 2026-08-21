@@ -44,6 +44,10 @@ def record_invocation_span(state: dict) -> None:
     span.set_attribute("user.id", state.get("user_id", ""))
     span.set_attribute("model.name", config.MODEL_NAME)
     span.set_attribute("model.endpoint", config.MODEL_API_BASE_URL)
+    # SysR-P-F-12 / SRS-AGT-IF-02: routing decision + reason code, set by
+    # agent/nodes/reason.py on every call (Phase B3).
+    span.set_attribute("model.route", state.get("model_route") or "")
+    span.set_attribute("model.route_reason_code", state.get("model_route_reason_code") or "")
     span.set_attribute(
         "retrieved_doc.ids", ",".join(d.get("doc_id", "") for d in state.get("retrieved_docs", []))
     )

@@ -26,6 +26,20 @@ def check_step_limit(state: dict) -> None:
 # exists only to keep that pinned fixture green — every other tool call,
 # including placeholder_lookup's own default (see
 # policy/approval_rules.yaml), is classified purely by name.
+#
+# This is a second classification signal living alongside the taxonomy —
+# precisely the pattern SRS-MIT-IF-03 bans for the real tools ("read vs.
+# write is signaled by which operation is called, never by an argument
+# flag"). It is tolerated here only because it's narrowly scoped to one
+# pinned legacy fixture, not a general mechanism. RETIREMENT TRIGGER: this
+# carve-out dies the moment placeholder_lookup itself retires — once
+# EXAMPLE-*.yaml fixtures are its only consumers and can be migrated off
+# the write:true mechanism per DECISIONS.md DEC-005's own terms, or Phase C
+# at the latest. Phase B3 moved tool_invoke_node's own hardcoded dispatch
+# into reason_node's fake-mode simulation (agent/nodes/reason.py) — that
+# did NOT retire this carve-out, since EXAMPLE-002.yaml's own pinned input
+# still depends on the write:true signal regardless of where the dispatch
+# hardcoding lives.
 _LEGACY_WRITE_FLAG_TOOLS = {"placeholder_lookup"}
 
 

@@ -284,9 +284,111 @@ fixture too). Modified: `policy/approval_rules.yaml`, `agent/config.py`,
 `agent/nodes/human_approval.py`, `mcp_server/client.py`,
 `tests/test_policy_limits.py`.
 
-## Pausing for B3/B4 confirmation
+## B3 — Model routing/fallback + real tool selection (2026-08-21)
 
-Per the kickoff instructions: B2 is done, evidence above. Pausing here
-before B3 (model routing/fallback wiring, real tool-selection via
-`tools=`) and B4 (eval harness domain wiring, where the DEC-009
-compensating control lands).
+`agent/model_client.py`: `RoutedModelClient` (primary + one fallback, both
+OpenAI-compatible) tries primary, retries once against fallback on any
+exception, classifies via `_classify_primary_failure` into the closed
+4-code enum (`primary_timeout`/`primary_429`/`primary_5xx`/`primary_unreachable`;
+non-429 `APIStatusError` folds into `primary_5xx`, a simplification of the
+given enum, noted inline). `agent/nodes/reason.py`: wrapped in try/except,
+total failure sets `fallback_reason="model_failure:<exception-class>"` and
+`agent/routers.py::decide_after_reason` now checks it before the
+step-limit check. `agent/tool_schemas.py` (new): OpenAI-style schemas
+mirroring `mcp_server/schemas.py`, same shape already verified in the
+kickoff spike.
+
+`tool_invoke_node`'s hardcoded dispatch is genuinely retired — it now
+reads `state["selected_tool"]` exclusively. `reason_node` owns the
+mode-branching: live mode uses the model's real `tool_calls`; fake mode
+reproduces the pre-B3 legacy dispatch exactly (so `EXAMPLE-*.yaml` keeps
+passing unchanged) — this is the "judge on the spot" call on where the
+carve-out's hardcoding lives now. The `write:true` carve-out in
+`agent/policy.py` itself is unchanged code but got the requested
+retirement-trigger comment: it dies once `EXAMPLE-*` fixtures can be
+migrated off it per `DECISIONS.md` DEC-005's own terms, or Phase C at the
+latest — not yet, since `EXAMPLE-002.yaml`'s own pinned input still
+depends on it regardless of where the dispatch hardcoding lives.
+
+**Two real gaps found and fixed via live testing against the actual MaaS**
+(not just offline/fake-mode tests, which couldn't have caught either):
+
+1. `human_approval_node`/`tool_invoke_node`'s `final_output` formatting
+   (`result.get("result", "")`) only ever matched `placeholder_lookup`'s
+   shape — a live `itsm_search_records`/`itsm_create_request` call
+   produced an empty string. Fixed with `agent/tool_result_format.py`
+   (deterministic templating, not a second model call — SRS-AGT-F-03
+   stays one model call per turn). A real approval now surfaces the
+   minted `REQ-` ID, e.g. `"Request REQ-30100 has been submitted (status:
+   submitted)."`
+2. The live model (`granite-3-2-8b-instruct`) doesn't reliably pass a
+   named record ID as `record_id` vs. `query` even with explicit prompt
+   guidance (tried and reverted a more directive prompt — it regressed
+   the model into narrating tool calls in prose instead of emitting real
+   `tool_calls`). Fixed at the store level instead:
+   `itsm_store.search()` now also matches an exact record-ID string
+   passed as `query`, case-insensitive — a deterministic fix, not a
+   prompt-engineering bet.
+
+`agent/prompts/system_prompt.md` replaced (was a `TODO(domain)`
+placeholder with no domain/tool guidance at all). Also found and fixed:
+the model had no way to know *who* was asking (no identity in the message
+sent to it), so it hesitated to draft `itsm_create_request` without a
+`requested_for` value — `reason_node` now appends `(Requested by:
+<user_id>)` to the message.
+
+**Live-verified against the real MaaS, both routes** (not just unit
+tests): record-ID read lookup (correct tool + arguments, real answer);
+free-text write-shaped request → drafts → pauses → approves → real
+`REQ-30100` created with correctly-inferred fields, `final_output`
+surfaces the ID; broken-primary run → falls back to `llama-scout-17b` with
+`reason_code="primary_5xx"`, still answers correctly; broken-primary+
+broken-fallback run → `fallback_reason="model_failure:AuthenticationError"`,
+clean escalation message; out-of-domain refusal (no tool call); prompt
+injection (no real tool call executed — `unauthorized_tool_calls: []`
+holds structurally, though the model's own text sometimes narrates
+engaging with the injected framing rather than cleanly ignoring it,
+flagged for B4's scorer design: check `tool_calls`/`approval_action`
+state, not fuzzy text matching, for this dimension); a purely conceptual
+question (no tool needed). **One anomaly observed once, not reproduced on
+retry**: a single live call produced a wildly off-topic hallucinated
+response (unrelated "StickShift" system-administration content) on a
+conceptual question; a clean retry of the identical query succeeded.
+Noted as a reliability risk to watch during B4's full domain-eval run, not
+chased further now (single non-reproducing occurrence across ~8 live
+calls).
+
+`eval/cases/domain/operational.yaml` OPS-004: `known-gap` tag removed
+(version bumped 0.1.0→0.2.0), `threshold_notes` updated. `eval/THRESHOLDS.md`'s
+exclusion section rewritten to record closure, with the live verification
+above cited as evidence (the trace-check mechanical enforcement of this
+removal trigger, SRS-EVH-F-04, isn't built yet — noted honestly as
+separate, still-open tooling work, not silently assumed done).
+
+**New unit tests**: `tests/test_model_client.py` (11 — routing,
+classification, fallback behavior, no real network calls),
+`tests/test_tool_result_format.py` (6), `tests/test_tool_invoke_dispatch.py`
+(4, covering all three `selected_tool` shapes). **123 tests pass** (102 +
+21 new). `EXAMPLE-001`/`EXAMPLE-002` still green via the real eval CLI.
+`eval/validate.py` still green (62 cases). `trace-check --docs-only`
+unaffected.
+
+### Files changed
+
+New: `agent/tool_schemas.py`, `agent/tool_result_format.py`,
+`tests/test_model_client.py`, `tests/test_tool_result_format.py`,
+`tests/test_tool_invoke_dispatch.py`. Modified: `agent/model_client.py`,
+`agent/config.py`, `agent/nodes/reason.py`, `agent/nodes/tool_invoke.py`,
+`agent/nodes/human_approval.py`, `agent/routers.py`, `agent/telemetry.py`,
+`agent/state.py`, `agent/policy.py` (comment only),
+`agent/prompts/system_prompt.md`, `mcp_server/itsm_store.py`,
+`eval/cases/domain/operational.yaml`, `eval/THRESHOLDS.md`,
+`tests/test_write_gating.py` (one test updated for the new
+`selected_tool`-driven contract).
+
+## Pausing briefly before B3.5 (corpus + retrieval)
+
+Per the kickoff instructions, continuing straight to B3.5 (not a full
+stop) — evidence above is the checkpoint. B3.5 is scoped narrowly:
+~20 synthetic corpus documents + minimal lexical retrieval, per the plan
+document's itemized insertion.
