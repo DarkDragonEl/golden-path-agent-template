@@ -57,6 +57,14 @@ def test_inc_10234_findable_by_ci_pipeline_query(store):
     assert any(r["record_id"] == "INC-10234" for r in result["records"])
 
 
+def test_inc_10234_findable_by_plural_ci_pipelines_query(store):
+    # R2 remedy (DEC-014): a plural query ("CI pipelines", mirroring how a
+    # user's own question is naturally phrased) must also find INC-10234,
+    # whose seeded description uses the singular "CI pipeline".
+    result = store.search(record_type="incident", query="CI pipelines", status="open")
+    assert any(r["record_id"] == "INC-10234" for r in result["records"])
+
+
 def test_inc_10261_findable_by_service_catalog_query(store):
     # ITR-007: query="service catalog", status=open must include INC-10261.
     result = store.search(record_type="incident", query="service catalog", status="open")

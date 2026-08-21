@@ -20,6 +20,19 @@ import threading
 from datetime import datetime, timezone
 from typing import Any
 
+def _plural_tolerant_variants(needle: str) -> list[str]:
+    """R2 remedy (DEC-014, ITR-001): a real ITSM search box would reasonably
+    tolerate a trailing-s mismatch between a caller's phrasing and a
+    record's stored text (e.g. "CI pipelines" vs. "CI pipeline execution
+    failing...") without doing full stemming -- this is store behavior
+    justified by the store's own intent (a naive exact-substring match is
+    stricter than a real search box), not a fix bent to match a specific
+    eval outcome. Returns the needle plus a single trailing-s variant."""
+    if needle.endswith("s") and len(needle) > 3:
+        return [needle, needle[:-1]]
+    return [needle, needle + "s"]
+
+
 RECORD_TYPES = ("incident", "request", "known_error")
 REQUEST_CATEGORIES = ("access", "provisioning", "break_fix", "information")
 
@@ -208,11 +221,14 @@ class ItsmStore:
                 if status is not None:
                     matches = [r for r in matches if r["status"] == status]
                 if query:
-                    needle = query.lower()
+                    variants = _plural_tolerant_variants(query.lower())
                     matches = [
                         r
                         for r in matches
-                        if needle in r["short_description"].lower() or needle in r["description"].lower()
+                        if any(
+                            v in r["short_description"].lower() or v in r["description"].lower()
+                            for v in variants
+                        )
                     ]
 
             matches = matches[: max(limit, 0)]
