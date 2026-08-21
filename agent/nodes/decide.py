@@ -4,28 +4,26 @@ from .. import config
 from ..model_client import get_model_client
 from ..tool_schemas import TOOL_SCHEMAS
 
-_SYSTEM_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "system_prompt.md"
+_SYSTEM_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "decide_system_prompt.md"
 
 
 def _load_system_prompt() -> str:
     return _SYSTEM_PROMPT_PATH.read_text()
 
 
-def reason_node(state):
+def decide_node(state):
+    """DEC-013 candidate (decide-then-retrieve reordering): the sole
+    tool-vs-no-tool decision point. Receives only the user query +
+    TOOL_SCHEMAS -- no retrieved context, no citation instructions -- so
+    citation guidance can no longer compete with tool-calling instructions
+    for the model's attention (DEC-012's diagnosed root cause). If no tool
+    is selected, routing sends this to retrieve -> generate instead of
+    answering here.
+    """
     steps = state.get("reasoning_steps", 0) + 1
     model = get_model_client()
 
-    # SRS-AGT-F-01: every corpus-derived claim needs a citation naming the
-    # source doc_id and version -- the model can't produce one unless the
-    # context tells it which passage came from which document.
-    context = "\n\n".join(
-        f"[Source: {d.get('doc_id', '?')}, version {d.get('version', '?')}]\n"
-        f"{d.get('passage_text', d.get('snippet', ''))}"
-        for d in state.get("retrieved_docs", [])
-    )
     user_message = state["input_query"]
-    if context:
-        user_message = f"Context:\n{context}\n\nQuestion: {user_message}"
     initiating_user = state.get("user_id")
     if initiating_user:
         # itsm_create_request's required `requested_for` field defaults to
@@ -38,36 +36,37 @@ def reason_node(state):
             _load_system_prompt(), [{"role": "user", "content": user_message}], tools=TOOL_SCHEMAS
         )
     except Exception as exc:  # noqa: BLE001 - total model failure (both routes exhausted, or none
-        # configured) routes to fallback_node, per SysR-A-F-05/SysR-P-F-12; this
-        # closes the operational category's model-failure known-gap (THRESHOLDS.md
-        # removal trigger, SRS-EVH-F-04). `category:detail` shape, matching the
-        # existing tool_error:<message> / approval_not_granted:<decision>
-        # convention (agent/nodes/fallback.py, human_approval.py) -- only the
-        # "model_failure" prefix is asserted by eval scoring, per
-        # eval/cases/domain/operational.yaml's own stated convention.
+        # configured) routes to fallback_node, per SysR-A-F-05/SysR-P-F-12.
         reason = f"model_failure:{type(exc).__name__}"
+        calls = state.get("model_calls", []) + [{"node": "decide", "route": "none", "reason_code": reason}]
         return {
             "reasoning_steps": steps,
             "fallback_reason": reason,
             "model_route": "none",
             "model_route_reason_code": reason,
+            "model_calls": calls,
         }
 
+    # On the no-tool branch below, `text` is kept in `messages` for
+    # trace/debugging only -- it is never read as final_output. generate_node
+    # produces the real, grounded answer from actual retrieved context. Do
+    # not "fix" this by wiring text into final_output here -- that would
+    # silently bypass SRS-AGT-F-01's grounding requirement.
     messages = state.get("messages", []) + [{"role": "assistant", "content": text or ""}]
+    calls = state.get("model_calls", []) + [{"node": "decide", "route": route_used, "reason_code": reason_code}]
     update = {
         "messages": messages,
         "reasoning_steps": steps,
         "model_route": route_used,
         "model_route_reason_code": reason_code,
+        "model_calls": calls,
     }
 
     if config.AGENT_MODEL_MODE == "fake":
         # FakeModelClient has no real tool-selection awareness -- reproduce
-        # the pre-B3 deterministic dispatch exactly here, so
+        # the pre-B3/pre-B4 deterministic dispatch exactly here, so
         # eval/cases/EXAMPLE-*.yaml's frozen harness-mechanics fixtures
         # (never domain content, SRS-EVH-F-03) keep passing unchanged.
-        # tool_invoke_node itself no longer hardcodes anything -- this is
-        # the one place fake-mode's legacy simulated selection lives now.
         update["selected_tool"] = {
             "tool_name": "placeholder_lookup",
             "arguments": {"query": state["input_query"], "write": bool(state.get("write_requested", False))},
@@ -78,6 +77,6 @@ def reason_node(state):
         call = tool_calls[0]
         update["selected_tool"] = {"tool_name": call["name"], "arguments": call["arguments"]}
     else:
-        update["selected_tool"] = None  # a plain answer -- no tool needed this turn
+        update["selected_tool"] = None  # answer from knowledge -- retrieve + generate handle this
 
     return update

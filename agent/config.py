@@ -78,6 +78,19 @@ AGENT_CORPUS_DIR = _env("AGENT_CORPUS_DIR", "./corpus/seed")
 AGENT_STATE_DIR = _env("AGENT_STATE_DIR", "./state")
 # SRS-RET-IF-01 (resolved): top_k default is config-sourced, not hardcoded.
 RETRIEVAL_TOP_K = _env_int("RETRIEVAL_TOP_K", "retrieval_top_k", 5)
+# Structural mitigation for a Phase B4 live-testing finding: draft_request
+# and tool_selection failed their thresholds decisively (measured, not
+# assumed -- reports/feature-phase-b-golden-path.md) when the full
+# RETRIEVAL_TOP_K passages were injected into the reasoning call verbatim
+# -- a detailed procedure document in context reliably out-competed the
+# tool schemas for the model's attention. state["retrieved_docs"] still
+# carries the full RETRIEVAL_TOP_K set (citation assembly, future
+# consumers); only agent/nodes/generate.py's own context construction caps
+# how much of it actually reaches the model (DEC-013 candidate: this
+# capping is a secondary mitigation now that agent/nodes/decide.py never
+# sees retrieved context at all -- see DECISIONS.md DEC-012/DEC-013).
+REASONING_CONTEXT_TOP_K = _env_int("REASONING_CONTEXT_TOP_K", "reasoning_context_top_k", 3)
+REASONING_EXCERPT_CHARS = _env_int("REASONING_EXCERPT_CHARS", "reasoning_excerpt_chars", 400)
 
 # Policy bundle + constrained-agent guardrails (bundle default, env overrides)
 POLICY_BUNDLE_REF = _env("POLICY_BUNDLE_REF", "policy/baseline_policy.yaml")

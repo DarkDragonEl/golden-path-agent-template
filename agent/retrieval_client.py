@@ -50,7 +50,13 @@ class RetrievedChunk:
 
 
 def _words(text: str) -> set[str]:
-    return {w for w in _WORD_RE.findall(text.lower()) if w not in _STOPWORDS}
+    # len(w) > 1 excludes single-character tokens -- the real bug behind
+    # the Phase B4 false-positive-retrieval finding above: `[a-z0-9]+`
+    # splits a contraction like "What's" into "what" + a bare "s", and
+    # that spurious "s" token then coincidentally "matched" any document
+    # containing an unrelated possessive ("team's", "Curator's", ...),
+    # inflating overlap counts with noise rather than real topical signal.
+    return {w for w in _WORD_RE.findall(text.lower()) if w not in _STOPWORDS and len(w) > 1}
 
 
 @lru_cache(maxsize=1)
@@ -65,17 +71,29 @@ def retrieve(
     overlap between the query and each document's title + body. `filters`
     and `user_id` are accepted per the interface contract (SRS-RET-IF-01,
     SRS-RET-F-03) but not yet applied -- see the module docstring.
+
+    MIN_OVERLAP gates out noise matches: found live-testing Phase B4 that
+    retrieval attaching a document on a single generic shared word (e.g.
+    "incident", "current", "status" -- present in nearly every procedure
+    document) for a query that isn't actually a knowledge question at all
+    (an ITSM record-ID lookup) confused tool selection badly enough to
+    break it, on a query that had been reliable throughout B3. Requiring
+    at least two shared significant words is enough to filter every
+    single-word coincidental match seen in that failure while still
+    matching every real eval/cases/domain/knowledge_qa.yaml-style query
+    (see tests/test_retrieval_client.py's 11 real-query regression check).
     """
     k = top_k if top_k is not None else config.RETRIEVAL_TOP_K
     query_words = _words(query)
     if not query_words:
         return []
 
+    MIN_OVERLAP = 2
     scored = []
     for doc in _corpus():
         doc_words = _words(doc["title"]) | _words(doc["passage_text"])
         overlap = query_words & doc_words
-        if not overlap:
+        if len(overlap) < MIN_OVERLAP:
             continue
         # Title matches count double -- a query naming a document by its
         # actual title should rank that document first even if the body

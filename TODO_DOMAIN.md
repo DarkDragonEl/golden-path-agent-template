@@ -21,7 +21,7 @@ before touching either:
 |---|---|
 | `corpus/` (entire directory) | The curated RAG corpus: real documents, `ingest.py`'s chunking/embedding logic, and per-document metadata (owner, classification, version/effective date, access policy, source, refresh process) |
 | `agent/retrieval_client.py::retrieve()` | Connection to the real retrieval API / vector store. Contract (`RetrievedChunk`) is frozen — implement the body, don't change the shape |
-| `agent/prompts/system_prompt.md` | The agent's one business role, one knowledge domain, tone, and refusal/escalation instructions |
+| `agent/prompts/decide_system_prompt.md` / `agent/prompts/generate_system_prompt.md` | The agent's one business role, one knowledge domain, tone, and refusal/escalation instructions — split across the tool-decision call and the citation-bearing answer call (DEC-013 candidate, DECISIONS.md DEC-012) |
 | `mcp_server/schemas.py::PlaceholderLookupInput` / `PlaceholderLookupOutput` | The real tool's actual input/output fields, once the 1-2 domain tools are selected |
 | `mcp_server/server.py::placeholder_lookup()` (the `raise NotImplementedError` branch) | The real call to the enterprise tool this agent integrates with (auth, error handling, argument mapping) |
 | `agent/nodes/tool_invoke.py` (argument construction) | Map agent state to the real tool's input schema once it exists |

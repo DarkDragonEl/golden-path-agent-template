@@ -1,24 +1,36 @@
 from . import policy
 
 
-def decide_after_retrieve(state):
-    # TODO(domain): if this agent's role requires retrieval to answer
-    # safely, route retrieval_unavailable to "fallback" instead. Until
-    # domain scope is defined, unavailability alone does not block
-    # reasoning — the "fallback" branch below exists for that future case.
-    return "reason"
-
-
-def decide_after_reason(state):
+def decide_after_decide(state):
     if state.get("fallback_reason"):
-        # reason_node sets this on total model failure (both routes
+        # decide_node sets this on total model failure (both routes
         # exhausted, or none configured) -- SysR-A-F-05/SysR-P-F-12.
         return "fallback"
     try:
         policy.check_step_limit(state)
     except policy.StepLimitExceeded:
         return "fallback"
-    return "tool_invoke"
+    if state.get("selected_tool") is not None:
+        return "tool_invoke"
+    return "retrieve"
+
+
+def decide_after_retrieve(state):
+    # TODO(domain): if this agent's role requires retrieval to answer
+    # safely, route retrieval_unavailable to "fallback" instead. Until
+    # domain scope is defined, unavailability alone does not block
+    # generation -- the "fallback" branch below exists for that future case.
+    return "generate"
+
+
+def decide_after_generate(state):
+    if state.get("fallback_reason"):
+        return "fallback"
+    try:
+        policy.check_step_limit(state)
+    except policy.StepLimitExceeded:
+        return "fallback"
+    return "respond"
 
 
 def decide_after_tool(state):

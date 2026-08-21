@@ -4,22 +4,21 @@ from mcp_server.client import call_tool
 
 
 def tool_invoke_node(state):
-    """No hardcoded tool selection here (Phase B3 retired it) -- reason_node
-    is solely responsible for deciding what state["selected_tool"] is,
-    for both live mode (the model's real tool_calls) and fake/offline mode
-    (a reproduction of the pre-B3 legacy dispatch, kept only so
+    """No hardcoded tool selection here (Phase B3 retired it) -- decide_node
+    is solely responsible for deciding what state["selected_tool"] is, for
+    both live mode (the model's real tool_calls) and fake/offline mode (a
+    reproduction of the pre-B3 legacy dispatch, kept only so
     eval/cases/EXAMPLE-*.yaml's frozen fixtures keep passing). This node's
     job is purely execution-timing: read-classified now, write-classified
     drafted only.
+
+    Precondition (DEC-013 candidate: decide-then-retrieve reordering):
+    state["selected_tool"] is never None here -- the graph's
+    decide_after_decide router sends that case to retrieve/generate
+    instead. The "plain answer" branch this node used to own now belongs
+    to generate_node.
     """
-    selected = state.get("selected_tool")
-
-    if selected is None:
-        # SRS-AGT-F-03: a plain answer -- one of the three valid output
-        # types, no tool call needed this turn.
-        last_reply = state.get("messages", [])[-1]["content"] if state.get("messages") else ""
-        return {"pending_approval": False, "approval_action": None, "final_output": last_reply}
-
+    selected = state["selected_tool"]
     tool_name = selected["tool_name"]
     arguments = selected["arguments"]
 

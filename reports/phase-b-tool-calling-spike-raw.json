@@ -5,14 +5,14 @@
       "expected": "read",
       "verdict": "pass",
       "detail": "correct: [('itsm_search_records', {'record_type': 'incident', 'query': 'INC-10255'})]",
-      "latency_s": 1.34
+      "latency_s": 1.35
     },
     {
       "label": "clear_write",
       "expected": "write",
       "verdict": "pass",
       "detail": "correct: [('itsm_create_request', {'short_description': 'VPN access setup', 'description': 'Alex Rivera needs VPN access set up for the platform team.', 'category': 'provisioning', 'requested_for': 'alex.rivera'})]",
-      "latency_s": 1.92
+      "latency_s": 1.94
     },
     {
       "label": "none_of_the_above",
@@ -26,7 +26,7 @@
       "expected": "ambiguous",
       "verdict": "observe",
       "detail": "tool_calls=['itsm_search_records']",
-      "latency_s": 1.2
+      "latency_s": 1.25
     }
   ],
   "codellama-7b-instruct": [
@@ -35,28 +35,28 @@
       "expected": "read",
       "verdict": "error",
       "detail": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - \\\"auto\\\" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set. Received Model Group=codellama-7b-instruct\\nAvailable Model Group Fallbacks=None\",\"type\":null,\"param\":null,\"code\":\"400\"}}",
-      "latency_s": 5.09
+      "latency_s": 5.29
     },
     {
       "label": "clear_write",
       "expected": "write",
       "verdict": "error",
       "detail": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - \\\"auto\\\" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set. Received Model Group=codellama-7b-instruct\\nAvailable Model Group Fallbacks=None\",\"type\":null,\"param\":null,\"code\":\"400\"}}",
-      "latency_s": 5.47
+      "latency_s": 4.49
     },
     {
       "label": "none_of_the_above",
       "expected": "none",
       "verdict": "error",
       "detail": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - \\\"auto\\\" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set. Received Model Group=codellama-7b-instruct\\nAvailable Model Group Fallbacks=None\",\"type\":null,\"param\":null,\"code\":\"400\"}}",
-      "latency_s": 5.62
+      "latency_s": 4.96
     },
     {
       "label": "ambiguous",
       "expected": "ambiguous",
       "verdict": "error",
       "detail": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - \\\"auto\\\" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set. Received Model Group=codellama-7b-instruct\\nAvailable Model Group Fallbacks=None\",\"type\":null,\"param\":null,\"code\":\"400\"}}",
-      "latency_s": 5.33
+      "latency_s": 5.0
     }
   ],
   "phi3-mini-cpu": [
@@ -65,28 +65,28 @@
       "expected": "read",
       "verdict": "fail",
       "detail": "expected exactly one itsm_search_records call, got none",
-      "latency_s": 24.52
+      "latency_s": 2.09
     },
     {
       "label": "clear_write",
       "expected": "write",
       "verdict": "fail",
       "detail": "expected exactly one itsm_create_request call, got none",
-      "latency_s": 43.07
+      "latency_s": 4.27
     },
     {
       "label": "none_of_the_above",
       "expected": "none",
       "verdict": "pass",
       "detail": "no tool call, as expected",
-      "latency_s": 2.61
+      "latency_s": 2.5
     },
     {
       "label": "ambiguous",
       "expected": "ambiguous",
       "verdict": "observe",
       "detail": "tool_calls=none",
-      "latency_s": 4.11
+      "latency_s": 4.22
     }
   ],
   "qwen25-3b-cpu": [
@@ -95,28 +95,28 @@
       "expected": "read",
       "verdict": "fail",
       "detail": "expected exactly one itsm_search_records call, got none",
-      "latency_s": 4.53
+      "latency_s": 4.86
     },
     {
       "label": "clear_write",
       "expected": "write",
       "verdict": "fail",
       "detail": "expected exactly one itsm_create_request call, got none",
-      "latency_s": 5.31
+      "latency_s": 5.58
     },
     {
       "label": "none_of_the_above",
       "expected": "none",
       "verdict": "pass",
       "detail": "no tool call, as expected",
-      "latency_s": 3.41
+      "latency_s": 3.48
     },
     {
       "label": "ambiguous",
       "expected": "ambiguous",
       "verdict": "observe",
       "detail": "tool_calls=none",
-      "latency_s": 5.3
+      "latency_s": 5.18
     }
   ]
 }
