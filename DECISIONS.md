@@ -383,3 +383,80 @@ that guarantee instead of relocating it.
 
 **Status:** Resolved — reflected directly in `srs/SRS-AGT.md`'s
 SRS-AGT-F-04 and `srs/SRS-APR.md`'s SRS-APR-F-04/new SRS-APR-IF-05.
+
+---
+
+## DEC-009 — Fallback model: llama-scout-17b, with the size≤primary criterion waived and a compensating control
+
+**Document/scope:** Phase B kickoff, Task 1 (tool-calling spike + fallback
+selection) — `agent/config.py`'s `MODEL_FALLBACK_NAME`, and a forward
+obligation on Phase B4 (eval harness domain wiring).
+
+**Ambiguity:** The Phase B kickoff instructions set three criteria for a
+fallback candidate — different model family than the primary
+(`granite-3-2-8b-instruct`, fail-mode decorrelation), size ≤ primary
+(~8B — specifically so a routing bug silently defaulting to fallback
+wouldn't improve output undetected), and comparable latency — and a
+three-way decision procedure (primary+candidate both pass → pick it;
+primary fails+candidate passes → flag; nothing passes → structured-JSON
+prompt contingency). The empirical probe
+(`reports/phase-b-tool-calling-spike.md`) hit none of the three: primary
+passed cleanly, but every candidate that actually satisfied the size/
+family criteria failed to call tools reliably (`codellama-7b-instruct`:
+hard backend error, tool-calling not enabled for that model group on this
+MaaS; `phi3-mini-cpu`, `qwen25-3b-cpu`: accept the request but never emit
+`tool_calls` on either clear case). A diagnostic probe of 4 further models
+found three that *do* call tools correctly and fast — `llama-scout-17b`
+(0.5–0.9s, faster than primary), `qwen3-14b` (6–8s), `gpt-oss-120b`
+(4–6s) — but all exceed the size≤primary bound (14B–120B vs. Granite's
+8B).
+
+**Decision:** Fallback = `llama-scout-17b`. Rejected the two other
+options considered: probing further untested models (low expected value —
+the untested remainder is either Granite-family, which fails the
+decorrelation criterion outright, or also above 8B, almost certainly
+reproducing the same dilemma for the cost of another probe round) and a
+structured-JSON-prompt fallback route (would make the fallback route the
+least-exercised code path *and* give it its own separate parsing mode —
+the worst combination for an emergency route, and permanent `reason.py`
+complexity for what is really a model-sourcing problem, not a genuine
+tool-calling-capability gap). `llama-scout-17b` is the strongest empirical
+fit on every other axis: different family, a clean pass on both tool
+schemas across all four probe prompts, and the fastest response of
+anything tested, primary included.
+
+**Compensating control (required, part of this decision, not optional
+follow-up):** the size≤primary criterion existed as a *proxy* for a real
+concern — a routing bug that silently defaults to fallback shouldn't be
+able to hide behind improved output quality. Waiving the proxy requires
+replacing it with direct detection: since `agent/model_client.py`'s
+`RoutedModelClient` (Phase B3) already records `model.route` /
+`model.route_reason_code` on every call, the Phase B4 domain eval
+scorer/executor shall assert that every eval-run model call used
+`route=primary, reason_code=none` — except the cases specifically
+designed to exercise the fallback path, which assert the reverse. With
+that assertion in the promotion gate, a silent-default-to-fallback bug
+fails CI immediately instead of hiding behind output quality. This is a
+forward obligation on whoever implements B4 — not satisfied by this
+entry alone.
+
+**Accuracy note on the waiver's real size:** `llama-scout-17b` almost
+certainly names Llama 4 Scout, a mixture-of-experts architecture publicly
+documented at ~109B total parameters / ~17B active parameters per
+token — not a dense 17B model. The deviation from the size≤primary
+criterion is larger than "17B vs. 8B" suggests, closer to the model's
+total footprint than its active-parameter count implies. This session
+attempted to verify the exact model card against this specific MaaS
+deployment (`GET /v1/models/llama-scout-17b`) and got a 401 — that route
+requires proxy-admin privileges this API key's role does not have — so
+the architecture characterization above rests on the public Llama 4
+naming convention, not on this deployment's own confirmed metadata.
+Recorded honestly as an assumption, not a verified fact.
+
+**Revisit trigger:** the MaaS adds a ≤8B non-Granite model with verified
+reliable tool-calling, or the primary model changes.
+
+**Status:** Resolved. `agent/config.py`'s `MODEL_FALLBACK_NAME` set to
+`llama-scout-17b` at the same MaaS base URL as the primary. The
+compensating-control obligation on Phase B4 is open until that phase
+implements it — tracked here, not yet satisfied.
