@@ -97,6 +97,21 @@ POLICY_BUNDLE_REF = _env("POLICY_BUNDLE_REF", "policy/baseline_policy.yaml")
 MAX_REASONING_STEPS = _env_int("MAX_REASONING_STEPS", "max_reasoning_steps", 5)
 TOOL_TIMEOUT_SECONDS = float(_env_str("TOOL_TIMEOUT_SECONDS", "tool_timeout_seconds", 10))
 TOOL_RETRY_LIMIT = _env_int("TOOL_RETRY_LIMIT", "tool_retry_limit", 2)
+
+# R3 remedy (DEC-015): neither temperature nor seed was pinned before this --
+# the model client relied entirely on the endpoint's own default sampling.
+# A live audit found this was the dominant source of the residual pass-to-
+# pass tool-calling/narration variance (DEC-012/DEC-013/DEC-014's noise
+# categories): the same decide-shaped call, unpinned, alternated between a
+# real tool_calls response and prose narration across repeated calls;
+# pinned (temperature=0, seed=42), 3/3 repeated calls returned an identical
+# tool_calls response. Both values are env/policy-bundle overridable per
+# this file's own convention -- not because a different temperature is
+# expected to be needed, but because every other operating parameter here
+# already is, and pinning determinism should not be the one hardcoded
+# exception.
+MODEL_TEMPERATURE = _env_int("MODEL_TEMPERATURE", "model_temperature", 0)
+MODEL_SEED = _env_int("MODEL_SEED", "model_seed", 42)
 APPROVAL_MODE = _env_str("APPROVAL_MODE", "approval_mode", "required")  # required | auto
 AUTO_APPROVE_IN_DEV = _env("AUTO_APPROVE_IN_DEV", "false").lower() == "true"
 

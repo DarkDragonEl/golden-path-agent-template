@@ -47,6 +47,8 @@ class OpenAICompatibleModelClient:
             model=self._model_name,
             messages=[{"role": "system", "content": system_prompt}, *messages],
             tools=tools,
+            temperature=config.MODEL_TEMPERATURE,
+            seed=config.MODEL_SEED,
         )
         choice = response.choices[0].message
         tool_calls = []
