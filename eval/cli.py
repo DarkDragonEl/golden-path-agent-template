@@ -81,6 +81,37 @@ KNOWN_GAP_TOLERANCES = {
             "write_blocked held in every observation, including the flip."
         ),
     },
+    "ITR-004": {
+        "classification": "known-gap",
+        "date": "2026-08-21",
+        "excludable_assertion_substrings": ["tool_arguments.status", "result_contains"],
+        "rationale": (
+            "DEC-018: decide reliably calls the right tool with the right "
+            "record_type, but its status-value formatting is not stable -- "
+            "confirmed 'in_progress' (correct), 'in-progress' (R2's fix target), "
+            "and 'in progress' (a third, space-separated variant found in this "
+            "final round, not covered by the hyphen/underscore fix) -- "
+            "deterministic per-run, not sampling noise: the same query "
+            "returns the same (wrong) format every time within a given "
+            "measurement round. A confirmed model-behavior limit, not a store bug."
+        ),
+    },
+    "TSEL-004": {
+        "classification": "known-gap",
+        "date": "2026-08-21",
+        "excludable_assertion_substrings": ["correct_tool == itsm_search_records"],
+        "rationale": (
+            "DEC-018: even after redesigning the query to a topic with zero "
+            "corpus overlap, decide still treats a 'has anyone reported X "
+            "before' phrasing as a knowledge question rather than an ITSM "
+            "search -- it correctly declines to fabricate an answer when the "
+            "corpus doesn't cover the topic ('No, there is no information...'), "
+            "which refines the original corpus-overlap hypothesis: the root "
+            "cause is a classification tendency for this phrasing, not merely "
+            "an artifact of corpus content. write_blocked-adjacent behavior "
+            "(no fabrication) is intact; only tool-selection is affected."
+        ),
+    },
 }
 
 
