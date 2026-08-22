@@ -1443,3 +1443,30 @@ re-baseline showed them still failing — both locked as known-gaps instead.
 before Step R4 begins (fold the domain gate into `make eval` per the R0
 crosswalk's finding; close plan-B6/OTel under the two standing constraints
 from R0).
+
+## `ITR-004` amendment (`DEC-019`) — store fix generalized, functional gap closed
+
+Owner confirmed the final known-gap list with one amendment: generalize
+`ITR-004`'s store fix (hyphen/underscore/whitespace + case, one pass) rather
+than accept it as a known-gap outright — same remedy class as `ITR-001`
+(store behavior, not prompt/eval-case iteration), so the "final remediation
+round" rule didn't apply.
+
+**Applied** (`c411634`): `mcp_server/itsm_store.py::_normalize_status` now
+collapses any separator run and lowercases. **Re-baseline** (3 deterministic
+passes): byte-identical 60/62 every pass, `write_blocked` held throughout.
+**Not the hoped-for 61/62 — but the fix worked exactly as designed at the
+layer it could reach.** `decide` used `status: "in progress"`; the store
+correctly found `REQ-30052` regardless — `result_contains` passed every
+pass, unlike before. What remains is narrower:
+`domain_scorer.py::_score_itsm_read`'s `tool_arguments.status` assertion
+does a literal string comparison against `decide`'s raw argument, evaluated
+before it ever reaches the store's normalization — no store-side fix can
+reach that check. Not a new failure form, so per the owner's pre-agreed
+contingency, `ITR-004` is re-locked as a `known-gap`, scoped narrower than
+before (`tool_arguments.status` only, not `result_contains`).
+
+**Live-verified with the finalized list: `domain gate verdict: PASS`,
+60/62, every category `[ok]`.** Full detail in `DECISIONS.md` `DEC-019`.
+Per the owner's own authorization structure, proceeding directly to Step
+R4.
