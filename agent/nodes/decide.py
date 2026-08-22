@@ -85,10 +85,19 @@ def decide_node(state):
         # the pre-B3/pre-B4 deterministic dispatch exactly here, so
         # eval/cases/EXAMPLE-*.yaml's frozen harness-mechanics fixtures
         # (never domain content, SRS-EVH-F-03) keep passing unchanged.
-        update["selected_tool"] = {
-            "tool_name": "placeholder_lookup",
-            "arguments": {"query": state["input_query"], "write": bool(state.get("write_requested", False))},
-        }
+        # Phase C (DEC-023): write is now signaled by which tool is
+        # dispatched, not by an argument flag on placeholder_lookup --
+        # EXAMPLE-002's write-classified case calls placeholder_write_action.
+        if state.get("write_requested", False):
+            update["selected_tool"] = {
+                "tool_name": "placeholder_write_action",
+                "arguments": {"query": state["input_query"]},
+            }
+        else:
+            update["selected_tool"] = {
+                "tool_name": "placeholder_lookup",
+                "arguments": {"query": state["input_query"]},
+            }
     elif tool_calls:
         # SRS-AGT-F-03: exactly one output type per turn -- the first tool
         # call is authoritative; no multi-step planning loop.

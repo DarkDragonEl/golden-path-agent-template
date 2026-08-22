@@ -38,6 +38,7 @@ from .schemas import (
     ItsmSearchRecordsOutput,
     PlaceholderLookupInput,
     PlaceholderLookupOutput,
+    PlaceholderWriteActionInput,
 )
 
 HOST = os.environ.get("MCP_HOST", "0.0.0.0")
@@ -56,6 +57,25 @@ def placeholder_lookup(query: str, write: bool = False) -> dict:
     and the agent's not-yet-updated tool_invoke node (Phase B2).
     """
     validated = PlaceholderLookupInput(query=query, write=write)
+    mcp_mode = os.environ.get("MCP_MODE", "mock")
+
+    if mcp_mode == "mock":
+        output = PlaceholderLookupOutput(result="PLACEHOLDER_TOOL_RESPONSE_MARKER", source="mock")
+        return output.model_dump()
+
+    raise NotImplementedError("TODO(domain): implement the live enterprise-tool call.")
+
+
+@mcp.tool()
+def placeholder_write_action(query: str) -> dict:
+    """Phase C: eval/cases/EXAMPLE-002.yaml's dedicated write-classified
+    fixture tool -- placeholder_lookup's legacy write:true argument-flag
+    carve-out (agent/policy.py) is retired; this tool's own name is now
+    what signals write, per policy/approval_rules.yaml, matching how every
+    real domain tool already works. placeholder_lookup itself is
+    unchanged (CONTRACT-FROZEN, see its own docstring).
+    """
+    validated = PlaceholderWriteActionInput(query=query)
     mcp_mode = os.environ.get("MCP_MODE", "mock")
 
     if mcp_mode == "mock":

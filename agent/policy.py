@@ -18,39 +18,25 @@ def check_step_limit(state: dict) -> None:
         )
 
 
-# eval/cases/EXAMPLE-002.yaml is a frozen harness-mechanics fixture (never
-# domain content — eval/README.md, DECISIONS.md DEC-005) whose write-
-# classified case predates the tool-name taxonomy below: it signals via a
-# legacy `write: true` argument flag on placeholder_lookup, not by calling
-# a different tool. This is a narrow, explicitly-scoped carve-out that
-# exists only to keep that pinned fixture green — every other tool call,
-# including placeholder_lookup's own default (see
-# policy/approval_rules.yaml), is classified purely by name.
-#
-# This is a second classification signal living alongside the taxonomy —
-# precisely the pattern SRS-MIT-IF-03 bans for the real tools ("read vs.
-# write is signaled by which operation is called, never by an argument
-# flag"). It is tolerated here only because it's narrowly scoped to one
-# pinned legacy fixture, not a general mechanism. RETIREMENT TRIGGER: this
-# carve-out dies the moment placeholder_lookup itself retires — once
-# EXAMPLE-*.yaml fixtures are its only consumers and can be migrated off
-# the write:true mechanism per DECISIONS.md DEC-005's own terms, or Phase C
-# at the latest. Phase B3 moved tool_invoke_node's own hardcoded dispatch
-# into reason_node's fake-mode simulation (agent/nodes/reason.py) — that
-# did NOT retire this carve-out, since EXAMPLE-002.yaml's own pinned input
-# still depends on the write:true signal regardless of where the dispatch
-# hardcoding lives.
-_LEGACY_WRITE_FLAG_TOOLS = {"placeholder_lookup"}
+# Phase C (DEC-023): the legacy _LEGACY_WRITE_FLAG_TOOLS carve-out that
+# used to live here is retired. It existed only to let
+# eval/cases/EXAMPLE-002.yaml signal a write-classified call via a
+# `write: true` argument flag on placeholder_lookup, rather than by
+# calling a different tool -- exactly the pattern SRS-MIT-IF-03 bans for
+# the real tools ("read vs. write is signaled by which operation is
+# called, never by an argument flag"). EXAMPLE-002 now calls
+# placeholder_write_action (policy/approval_rules.yaml) instead, so every
+# tool call, with no exceptions, is classified purely by name.
 
 
 def classify_action(tool_name: str, arguments: dict) -> str:
     """Tool-name classification taxonomy (SRS-AGT-SEC-03), loaded from
     policy/approval_rules.yaml via agent/config.py. An unrecognized or
     ambiguous tool name fails closed to "write" (config.DEFAULT_TOOL_CLASSIFICATION)
-    — it is never treated as read-only or directly executable.
+    — it is never treated as read-only or directly executable. `arguments`
+    is accepted for interface stability with callers but no longer
+    consulted (Phase C, DEC-023) -- classification is purely tool-name-keyed.
     """
-    if tool_name in _LEGACY_WRITE_FLAG_TOOLS and arguments.get("write"):
-        return "write"
     return config.TOOL_CLASSIFICATION.get(tool_name, config.DEFAULT_TOOL_CLASSIFICATION)
 
 

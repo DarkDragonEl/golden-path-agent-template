@@ -1967,3 +1967,101 @@ updated to state the complete, honest history rather than either block in
 isolation. No code, prompt, or gate-logic change resulted — this was a
 documentation/evidence-completeness fix, not a remediation. `write_blocked`
 was never at risk under either behavior.
+
+## DEC-023 — Phase C Step C0: PINS.md populated, `placeholder_lookup`'s
+legacy write-flag carve-out retired, OPA policy-definition mirror written
+
+**Document/scope:** `PINS.md` (Phase C section, new), `agent/policy.py`
+(carve-out removed), `agent/nodes/decide.py` (fake-mode dispatch),
+`mcp_server/server.py`/`schemas.py`/`client.py` (new
+`placeholder_write_action` tool), `policy/approval_rules.yaml` (new rule),
+`tests/test_policy_limits.py`/`test_decide_node.py` (updated),
+`policy/opa/approval_policy.rego`/`approval_policy_test.rego`/`manifest.yaml`
+(new). Owner-approved Phase C plan's Step C0 (repo-only entry gate, no
+cluster writes), executed in full this entry.
+
+**C0a — `PINS.md` populated as the Phase C entry gate**, per `DEC-021`'s
+own instruction (research before any pipeline/GitOps/policy code, not
+after). Every row verified live: against the actual target cluster's own
+state (`oc get csv -A`, `oc get packagemanifest`, `oc version`) where
+possible — more authoritative than any doc snapshot, since it's literally
+what's installable/running on the real deployment target — or against
+upstream releases APIs directly otherwise. Concrete supersessions found
+this way: `SyRS-AGP-001-RRT_Realization_Table.md` prospectively pinned
+Tekton "1.23"/GitOps "1.21.0"/OCP "4.21-4.22" as of its own 2026-08-12
+snapshot; the live cluster actually runs `pipelines-1.22`/`gitops-1.20`/
+OCP `4.20.23` — documented as the real pins, with the RRT's figures noted
+as superseded, not silently overwritten. One real tag-format gotcha caught
+by actually running the pinned tool, not trusting a version string: OPA's
+GitHub release tag is `v1.19.1`, but its Docker Hub image tag drops the
+`v` (`1.19.1`) — a `v`-prefixed pull failed with "manifest unknown" before
+this was caught and corrected. **A load-bearing discovery from this same
+research pass**: the target SNO is a shared, multi-tenant lab cluster
+(~135 namespaces, real unrelated tenant workloads already running), not a
+dedicated one — this reshaped the whole Phase C plan's isolation strategy
+(new dedicated namespaces/`AppProject`/RBAC only, reuse the existing
+shared `openshift-gitops` instance rather than install a second one) and
+is recorded, not glossed over, per the owner's explicit requirement (see
+the Phase C plan and the forthcoming `docs/environments.md`/report update
+at C4).
+
+**C0b — the `placeholder_lookup` legacy write-flag carve-out is retired**,
+exactly as `agent/policy.py`'s own docstring anticipated ("dies... Phase C
+at the latest") — this file's own RETIREMENT TRIGGER comment was the
+brief for this step, not a discovery. The carve-out existed only so
+`eval/cases/EXAMPLE-002.yaml` could signal a write-classified call via a
+`write: true` argument flag on `placeholder_lookup`, instead of by tool
+name — the exact pattern `SRS-MIT-IF-03` bans for real tools. Migration:
+a new MCP tool, `placeholder_write_action` (`mcp_server/server.py`,
+same mock response shape as `placeholder_lookup`'s, registered in
+`mcp_server/client.py`'s dispatch and `policy/approval_rules.yaml` as
+`classification: write`), which `agent/nodes/decide.py`'s fake-mode
+dispatch now selects when `write_requested` is true (previously:
+`placeholder_lookup` plus an inert `write` argument). `placeholder_lookup`
+itself is untouched — its own docstring marks it "CONTRACT-FROZEN," and
+this migration respects that by adding a sibling tool rather than
+modifying it. `agent/policy.py::classify_action` is now a pure tool-name
+lookup with no exceptions, on any tool, ever. Verified, not assumed:
+`EXAMPLE-002` still passes (`python -m eval.cli run --all`, live-run
+confirmed, not just unit-tested), full `pytest -q` green (162/162,
+including two rewritten `test_policy_limits.py` cases proving the
+carve-out is truly gone — `placeholder_lookup` classifies `read`
+*regardless* of a `write` argument now — and two rewritten
+`test_decide_node.py` cases covering both fake-mode dispatch branches).
+
+**C0c — `policy/opa/approval_policy.rego` written as the declarative
+mirror** the accepted plan's C2 step specifies: a policy-*definition*
+validation gate (`opa test`, meant for a future CI stage), explicitly not
+a second runtime enforcement point — `agent/policy.py` remains the sole
+Policy Decision Point at request time, matching `CLAUDE.md`'s scope guard
+and Annex A `OI-03`'s "scaffolding + one enforced deny path" framing (not
+a policy platform). The rego mirrors post-carve-out-removal
+`classify_action` exactly: a `tool_classification` map matching
+`policy/approval_rules.yaml`'s `rules:` list, `object.get(...,
+default_classification)` for the SRS-AGT-SEC-03 fail-closed default, and a
+`requires_approval(tool_name, approval_mode)` rule mirroring the
+`APPROVAL_MODE == "auto"` global bypass. A `deny_direct_execution` rule is
+the concrete artifact for `DEC-021`'s "OPA bundles with ≥1 proven
+fail-closed deny": any write-classified action denies direct execution,
+unconditionally — proven, not asserted, by
+`approval_policy_test.rego`'s 11 cases (structurally mirroring
+`tests/test_policy_limits.py`'s own cases, so both suites assert the same
+behavior against the same inputs). **Verified live**: `opa test
+policy/opa/ -v` via the pinned `openpolicyagent/opa:1.19.1` container
+image → `PASS: 11/11`. `policy/opa/manifest.yaml` is a version-marker
+file only (no live bundle server consumes it) — the rego's own header
+comment records that keeping it in sync with `policy/approval_rules.yaml`
+is a manual, by-hand discipline with no generator, since this is
+explicitly a hand-authored mirror, not a code-generation target.
+
+**Rationale:** all three sub-steps were explicitly pre-authorized by
+either the owner's Phase C plan approval or the repo's own code comments
+(the RETIREMENT TRIGGER, the `externalsecret.yaml` stub's "replace the
+kind entirely" escape hatch used in the plan's secret-handling decision) —
+nothing here is a unilateral scope addition. No cluster was touched; this
+is the plan's own designated repo-only entry gate.
+
+**Status:** Complete. `pytest -q` 162/162, `opa test` 11/11, live
+`eval.cli run --all` 2/2 (EXAMPLE-001/002) — all green. **STOP here per
+the Phase C plan's own instruction, for a quick owner sanity check before
+the first real cluster write (C1a).**

@@ -9,13 +9,19 @@ rules:
   - tool_name: itsm_create_request
     classification: write
   - tool_name: placeholder_lookup
-    classification: read  # eval/cases/EXAMPLE-*.yaml harness fixture, not
+    classification: read  # eval/cases/EXAMPLE-001.yaml harness fixture, not
     # domain content (see eval/README.md, DECISIONS.md DEC-005) — explicit
-    # here so SEC-03's fail-closed default doesn't route EXAMPLE-001's read
-    # call to approval. EXAMPLE-002's write-classified case still relies on
-    # a narrow legacy write:true argument carve-out in agent/policy.py,
-    # kept only for that pinned fixture — this taxonomy entry is its
-    # unconditional default (used whenever that legacy flag is absent).
+    # here so SEC-03's fail-closed default doesn't route its read call to
+    # approval. Unconditional now — Phase C retired the legacy write:true
+    # argument carve-out that used to override this entry for EXAMPLE-002
+    # (DECISIONS.md DEC-023); that fixture calls placeholder_write_action
+    # instead, below.
+  - tool_name: placeholder_write_action
+    classification: write  # eval/cases/EXAMPLE-002.yaml's write-classified
+    # fixture, migrated off placeholder_lookup's retired write:true
+    # argument flag onto this dedicated tool name (DEC-023) — write is
+    # signaled by which tool is called, never by an argument, same as
+    # every real domain tool.
 
 # SRS-AGT-SEC-03 — fail closed: an action whose tool name is not listed
 # above (ambiguous or unrecognized against this policy's classification

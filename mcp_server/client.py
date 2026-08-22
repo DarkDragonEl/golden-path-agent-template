@@ -20,6 +20,7 @@ def call_tool(tool_name: str, arguments: dict, timeout: float = 10.0) -> dict:
 
         dispatch = {
             "placeholder_lookup": server.placeholder_lookup,
+            "placeholder_write_action": server.placeholder_write_action,
             "itsm_search_records": server.itsm_search_records,
             "itsm_create_request": server.itsm_create_request,
         }

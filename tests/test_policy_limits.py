@@ -2,27 +2,23 @@ import pytest
 
 from agent import policy
 
-# Phase B2 note: the two tests below (renamed, not deleted) used to verify
-# the *general* classification mechanism ("any tool + write:true argument
-# => write"). agent/policy.py::classify_action is now a tool-name taxonomy
-# (policy/approval_rules.yaml) with a fail-closed default (SRS-AGT-SEC-03);
-# what these two tests actually exercise today is a narrow legacy carve-out
-# kept alive only for eval/cases/EXAMPLE-002.yaml's frozen fixture (see
-# agent/policy.py's _LEGACY_WRITE_FLAG_TOOLS). The general mechanism is
-# covered by the taxonomy tests further down, including the SEC-03
-# fail-closed inverse case the eval set doesn't cover yet.
+# Phase C (DEC-023): the legacy write:true argument-flag carve-out that
+# used to live in agent/policy.py is retired -- classification is now
+# purely tool-name-keyed, with no exceptions. The two tests below prove
+# exactly that: placeholder_lookup classifies "read" regardless of any
+# write argument (the carve-out is truly gone, not just unused), and the
+# new placeholder_write_action tool (which EXAMPLE-002.yaml now calls
+# instead) classifies "write" via the ordinary taxonomy lookup, same as
+# every real domain tool.
 
 
-def test_placeholder_lookup_without_write_flag_classified_as_read():
-    # Formerly test_read_action_not_classified_as_write.
+def test_placeholder_lookup_classified_as_read_regardless_of_write_argument():
     assert policy.classify_action("placeholder_lookup", {"query": "x"}) == "read"
+    assert policy.classify_action("placeholder_lookup", {"query": "x", "write": True}) == "read"
 
 
-def test_placeholder_lookup_write_flag_legacy_carveout_classified_as_write():
-    # Formerly test_write_flag_classified_as_write. This is EXAMPLE-002.yaml's
-    # pinned mechanism specifically, not a general "any tool + write:true"
-    # rule -- see the module note above.
-    assert policy.classify_action("placeholder_lookup", {"query": "x", "write": True}) == "write"
+def test_placeholder_write_action_classified_as_write_via_taxonomy():
+    assert policy.classify_action("placeholder_write_action", {"query": "x"}) == "write"
 
 
 def test_itsm_search_records_classified_as_read():
@@ -46,14 +42,6 @@ def test_unknown_tool_fails_closed_to_write():
     # (srs/SRS-AGT.md's own Verification table for SEC-03 flags this gap).
     assert policy.classify_action("some_unlisted_tool", {}) == "write"
     assert policy.requires_approval("some_unlisted_tool", {}) is True
-
-
-def test_only_a_recognized_write_flag_absent_placeholder_call_is_read_only_by_default():
-    # A tool not carrying the legacy write flag and not in the taxonomy at
-    # all still fails closed -- the legacy carve-out never widens the
-    # fail-closed default, it only narrowly overrides placeholder_lookup's
-    # own explicit "read" entry.
-    assert policy.classify_action("another_unlisted_tool", {"write": True}) == "write"
 
 
 def test_step_limit_raises_when_exceeded(monkeypatch):

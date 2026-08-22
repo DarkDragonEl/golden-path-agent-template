@@ -17,9 +17,24 @@
   state both historical blocks honestly. Read `DEC-022` before citing
   `INJ-006`'s status from anything written before it. Anonymity sweep
   performed, clean, no violations. Phase B sharing artifact produced
-  (`reports/phase-b-sharing-run.md`) and the branch merged to `main`. Phase
-  C itself is not started — it will be planned in its own cycle and the
-  plan presented before execution, per the owner's explicit request.
+  (`reports/phase-b-sharing-run.md`) and the branch merged to `main`.
+- **Phase C is planned and approved, Step C0 done (`DEC-023`).** Plan file:
+  `~/.claude/plans/read-claude-md-handoff-md-decisions-md-vast-hare.md` —
+  read it before touching anything cluster-side; it documents a
+  load-bearing discovery (the target SNO is a **shared, multi-tenant lab
+  cluster**, not dedicated) that reshaped the whole isolation strategy,
+  plus three owner-ratified judgment calls (reuse the existing
+  `openshift-gitops` instance via a dedicated `AppProject`, not the
+  Validated Patterns Operator; a plain `Secret` for now, ESO deferred as a
+  clean integration point; retire `agent/policy.py`'s
+  `placeholder_lookup` legacy write-flag carve-out). `PINS.md`'s Phase C
+  section is populated, the carve-out is retired
+  (`placeholder_write_action` is the new tool `EXAMPLE-002.yaml` now
+  exercises), and `policy/opa/` is a working policy-definition mirror
+  (`opa test` 11/11). **Holding at the plan's own STOP before C1a's first
+  real cluster write** — do not touch the SNO cluster without reading the
+  plan's isolation strategy and secret-material handling constraints
+  first.
 
 ## Phase position
 

@@ -42,14 +42,26 @@ def _base_state(**overrides):
     return state
 
 
-def test_fake_mode_hardcodes_placeholder_lookup_dispatch(monkeypatch):
+def test_fake_mode_hardcodes_placeholder_write_action_dispatch_when_write_requested(monkeypatch):
+    # Phase C (DEC-023): write is signaled by tool name, not an argument.
     monkeypatch.setattr(decide_module.config, "AGENT_MODEL_MODE", "fake")
     state = _base_state(write_requested=True)
     result = decide_node(state)
 
     assert result["selected_tool"] == {
+        "tool_name": "placeholder_write_action",
+        "arguments": {"query": state["input_query"]},
+    }
+
+
+def test_fake_mode_hardcodes_placeholder_lookup_dispatch_when_write_not_requested(monkeypatch):
+    monkeypatch.setattr(decide_module.config, "AGENT_MODEL_MODE", "fake")
+    state = _base_state(write_requested=False)
+    result = decide_node(state)
+
+    assert result["selected_tool"] == {
         "tool_name": "placeholder_lookup",
-        "arguments": {"query": state["input_query"], "write": True},
+        "arguments": {"query": state["input_query"]},
     }
 
 

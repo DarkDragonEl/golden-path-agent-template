@@ -1,0 +1,11 @@
+# Version marker for the OPA policy-definition bundle (Phase C, DEC-023).
+# Not an OPA runtime bundle manifest (no live server/sidecar consumes this
+# -- see approval_policy.rego's own header) -- just a durable version
+# stamp for the CI stage that runs `opa test policy/opa/`.
+#
+# tool_classification/default_classification in approval_policy.rego must
+# be kept in sync with policy/approval_rules.yaml by hand; bump this
+# version whenever either file's rules change, so a stale mirror is at
+# least visible in diffs rather than silent.
+version: "0.1.0"
+mirrors: policy/approval_rules.yaml
