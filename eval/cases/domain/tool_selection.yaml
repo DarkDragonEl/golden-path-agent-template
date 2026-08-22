@@ -38,17 +38,28 @@
   tags: ["tool_selection", "read-only"]
   version: "0.1.0"
 
+# R2 remedy (DEC-018, TSEL-004 redesign): the original query ("has this
+# ingress certificate issue come up before") named a topic (KI-003,
+# "Ingress Certificate Renewal Race Condition") that the synthetic corpus
+# also happens to document -- decide could (and, per DEC-017's final
+# triage, reliably did) answer directly from grounded knowledge instead of
+# exercising the tool-selection decision this case exists to isolate. Not
+# a model capability gap: a corpus/case-design interaction that stopped the
+# case from testing what it was meant to test. Redesigned to a topic with
+# no corpus overlap (verified against every doc_id in
+# eval/corpus-manifest.yaml) so a search decision is the only path to a
+# real answer.
 - id: TSEL-004
   category: tool_selection
   input:
-    query: "Before I file anything, has this ingress certificate issue come up before?"
+    query: "Before I file anything, has anyone reported DNS resolution timeouts for internal service endpoints?"
   expected:
     correct_tool: itsm_search_records
     distractor_tools_not_called: ["itsm_create_request"]
     rationale_note: "Checking whether something has already occurred is a search, even though the user is anticipating a possible future request"
   threshold_notes: "counts toward tool_selection gate"
   tags: ["tool_selection", "read-only"]
-  version: "0.1.0"
+  version: "0.2.0"
 
 - id: TSEL-005
   category: tool_selection

@@ -51,6 +51,14 @@ def test_req_30052_findable_by_in_progress_status(store):
     assert any(r["record_id"] == "REQ-30052" for r in result["records"])
 
 
+def test_req_30052_findable_by_hyphenated_in_progress_status(store):
+    # R2 remedy (DEC-018): a hyphenated status value ("in-progress",
+    # mirroring how a model sometimes formats it) must also match
+    # REQ-30052's seeded "in_progress" status.
+    result = store.search(record_type="request", status="in-progress")
+    assert any(r["record_id"] == "REQ-30052" for r in result["records"])
+
+
 def test_inc_10234_findable_by_ci_pipeline_query(store):
     # ITR-001: query="CI pipeline", status=open must include INC-10234.
     result = store.search(record_type="incident", query="CI pipeline", status="open")

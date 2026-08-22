@@ -33,6 +33,16 @@ def _plural_tolerant_variants(needle: str) -> list[str]:
     return [needle, needle + "s"]
 
 
+def _normalize_status(status: str) -> str:
+    """R2 remedy (DEC-018, ITR-004): a real ITSM search box's status filter
+    would reasonably treat "in-progress" and "in_progress" as the same
+    value -- hyphen-vs-underscore is a formatting choice, not a distinct
+    status. Store behavior justified by the store's own intent, not by the
+    eval outcome: this sidesteps a caller's status-value formatting choice
+    entirely rather than trying to pin which form is used."""
+    return status.replace("-", "_")
+
+
 RECORD_TYPES = ("incident", "request", "known_error")
 REQUEST_CATEGORIES = ("access", "provisioning", "break_fix", "information")
 
@@ -219,7 +229,8 @@ class ItsmStore:
             else:
                 matches = candidates
                 if status is not None:
-                    matches = [r for r in matches if r["status"] == status]
+                    target_status = _normalize_status(status)
+                    matches = [r for r in matches if _normalize_status(r["status"]) == target_status]
                 if query:
                     variants = _plural_tolerant_variants(query.lower())
                     matches = [
