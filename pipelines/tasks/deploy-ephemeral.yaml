@@ -1,0 +1,39 @@
+# Phase C, Step C1b. Applies deploy/kustomize/overlays/ephemeral-test with
+# a pipeline-scoped digest override -- kustomize edit set image writes the
+# override into a scratch copy of the overlay, never into the committed
+# base/kustomization.yaml (per the accepted plan's C1: "never committed to
+# base/"). Namespace lifecycle: golden-path-agent-ephemeral-test is
+# pre-created (pipelines/bootstrap/namespaces.yaml) -- this Task manages
+# only the workload resources inside it, per DEC-024's RBAC redesign;
+# nothing here creates or deletes the Namespace object itself.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: deploy-ephemeral
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  params:
+    - name: image-ref
+      type: string
+      description: Full pushed image reference including digest, e.g. <registry>/<repo>@sha256:...
+  workspaces:
+    - name: source
+  steps:
+    - name: render-with-digest-override
+      image: registry.k8s.io/kustomize/kustomize:v5.8.1
+      workingDir: $(workspaces.source.path)/deploy/kustomize/overlays/ephemeral-test
+      script: |
+        #!/bin/sh
+        set -eu
+        kustomize edit set image golden-path-agent="$(params.image-ref)"
+        kustomize build . > $(workspaces.source.path)/rendered-ephemeral.yaml
+    - name: apply
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        oc apply -n golden-path-agent-ephemeral-test -f $(workspaces.source.path)/rendered-ephemeral.yaml
+        oc rollout status deployment/golden-path-agent -n golden-path-agent-ephemeral-test --timeout=180s
+        oc rollout status deployment/golden-path-agent-mcp -n golden-path-agent-ephemeral-test --timeout=180s

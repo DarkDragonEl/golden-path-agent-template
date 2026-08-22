@@ -18,23 +18,35 @@
   `INJ-006`'s status from anything written before it. Anonymity sweep
   performed, clean, no violations. Phase B sharing artifact produced
   (`reports/phase-b-sharing-run.md`) and the branch merged to `main`.
-- **Phase C is planned and approved, Step C0 done (`DEC-023`).** Plan file:
+- **Phase C is planned and approved; Steps C0, C1a, C1b done (`DEC-023`,
+  `DEC-024`, `DEC-025`).** Plan file:
   `~/.claude/plans/read-claude-md-handoff-md-decisions-md-vast-hare.md` —
-  read it before touching anything cluster-side; it documents a
+  read it before touching anything cluster-side; it documents the
   load-bearing discovery (the target SNO is a **shared, multi-tenant lab
-  cluster**, not dedicated) that reshaped the whole isolation strategy,
-  plus three owner-ratified judgment calls (reuse the existing
-  `openshift-gitops` instance via a dedicated `AppProject`, not the
-  Validated Patterns Operator; a plain `Secret` for now, ESO deferred as a
-  clean integration point; retire `agent/policy.py`'s
-  `placeholder_lookup` legacy write-flag carve-out). `PINS.md`'s Phase C
-  section is populated, the carve-out is retired
-  (`placeholder_write_action` is the new tool `EXAMPLE-002.yaml` now
-  exercises), and `policy/opa/` is a working policy-definition mirror
-  (`opa test` 11/11). **Holding at the plan's own STOP before C1a's first
-  real cluster write** — do not touch the SNO cluster without reading the
-  plan's isolation strategy and secret-material handling constraints
-  first.
+  cluster**, `api.sno.lab.local`, not dedicated — real other-tenant
+  workloads already running) that shaped the whole isolation strategy.
+  **Real cluster state as of this write**: namespaces `golden-path-agent-ci`/
+  `golden-path-agent-ephemeral-test` exist; least-privilege RBAC is live and
+  `oc auth can-i`-verified (no cluster-scoped permission at all for the
+  pipeline's `ServiceAccount`); the MaaS credential and non-secret model
+  config are live as a `Secret`/`ConfigMap`; a public repo exists at
+  `github.com/DarkDragonEl/golden-path-agent-template` (full history
+  anonymity sweep clean, `DEC-024`) and `main` is pushed there;
+  `AppProject/golden-path-agent` is live in `openshift-gitops`. The full
+  Tekton pipeline (12 `Task`s + `Pipeline`, `pipelines/`) is written and
+  schema-validated against the live cluster (`dry-run=server`) but **not
+  yet applied — no `PipelineRun` has ever been triggered.** Read `DEC-025`
+  before touching anything under `pipelines/` — it documents a real design
+  finding (the existing `eval.cli --domain` harness is in-process only,
+  can't test deployed pods directly — `security-tests`/`operational-tests`
+  do that instead, `eval-gate-live` doesn't) and two explicitly-deferred
+  items (model-identity capture, cluster-tier OTel wiring — not silently
+  skipped, written down as open). The promotion-PR GitHub credential's
+  mechanism is finalized but not yet created (`docs/phase-c-runbook.md`
+  §3) — a manual, human GitHub-UI action, not blocking the negative-proof
+  path. **Holding at C1b's own STOP for manifest + RBAC review** — do not
+  trigger a `PipelineRun` (`pipelines/pipelinerun-template.yaml`, C1c)
+  without new owner authorization.
 
 ## Phase position
 

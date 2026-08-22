@@ -1,0 +1,34 @@
+# Phase C, Step C1b. Template for triggering golden-path-agent-ci
+# (pipeline.yaml) -- `generateName`, not `name`, since every real trigger
+# creates a new PipelineRun. `serviceAccountName` is the least-privilege
+# identity from pipelines/bootstrap/rbac.yaml -- every Task step in this
+# run executes as that ServiceAccount, nothing broader. The `source`
+# workspace is backed by a fresh PVC per run (not an emptyDir): Tekton
+# workspaces only share storage across every Task pod in one PipelineRun
+# when backed by real persistent storage, which fetch-source's checkout
+# being visible to every later Task depends on.
+#
+# C1c fires this for the first real green-path run:
+#   oc create -f pipelines/pipelinerun-template.yaml -n golden-path-agent-ci
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: golden-path-agent-ci-
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  pipelineRef:
+    name: golden-path-agent-ci
+  serviceAccountName: golden-path-agent-ci-pipeline
+  params:
+    - name: revision
+      value: main
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi

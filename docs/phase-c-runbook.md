@@ -57,17 +57,45 @@ that touches this secret — pipe through a redaction filter, or use
 `jsonpath`/`-o name` forms that never print `.data`, as done above and in
 `DEC-024`'s own evidence.
 
-## 3. Promotion-PR git credential (TBD — Step C1b)
+## 3. Promotion-PR git credential (mechanism finalized — Step C1b; creation
+still a pending manual action before C1c can exercise `open-promotion-pr`)
 
-`open-promotion-pr` (the pipeline stage that opens the digest-promotion PR
-against `https://github.com/DarkDragonEl/golden-path-agent-template`)
-needs its own git write credential. Same rule as above: manually
-provisioned once, scoped to this one repo only (a fine-grained GitHub PAT
-or deploy key with write access to this repo alone — never a broad
-account-wide token), stored as a `Secret` in `golden-path-agent-ci`, never
-a pipeline parameter, never in a `PipelineRun` spec, never in Git, never
-echoed in Tekton logs. Exact mechanism finalized and documented here at
-the C1b manifest review.
+`pipelines/tasks/open-promotion-pr.yaml` needs a git write credential
+scoped to exactly this one repo. Mechanism:
+
+1. Create a **fine-grained GitHub Personal Access Token**
+   (github.com → Settings → Developer settings → Fine-grained tokens →
+   Generate new token), scoped to:
+   - **Repository access**: only `DarkDragonEl/golden-path-agent-template`
+     — never "All repositories."
+   - **Permissions**: `Contents: Read and write` (push the promotion
+     branch), `Pull requests: Read and write` (open the PR). Nothing else.
+   - A short expiry (90 days is reasonable for a demo milestone) — rotate
+     by repeating this step, not by widening scope.
+2. Store it as a `Secret`, never in Git, never echoed:
+   ```sh
+   oc create secret generic golden-path-agent-github-token \
+     -n golden-path-agent-ci \
+     --from-literal=token="<the fine-grained PAT>"
+   ```
+3. `pipelines/tasks/open-promotion-pr.yaml`'s two steps reference this
+   Secret by name only (`secretKeyRef`), as an env var — never a Tekton
+   `param` (which Tekton persists into the `PipelineRun`'s own spec/status,
+   visible via `oc get pipelinerun -o yaml`; an env var sourced from a
+   `secretKeyRef` is not). Neither step's script ever echoes
+   `$GITHUB_TOKEN` — verified by reading both scripts directly, not
+   assumed: the token is only ever used inside a `-H "Authorization:
+   Bearer ${GITHUB_TOKEN}"` header argument, never `echo`'d or logged.
+
+**Not yet done**: step 1–2 above are a manual action for the human
+operator, same as the MaaS credential — not performed automatically by
+this session, since it requires generating a credential through GitHub's
+own UI. `open-promotion-pr` will fail with a clear, non-secret-leaking
+error (`Secret "golden-path-agent-github-token" not found`) until this is
+done. This does not block C1c's negative-proof-#1 (a seeded bad change is
+expected to fail before `open-promotion-pr` is ever reached) — it only
+blocks the green-path run's final stage and the digest-promotion PR merge
+itself.
 
 ## 4. Endpoint-drift diagnostic procedure (for `eval-gate-live` — Step C1b)
 
@@ -104,16 +132,40 @@ This procedure protects against exactly the failure mode `DEC-022` had to
 investigate after the fact — it makes the diagnosis routine instead of a
 fresh forensic exercise each time it recurs.
 
-## 5. Model-identity capture (for `eval-gate-live` — Step C1b)
+## 5. Model-identity capture (for `eval-gate-live`) — deferred, not done at
+this STOP; see §6 for why
 
 If the live MaaS endpoint's response exposes a model identity/version
 field (e.g. an OpenAI-compatible response's `model` field, or a system-
-fingerprint-style header), `eval-gate-live` captures it alongside each
-run's results — **read-only telemetry, never used to alter a request** (the
-same constraint `agent/telemetry.py`'s own header comment holds itself to,
+fingerprint-style header), each eval run should capture it alongside its
+results — **read-only telemetry, never used to alter a request** (the same
+constraint `agent/telemetry.py`'s own header comment holds itself to,
 `DECISIONS.md` `DEC-020`). Purpose: the next time cross-session behavioral
 drift shows up (another `DEC-022`-shaped finding), there's a chance to
 correlate it against an actual observed model-identity change instead of
-inferring one exists. Exact field and capture mechanism finalized at the
-C1b manifest review, once the pipeline's own eval-invocation shape is
-written.
+inferring one exists.
+
+**Not implemented in `pipelines/tasks/eval-gate-live.yaml` at this STOP.**
+Doing this properly means threading `response.model` through
+`agent/model_client.py::OpenAICompatibleModelClient.complete()`'s return
+tuple (the same pattern R4/`DEC-020` already used for `usage`), into
+`model_calls` entries, and from there into `eval/reporter.py`'s output —
+a real, multi-file addition, not a one-line change to the pipeline Task.
+Given the size of this Step C1b batch already, this is deferred alongside
+§6's OTel wiring rather than rushed in here — recorded honestly as
+open, not silently implied done by this section's earlier draft.
+
+## 6. Deferred: cluster-tier OTel wiring
+
+`PINS.md` pins the Red Hat build of OpenTelemetry Operator
+(`opentelemetry-product`, channel `stable`) as available on this cluster's
+catalog, but **it is not yet installed, and the ephemeral deployment does
+not yet export traces**. `operational-tests`'s kill-primary-fallback check
+(§4 above, actually the check in `pipelines/tasks/operational-tests.yaml`)
+is therefore a functional check (the call still succeeds) rather than a
+trace-based one (`model.route: fallback` visible in an exported span,
+matching `DEC-020`'s local demo). Not a silent scope cut: Checkpoint C's
+own exit criteria (green pipeline, blocked bad-change promotion, displayed
+digest equality) don't require live tracing, so this was deliberately
+sequenced after the pipeline itself rather than blocking it — flagged here
+as real remaining work, not forgotten.

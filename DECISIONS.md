@@ -2206,3 +2206,190 @@ runbook procedures now written into `eval-gate-live`'s design + the
 rego↔YAML mechanical sync check) — **holding at C1b's own STOP (manifests
 + RBAC diff for review) before the first real `PipelineRun` (C1c)**, per
 the owner's explicit sequencing.
+
+## DEC-025 — Phase C Step C1b: full Tekton pipeline manifests, rego↔YAML
+sync check, promotion-PR credential mechanism — holding at the C1b STOP
+
+**Document/scope:** `pipelines/tasks/*.yaml` (12 new `Task`s),
+`pipelines/pipeline.yaml`, `pipelines/pipelinerun-template.yaml`,
+`tools/check_policy_sync.py` (new), `pipelines/bootstrap/rbac.yaml`
+(amended — `watch` on `deployments`, read on `replicasets`, re-applied),
+`docs/phase-c-runbook.md` (§3 finalized, §4/§5/§6 added), `PINS.md`
+(three new live-verified pins: `buildah`, `git-clone`, `oc` CLI images —
+superseding C0a's Tekton-Hub-bundle plan for the first two; the OPA
+`-debug` variant addendum). No cluster write beyond the RBAC re-apply
+(dry-run shown, verified with `oc auth can-i`) — every `Task`/`Pipeline`
+manifest was validated with `oc apply --dry-run=server` against the live
+cluster's actual Tekton CRDs (schema-valid, not just YAML-syntax-valid),
+never actually applied. Owner-authorized C1b scope: full manifests + RBAC
+diff presented together for review, the `DEC-022` consequences wired into
+`eval-gate-live`'s design, the rego/YAML sync check, all before the first
+real `PipelineRun` (C1c).
+
+**A significant design finding, surfaced rather than designed around
+silently:** `eval/domain_executor.py` drives `agent.graph.build_graph()`
+fully in-process (its own docstring: "no container/HTTP needed") — built
+for Phase B's local testing model, never for exercising an already-
+deployed, separately-running HTTP service. The accepted plan's own words
+for the C1 stages ("`eval-gate-live` ... against the real ephemeral
+deployment") read as if the eval harness itself hits the deployed pods.
+It doesn't, and making it do so would mean building a new HTTP-based eval
+executor — real, unbudgeted scope for this step. **Resolved by splitting
+responsibility rather than stretching the existing harness**:
+`eval-gate-live` re-runs the existing, unmodified `eval.cli run --domain`
+in-process (`AGENT_MODEL_MODE=live`, `MCP_MODE=mock`, `DEC-017`'s exact
+sampling contract) — testing real reasoning quality against the real
+model, which the deployed pods don't change. `security-tests`/
+`operational-tests` are what actually exercise the deployed pods' live
+HTTP surface, via direct REST calls (`oc exec` into the running agent pod
++ `curl`) — the exact pattern this session's own Checkpoint B2 exit
+verification already proved out locally (`DEC-020`), now automated.
+
+**Tasks written** (`pipelines/tasks/`, one per accepted-plan stage,
+`tekton.dev/v1`, namespace `golden-path-agent-ci`):
+
+- `fetch-source` — plain `git clone` (`alpine/git:2.54.0`), not the Tekton
+  Hub `git-clone` Task (its own hub.tekton.dev page is marked deprecated;
+  simpler and more self-contained for this demo scope — `PINS.md`).
+- `unit-tests`, `eval-gate-offline` — `pytest -q` / the existing
+  `ci/pr-checks.yaml` eval-gate shape, unchanged in substance.
+- `policy-validate` — `opa test policy/opa/` (SysR-P-F-11) **plus the new
+  rego↔YAML sync check** (below).
+- `container-build` — `buildah bud`/`buildah push` (`quay.io/buildah/stable:v1.43.2`,
+  not the Tekton Hub `buildah` Task, same rationale as `fetch-source`) to
+  this project's own `ImageStream`, authenticated via the built-in
+  `system:image-builder` `ClusterRole` bound namespace-scoped
+  (`DEC-024`'s RBAC) — TLS-verified against the internal registry's real
+  cert via the auto-injected `openshift-service-ca.crt` `ConfigMap`
+  (`--cert-dir`, not `--tls-verify=false`).
+- `digest-capture` — reads the resolved digest back from the
+  `ImageStreamTag` itself (the registry's own authoritative record), not
+  trusting buildah's local computation.
+- `sbom-generate` — pinned `anchore/syft:v1.51.0` (`SysR-P-PKG-02`); a
+  small preceding step builds a docker-config credential from the pod's
+  own mounted `ServiceAccount` token, since syft (unlike a kubelet image
+  pull) needs an explicit registry credential to read the internal
+  registry over its own API.
+- `deploy-ephemeral` — `kustomize edit set image` in a scratch copy of
+  `overlays/ephemeral-test` (never touching the committed
+  `base/kustomization.yaml`'s digest — "pipeline-scoped... never
+  committed to `base/`," per the accepted plan's C1), then `oc apply` +
+  `oc rollout status`. Manages only the workload resources inside the
+  pre-created `golden-path-agent-ephemeral-test` namespace (`DEC-024`).
+- `eval-gate-live` — see the design finding above.
+- `security-tests` — REST zero-mutation check (write → reject → `/records`
+  unchanged, via `oc exec` into the real agent pod); a disallowed-egress
+  proof (this Task's own pod, in a different namespace and unlabeled,
+  attempts direct access to the MCP service's port 8081 and must be
+  blocked — proving `deploy/kustomize/base/networkpolicy.yaml` actually
+  enforces what it claims, not just that it exists); a plain-grep secret
+  scan (no new scanner tool introduced for this demo-scope milestone).
+- `operational-tests` — a throwaway, separately-labeled `Deployment`
+  (broken `MODEL_API_BASE_URL`, correct fallback config) proves the
+  kill-primary fallback route absorbs the failure — the same demo
+  `DEC-020` ran manually and locally, now automated against the cluster.
+  **Functional check only** (the call still succeeds), not trace-based —
+  see the OTel deferral below.
+- `destroy-ephemeral` (Pipeline `finally:`, always runs) — deletes exactly
+  the resources `deploy-ephemeral` created from the shared workspace's
+  rendered manifest, plus the `operational-tests` throwaway `Deployment`
+  as a safety net if that Task failed before its own cleanup ran.
+- `open-promotion-pr` — updates `base/kustomization.yaml`'s one `digest:`
+  field, opens a PR via the GitHub REST API. Only ever reached if every
+  upstream `Task` succeeded (Tekton's default DAG semantics — no extra
+  `when:` condition needed).
+
+**Every `Task` and the `Pipeline` validated against the live cluster's own
+Tekton CRDs**: `oc apply --dry-run=server -f <file>` for all 13 files,
+plus `oc create --dry-run=server` for the `PipelineRun` template
+(`generateName` doesn't support `apply`) — all passed schema validation.
+**A real bug caught this way, not assumed**: the plain `openpolicyagent/opa:1.19.1`
+image has no shell at all (`sh: not found`, confirmed live) — Tekton's
+`script:` field needs one. `policy-validate.yaml`'s data-dump step uses
+the `1.19.1-debug` variant instead (same binary, adds a busybox shell);
+its `opa test` step uses direct `command`/`args` exec, which needs no
+shell, so plain `1.19.1` is correct there. The other three new pinned
+images (`alpine/git`, `buildah/stable`, `origin-cli`) were spot-checked
+the same way and do have working shells.
+
+**RBAC diff, presented explicitly per the owner's stated priority**
+(least-privilege on a shared cluster is what they most want eyes on):
+`pipelines/bootstrap/rbac.yaml` gained two grants this step, both
+required by `deploy-ephemeral`'s `oc rollout status` call (which watches
+rollout progress, not just point-in-time `get`), applied and verified
+live:
+
+| Namespace | Resource | Verbs added | Why |
+|---|---|---|---|
+| `golden-path-agent-ephemeral-test` | `deployments` | `watch` (added to existing `get,list,create,update,patch,delete`) | `oc rollout status` polls via watch |
+| `golden-path-agent-ephemeral-test` | `replicasets` (new) | `get, list, watch` | `oc rollout status` inspects the Deployment's own ReplicaSet to determine progress; read-only, this project never manages ReplicaSets directly |
+
+No other RBAC change from `DEC-024`'s original grant. Re-verified live:
+`oc auth can-i watch deployments/replicasets ... -n golden-path-agent-ephemeral-test`
+→ `yes`; the standing `no cluster-scoped permission at all` result from
+`DEC-024` is unchanged (nothing in this diff touches a cluster-scoped
+resource).
+
+**`tools/check_policy_sync.py`** (the owner's noted item from the `DEC-023`
+review): a mechanical drift check between `policy/approval_rules.yaml`
+(runtime source of truth) and `policy/opa/approval_policy.rego`'s
+hand-maintained mirror, wired into `policy-validate.yaml` as its own step.
+Compares YAML against the rego's *actual parsed data* (via `opa eval`),
+not a second hand-written copy of the rego's content in Python — the
+whole point is catching real drift, not re-asserting an assumption.
+Supports two modes: a local/dev shell-out to a working `opa eval`, and a
+CI-friendly mode reading pre-dumped `opa eval -f json` output from files
+(needed because `opa` and `python` don't share one container image).
+**Verified live, both modes, including that it actually catches drift**:
+ran clean against the real files; deliberately renamed one tool in
+`policy/approval_rules.yaml`, confirmed the script fails with an exact,
+readable diff (`'placeholder_lookup': ... = '<absent>' vs ... = 'read'`),
+restored the file, confirmed clean again.
+
+**`DEC-022`'s two consequences, written into the runbook, referenced from
+`eval-gate-live.yaml`'s own comments** (not just described in prose —
+`docs/phase-c-runbook.md` §4/§5):
+
+- §4, the endpoint-drift diagnostic procedure: an `eval-gate-live` failure
+  on a PR that doesn't touch the measurement instrument must not be
+  assumed to be the change's fault — re-run the isolated failing case(s)
+  N times (5 reps, `DEC-022`'s own precedent,
+  `tools/diagnose_inj006_flip.py`/`diagnose_uaw003_flip.py` as templates)
+  before concluding anything, and record which outcome (reproducing vs.
+  not) resulted.
+- §5, model-identity capture: **flagged, not implemented at this STOP.**
+  Doing it properly means threading `response.model` through
+  `agent/model_client.py`'s return tuple (the same pattern R4/`DEC-020`
+  used for `usage`) into `model_calls` and from there into
+  `eval/reporter.py`'s output — a real, multi-file addition. Given the
+  size of this batch already, deferred alongside the OTel wiring below
+  rather than rushed in — the runbook and `eval-gate-live.yaml`'s own
+  comment both say so explicitly, not silently implied done.
+
+**Promotion-PR git credential — mechanism finalized, creation still
+pending** (`docs/phase-c-runbook.md` §3): a fine-grained GitHub PAT,
+scoped to `Contents: Read and write` + `Pull requests: Read and write` on
+`DarkDragonEl/golden-path-agent-template` only, stored as `Secret
+golden-path-agent-github-token` in `golden-path-agent-ci`, referenced by
+`open-promotion-pr.yaml`'s two steps via `secretKeyRef` env vars only —
+never a Tekton `param` (which Tekton persists into the `PipelineRun`'s own
+spec/status), never echoed by either step's script (verified by reading
+both scripts directly). Creating the actual token is a manual, human
+action (GitHub's own UI) not performed this session — `open-promotion-pr`
+will fail with a plain "Secret not found" error, not a leak, until it's
+done. Does not block C1c's negative-proof-#1 (a bad change never reaches
+this stage).
+
+**Deferred, explicitly, not silently**: cluster-tier OTel wiring
+(`opentelemetry-product` operator — pinned, available, not installed) and
+model-identity capture (above) — `docs/phase-c-runbook.md` §6.
+Checkpoint C's own exit criteria (green pipeline, blocked bad-change
+promotion, displayed digest equality) don't require live tracing, so this
+was sequenced after the pipeline itself rather than blocking it.
+
+**Status:** Complete. `pytest -q` 162/162 (unaffected — this step touched
+no agent/eval code). All 13 Tekton manifests + the `PipelineRun` template
+schema-validated live. `tools/check_policy_sync.py` verified both modes,
+including a deliberate-drift negative test. RBAC diff re-verified with
+`oc auth can-i`. **Holding at the C1b STOP for manifest + RBAC review, per
+the owner's explicit instruction — no `PipelineRun` triggered yet.**

@@ -1,0 +1,60 @@
+# Phase C, Step C1b. SysR-P-F-05(2) agent tests.
+#
+# Design note, stated explicitly rather than glossed over: eval/domain_executor.py
+# drives agent.graph.build_graph() fully in-process (its own docstring:
+# "no container/HTTP needed") -- it was built for Phase B's local testing
+# model, not to exercise an already-deployed, separately-running HTTP
+# service. Building a new HTTP-based eval executor to literally test the
+# deployed agent pod's /invoke surface here would be real scope beyond
+# what this stage needs: this Task re-runs the existing, unmodified
+# eval.cli --domain harness with AGENT_MODEL_MODE=live (the real MaaS,
+# DEC-017's exact temperature=0/seed=42 contract) and MCP_MODE=mock (same
+# in-process mock ITSM Phase B always used) -- testing real reasoning
+# quality against the real model, which the deployed pods don't change.
+# security-tests and operational-tests (separate Tasks) are what actually
+# exercise the deployed pods' live HTTP surface.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: eval-gate-live
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: eval-domain
+      image: docker.io/library/python:3.12-slim
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: AGENT_MODEL_MODE
+          value: live
+        - name: MCP_MODE
+          value: mock
+        - name: MODEL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: golden-path-agent-secrets
+              key: MODEL_API_KEY
+        - name: MODEL_API_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: golden-path-agent-ci-config
+              key: MODEL_API_BASE_URL
+        - name: MODEL_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: golden-path-agent-ci-config
+              key: MODEL_NAME
+      script: |
+        #!/bin/sh
+        set -eu
+        pip install --no-cache-dir -q -r requirements.txt -r requirements-dev.txt
+        # DECISIONS.md DEC-022: an unexpected failure here on a PR that
+        # doesn't touch the measurement instrument is not automatically the
+        # change's fault -- see docs/phase-c-runbook.md §4 before treating
+        # a red gate as a regression. Model-identity capture (runbook §5)
+        # is NOT implemented yet -- deferred alongside §6's OTel wiring,
+        # not silently assumed present here.
+        python -m eval.cli run --domain

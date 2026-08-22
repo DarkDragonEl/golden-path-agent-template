@@ -1,0 +1,59 @@
+# Phase C, Step C1b (DECISIONS.md DEC-025). SysR-P-F-11 -- the CI pipeline
+# validates policy bundles. Two checks, deliberately kept separate steps
+# since opa and python don't share one container image:
+#   1. opa test policy/opa/ -- the policy-definition unit tests themselves
+#      (proves the rego's own internal logic, including the fail-closed
+#      deny path, is correct).
+#   2. tools/check_policy_sync.py -- proves policy/approval_rules.yaml (the
+#      actual runtime source of truth) and policy/opa/approval_policy.rego
+#      (the hand-maintained mirror) have not drifted apart. Added per the
+#      owner's explicit note on DEC-023's review: the rego mirror's
+#      "kept in sync by hand" discipline needed to become an enforced
+#      invariant, not just a documented hope.
+# Neither check is a live enforcement point -- agent/policy.py stays the
+# sole Policy Decision Point at request time (see approval_policy.rego's
+# own header).
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: policy-validate
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: opa-test
+      image: docker.io/openpolicyagent/opa:1.19.1
+      workingDir: $(workspaces.source.path)
+      command: ["opa"]
+      args: ["test", "policy/opa/", "-v"]
+
+    - name: opa-dump-rego-data
+      # -debug variant specifically: the plain 1.19.1 image has no shell at
+      # all (verified live -- "sh: not found"), which script: requires.
+      # -debug is the same OPA binary with a busybox shell added for
+      # exactly this kind of use.
+      image: docker.io/openpolicyagent/opa:1.19.1-debug
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -eu
+        opa eval -d policy/opa -f json 'data.golden_path.approval.tool_classification' \
+          > /tmp/tool_classification.json
+        opa eval -d policy/opa -f json 'data.golden_path.approval.default_classification' \
+          > /tmp/default_classification.json
+        cp /tmp/tool_classification.json /tmp/default_classification.json $(workspaces.source.path)/
+
+    - name: policy-sync-check
+      image: docker.io/library/python:3.12-slim
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -eu
+        pip install --no-cache-dir -q pyyaml
+        python tools/check_policy_sync.py \
+          --rego-classification-file tool_classification.json \
+          --rego-default-file default_classification.json
+        rm -f tool_classification.json default_classification.json

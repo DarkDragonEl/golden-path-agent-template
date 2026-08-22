@@ -97,7 +97,15 @@ rules:
     verbs: ["get", "list", "create", "update", "patch", "delete"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    verbs: ["get", "list", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # watch, specifically: `oc rollout status` (deploy-ephemeral.yaml) polls
+    # rollout progress via a watch, not just point-in-time get/list.
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+    # oc rollout status inspects the Deployment's own ReplicaSet to
+    # determine progress -- read-only, this project never manages
+    # ReplicaSets directly (that's the Deployment controller's job).
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies"]
     verbs: ["get", "list", "create", "update", "patch", "delete"]

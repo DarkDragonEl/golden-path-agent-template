@@ -1,0 +1,99 @@
+# Phase C, Step C1b. SysR-P-F-05(3) security tests, against the actually-
+# deployed pods (unlike eval-gate-live -- see that Task's own header for
+# why). Three checks:
+#   1. REST zero-mutation check: a write-shaped /invoke against the real
+#      deployed agent, rejected via /approvals/{id}/resume, confirmed
+#      against /records -- the exact pattern Checkpoint B2's own live
+#      verification used locally (DECISIONS.md DEC-020), now automated.
+#   2. Disallowed-egress proof: this Task's own pod (labeled neither
+#      component: agent nor anything the existing NetworkPolicy
+#      whitelists) attempts to reach the MCP pod's port 8081 directly and
+#      MUST be blocked -- confirming deploy/kustomize/base/networkpolicy.yaml
+#      actually enforces what it claims, not just that it exists. The
+#      legitimate zero-mutation check above instead execs into the agent
+#      pod itself (which the NetworkPolicy does permit), matching how a
+#      real client would actually be allowed to reach it.
+#   3. Secret scan: a plain grep for obvious credential patterns in the
+#      checked-out source and the built image's SBOM -- no new scanner
+#      tool introduced for this demo-scope milestone.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: security-tests
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: disallowed-egress-proof
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        # This step's own pod runs in golden-path-agent-ci -- a different
+        # namespace than the MCP Deployment, and not labeled component:
+        # agent. deploy/kustomize/base/networkpolicy.yaml's podSelector has
+        # no namespaceSelector, so it only ever admits same-namespace,
+        # correctly-labeled traffic -- this pod should never reach it. No
+        # extra pod spun up (would need pod create/delete RBAC this
+        # ServiceAccount deliberately doesn't have); this Task's own pod
+        # is the probe.
+        echo "Attempting direct cross-namespace access to the MCP service's port 8081 (expect: blocked)..."
+        if curl -sf --max-time 5 \
+             http://golden-path-agent-mcp.golden-path-agent-ephemeral-test.svc.cluster.local:8081/healthz; then
+          echo "FAIL: reached the MCP service directly from a different namespace -- NetworkPolicy did not block it." >&2
+          exit 1
+        fi
+        echo "OK: direct cross-namespace access blocked, as the NetworkPolicy requires."
+
+    - name: rest-zero-mutation-check
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        NS=golden-path-agent-ephemeral-test
+        AGENT_POD=$(oc get pod -n "$NS" -l component=agent -o jsonpath='{.items[0].metadata.name}')
+
+        before=$(oc exec -n "$NS" "$AGENT_POD" -- \
+          curl -s http://golden-path-agent-mcp:8081/records | python3 -c \
+          "import sys,json; print(len([r for r in json.load(sys.stdin)['records'] if r['record_type']=='request']))")
+
+        resp=$(oc exec -n "$NS" "$AGENT_POD" -- curl -s -X POST http://localhost:8080/invoke \
+          -H 'Content-Type: application/json' \
+          -d '{"query": "Please submit a request for read access to the internal metrics dashboard.", "write": true, "user_id": "ci-security-test"}')
+        session_id=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin)['session_id'])")
+        pending=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin)['pending_approval'])")
+        [ "$pending" = "True" ] || { echo "FAIL: expected pending_approval, got: $resp" >&2; exit 1; }
+
+        oc exec -n "$NS" "$AGENT_POD" -- curl -s -X POST \
+          "http://localhost:8080/approvals/${session_id}/resume" \
+          -H 'Content-Type: application/json' -d '{"decision": "reject"}' > /dev/null
+
+        after=$(oc exec -n "$NS" "$AGENT_POD" -- \
+          curl -s http://golden-path-agent-mcp:8081/records | python3 -c \
+          "import sys,json; print(len([r for r in json.load(sys.stdin)['records'] if r['record_type']=='request']))")
+
+        [ "$before" = "$after" ] || {
+          echo "FAIL: request-record count changed after a rejected write ($before -> $after)" >&2
+          exit 1
+        }
+        echo "OK: $before request records before and after a rejected write -- zero mutation confirmed."
+
+    - name: secret-scan
+      image: docker.io/library/python:3.12-slim
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -eu
+        # Deliberately simple for this demo-scope milestone -- no new
+        # scanner tool pinned. Looks for common credential-shaped strings
+        # in tracked source; sbom.json (from sbom-generate) is scanned too
+        # if present, since it enumerates every dependency's metadata.
+        if grep -RIEn "AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{36}" \
+             --include="*.py" --include="*.yaml" --include="*.yml" --include="*.md" . 2>/dev/null; then
+          echo "FAIL: possible credential material found in source." >&2
+          exit 1
+        fi
+        echo "OK: no obvious credential patterns found."

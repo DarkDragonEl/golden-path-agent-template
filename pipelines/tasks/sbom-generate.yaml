@@ -1,0 +1,43 @@
+# Phase C, Step C1b. SysR-P-PKG-02 -- an SBOM generated at build time,
+# associated with the image digest.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: sbom-generate
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  params:
+    - name: image
+      type: string
+      description: Full image reference including digest, e.g. <registry>/<repo>@sha256:...
+  workspaces:
+    - name: source
+  steps:
+    - name: build-registry-auth
+      # syft is a standalone tool, not a kubelet image pull -- it needs an
+      # actual docker-config credential to read from the internal
+      # registry, not just K8s RBAC on this ServiceAccount. OpenShift's
+      # internal registry accepts the pod's own mounted SA token as that
+      # credential (the same mechanism `oc registry login` automates).
+      image: docker.io/library/python:3.12-slim
+      script: |
+        #!/bin/sh
+        set -eu
+        mkdir -p /tekton/home/.docker
+        python3 -c "
+        import base64, json
+        token = open('/var/run/secrets/kubernetes.io/serviceaccount/token').read().strip()
+        auth = base64.b64encode(f'serviceaccount:{token}'.encode()).decode()
+        json.dump({'auths': {'image-registry.openshift-image-registry.svc:5000': {'auth': auth}}},
+                  open('/tekton/home/.docker/config.json', 'w'))
+        "
+    - name: syft
+      image: docker.io/anchore/syft:v1.51.0
+      workingDir: $(workspaces.source.path)
+      command: ["/syft"]
+      args:
+        - "$(params.image)"
+        - "-o"
+        - "spdx-json=sbom.json"

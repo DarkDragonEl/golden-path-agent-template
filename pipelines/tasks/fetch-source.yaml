@@ -1,0 +1,32 @@
+# Phase C, Step C1b (DECISIONS.md DEC-025). Minimal, self-contained
+# git-clone -- see PINS.md's "git-clone" row for why this is a plain
+# custom Task rather than the Tekton Hub git-clone Task (that catalog's
+# own hub.tekton.dev page is marked deprecated).
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: fetch-source
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  params:
+    - name: repo-url
+      type: string
+    - name: revision
+      type: string
+      default: main
+  workspaces:
+    - name: source
+  results:
+    - name: commit-sha
+      description: The resolved commit SHA actually checked out.
+  steps:
+    - name: clone
+      image: docker.io/alpine/git:2.54.0
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -eu
+        git clone --branch "$(params.revision)" --depth 1 "$(params.repo-url)" .
+        git rev-parse HEAD | tr -d '\n' > "$(results.commit-sha.path)"
