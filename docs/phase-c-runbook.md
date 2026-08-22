@@ -183,15 +183,15 @@ This procedure protects against exactly the failure mode `DEC-022` had to
 investigate after the fact — it makes the diagnosis routine instead of a
 fresh forensic exercise each time it recurs.
 
-## 5/6. Post-Checkpoint-C backlog (priority order, owner-confirmed — NOT
+## 5/6/7. Post-Checkpoint-C backlog (priority order, owner-confirmed — NOT
 someday items)
 
-Two items deferred out of Step C1b's already-large batch. Both are now
-explicitly **the first work items after Checkpoint C closes** — not a
-someday backlog, per the owner's own instruction on reviewing this runbook:
-the longer PipelineRuns exist without them, the more drift evidence is
-lost, since both are only valuable retroactively for runs that happened
-*without* them.
+Three items deferred out of Step C1b/C1c's already-large batch. All three
+are now explicitly **the first work items after Checkpoint C closes** —
+not a someday backlog, per the owner's own instruction on reviewing this
+runbook: the longer PipelineRuns exist without them, the more drift
+evidence (items 1/2) or the more repeat instances of an already-observed
+failure pattern (item 3) accumulate.
 
 1. **Model-identity capture** (highest priority). If the live MaaS
    endpoint's response exposes a model identity/version field (an
@@ -222,9 +222,31 @@ lost, since both are only valuable retroactively for runs that happened
    is therefore a functional check (the call still succeeds) rather than
    a trace-based one (`model.route: fallback` visible in an exported
    span, matching `DEC-020`'s local demo).
+3. **Config-contract completeness check.** `DECISIONS.md` `DEC-035`
+   records the second instance of the same failure pattern: an
+   environment surface silently missing a key `agent/config.py` (the
+   canonical consumer) actually requires. First instance: R4's
+   `scripts/dev.sh` missing `MODEL_API_KEY`/fallback vars for local dev.
+   Second: the K8s-deployed config path (base `ConfigMap`, the
+   `ephemeral-test` overlay, and the live `golden-path-agent-ci-config`)
+   never declaring `MODEL_FALLBACK_API_BASE_URL`/`MODEL_FALLBACK_NAME` at
+   all — undetected for the entire C1a–C1c build-out because
+   `operational-tests` (the one stage that would exercise it) never
+   successfully reached its own HTTP call until `DEC-034`'s unrelated
+   `curl` fix. Two independent instances of the same class of gap is a
+   pattern, not a coincidence — the fix is mechanical, not another
+   one-off patch: a check that derives the required key set directly from
+   `agent/config.py`'s own `_env(...)` calls (the canonical source of
+   truth for what the application actually reads) and validates that
+   every deployment surface — `.env.example`, `scripts/dev.sh`, the base
+   `ConfigMap`, and each overlay's `configMapGenerator` — declares each
+   required key, failing loudly on any surface that's missing one. Cheap
+   to build (a static-analysis script, no cluster access needed) and
+   prevents a third instance of a pattern that has now bitten twice.
 
-Neither blocks Checkpoint C itself — its own exit criteria (green
-pipeline, blocked bad-change promotion, displayed digest equality) don't
-require live tracing or model-identity correlation. Both are explicitly
-sequenced right after it closes, in the priority order above, not left to
-someday.
+Neither model-identity capture nor OTel wiring blocks Checkpoint C
+itself — its own exit criteria (green pipeline, blocked bad-change
+promotion, displayed digest equality) don't require live tracing or
+model-identity correlation, and the same is true of item 3 (a build-time
+lint, not a runtime gate). All three are explicitly sequenced right after
+Checkpoint C closes, in the priority order above, not left to someday.

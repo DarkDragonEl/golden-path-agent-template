@@ -3165,3 +3165,107 @@ updated; not yet confirmed live end-to-end (that requires the next
 `PipelineRun` actually exercising `kill-primary-fallback-check` against a
 pod that now has a real fallback route). Proceeding to re-trigger
 `PipelineRun` C1c-11.
+
+## DEC-036 — Promotion-PR credential provisioned; targeted retry of
+`open-promotion-pr` alone attempted, blocked, and reverted before any
+push reached GitHub
+
+**Document/scope:** the live `golden-path-agent-github-token` `Secret`
+(`golden-path-agent-ci`), a standalone `TaskRun` (not committed —
+investigation only). The owner provisioned the fine-grained GitHub PAT
+(`golden-path-agent-template` only, `Contents: RW` + `Pull requests: RW`,
+short expiry, per `docs/phase-c-runbook.md` §3) and supplied it directly
+in conversation rather than running the `oc create secret` command
+themselves. **Flagged to the owner directly**: this means the token is
+recorded in this session's conversation history, a broader exposure than
+the runbook's intended flow (human runs `oc create secret` locally, the
+value never appears in the agent's own context) — recommended rotating
+this specific PAT once C1c/C1d conclude. The `Secret` itself was created
+without ever echoing the value (`--from-literal=token="$VAR"` inside one
+shell invocation, `unset` immediately after, verified afterward by
+listing only the `Secret`'s key names, never `.data`).
+
+**Attempted a targeted final-stage re-trigger** (per the owner's own
+prior instruction: prefer this over a full re-run when cleanly possible)
+— a standalone `TaskRun` referencing `open-promotion-pr` directly, reusing
+`PipelineRun` C1c-11 (`golden-path-agent-ci-xscz6`)'s own `source`
+workspace PVC (`pvc-86854b03b8`, confirmed via `ownerReferences` to
+belong solely to that `PipelineRun`, confirmed nothing was still mounting
+it) instead of re-running the whole ~7-minute pipeline, with the exact
+same `image-ref`/`commit-sha` params the original failed `TaskRun`
+recorded. This was cleanly possible mechanically (dry-run validated,
+applied, ran) — but surfaced two real, previously-latent bugs, neither of
+which this session's prior nine `PipelineRun`s could have exposed
+(`open-promotion-pr` had never previously run far enough to reach either
+one):
+
+**Bug 1 — git push auth.** `commit-and-push-branch` failed:
+`fatal: could not read Username for 'https://github.com': No such device
+or address`. Root cause: GitHub's git-over-HTTPS smart endpoint does not
+accept a bare `Authorization: Bearer <token>` header for `git push` (only
+for REST API calls, which `open-pr`'s own `curl` call already uses
+correctly) — with no credential helper configured, git fell back to an
+interactive username prompt with no TTY available. **Fix**: switched to
+GitHub's own documented PAT-over-git-push mechanism, the credential
+embedded directly in the push URL
+(`https://x-access-token:${GITHUB_TOKEN}@github.com/...`) — recognized
+immediately, no prompt fallback. Still never echoed; only ever appears as
+a command argument, the same handling standard this Task's own header
+comment already committed to.
+
+**Bug 2 — shared-workspace contamination (the more serious finding).**
+The commit that DID succeed (before the push failed) showed `1 file
+changed, 12 insertions(+), 12 deletions(-)` on
+`deploy/kustomize/base/kustomization.yaml` — starkly inconsistent with
+the Task's own design contract ("only ever touches ... one field," this
+Task's own header comment). **Root cause, confirmed directly**: spun up a
+short-lived debug `Pod` (investigation only, deleted immediately after)
+mounting the same workspace PVC read-write to inspect the actual
+checked-out file. `deploy-ephemeral`'s `render-with-digest-override` step
+runs `kustomize edit set image golden-path-agent="$(params.image-ref)"`
+directly against `$(workspaces.source.path)/deploy/kustomize/base/kustomization.yaml`
+— that command rewrites the **entire file** in place via its own YAML
+marshaling (confirmed: list-item indentation style changed on all 9
+`resources:` entries, plus the `images:` stanza's key order changed), not
+just the touched field, and — critically — sets `newName` to the
+**CI-internal ephemeral registry hostname**
+(`image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent`)
+instead of leaving the committed `REGISTRY_PLACEHOLDER/golden-path-agent`
+placeholder alone. This mutation was believed scoped to `deploy-ephemeral`'s
+own concerns (`DEC-031`'s own header comment: "this scratch, uncommitted
+workspace checkout... 'never committed' describes the *repo*") — but the
+`source` workspace is a single PVC shared across **every Task in the
+whole `PipelineRun`**, not scoped to one Task, so the mutation was still
+sitting there, unreverted, when `open-promotion-pr` ran later in the same
+run and sed-patched a digest onto an already-wrong file. Had the push
+succeeded, this would have opened a real GitHub PR promoting a broken,
+CI-namespace-internal registry reference that no other environment could
+actually pull from — exactly the outcome the owner's pre-C3/C4 PR-diff
+review exists to catch, but better caught here, before any push reached
+GitHub at all.
+
+**Fix**: after `kustomize build .` captures the fully-rendered manifest
+into `rendered-ephemeral.yaml` (the only thing `deploy-ephemeral`'s own
+`apply` step actually needs), revert the mutated file back to its
+committed state: `git -C $(workspaces.source.path) checkout --
+deploy/kustomize/base/kustomization.yaml`. Nothing downstream in
+`deploy-ephemeral` needs the mutated file on disk once the render is
+captured — only `rendered-ephemeral.yaml`.
+
+**Both fixes verified locally** (rendered-script extraction + `sh -n` on
+all four affected steps across both files; `oc apply --dry-run=server`
+before the real apply for both `Task`s) but **not yet confirmed live**.
+Given the contamination bug requires `deploy-ephemeral` to actually
+re-execute to produce a clean workspace (the existing PVC's checked-out
+tree already has the bad mutation baked in, uncommitted but present on
+disk — reverting it only inside a throwaway debug `Pod` would not
+constitute a real test of the fix), **a full `PipelineRun` re-trigger is
+the correct next step, not a second targeted retry** — this is the
+"state which was done and why" the owner's own instruction asked for:
+targeted retry was cleanly *possible* mechanically, but re-running is
+correct here because the bug it uncovered lives in the upstream Task
+whose output the targeted retry would otherwise still be relying on
+unverified. Debug `Pod` and the failed standalone `TaskRun` left in place
+as investigation record, not cleaned up beyond the debug `Pod` itself
+(deleted immediately after inspection, per this session's minimal-footprint
+discipline).

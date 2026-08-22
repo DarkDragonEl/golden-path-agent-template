@@ -82,6 +82,18 @@ spec:
           --from-literal=MODEL_FALLBACK_API_BASE_URL="${MODEL_FALLBACK_API_BASE_URL}" \
           --from-literal=MODEL_FALLBACK_NAME="${MODEL_FALLBACK_NAME}"
         kustomize build . > $(workspaces.source.path)/rendered-ephemeral.yaml
+        # DEC-037: `kustomize edit set image` above rewrites
+        # base/kustomization.yaml's entire content in place (not just the
+        # touched field -- confirmed live: whole-file reformatting plus
+        # the wrong newName, the CI-internal ephemeral registry host
+        # instead of the committed placeholder). This workspace is the
+        # same PVC every later Task in this PipelineRun shares --
+        # including open-promotion-pr, which must sed-patch the digest
+        # field onto the ORIGINAL, unmodified committed file. Revert the
+        # mutation now that the render is already captured above; nothing
+        # downstream in this Task needs the mutated file on disk, only
+        # rendered-ephemeral.yaml.
+        git -C $(workspaces.source.path) checkout -- deploy/kustomize/base/kustomization.yaml
     - name: apply
       image: quay.io/openshift/origin-cli:4.20
       script: |

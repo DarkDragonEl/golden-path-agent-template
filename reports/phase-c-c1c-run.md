@@ -128,5 +128,49 @@ inspected log or spec.
 real promotion PR (`docs/phase-c-runbook.md` §3) — a separate, later step
 per the owner's own instruction, not part of this evidence.
 
+## 9. Findings — patterns worth carrying forward
+
+**Environment-injected config completeness (`DEC-035`).** This is the
+**second** independent instance of the same failure shape: a deployment
+surface silently missing a key `agent/config.py` (the canonical
+consumer) actually requires, undetected until the one stage that
+exercises it finally runs. First instance: R4's `scripts/dev.sh` missing
+`MODEL_API_KEY`/fallback vars for local dev. Second: none of the
+K8s-facing config surfaces (base `ConfigMap`, `ephemeral-test` overlay,
+the live `golden-path-agent-ci-config`) ever declared
+`MODEL_FALLBACK_API_BASE_URL`/`MODEL_FALLBACK_NAME` — invisible for the
+entire C1a–C1c build-out because `operational-tests` (the one stage that
+exercises the fallback route) never reached its own HTTP call until
+`DEC-034`'s unrelated `curl` fix unblocked it. Two instances of the same
+class of gap is a pattern, not a coincidence. Added to the
+post-Checkpoint-C backlog (`docs/phase-c-runbook.md` §5/6/7, item 3,
+same priority tier as model-identity capture and OTel wiring): a
+mechanical config-contract completeness check, deriving the required key
+set from `agent/config.py`'s own `_env(...)` calls and validating every
+deployment surface declares each one — cheap, and it closes off a third
+instance before it can happen.
+
+**Shared-workspace contamination across Tasks in one `PipelineRun`
+(`DEC-036`/`DEC-037`).** A related but distinct pattern, surfaced while
+provisioning the promotion-PR credential: `deploy-ephemeral`'s
+`kustomize edit set image` call mutates
+`deploy/kustomize/base/kustomization.yaml` **in place**, and — because
+every Task in a `PipelineRun` shares the same PVC-backed `source`
+workspace, not just the Task that wrote it — that mutation was still
+present, unreverted, when `open-promotion-pr` ran later in the same run
+and sed-patched a digest onto an already-wrong file (wrong registry
+hostname, whole-file reformatting). `DEC-031`'s own design note ("this
+scratch, uncommitted workspace checkout") assumed the mutation was scoped
+to `deploy-ephemeral`'s own concerns; it was not. Fixed by reverting the
+file (`git checkout --`) once its content is captured into
+`rendered-ephemeral.yaml`, the only artifact any later step actually
+needs. Worth naming explicitly for a future reviewer: any Task in this
+pipeline that edits a file in the shared `source` workspace for its own
+transient purposes needs to either revert the mutation before exiting, or
+operate on an isolated copy — the workspace is pipeline-lifetime-shared,
+not Task-scoped, and nothing in Tekton enforces that isolation
+automatically.
+
 **Holding here, per instruction, before Step C1d** (negative proof #1,
-seeded bad change).
+seeded bad change) — the promotion-PR path (both fixes above) still
+needs live confirmation via a fresh `PipelineRun` before that holds too.

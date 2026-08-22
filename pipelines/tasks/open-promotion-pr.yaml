@@ -47,8 +47,16 @@ spec:
         git checkout -b "$BRANCH"
         git add deploy/kustomize/base/kustomization.yaml
         git commit -m "Promote $(params.commit-sha): $(params.image-ref)"
-        git -c http.extraHeader="Authorization: Bearer ${GITHUB_TOKEN}" \
-          push https://github.com/DarkDragonEl/golden-path-agent-template.git "$BRANCH"
+        # DEC-037: GitHub's git-over-HTTPS smart endpoint does not accept
+        # a bare `Authorization: Bearer` header for git push -- confirmed
+        # live ("could not read Username for 'https://github.com'", git
+        # falling back to an interactive credential prompt with no TTY
+        # available). The URL-embedded-credential form below is GitHub's
+        # own documented mechanism for PAT-based git push and is
+        # recognized immediately, no credential helper needed. Still
+        # never echoed -- only ever appears as a command argument, same
+        # handling this Task's own header comment already commits to.
+        git push "https://x-access-token:${GITHUB_TOKEN}@github.com/DarkDragonEl/golden-path-agent-template.git" "$BRANCH"
         echo "$BRANCH" > $(workspaces.source.path)/.promotion-branch
 
     - name: open-pr
