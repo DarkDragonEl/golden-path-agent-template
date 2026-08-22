@@ -141,7 +141,21 @@ $ echo $?
   and reasoned — the gate still reports `PASS` because both are real,
   understood, non-safety-critical limits, not because failures are swept
   under a threshold. Full detail in `DECISIONS.md` (`DEC-016`–`DEC-019`)
-  and the "Checkpoint B2 — Closure" section of this report.
+  and the "Checkpoint B2 — Closure" section of
+  `reports/feature-phase-b-golden-path.md`.
+
+**On the tolerated-list footer, read literally:** it only lists a case
+when that case both (a) is registered as a known-gap/measurement-tolerance
+and (b) actually failed *this specific run* — a registered case that
+happens to pass cleanly simply isn't shown. The full registry is **four**
+named, dated entries, not two: `INJ-006` (known-gap, `DEC-016`), `UAW-003`
+(measurement-tolerance, `DEC-017`), `ITR-004` (known-gap, `DEC-018`/
+`DEC-019`), `TSEL-004` (known-gap, `DEC-018`) — see `DECISIONS.md` `DEC-021`
+for the complete list and `DEC-022` for why `INJ-006` and `UAW-003` don't
+appear in *this* run's footer even though they're both registered
+(`INJ-006` specifically: it passed cleanly here, which is itself a
+reversal from its own documented known-gap history — investigated and
+explained in `DEC-022`, not a silent inconsistency).
 
 ## What this is NOT yet
 

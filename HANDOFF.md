@@ -2,23 +2,24 @@
 
 ## Where this is
 
-- **Branch:** `feature/phase-b-golden-path`
-- **Last code commit:** `6011a27` — "Fix two live-verification blockers
-  found during Checkpoint B2 exit checks" (env-var passthrough +
-  OTLP `/v1/traces` fix). About to be followed by a documentation-only
-  commit for this report/handoff/DEC-020 update.
-- **Working tree:** `DECISIONS.md`, `reports/feature-phase-b-golden-path.md`,
-  `HANDOFF.md` (this file) about to be committed together, documentation
-  only. All code/prompt/eval-case changes are already committed as of
-  `6011a27`.
-- **Checkpoint B2 is approved and formally closed (`DEC-021`).** Owner
-  reconciliation on the `ITR-004`/60-62 question is resolved (see
-  `DEC-021` / the report's "Checkpoint B2 — Closure" section). Anonymity
-  sweep performed, clean, no violations. Remaining before Phase C: produce
-  the Phase B sharing artifact (recorded `make up && make eval`, per
-  `E2E_DEMO_PLAN.md`'s E3), then merge this branch to `main`. Phase C
-  itself is not started — it will be planned in its own cycle and the plan
-  presented before execution, per the owner's explicit request.
+- **Branch:** `main` (`feature/phase-b-golden-path` merged in, commit
+  `f038c27`; the feature branch itself still exists locally but `main` is
+  now the branch to work from).
+- **Checkpoint B2 is approved and formally closed (`DEC-021`, `DEC-022`).**
+  Owner reconciliation on the `ITR-004`/60-62 question is resolved
+  (`DEC-021` / the report's "Checkpoint B2 — Closure" section). A second
+  owner-caught reconciliation — `INJ-006` showing `[PASS]` in the sharing
+  artifact despite `DEC-016`–`DEC-018` locking it as a firm, deterministic
+  known-gap — is resolved in `DEC-022`: a diff audit ruled out any local
+  instrument change, a 5-rep diagnostic confirmed the reversal is real and
+  reproducible, and `INJ-006` stays classified `known-gap` (not
+  reclassified to `measurement-tolerance`) with its rationale updated to
+  state both historical blocks honestly. Read `DEC-022` before citing
+  `INJ-006`'s status from anything written before it. Anonymity sweep
+  performed, clean, no violations. Phase B sharing artifact produced
+  (`reports/phase-b-sharing-run.md`) and the branch merged to `main`. Phase
+  C itself is not started — it will be planned in its own cycle and the
+  plan presented before execution, per the owner's explicit request.
 
 ## Phase position
 
@@ -292,13 +293,32 @@ file exists in the repo; `.env` (the only file with a real endpoint/key) is
 gitignored and untracked; no real hostnames, emails, or IPs found in any
 tracked file. Full method in `DEC-021`.
 
-**Remaining before Phase C, in order:** (1) produce the Phase B sharing
-artifact — a recorded local `make up && make eval` run, per
-`E2E_DEMO_PLAN.md`'s E3 ("a short recorded local run... shows the inner
-loop and laptop-parity story"); (2) merge `feature/phase-b-golden-path` to
-`main`, which formally closes Checkpoint B2. Phase C itself will be
-planned in its own cycle — plan presented before execution, not
-implemented directly off the owner's kickoff decisions below.
+## `DEC-022` — `INJ-006` reversal investigated, known-gap kept
+
+Owner caught a real inconsistency: `reports/phase-b-sharing-run.md` showed
+`INJ-006` at `[PASS]`, but `DEC-016`/`DEC-017`/`DEC-018` document it as a
+firm known-gap (10/10 deterministic fails). Investigation (full diff audit
+of every file changed since the last confirmed failure, plus a fresh 5-rep
+diagnostic, `tools/diagnose_inj006_flip.py`) found: no local prompt/code/
+config change explains it (rules out an undeclared instrument change); the
+request sent to the model is confirmed byte-identical across the reversal;
+and the model's own behavior on this exact jailbreak framing has
+genuinely flipped between measurement sessions (10/10 fail, then 7/7 pass,
+no reproducing failure currently). Read as evidence the live, externally-
+hosted model isn't stable across sessions even under pinned sampling — not
+as the gap being fixed — so `INJ-006` stays `known-gap`, not
+`measurement-tolerance` (that class means "essentially doesn't happen";
+a fully-reproduced 10/10 block makes that dishonest here).
+`eval/cli.py`'s tolerated-list footer now also prints a one-line note that
+it only shows cases that both are registered *and* failed that specific
+run — the proximate cause of the ambiguity. Full evidence: `DEC-022`,
+`reports/inj006-flip-diagnostic-raw.json`.
+
+**Phase B sharing artifact and merge are both done**
+(`reports/phase-b-sharing-run.md`; merge commit `f038c27` on `main`).
+Phase C itself will be planned in its own cycle — plan presented before
+execution, not implemented directly off the owner's kickoff decisions
+below.
 
 **Phase C kickoff decisions on record** (owner-confirmed, not yet acted
 on): `demo-prod` overlay is new (not repurposed), auto-sync on, per the
