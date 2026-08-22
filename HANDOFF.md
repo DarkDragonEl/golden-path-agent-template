@@ -39,14 +39,23 @@
   before touching anything under `pipelines/` — it documents a real design
   finding (the existing `eval.cli --domain` harness is in-process only,
   can't test deployed pods directly — `security-tests`/`operational-tests`
-  do that instead, `eval-gate-live` doesn't) and two explicitly-deferred
-  items (model-identity capture, cluster-tier OTel wiring — not silently
-  skipped, written down as open). The promotion-PR GitHub credential's
-  mechanism is finalized but not yet created (`docs/phase-c-runbook.md`
-  §3) — a manual, human GitHub-UI action, not blocking the negative-proof
-  path. **Holding at C1b's own STOP for manifest + RBAC review** — do not
-  trigger a `PipelineRun` (`pipelines/pipelinerun-template.yaml`, C1c)
-  without new owner authorization.
+  do that instead, `eval-gate-live` doesn't; the "no stage covers all 8
+  categories against deployed pods" consequence of that split is stated
+  explicitly in `docs/phase-c-runbook.md`'s "Coverage shape" section, with
+  an HTTP-based eval executor named as a Phase-D-adjacent phase-two
+  integration point, not silently left for a reviewer to ask about). The
+  promotion-PR GitHub credential's mechanism is finalized but not yet
+  created (`docs/phase-c-runbook.md` §3) — a manual, human GitHub-UI
+  action, not blocking the negative-proof path.
+- **Post-Checkpoint-C backlog, priority order, owner-confirmed as the
+  first work after C closes (not someday)**: (1) model-identity capture —
+  every `PipelineRun` executed without it is drift evidence permanently
+  lost, not deferrable retroactively; (2) cluster-tier OTel wiring. Both
+  detailed in `docs/phase-c-runbook.md`'s "Post-Checkpoint-C backlog"
+  section.
+- **C1c (first real `PipelineRun`) is authorized and next** — do not
+  trigger one (`pipelines/pipelinerun-template.yaml`) without checking
+  this file/the plan are current with wherever that run actually landed.
 
 ## Phase position
 

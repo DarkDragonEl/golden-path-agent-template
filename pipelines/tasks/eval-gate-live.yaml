@@ -54,7 +54,7 @@ spec:
         # DECISIONS.md DEC-022: an unexpected failure here on a PR that
         # doesn't touch the measurement instrument is not automatically the
         # change's fault -- see docs/phase-c-runbook.md §4 before treating
-        # a red gate as a regression. Model-identity capture (runbook §5)
-        # is NOT implemented yet -- deferred alongside §6's OTel wiring,
-        # not silently assumed present here.
+        # a red gate as a regression. Model-identity capture (runbook §5/6,
+        # now the #1 post-Checkpoint-C backlog item) is NOT implemented
+        # yet -- not silently assumed present here.
         python -m eval.cli run --domain

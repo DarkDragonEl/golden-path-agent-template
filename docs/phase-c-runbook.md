@@ -8,6 +8,40 @@ namespaces need and nothing else — no cluster-scoped permissions, no
 secret-material handling. These steps exist precisely because the pipeline
 must not be trusted with them.
 
+## Coverage shape: what each stage actually tests (read this before the
+"why is eval-gate-live in-process" question comes up)
+
+`DECISIONS.md` `DEC-025` records the finding; this is the explicit
+statement of its consequence, written down before a reviewing architect
+has to ask. **No single stage runs all 8 domain categories against the
+deployed pods.** That's a deliberate split, not a gap:
+
+- `eval-gate-live` tests **reasoning quality against the real model**, all
+  8 domain categories, `DEC-017`'s exact deterministic-sampling contract —
+  but in-process (`eval.cli run --domain`, unchanged from Phase B). Whether
+  the agent decides correctly, cites correctly, refuses correctly does not
+  change depending on which pod the process happens to run in — the model
+  call, the prompt, the retrieval logic are identical either way.
+- `security-tests`/`operational-tests` test **what the deployment
+  actually changes**: environment injection (does the real `Secret`/
+  `ConfigMap` reach the running container correctly), networking (does the
+  `NetworkPolicy` actually block what it claims), the write path end to
+  end over real HTTP (zero-mutation on a rejected write, against the
+  live pod, not the in-process graph), and fallback (does the deployed
+  pod's own `RoutedModelClient` actually recover from a broken primary).
+  These are exactly the properties that *can* differ between "runs
+  correctly on my laptop" and "runs correctly as a deployed pod," and
+  exactly the properties an in-process eval run can never exercise.
+
+**Named phase-two integration point**: an HTTP-based eval executor (one
+that drives the eval case set against a deployed agent's `/invoke`/
+`/approvals/{id}/resume` REST surface instead of `agent.graph.build_graph()`
+in-process) would let a single stage genuinely test all 8 categories
+against the real deployed pods. Not built now — real, unbudgeted scope for
+Step C1b. It lands naturally alongside Phase D's real approval-service
+component, which needs the same kind of REST-driven test harness for its
+own `/proposals` API — one executor, not two, when that work starts.
+
 ## 1. Namespace + RBAC bootstrap (done — Step C1a)
 
 ```sh
@@ -132,40 +166,48 @@ This procedure protects against exactly the failure mode `DEC-022` had to
 investigate after the fact — it makes the diagnosis routine instead of a
 fresh forensic exercise each time it recurs.
 
-## 5. Model-identity capture (for `eval-gate-live`) — deferred, not done at
-this STOP; see §6 for why
+## 5/6. Post-Checkpoint-C backlog (priority order, owner-confirmed — NOT
+someday items)
 
-If the live MaaS endpoint's response exposes a model identity/version
-field (e.g. an OpenAI-compatible response's `model` field, or a system-
-fingerprint-style header), each eval run should capture it alongside its
-results — **read-only telemetry, never used to alter a request** (the same
-constraint `agent/telemetry.py`'s own header comment holds itself to,
-`DECISIONS.md` `DEC-020`). Purpose: the next time cross-session behavioral
-drift shows up (another `DEC-022`-shaped finding), there's a chance to
-correlate it against an actual observed model-identity change instead of
-inferring one exists.
+Two items deferred out of Step C1b's already-large batch. Both are now
+explicitly **the first work items after Checkpoint C closes** — not a
+someday backlog, per the owner's own instruction on reviewing this runbook:
+the longer PipelineRuns exist without them, the more drift evidence is
+lost, since both are only valuable retroactively for runs that happened
+*without* them.
 
-**Not implemented in `pipelines/tasks/eval-gate-live.yaml` at this STOP.**
-Doing this properly means threading `response.model` through
-`agent/model_client.py::OpenAICompatibleModelClient.complete()`'s return
-tuple (the same pattern R4/`DEC-020` already used for `usage`), into
-`model_calls` entries, and from there into `eval/reporter.py`'s output —
-a real, multi-file addition, not a one-line change to the pipeline Task.
-Given the size of this Step C1b batch already, this is deferred alongside
-§6's OTel wiring rather than rushed in here — recorded honestly as
-open, not silently implied done by this section's earlier draft.
+1. **Model-identity capture** (highest priority). If the live MaaS
+   endpoint's response exposes a model identity/version field (an
+   OpenAI-compatible response's `model` field, or a system-fingerprint-
+   style header), capture it alongside every eval run's results —
+   **read-only telemetry, never used to alter a request** (the same
+   constraint `agent/telemetry.py`'s own header comment holds itself to,
+   `DECISIONS.md` `DEC-020` — no `DEC-012`-style re-baseline needed for
+   this specific addition, same reasoning as `DEC-020`'s own token-usage
+   capture). Not implemented at the C1b STOP: doing it properly means
+   threading `response.model` through
+   `agent/model_client.py::OpenAICompatibleModelClient.complete()`'s
+   return tuple (the same pattern R4/`DEC-020` used for `usage`), into
+   `model_calls` entries, and from there into `eval/reporter.py`'s output
+   — a real, multi-file addition, not a one-line Task change.
+   **Rationale for the priority, not just the existence, of this item**:
+   its entire value is correlating *future* cross-session drift
+   (`DEC-022`'s pattern) against an *observed* model-identity change —
+   and every `PipelineRun` from C1c onward is itself a fresh measurement
+   session. Every run executed without this capture is drift evidence
+   permanently lost, not deferred; it cannot be captured retroactively
+   for a run that already happened.
+2. **Cluster-tier OTel wiring.** `PINS.md` pins the Red Hat build of
+   OpenTelemetry Operator (`opentelemetry-product`, channel `stable`) as
+   available on this cluster's catalog, but it is not yet installed, and
+   the ephemeral deployment does not yet export traces. `operational-tests`'s
+   kill-primary-fallback check (`pipelines/tasks/operational-tests.yaml`)
+   is therefore a functional check (the call still succeeds) rather than
+   a trace-based one (`model.route: fallback` visible in an exported
+   span, matching `DEC-020`'s local demo).
 
-## 6. Deferred: cluster-tier OTel wiring
-
-`PINS.md` pins the Red Hat build of OpenTelemetry Operator
-(`opentelemetry-product`, channel `stable`) as available on this cluster's
-catalog, but **it is not yet installed, and the ephemeral deployment does
-not yet export traces**. `operational-tests`'s kill-primary-fallback check
-(§4 above, actually the check in `pipelines/tasks/operational-tests.yaml`)
-is therefore a functional check (the call still succeeds) rather than a
-trace-based one (`model.route: fallback` visible in an exported span,
-matching `DEC-020`'s local demo). Not a silent scope cut: Checkpoint C's
-own exit criteria (green pipeline, blocked bad-change promotion, displayed
-digest equality) don't require live tracing, so this was deliberately
-sequenced after the pipeline itself rather than blocking it — flagged here
-as real remaining work, not forgotten.
+Neither blocks Checkpoint C itself — its own exit criteria (green
+pipeline, blocked bad-change promotion, displayed digest equality) don't
+require live tracing or model-identity correlation. Both are explicitly
+sequenced right after it closes, in the priority order above, not left to
+someday.

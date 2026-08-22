@@ -1785,3 +1785,87 @@ All three exit criteria verified live; the final known-gap list is exactly
 four named, dated, rationale-carrying entries with no ambiguity about what
 `60/62` counts. Both live-only bugs found this round are fixed and
 re-verified. See `DECISIONS.md` `DEC-021` for the formal closure entry.
+
+## Phase C — CI, gates, promotion (SNO)
+
+Full detail and evidence is in `DECISIONS.md` (`DEC-023` C0, `DEC-024`
+C1a, `DEC-025` C1b) and the plan file
+(`~/.claude/plans/read-claude-md-handoff-md-decisions-md-vast-hare.md`);
+this section is the narrative summary.
+
+**Load-bearing discovery**: the target SNO (`api.sno.lab.local`) is a
+shared, multi-tenant lab cluster with real, unrelated tenant workloads
+already running — not a dedicated one, contrary to what the accepted plan
+assumed. This reshaped the whole isolation strategy: new, dedicated
+namespaces/`AppProject`/RBAC only, reusing the existing shared
+`openshift-gitops` instance rather than installing a second GitOps
+controller. `docs/environments.md` records the consequence for the
+"instantiates from Git alone" claim: operator installation doesn't
+bootstrap from Git here (the operators pre-date this project), so Phase
+E's showcase-cluster refresh becomes the first full from-scratch bootstrap
+test.
+
+**C0** (repo-only): `PINS.md`'s Phase C section populated against live
+cluster/catalog state, not stale docs. `agent/policy.py`'s legacy
+`placeholder_lookup` write-flag carve-out retired (its own docstring
+anticipated this at "Phase C at the latest") — `EXAMPLE-002.yaml` now
+exercises a dedicated `placeholder_write_action` tool instead.
+`policy/opa/` written as a declarative policy-definition mirror (`opa
+test` 11/11).
+
+**C1a** (first real cluster/repo writes): namespaces, least-privilege RBAC
+(verified live with `oc auth can-i`, not assumed from YAML), the MaaS
+credential as a `Secret`, a new public GitHub repo (full git-history
+anonymity sweep clean, reported before pushing — not just the working
+tree), `AppProject/golden-path-agent` live in `openshift-gitops`. A real
+RBAC consequence found while implementing it: creating/deleting a
+`Namespace` is cluster-scoped and cannot be granted via a namespace-scoped
+`Role`, so `golden-path-agent-ephemeral-test` is pre-created once and
+stays standing — "ephemeral" now means ephemeral *resources* inside a
+stable namespace, not an ephemeral namespace.
+
+**C1b** (full pipeline, not yet applied): 12 Tekton `Task`s + the
+`Pipeline`, every one schema-validated against the live cluster
+(`dry-run=server`), realizing the accepted plan's stage sequence. Two real
+bugs caught by actually dry-running things rather than assuming: the
+`openpolicyagent/opa` image has no shell at all (fixed with the `-debug`
+variant for the one step that needs one); `oc rollout status` needed
+`watch` on `deployments` and read access to `replicasets`, added to the
+RBAC and re-verified live.
+
+**Coverage shape — stated explicitly, not left implicit** (`DEC-025`, the
+runbook's own "Coverage shape" section): `eval/domain_executor.py` drives
+the agent graph fully in-process, built for Phase B's local testing model,
+not for exercising an already-deployed HTTP service. Rather than build a
+new HTTP-based eval executor (real, unbudgeted scope), responsibility is
+split: **no single stage runs all 8 domain categories against the
+deployed pods.** `eval-gate-live` tests reasoning quality against the real
+model, in-process — the model call, prompt, and retrieval logic are
+identical whichever process runs them. `security-tests`/`operational-tests`
+test what the deployment actually changes and an in-process run can never
+exercise: environment injection, networking (the `NetworkPolicy`'s actual
+enforcement, not just its existence), the write path over real HTTP
+(zero-mutation against the live pod), and fallback recovery in the
+deployed pod's own `RoutedModelClient`. An HTTP-based eval executor is
+recorded as a named phase-two integration point, landing naturally
+alongside Phase D's real approval-service component (which needs the same
+kind of REST-driven test harness for its own API) — one executor built
+once, not two.
+
+`tools/check_policy_sync.py` closes a drift risk the owner caught on
+review: the OPA rego mirror's sync with `policy/approval_rules.yaml` was
+previously "kept in sync by hand" as a documented hope; this makes it an
+enforced check, verified to actually catch drift (deliberately broken,
+confirmed the failure, restored).
+
+**Post-Checkpoint-C backlog, priority order** (owner-confirmed as the
+first work after C closes, not someday): (1) model-identity capture —
+every `PipelineRun` executed without it is drift evidence permanently
+lost, unrecoverable retroactively, and every run from C1c onward is
+itself a fresh measurement session; (2) cluster-tier OTel wiring (operator
+pinned and available, not yet installed). Neither blocks Checkpoint C's
+own exit criteria.
+
+**Status: holding at C1b's own STOP through owner review, now proceeding
+to C1c** (first real `PipelineRun`, green path) — evidence to follow in
+this section once C1c completes.
