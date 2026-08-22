@@ -51,12 +51,27 @@ spec:
       workspaces: [{ name: source, workspace: source }]
 
     - name: container-build
-      taskRef: { name: container-build }
+      # DEC-030: references the OpenShift Pipelines operator's own
+      # pre-built buildah Task (openshift-pipelines namespace) via the
+      # cluster resolver, in place of the custom Task this Pipeline
+      # originally defined -- see pipelines/bootstrap/rbac.yaml's
+      # pipelines-scc RoleBinding for why, and DEC-030 for the full
+      # investigation. Not an external Tekton Hub bundle fetch: `cluster`
+      # resolves a Task object already installed on this cluster by the
+      # operator, no network fetch, no version-pin-chasing.
+      taskRef:
+        resolver: cluster
+        params:
+          - { name: kind, value: task }
+          - { name: name, value: buildah }
+          - { name: namespace, value: openshift-pipelines }
       runAfter: [unit-tests, eval-gate-offline, policy-validate]
       workspaces: [{ name: source, workspace: source }]
       params:
-        - name: image
+        - name: IMAGE
           value: "$(params.image-repo):pr-$(tasks.fetch-source.results.commit-sha)"
+        - name: DOCKERFILE
+          value: ./Containerfile
 
     - name: digest-capture
       taskRef: { name: digest-capture }

@@ -77,6 +77,38 @@ roleRef:
   name: system:image-builder
   apiGroup: rbac.authorization.k8s.io
 ---
+# DECISIONS.md DEC-030: pipelines-scc, granted narrowly the same way as
+# system:image-builder above (a namespace-scoped RoleBinding to a
+# ClusterRole that itself only grants `use` on this one, specifically-
+# named SCC -- pipelines-scc-clusterrole's own rule is
+# resourceNames:[pipelines-scc], not a blanket SCC grant). Needed
+# specifically because the container-build stage now references the
+# OpenShift Pipelines operator's own pre-built `buildah` Task
+# (openshift-pipelines namespace, referenced via the cluster resolver),
+# which itself requires SETFCAP -- confirmed this is genuinely required,
+# not a repeat of the speculative grant DEC-029 correctly removed: an
+# extensive investigation (DEC-030) found that plain restricted-v2 (no
+# subuid/subgid ranges, no added capabilities) cannot run a real rootless
+# buildah build at all, cascading through five distinct failures: this is
+# Red Hat's own purpose-built SCC for exactly this scenario ("a close
+# replica of anyuid... for pipeline builds"), narrowly scoped to SETFCAP
+# only, not privileged or a blanket anyuid grant.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: golden-path-agent-ci-pipeline-scc
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+subjects:
+  - kind: ServiceAccount
+    name: golden-path-agent-ci-pipeline
+    namespace: golden-path-agent-ci
+roleRef:
+  kind: ClusterRole
+  name: pipelines-scc-clusterrole
+  apiGroup: rbac.authorization.k8s.io
+---
 # Everything deploy-ephemeral/destroy-ephemeral need inside
 # golden-path-agent-ephemeral-test: full CRUD on exactly the resource
 # kinds deploy/kustomize/base actually produces (matching

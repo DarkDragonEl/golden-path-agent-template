@@ -2698,3 +2698,109 @@ readiness.
 `PipelineRun`) — recorded as fixed-pending-confirmation, not fixed, to
 keep the record honest about what "fixed" means before the next run
 actually proves it. Proceeding to re-trigger `PipelineRun` C1c-5.
+
+## DEC-030 — Step C1c, `PipelineRun` C1c-5: `container-build` replaced with
+the cluster-provided `buildah` `Task`, after `DEC-029`'s own fix turned
+out to be wrong
+
+**Document/scope:** `pipelines/tasks/container-build.yaml` (deleted),
+`pipelines/pipeline.yaml` (`container-build` now references the cluster's
+own `buildah` `Task` via the `cluster` resolver), `pipelines/bootstrap/rbac.yaml`
+(new `pipelines-scc` `RoleBinding`). `PipelineRun` C1c-5
+(`golden-path-agent-ci-j92mg`) confirmed `DEC-029`'s admission fix — the
+pod for `container-build` was admitted this time — but the build itself
+then failed inside the container, differently, several times in
+succession, while investigating live and locally in parallel.
+
+**The investigation, each step confirmed, not guessed**:
+
+1. `buildah` couldn't find its own "default container config": `Error
+   loading default container config when searching for local runtime:
+   stat /.config: no such file or directory` — the same `$HOME`-relative
+   pattern `DEC-027`/`DEC-028` already diagnosed (arbitrary UID, no
+   `/etc/passwd` entry, `$HOME` defaults to `/`).
+2. With `HOME` redirected to a genuinely writable path, layer application
+   on the base image failed: `potentially insufficient UIDs or GIDs
+   available in user namespace (requested 0:42 for /etc/gshadow) ...
+   lchown: invalid argument` — a fundamentally different, deeper
+   constraint: unpacking a base image whose layers contain files owned by
+   other UIDs (standard for any real base image) requires either real
+   `subuid`/`subgid` ranges for user-namespace remapping, or permission to
+   ignore the resulting `chown` failures. Confirmed via `oc get pod
+   -o yaml`-equivalent local reproduction (`podman run -u 1001:0`, no
+   `/etc/subuid` entry for that UID, identical error) before trying any
+   fix, and confirmed this cluster's `ServiceAccount` genuinely has no
+   `subuid`/`subgid` allocation (matching `restricted-v2`'s design,
+   deliberately, per the owner's own RBAC constraint).
+3. `--storage-opt vfs.ignore_chown_errors=true` got past layer
+   application, but hit a *third*, different config-lookup failure at the
+   first `RUN` step, this time checking `$PWD/.config` rather than
+   `$HOME/.config` — confirmed the check is workdir-relative, not
+   `$HOME`-relative, by testing with `XDG_CONFIG_HOME` set explicitly
+   (no effect) versus a workdir-local `.config` directory (had an effect,
+   once ownership was also corrected to match the running UID).
+4. Past that, a *fourth* failure: `error setting supplemental groups
+   list: operation not permitted` — actually executing a `RUN` command
+   inside the build needs a capability (`setgroups`) this project's own
+   `ServiceAccount` deliberately does not have, and `--isolation=chroot`
+   (tried explicitly, confirmed no effect on this specific failure) does
+   not avoid it.
+
+**Decision point, made explicitly rather than continuing to chase
+individual symptoms indefinitely**: four cascading, genuine constraints
+in five attempts is the signature of a well-known hard problem —
+rootless container builds without `subuid`/`subgid` ranges or elevated
+capabilities — not a bug in this project's own configuration. Checked
+before deciding: the OpenShift Pipelines operator (already installed,
+`pipelines-1.22`) ships its own pre-built, Red-Hat-maintained `buildah`
+`Task` object directly in the `openshift-pipelines` namespace (**not**
+the deprecated external Tekton Hub catalog `PINS.md`'s `C0a` research
+already ruled out — this is a locally-installed, in-cluster `Task`,
+referenced via Tekton's `cluster` resolver, no network fetch, no
+version-pin-chasing). Inspecting its own script confirmed it carries the
+**exact same** `securityContext.capabilities.add: [SETFCAP]` `DEC-029`
+had just removed as "speculative and unverified" — turning out, on this
+closer look, to be neither: Red Hat's own official Task needs it too,
+which means `DEC-029`'s diagnosis (this project's `Containerfile` needs
+no elevated capability) was incomplete — buildah's own rootless build
+*machinery* needs it, independent of what the `Containerfile` itself
+does. `DEC-029` is not retracted as wrong reasoning for what it checked
+(the `Containerfile` genuinely needs nothing extra) — it was reasoning
+from an incomplete premise (that the `Containerfile`'s own requirements
+are the only source of capability needs).
+
+**Per `CLAUDE.md`'s "Reuse over building" rule**, rather than keep
+hand-maintaining a custom wrapper duplicating Red Hat's own tested
+handling of this exact scenario: `container-build` now references the
+cluster's `buildah` `Task` directly. This needed one new, narrowly-scoped
+grant: `pipelines-scc` (`allowedCapabilities: [SETFCAP]` only — its own
+description: "a close replica of `anyuid`... for pipeline builds," not a
+blanket privileged/`anyuid` grant), via a namespace-scoped `RoleBinding`
+to `pipelines-scc-clusterrole` — confirmed that `ClusterRole`'s own rule
+is `resourceNames: [pipelines-scc]`, not a blanket SCC grant, matching
+the exact same narrow-binding pattern already used for
+`system:image-builder`. Verified live: `oc auth can-i use scc/pipelines-scc
+--as=...:golden-path-agent-ci-pipeline` → `yes`.
+
+**What stays custom, deliberately**: `digest-capture` is unchanged and
+still runs as a second, independent Task after `container-build` —
+reading the digest back from the `ImageStreamTag` itself, not just
+trusting the cluster `buildah` `Task`'s own `IMAGE_DIGEST` result. This
+gives a genuine cross-check (build-reported digest vs. registry-recorded
+digest) for the digest-chain evidence Checkpoint C's negative proof #2
+needs, not redundant duplication.
+
+**The lesson, on top of `DEC-026`'s**: when a "simpler, self-contained"
+custom implementation (this session's own C0a choice, made to avoid an
+external bundle-resolver dependency) turns out to require re-deriving a
+well-known hard problem's solution from scratch, that is itself a signal
+to check whether the platform already ships one — checking after the
+fact, once real friction surfaced, cost five failed `PipelineRun`s;
+checking at design time (C0a) would have cost one `oc get task -n
+openshift-pipelines` command. Recorded for the next Task written from
+scratch in this pipeline (`open-promotion-pr` has not yet run) and for
+any future infra work generally.
+
+**Status:** Fixed, RBAC verified live. Build behavior itself
+(fixed-pending-confirmation, same discipline as `DEC-029`) not yet
+re-verified — pending `PipelineRun` C1c-6.
