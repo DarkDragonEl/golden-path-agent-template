@@ -285,13 +285,14 @@ priority, parked rather than urgent, per the owner's own call.
    is therefore a functional check (the call still succeeds) rather than
    a trace-based one (`model.route: fallback` visible in an exported
    span, matching `DEC-020`'s local demo).
-3. **Config-contract completeness check.** `DECISIONS.md` `DEC-035`
-   records the second instance of the same failure pattern: an
-   environment surface silently missing a key `agent/config.py` (the
-   canonical consumer) actually requires. First instance: R4's
-   `scripts/dev.sh` missing `MODEL_API_KEY`/fallback vars for local dev.
-   Second: the K8s-deployed config path (base `ConfigMap`, the
-   `ephemeral-test` overlay, and the live `golden-path-agent-ci-config`)
+3. **Config-contract completeness check** (scope extended at the
+   Checkpoint C closure review to a second, related pattern — see below).
+   `DECISIONS.md` `DEC-035` records the second instance of the first
+   pattern: an environment surface silently missing a key
+   `agent/config.py` (the canonical consumer) actually requires. First
+   instance: R4's `scripts/dev.sh` missing `MODEL_API_KEY`/fallback vars
+   for local dev. Second: the K8s-deployed config path (base `ConfigMap`,
+   the `ephemeral-test` overlay, and the live `golden-path-agent-ci-config`)
    never declaring `MODEL_FALLBACK_API_BASE_URL`/`MODEL_FALLBACK_NAME` at
    all — undetected for the entire C1a–C1c build-out because
    `operational-tests` (the one stage that would exercise it) never
@@ -303,9 +304,38 @@ priority, parked rather than urgent, per the owner's own call.
    truth for what the application actually reads) and validates that
    every deployment surface — `.env.example`, `scripts/dev.sh`, the base
    `ConfigMap`, and each overlay's `configMapGenerator` — declares each
-   required key, failing loudly on any surface that's missing one. Cheap
-   to build (a static-analysis script, no cluster access needed) and
-   prevents a third instance of a pattern that has now bitten twice.
+   required key, failing loudly on any surface that's missing one.
+
+   **Second pattern, folded into the same check at the Checkpoint C
+   closure review**: `DEC-042`'s `REGISTRY_PLACEHOLDER` finding is the
+   **third** instance of a related but distinct failure — not a *missing*
+   key, but an *unresolved placeholder value* left in a manifest that a
+   GitOps-synced environment consumes exactly as committed, with no
+   apply-time injection step to ever resolve it. First instance:
+   `deploy/argocd/*.yaml`'s `REPLACE_WITH_GIT_REPO_URL`/
+   `REPLACE_WITH_GITOPS_NAMESPACE` (caught and fixed manually at C1a,
+   before any environment tried to consume them as-committed). Second:
+   the same overlay `configMapGenerator` placeholders
+   (`http://dev-model-endpoint.example.com/v1` etc.) — harmless only
+   because every environment that has ever actually run a pod from them
+   also has a pipeline-side apply-time override, so far. Third:
+   `REGISTRY_PLACEHOLDER/golden-path-agent`, which had exactly the same
+   property — safe for `ephemeral-test` (pipeline-overwritten), fatal
+   (`InvalidImageName`) for `demo-prod` (no override exists). The same
+   check this item already builds should also scan every manifest a
+   GitOps-synced `Application` (i.e., anything under `deploy/argocd/apps/`
+   and the overlay paths it points to) consumes as-committed for
+   placeholder-shaped values (`REPLACE_WITH_*`, `*_PLACEHOLDER`, and any
+   future convention this repo adopts for the same purpose) and fail
+   loudly if one is found with no corresponding out-of-band
+   (`Secret`-shadowing or equivalent) resolution mechanism documented for
+   it — the same "every required value has a stated origin, never
+   silent" property item 1's own key-completeness check already enforces,
+   applied to *values* left as placeholders rather than *keys* left
+   absent. Cheap to build (a static-analysis script, no cluster access
+   needed) and prevents a fourth instance of either pattern — the second
+   (missing keys) has bitten twice, the first (unresolved placeholders)
+   has now bitten three times.
 4. **PAT rotation (parked, not forgotten).** The GitHub PAT stored as
    `golden-path-agent-github-token` was supplied directly in conversation
    twice (`DEC-036`, `DEC-039`) rather than run locally via the runbook's

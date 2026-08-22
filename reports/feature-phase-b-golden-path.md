@@ -1956,6 +1956,18 @@ name), alongside the same cross-namespace image-pull `RoleBinding` gap
 `DEC-032` had already fixed once for `ephemeral-test`, now needed for a
 second namespace too.
 
+**Lesson, stated explicitly because it will recur**: documented security
+guarantees get verified, not assumed. The `spec.project`-enforcement
+correction above is the exhibit — the original manifest comment asserted
+ArgoCD structurally bound a child `Application` to its root's own
+project, which would have shipped as a false claim in `DECISIONS.md` had
+it not been checked against ArgoCD's actual documentation before writing
+it down. On a shared, multi-tenant cluster, a stated-but-unverified
+security property is worse than an openly-flagged unknown — it reads as
+settled when it isn't. The same discipline this mission already applies
+to RBAC (`oc auth can-i`, not reading YAML and assuming) applies equally
+to any platform's own documented access-control behavior.
+
 ## Checkpoint C — Closure
 
 Owner-approved at each STOP along the way (C1b's manifest/RBAC review,

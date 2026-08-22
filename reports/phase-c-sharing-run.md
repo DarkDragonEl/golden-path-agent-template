@@ -151,5 +151,12 @@ shared/pre-existing, not Git-bootstrapped from scratch — operator
 installation is the one leg Phase C could not exercise, per
 `docs/environments.md`). Not yet the full Phase D clickable flow
 (approval trilogy, end-to-end trace) — that's the next sharing moment.
-Model-identity capture and cluster-tier OTel wiring are named,
-prioritized post-Checkpoint-C work, not part of this evidence.
+**No external HTTP routing this milestone** — `demo-prod`'s `Ingress`
+has no `ingressClassName`/TLS annotations wired to this specific
+cluster's router (a pre-existing, documented placeholder in
+`deploy/kustomize/base/ingress.yaml`, platform-specific by design, not
+something this phase's own work touched); every check this phase ran
+against a deployed pod went over internal cluster networking
+(`oc exec`), never through the `Ingress`'s own external path. Model-
+identity capture and cluster-tier OTel wiring are named, prioritized
+post-Checkpoint-C work, not part of this evidence.
