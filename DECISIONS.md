@@ -2962,3 +2962,62 @@ quirk for a real RBAC gap again.
 
 **Status:** Fixed, verified live (correct syntax). Proceeding to
 re-trigger `PipelineRun` C1c-8.
+
+## DEC-033 — Step C1c, `PipelineRun` C1c-8: `deploy-ephemeral` succeeded
+for the first time; three independent findings across the three
+pod-facing stages it unblocked
+
+**Document/scope:** `pipelines/tasks/security-tests.yaml` (label
+selector fixed), `pipelines/bootstrap/rbac.yaml` (`pods/exec` grant
+added), `docs/phase-c-runbook.md` (§2, a second credential copy).
+`PipelineRun` C1c-8 (`golden-path-agent-ci-xlgz8`) is the best run yet:
+`container-build`, `digest-capture`, `sbom-generate`, and — for the first
+time — **`deploy-ephemeral` all succeeded**, `DEC-032`'s image-pull fix
+confirmed complete. All three downstream, pod-facing stages
+(`eval-gate-live`, `security-tests`, `operational-tests`) then failed, in
+parallel, each for a distinct reason — investigated and fixed
+independently, not assumed related.
+
+**Finding 1 — `eval-gate-live`: `CreateContainerConfigError`.** Root
+cause: `MODEL_API_KEY`'s `secretKeyRef` referenced `golden-path-agent-secrets`,
+a `Secret` that only exists in `golden-path-agent-ephemeral-test` — but
+`eval-gate-live`'s own `TaskRun` executes in `golden-path-agent-ci` (per
+its own design note: it re-runs the in-process eval harness, it doesn't
+touch the deployed pods). `secretKeyRef`/`configMapKeyRef` cannot cross
+namespaces — a pod can only reference a `Secret`/`ConfigMap` in its own
+namespace, a basic Kubernetes constraint this Task's design overlooked
+when the credential was originally provisioned only into
+`golden-path-agent-ephemeral-test` at C1a. **Fix**: a second copy of the
+same credential, provisioned the identical way (manual, never echoed,
+never in Git), into `golden-path-agent-ci` too —
+`docs/phase-c-runbook.md` §2 now documents both copies and both
+consumers explicitly, so a future rotation doesn't miss one.
+
+**Finding 2 — `security-tests`: the disallowed-egress-proof step passed
+correctly** (confirming the `NetworkPolicy` check itself works), **but
+the zero-mutation check's own pod lookup returned an empty list**
+(`array index out of bounds: index 0, length 0`). Root cause, confirmed
+against `deploy/kustomize/base/deployment-agent.yaml`'s actual pod
+template labels: the real label is the prefixed
+`app.kubernetes.io/component: agent`, not the short form `component:
+agent` this Task's script used — a plain naming mismatch against this
+project's own established labeling convention, not a deeper issue.
+Fixed to match the real label.
+
+**Finding 3 — `operational-tests`: `Forbidden`, `cannot create resource
+"pods/exec"`.** Both `security-tests` and `operational-tests` `oc exec`
+into the deployed agent pod to drive its real HTTP surface from inside
+the pod network — `pipelines/bootstrap/rbac.yaml`'s original grant
+covered `pods`/`pods/log` (`get`, `list`) but never `pods/exec`
+(`create`), a plain omission from the original design. Fixed with a
+narrowly-scoped grant (`create` on `pods/exec` only, in
+`golden-path-agent-ephemeral-test` only — exec into this project's own
+deployed pods, nothing broader). **The same subresource verification
+syntax lesson from `DEC-032` recurred and was applied immediately**: `oc
+auth can-i create pods/exec ...` (slash form) returned a false `no`; `oc
+auth can-i create pods --subresource=exec ...` correctly returns `yes`.
+
+**Status:** All three findings fixed and verified live (RBAC via `oc
+auth can-i` with the correct subresource syntax; the label fix is
+logic-only, will be confirmed by the next `PipelineRun` actually finding
+the pod). Proceeding to re-trigger `PipelineRun` C1c-9.

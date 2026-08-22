@@ -65,26 +65,43 @@ oc auth can-i create namespace \
   # permission," not just an absence of a ClusterRoleBinding in the YAML
 ```
 
-## 2. Model-endpoint credential (done — Step C1a)
+## 2. Model-endpoint credential (done — Step C1a; a second copy added at
+Step C1c, `DEC-033`)
 
 The live MaaS credential (`MODEL_API_KEY`) is created directly as a
 Kubernetes `Secret`, from the same value already used for local dev
 (`.env`, gitignored) — never as a pipeline parameter, never written into a
-`PipelineRun` spec, never committed:
+`PipelineRun` spec, never committed. **Two copies, in two namespaces, for
+two different consumers** — `secretKeyRef`/`configMapKeyRef` cannot
+cross namespaces, confirmed live (`CreateContainerConfigError` on
+`eval-gate-live` before the second copy existed):
 
 ```sh
 set -a && . ./.env && set +a
+# Copy 1: the deployed agent pod's own envFrom.secretRef
+# (deploy/kustomize/base/deployment-agent.yaml), read by whatever's
+# actually running in the ephemeral-test namespace.
 oc create secret generic golden-path-agent-secrets \
   -n golden-path-agent-ephemeral-test \
+  --from-literal=MODEL_API_KEY="$MODEL_API_KEY" \
+  --from-literal=MCP_AUTH_TOKEN="not-needed"
+
+# Copy 2: eval-gate-live's own TaskRun, which executes in
+# golden-path-agent-ci (running the in-process eval harness against the
+# real model -- see that Task's own design note), not in
+# golden-path-agent-ephemeral-test.
+oc create secret generic golden-path-agent-secrets \
+  -n golden-path-agent-ci \
   --from-literal=MODEL_API_KEY="$MODEL_API_KEY" \
   --from-literal=MCP_AUTH_TOKEN="not-needed"
 ```
 
 `deploy/kustomize/base/deployment-agent.yaml`'s `envFrom.secretRef` already
-references this Secret by name — no manifest change was needed to consume
-it. If the credential ever needs rotating, re-run the same command (`oc
-create secret` fails on an existing name; use `oc create secret ... -o
-yaml --dry-run=client | oc apply -f -` to update in place instead).
+references copy 1 by name — no manifest change was needed to consume it.
+If the credential ever needs rotating, re-run the same command against
+**both** namespaces (`oc create secret` fails on an existing name; use `oc
+create secret ... -o yaml --dry-run=client | oc apply -f -` to update in
+place instead).
 
 **Verify the value is never echoed** when running or reviewing any command
 that touches this secret — pipe through a redaction filter, or use

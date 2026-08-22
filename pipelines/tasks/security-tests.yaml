@@ -54,7 +54,10 @@ spec:
         #!/bin/sh
         set -eu
         NS=golden-path-agent-ephemeral-test
-        AGENT_POD=$(oc get pod -n "$NS" -l component=agent -o jsonpath='{.items[0].metadata.name}')
+        # DEC-033: the real label (deploy/kustomize/base/deployment-agent.yaml)
+        # is the prefixed app.kubernetes.io/component, not the short form --
+        # confirmed live: the short form matched zero pods.
+        AGENT_POD=$(oc get pod -n "$NS" -l app.kubernetes.io/component=agent -o jsonpath='{.items[0].metadata.name}')
 
         before=$(oc exec -n "$NS" "$AGENT_POD" -- \
           curl -s http://golden-path-agent-mcp:8081/records | python3 -c \
