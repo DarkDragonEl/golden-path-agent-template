@@ -31,12 +31,19 @@ spec:
     - name: buildah-build-and-push
       image: quay.io/buildah/stable:v1.43.2
       workingDir: $(workspaces.source.path)
-      securityContext:
-        # buildah needs to run unprivileged-rootless-capable; OpenShift's
-        # restricted-v2 SCC (the cluster default, unchanged by this
-        # project) already permits this image's own fuse-overlayfs setup.
-        capabilities:
-          add: ["SETFCAP"]
+      # DECISIONS.md DEC-029: no added capabilities. A speculative
+      # `capabilities.add: [SETFCAP]` here (added without verification,
+      # on the untested assumption buildah might need it) blocked pod
+      # admission outright under this project's own restricted-v2 SCC
+      # (confirmed live: "capability may not be added" -- restricted-v2
+      # permits zero added capabilities, full stop, not just SETFCAP).
+      # This project's own Containerfile is a plain pip-install/COPY
+      # build, already explicitly written to be restricted-SCC-compatible
+      # (its own comment: "arbitrary non-root UID, group-writable, GID
+      # 0") -- buildah's rootless --storage-driver=vfs mode needs no
+      # elevated capability to build it, confirmed by removing the
+      # speculative grant rather than working around the admission
+      # rejection some other way.
       volumeMounts:
         - name: service-ca
           mountPath: /var/run/configs/openshift-service-ca

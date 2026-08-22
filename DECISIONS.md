@@ -2647,3 +2647,54 @@ to be alarmed by.
 
 **Status:** Fixed and verified. Proceeding to re-trigger `PipelineRun`
 C1c-4.
+
+## DEC-029 — Step C1c, `PipelineRun` C1c-4: `unit-tests`/`eval-gate-offline`/
+`policy-validate` all green; `container-build` blocked at pod admission by
+a speculative, unverified `securityContext` grant
+
+**Document/scope:** `pipelines/tasks/container-build.yaml`. `PipelineRun`
+C1c-4 (`golden-path-agent-ci-rxljv`) confirms `DEC-028`'s fix: `unit-tests`,
+`eval-gate-offline`, `policy-validate` **all passed** this run — the first
+time all three repo-only stages have gone green together. Progress moved
+to `container-build`, which failed differently again: not a container
+error at all, but `PodAdmissionFailed` — the pod was never created.
+
+**Root cause**: `container-build.yaml`'s `buildah-build-and-push` step
+carried `securityContext.capabilities.add: ["SETFCAP"]`, added when the
+Task was first written, speculatively, on an unverified assumption that
+buildah's rootless build mode might need it — never actually checked
+against this project's own `Containerfile` or tested against the live
+SCC. Confirmed live: `restricted-v2: .containers[0].capabilities.add:
+Invalid value: "SETFCAP": capability may not be added` — the SCC this
+project's `ServiceAccount` is bound to (deliberately, no `anyuid` grant)
+permits **zero** added capabilities, not just this one. Checked before
+fixing, not assumed: this project's own `Containerfile` is a plain
+`pip install`/`COPY` build, its own comment already stating it was
+written to be "Restricted-SCC-compatible" — nothing in it needs any
+elevated capability, so buildah's ordinary rootless `--storage-driver=vfs`
+mode should need none either.
+
+**Fix**: the `capabilities.add` block removed entirely, not replaced with
+a different capability or an SCC exception request — the speculative grant
+was simply unnecessary. This can only be confirmed by the next real
+`container-build` `TaskRun` actually admitting successfully (pod
+admission itself isn't something `oc apply --dry-run=server` on the
+`Task` CRD can validate — that only checks the `Task`'s own schema, not
+the pod spec it generates at `TaskRun` time, a related but distinct gap
+from `DEC-026`'s "dry-run proves schema-valid, not behavior-valid"
+lesson).
+
+**A pattern worth naming across `DEC-026`–`DEC-029`**: every one of these
+four findings was a **previously-untested assumption about this specific
+cluster's actual constraints** (a field's real API location, an SCC's
+actual permission set, `pip`'s behavior under an arbitrary UID, a
+speculative capability grant) — none was a logic bug in this project's
+own application code, and each was only discoverable by actually running
+the pipeline against the real cluster, exactly the reason Step C1c exists
+rather than treating C1b's schema-valid dry-run as sufficient proof of
+readiness.
+
+**Status:** Fixed. Not yet re-verified live (pending the next
+`PipelineRun`) — recorded as fixed-pending-confirmation, not fixed, to
+keep the record honest about what "fixed" means before the next run
+actually proves it. Proceeding to re-trigger `PipelineRun` C1c-5.
