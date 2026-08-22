@@ -178,3 +178,31 @@ roleRef:
   kind: Role
   name: golden-path-agent-ci-deploy-role
   apiGroup: rbac.authorization.k8s.io
+---
+# DECISIONS.md DEC-032. Cross-namespace image *pull*, the other direction
+# from system:image-builder above (which grants the pipeline's own
+# ServiceAccount push rights) -- the deployed agent pod runs as its OWN
+# ServiceAccount (golden-path-agent, deploy/kustomize/base/serviceaccount.yaml),
+# in golden-path-agent-ephemeral-test, pulling an image that lives in
+# golden-path-agent-ci's ImageStream. OpenShift does not allow
+# cross-namespace image pulls by default; confirmed live:
+# "authentication required" / ImagePullBackOff on the deployed pod.
+# system:image-puller is the standard, narrowly-scoped built-in role for
+# exactly this ("Grants the right to pull images from within a project").
+# This RoleBinding lives in golden-path-agent-ci (the source namespace,
+# where read access is being granted), not golden-path-agent-ephemeral-test.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: golden-path-agent-image-puller
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+subjects:
+  - kind: ServiceAccount
+    name: golden-path-agent
+    namespace: golden-path-agent-ephemeral-test
+roleRef:
+  kind: ClusterRole
+  name: system:image-puller
+  apiGroup: rbac.authorization.k8s.io

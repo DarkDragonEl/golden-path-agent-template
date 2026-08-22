@@ -2911,3 +2911,54 @@ to run live for the first time.
 --dry-run=server`; Findings 3/4's rendering logic locally, against the
 real digest and the real script structure, not a synthetic stand-in.
 Proceeding to re-trigger `PipelineRun` C1c-7.
+
+## DEC-032 — Step C1c, `PipelineRun` C1c-7: `sbom-generate` and
+`destroy-ephemeral` both green for the first time; the deployed pod
+couldn't pull its own image (the other half of the push/pull auth story)
+
+**Document/scope:** `pipelines/bootstrap/rbac.yaml` (new `RoleBinding`,
+`system:image-puller`). `PipelineRun` C1c-7 (`golden-path-agent-ci-tpkdt`)
+is the best run yet: `container-build`, `digest-capture`, `sbom-generate`
+**all** succeeded (`DEC-027`/`DEC-030`'s fixes confirmed complete), and
+`destroy-ephemeral` succeeded too, cleanly, with no `Namespace`/`Ingress`/
+`ExternalSecret` errors (`DEC-031`'s fix confirmed). `deploy-ephemeral`
+itself failed, but only after ~3m22s — a rollout timeout, not an apply
+error; every object (`ServiceAccount`, `ConfigMap`, `Service`,
+`Deployment` ×2, `PodDisruptionBudget`, `Ingress`, `NetworkPolicy`) was
+created cleanly this time.
+
+**Root cause, confirmed via `oc get events` (the deployed objects were
+already cleaned up by `destroy-ephemeral` by the time this was
+investigated, so events were the only forensic trail available — and
+were sufficient)**: `ImagePullBackOff` → `authentication required`. The
+deployed pod runs as its **own** `ServiceAccount` (`golden-path-agent`,
+`deploy/kustomize/base/serviceaccount.yaml`), in
+`golden-path-agent-ephemeral-test` — a **different** `ServiceAccount`,
+in a **different** namespace, than the one `system:image-builder`
+(`DEC-024`) granted push rights to. Pulling an image whose `ImageStream`
+lives in a different namespace (`golden-path-agent-ci`) is a genuine
+cross-namespace operation OpenShift does not allow by default — this is
+the pull-side counterpart to the push-side problem `DEC-024` already
+solved, not a repeat of it. **Confirms Finding 3's fix from `DEC-031`
+worked correctly**: the pulled digest in the events
+(`sha256:21eef7d3a0...`) is a real, freshly-built digest, not the
+placeholder — the deploy pipeline is now wiring the right image, just
+without permission to fetch it yet.
+
+**Fix**: `system:image-puller` (a built-in `ClusterRole`, "grants the
+right to pull images from within a project" — the standard, narrowly-
+scoped counterpart to `system:image-builder`), bound via a `RoleBinding`
+in `golden-path-agent-ci` (the source namespace, where read access is
+being granted — not `golden-path-agent-ephemeral-test`), subject the
+`golden-path-agent` `ServiceAccount` in that namespace. **A verification
+false negative caught and resolved, not left unexplained**: the first
+`oc auth can-i get imagestreams/layers ...` check returned `no` even
+after the `RoleBinding` was confirmed correctly applied (subject,
+`roleRef`, namespace all inspected directly) — the check itself was
+using an unsupported slash-subresource syntax on this cluster's `oc`
+version; `oc auth can-i get imagestreams --subresource=layers ...`
+returns `yes`. Recorded so a future session doesn't mistake this syntax
+quirk for a real RBAC gap again.
+
+**Status:** Fixed, verified live (correct syntax). Proceeding to
+re-trigger `PipelineRun` C1c-8.
