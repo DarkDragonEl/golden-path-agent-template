@@ -6,12 +6,18 @@ class ToolCallRecord(TypedDict):
     arguments: dict
     result: Optional[dict]
     error: Optional[str]
+    classification: str  # "read" | "write" -- agent/policy.py::classify_action's result
+    # (R4/DEC-020: SRS-AGT-IF-08 "every policy decision" -- surfaced in telemetry per call,
+    # not just the final approve/reject outcome).
 
 
 class ModelCallRecord(TypedDict):
     node: str  # "decide" | "generate"
     route: str  # "primary" | "fallback" | "none" (total failure)
     reason_code: str  # SysR-P-F-12 reason code, or "model_failure:<ExcType>" on total failure
+    prompt_tokens: Optional[int]  # R4/DEC-020: SRS-AGT-IF-08 "token consumption" -- None when
+    completion_tokens: Optional[int]  # the backend doesn't report usage (e.g. FakeModelClient,
+    total_tokens: Optional[int]  # or a route that failed before any response was returned).
 
 
 class AgentState(TypedDict, total=False):

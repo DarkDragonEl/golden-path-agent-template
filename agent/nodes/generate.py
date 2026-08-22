@@ -38,13 +38,22 @@ def generate_node(state):
         user_message = f"Context:\n{context}\n\nQuestion: {user_message}"
 
     try:
-        text, tool_calls, route_used, reason_code = model.complete(
+        text, tool_calls, route_used, reason_code, usage = model.complete(
             _load_system_prompt(), [{"role": "user", "content": user_message}]
         )
     except Exception as exc:  # noqa: BLE001 - total model failure (both routes exhausted, or none
         # configured) routes to fallback_node, per SysR-A-F-05/SysR-P-F-12.
         reason = f"model_failure:{type(exc).__name__}"
-        calls = state.get("model_calls", []) + [{"node": "generate", "route": "none", "reason_code": reason}]
+        calls = state.get("model_calls", []) + [
+            {
+                "node": "generate",
+                "route": "none",
+                "reason_code": reason,
+                "prompt_tokens": None,
+                "completion_tokens": None,
+                "total_tokens": None,
+            }
+        ]
         return {
             "reasoning_steps": steps,
             "fallback_reason": reason,
@@ -54,7 +63,16 @@ def generate_node(state):
         }
 
     messages = state.get("messages", []) + [{"role": "assistant", "content": text or ""}]
-    calls = state.get("model_calls", []) + [{"node": "generate", "route": route_used, "reason_code": reason_code}]
+    calls = state.get("model_calls", []) + [
+        {
+            "node": "generate",
+            "route": route_used,
+            "reason_code": reason_code,
+            "prompt_tokens": (usage or {}).get("prompt_tokens"),
+            "completion_tokens": (usage or {}).get("completion_tokens"),
+            "total_tokens": (usage or {}).get("total_tokens"),
+        }
+    ]
     return {
         "messages": messages,
         "reasoning_steps": steps,

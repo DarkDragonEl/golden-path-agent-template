@@ -126,6 +126,12 @@ DEFAULT_TOOL_CLASSIFICATION = _APPROVAL_RULES_BUNDLE.get("default_classification
 # Telemetry
 OTEL_EXPORTER_OTLP_ENDPOINT = _env("OTEL_EXPORTER_OTLP_ENDPOINT")
 OTEL_SERVICE_NAME = _env("OTEL_SERVICE_NAME", "golden-path-agent")
+# R4/DEC-020: SRS-AGT-IF-08 "the agent's workload identity", distinct from
+# OTEL_SERVICE_NAME (an OTel resource-attribute convention) even though
+# they share a default -- this names the actual runtime identity
+# (deploy/kustomize/base/serviceaccount.yaml's ServiceAccount), which can
+# diverge from the OTel service name in a future environment.
+AGENT_WORKLOAD_ID = _env("AGENT_WORKLOAD_ID", "golden-path-agent")
 
 # Ports
 AGENT_PORT = int(_env("AGENT_PORT", "8080"))

@@ -19,7 +19,7 @@ def _response(status_code):
 
 class _StubClient:
     """Test double for OpenAICompatibleModelClient -- returns a fixed
-    (text, tool_calls) or raises a fixed exception, without any real
+    (text, tool_calls, usage) or raises a fixed exception, without any real
     network call."""
 
     def __init__(self, *, returns=None, raises=None):
@@ -35,10 +35,13 @@ class _StubClient:
 
 
 def test_fake_model_client_returns_primary_none_and_no_tool_calls():
-    text, tool_calls, route, reason_code = FakeModelClient().complete("sys", [{"role": "user", "content": "hi"}])
+    text, tool_calls, route, reason_code, usage = FakeModelClient().complete(
+        "sys", [{"role": "user", "content": "hi"}]
+    )
     assert tool_calls == []
     assert route == "primary"
     assert reason_code == "none"
+    assert usage is None
     assert "hi" in text
 
 
@@ -70,24 +73,25 @@ def test_classify_primary_failure_unclassified_exception_falls_back_to_unreachab
 
 
 def test_routed_client_primary_success_reports_primary_none():
-    primary = _StubClient(returns=("answer", []))
-    fallback = _StubClient(returns=("should not be used", []))
+    primary = _StubClient(returns=("answer", [], {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}))
+    fallback = _StubClient(returns=("should not be used", [], None))
     client = RoutedModelClient(primary, fallback)
 
-    text, tool_calls, route, reason_code = client.complete("sys", [])
+    text, tool_calls, route, reason_code, usage = client.complete("sys", [])
 
     assert text == "answer"
     assert route == "primary"
     assert reason_code == "none"
+    assert usage == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
     assert fallback.calls == 0
 
 
 def test_routed_client_falls_back_on_primary_failure_with_reason_code():
     primary = _StubClient(raises=openai.APIConnectionError(request=_request()))
-    fallback = _StubClient(returns=("fallback answer", [{"name": "itsm_search_records", "arguments": {}}]))
+    fallback = _StubClient(returns=("fallback answer", [{"name": "itsm_search_records", "arguments": {}}], None))
     client = RoutedModelClient(primary, fallback)
 
-    text, tool_calls, route, reason_code = client.complete("sys", [])
+    text, tool_calls, route, reason_code, usage = client.complete("sys", [])
 
     assert text == "fallback answer"
     assert tool_calls == [{"name": "itsm_search_records", "arguments": {}}]
@@ -115,7 +119,7 @@ def test_routed_client_reraises_when_both_primary_and_fallback_fail():
 
 
 def test_routed_client_never_calls_fallback_when_primary_succeeds():
-    primary = _StubClient(returns=("ok", []))
-    fallback = _StubClient(returns=("unused", []))
+    primary = _StubClient(returns=("ok", [], None))
+    fallback = _StubClient(returns=("unused", [], None))
     RoutedModelClient(primary, fallback).complete("sys", [])
     assert fallback.calls == 0

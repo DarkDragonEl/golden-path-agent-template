@@ -34,6 +34,7 @@ def _initial_state(session_id: str, req: InvokeRequest) -> dict:
         "messages": [],
         "reasoning_steps": 0,
         "tool_calls": [],
+        "model_calls": [],
         "pending_approval": False,
     }
 
@@ -55,15 +56,21 @@ def healthz():
 @app.post("/invoke")
 def invoke(req: InvokeRequest):
     session_id = req.session_id or str(uuid.uuid4())
+    # R4/DEC-020: a fresh id per API call, distinct from session_id (which
+    # can span multiple calls -- an /invoke followed by a later /resume) --
+    # SRS-AGT-IF-08's "request and session identifiers" as two separate
+    # correlation keys, not one doing double duty.
+    request_id = str(uuid.uuid4())
     thread_config = {"configurable": {"thread_id": session_id}}
     with _tracer.start_as_current_span("agent.invoke"):
         result = _graph.invoke(_initial_state(session_id, req), thread_config)
-        record_invocation_span(result)
+        record_invocation_span(result, request_id=request_id)
     return {"session_id": session_id, **_public_view(result)}
 
 
 @app.post("/approvals/{session_id}/resume")
 def resume(session_id: str, req: ResumeRequest):
+    request_id = str(uuid.uuid4())
     thread_config = {"configurable": {"thread_id": session_id}}
     snapshot = _graph.get_state(thread_config)
     if snapshot is None or not snapshot.values.get("pending_approval"):
@@ -72,5 +79,5 @@ def resume(session_id: str, req: ResumeRequest):
     with _tracer.start_as_current_span("agent.resume"):
         _graph.update_state(thread_config, {"approval_decision": req.decision})
         result = _graph.invoke(None, thread_config)
-        record_invocation_span(result)
+        record_invocation_span(result, request_id=request_id)
     return {"session_id": session_id, **_public_view(result)}

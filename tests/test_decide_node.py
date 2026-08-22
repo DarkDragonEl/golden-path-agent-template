@@ -62,25 +62,49 @@ def test_model_failure_sets_fallback_reason_and_appends_none_route_to_model_call
 
     assert result["fallback_reason"] == "model_failure:ConnectionError"
     assert result["model_route"] == "none"
-    assert result["model_calls"] == [{"node": "decide", "route": "none", "reason_code": "model_failure:ConnectionError"}]
+    assert result["model_calls"] == [
+        {
+            "node": "decide",
+            "route": "none",
+            "reason_code": "model_failure:ConnectionError",
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+        }
+    ]
 
 
 def test_tool_call_selected_appends_primary_none_to_model_calls(monkeypatch):
     monkeypatch.setattr(decide_module.config, "AGENT_MODEL_MODE", "live")
     stub = _StubClient(
-        returns=("", [{"name": "itsm_search_records", "arguments": {"record_type": "incident"}}], "primary", "none")
+        returns=(
+            "",
+            [{"name": "itsm_search_records", "arguments": {"record_type": "incident"}}],
+            "primary",
+            "none",
+            {"prompt_tokens": 20, "completion_tokens": 8, "total_tokens": 28},
+        )
     )
     monkeypatch.setattr(decide_module, "get_model_client", lambda: stub)
 
     result = decide_node(_base_state())
 
     assert result["selected_tool"] == {"tool_name": "itsm_search_records", "arguments": {"record_type": "incident"}}
-    assert result["model_calls"] == [{"node": "decide", "route": "primary", "reason_code": "none"}]
+    assert result["model_calls"] == [
+        {
+            "node": "decide",
+            "route": "primary",
+            "reason_code": "none",
+            "prompt_tokens": 20,
+            "completion_tokens": 8,
+            "total_tokens": 28,
+        }
+    ]
 
 
 def test_no_tool_call_sets_selected_tool_none(monkeypatch):
     monkeypatch.setattr(decide_module.config, "AGENT_MODEL_MODE", "live")
-    stub = _StubClient(returns=("no tool needed, this is a knowledge question", [], "primary", "none"))
+    stub = _StubClient(returns=("no tool needed, this is a knowledge question", [], "primary", "none", None))
     monkeypatch.setattr(decide_module, "get_model_client", lambda: stub)
 
     result = decide_node(_base_state())
@@ -94,7 +118,7 @@ def test_context_never_reaches_decide_prompt(monkeypatch):
     # decide_node must never stitch it into the user message it sends --
     # that responsibility belongs solely to generate_node.
     monkeypatch.setattr(decide_module.config, "AGENT_MODEL_MODE", "live")
-    stub = _StubClient(returns=("no tool needed", [], "primary", "none"))
+    stub = _StubClient(returns=("no tool needed", [], "primary", "none", None))
     monkeypatch.setattr(decide_module, "get_model_client", lambda: stub)
 
     decide_node(_base_state())

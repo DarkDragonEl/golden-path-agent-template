@@ -35,7 +35,13 @@ def tool_invoke_node(state):
             error = str(exc)
 
         tool_calls = tool_calls + [
-            {"tool_name": tool_name, "arguments": arguments, "result": result, "error": error}
+            {
+                "tool_name": tool_name,
+                "arguments": arguments,
+                "result": result,
+                "error": error,
+                "classification": classification,
+            }
         ]
         if error:
             return {"tool_calls": tool_calls}
@@ -52,7 +58,13 @@ def tool_invoke_node(state):
     # exact persisted arguments back from checkpointed state
     # (DECISIONS.md DEC-008).
     tool_calls = tool_calls + [
-        {"tool_name": tool_name, "arguments": arguments, "result": None, "error": None}
+        {
+            "tool_name": tool_name,
+            "arguments": arguments,
+            "result": None,
+            "error": None,
+            "classification": classification,
+        }
     ]
     return {
         "tool_calls": tool_calls,

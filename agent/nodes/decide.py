@@ -32,13 +32,22 @@ def decide_node(state):
         user_message = f"{user_message}\n\n(Requested by: {initiating_user})"
 
     try:
-        text, tool_calls, route_used, reason_code = model.complete(
+        text, tool_calls, route_used, reason_code, usage = model.complete(
             _load_system_prompt(), [{"role": "user", "content": user_message}], tools=TOOL_SCHEMAS
         )
     except Exception as exc:  # noqa: BLE001 - total model failure (both routes exhausted, or none
         # configured) routes to fallback_node, per SysR-A-F-05/SysR-P-F-12.
         reason = f"model_failure:{type(exc).__name__}"
-        calls = state.get("model_calls", []) + [{"node": "decide", "route": "none", "reason_code": reason}]
+        calls = state.get("model_calls", []) + [
+            {
+                "node": "decide",
+                "route": "none",
+                "reason_code": reason,
+                "prompt_tokens": None,
+                "completion_tokens": None,
+                "total_tokens": None,
+            }
+        ]
         return {
             "reasoning_steps": steps,
             "fallback_reason": reason,
@@ -53,7 +62,16 @@ def decide_node(state):
     # not "fix" this by wiring text into final_output here -- that would
     # silently bypass SRS-AGT-F-01's grounding requirement.
     messages = state.get("messages", []) + [{"role": "assistant", "content": text or ""}]
-    calls = state.get("model_calls", []) + [{"node": "decide", "route": route_used, "reason_code": reason_code}]
+    calls = state.get("model_calls", []) + [
+        {
+            "node": "decide",
+            "route": route_used,
+            "reason_code": reason_code,
+            "prompt_tokens": (usage or {}).get("prompt_tokens"),
+            "completion_tokens": (usage or {}).get("completion_tokens"),
+            "total_tokens": (usage or {}).get("total_tokens"),
+        }
+    ]
     update = {
         "messages": messages,
         "reasoning_steps": steps,

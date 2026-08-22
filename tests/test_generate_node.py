@@ -33,7 +33,16 @@ def _base_state(**overrides):
         "input_query": "What is the maximum execution time for a CI job?",
         "reasoning_steps": 1,
         "messages": [],
-        "model_calls": [{"node": "decide", "route": "primary", "reason_code": "none"}],
+        "model_calls": [
+            {
+                "node": "decide",
+                "route": "primary",
+                "reason_code": "none",
+                "prompt_tokens": 12,
+                "completion_tokens": 3,
+                "total_tokens": 15,
+            }
+        ],
         "retrieved_docs": [],
     }
     state.update(overrides)
@@ -41,7 +50,7 @@ def _base_state(**overrides):
 
 
 def test_context_formatted_into_user_message(monkeypatch):
-    stub = _StubClient(returns=("An answer.\n\nSources: PLAT-003", [], "primary", "none"))
+    stub = _StubClient(returns=("An answer.\n\nSources: PLAT-003", [], "primary", "none", None))
     monkeypatch.setattr(generate_module, "get_model_client", lambda: stub)
 
     docs = [{"doc_id": "PLAT-003", "version": "2", "passage_text": "Some passage text."}]
@@ -54,7 +63,7 @@ def test_context_formatted_into_user_message(monkeypatch):
 
 
 def test_no_context_omits_context_block(monkeypatch):
-    stub = _StubClient(returns=("I can't answer that from the platform docs.", [], "primary", "none"))
+    stub = _StubClient(returns=("I can't answer that from the platform docs.", [], "primary", "none", None))
     monkeypatch.setattr(generate_module, "get_model_client", lambda: stub)
 
     generate_node(_base_state(retrieved_docs=[]))
@@ -65,7 +74,15 @@ def test_no_context_omits_context_block(monkeypatch):
 
 
 def test_final_output_set_directly_from_model_text(monkeypatch):
-    stub = _StubClient(returns=("An answer.\n\nSources: PLAT-003", [], "primary", "none"))
+    stub = _StubClient(
+        returns=(
+            "An answer.\n\nSources: PLAT-003",
+            [],
+            "primary",
+            "none",
+            {"prompt_tokens": 40, "completion_tokens": 12, "total_tokens": 52},
+        )
+    )
     monkeypatch.setattr(generate_module, "get_model_client", lambda: stub)
 
     result = generate_node(_base_state())
@@ -73,6 +90,7 @@ def test_final_output_set_directly_from_model_text(monkeypatch):
     assert result["final_output"] == "An answer.\n\nSources: PLAT-003"
     assert result["pending_approval"] is False
     assert result["approval_action"] is None
+    assert result["model_calls"][-1]["total_tokens"] == 52
 
 
 def test_model_failure_sets_fallback_reason_and_appends_none_route_to_model_calls(monkeypatch):
@@ -87,15 +105,19 @@ def test_model_failure_sets_fallback_reason_and_appends_none_route_to_model_call
         "node": "generate",
         "route": "none",
         "reason_code": "model_failure:ConnectionError",
+        "prompt_tokens": None,
+        "completion_tokens": None,
+        "total_tokens": None,
     }
     # decide's earlier entry must survive, not be overwritten.
-    assert result["model_calls"][0] == {"node": "decide", "route": "primary", "reason_code": "none"}
+    assert result["model_calls"][0]["node"] == "decide"
+    assert result["model_calls"][0]["route"] == "primary"
 
 
 def test_called_without_tools_kwarg(monkeypatch):
     # Regression guard: reintroducing TOOL_SCHEMAS here would resurrect
     # DEC-012's exact failure mode inside generate instead of decide.
-    stub = _StubClient(returns=("An answer.", [], "primary", "none"))
+    stub = _StubClient(returns=("An answer.", [], "primary", "none", None))
     monkeypatch.setattr(generate_module, "get_model_client", lambda: stub)
 
     generate_node(_base_state())

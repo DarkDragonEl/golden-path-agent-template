@@ -30,7 +30,7 @@ class FakeModelClient:
     def complete(self, system_prompt: str, messages: list, tools: list | None = None):
         last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
         text = f"[offline-fake-response] acknowledged: {last_user[:120]}"
-        return text, [], "primary", "none"
+        return text, [], "primary", "none", None
 
 
 class OpenAICompatibleModelClient:
@@ -58,7 +58,17 @@ class OpenAICompatibleModelClient:
             except json.JSONDecodeError:
                 arguments = {}
             tool_calls.append({"name": tc.function.name, "arguments": arguments})
-        return choice.content, tool_calls
+        # R4/DEC-020: SRS-AGT-IF-08 "token consumption" -- `usage` is a
+        # standard OpenAI-compatible response field; not every backend
+        # reports it, so this stays Optional throughout the call chain.
+        usage = None
+        if response.usage is not None:
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+        return choice.content, tool_calls, usage
 
 
 def _classify_primary_failure(exc: Exception) -> str:
@@ -93,14 +103,14 @@ class RoutedModelClient:
 
     def complete(self, system_prompt: str, messages: list, tools: list | None = None):
         try:
-            text, tool_calls = self._primary.complete(system_prompt, messages, tools=tools)
-            return text, tool_calls, "primary", "none"
+            text, tool_calls, usage = self._primary.complete(system_prompt, messages, tools=tools)
+            return text, tool_calls, "primary", "none", usage
         except Exception as primary_exc:  # noqa: BLE001 - reclassified below, not swallowed
             reason_code = _classify_primary_failure(primary_exc)
             if self._fallback is None:
                 raise
-            text, tool_calls = self._fallback.complete(system_prompt, messages, tools=tools)
-            return text, tool_calls, "fallback", reason_code
+            text, tool_calls, usage = self._fallback.complete(system_prompt, messages, tools=tools)
+            return text, tool_calls, "fallback", reason_code, usage
 
 
 def get_model_client():
