@@ -124,9 +124,11 @@ recovery is proven live for the first time; `destroy-ephemeral` leaves
 the namespace intact and clean; no secret material appears in any
 inspected log or spec.
 
-**Not yet done, by design:** creating the GitHub PAT and exercising the
-real promotion PR (`docs/phase-c-runbook.md` §3) — a separate, later step
-per the owner's own instruction, not part of this evidence.
+**Done, in a follow-up run:** the GitHub PAT was created and the real
+promotion PR exercised — see §10 below. That was originally deferred out
+of this report's own scope; recorded here once it closed rather than in
+a separate document, since it's the direct conclusion of this same
+Step C1c.
 
 ## 9. Findings — patterns worth carrying forward
 
@@ -171,6 +173,52 @@ operate on an isolated copy — the workspace is pipeline-lifetime-shared,
 not Task-scoped, and nothing in Tekton enforces that isolation
 automatically.
 
+## 10. The real promotion PR (`PipelineRun/golden-path-agent-ci-bmrfm`)
+
+A first retry with the owner's initial PAT (`golden-path-agent-ci-tgt6g`)
+still failed — not on either bug above (both were confirmed fixed there:
+the commit was already the correct one-field diff, and the auth mechanism
+reached GitHub cleanly), but on a GitHub-side 403: `Permission to
+DarkDragonEl/golden-path-agent-template.git denied to DarkDragonEl`. A
+read-only API diagnostic (a throwaway pod, never printing the token)
+confirmed the token correctly authenticated as `DarkDragonEl` but most
+likely lacked the `Contents: Read and write` permission when created.
+The owner supplied a new PAT; the `Secret` was updated in place, and a
+fresh `PipelineRun` (`golden-path-agent-ci-bmrfm`) was triggered from
+`main` (not a repair of the half-completed prior workspace, to avoid
+reusing a partially-mutated PVC — see `DECISIONS.md` `DEC-039`).
+
+**Fully green, first time end to end** — all twelve stages, including
+`open-promotion-pr`. Verified directly against the GitHub API (not
+inferred from pipeline status):
+
+```
+GET /repos/DarkDragonEl/golden-path-agent-template/pulls?state=open
+-> 1 PR: #1, head=promote/19a8876..., base=main
+
+GET /repos/DarkDragonEl/golden-path-agent-template/pulls/1/files
+-> 1 file changed, 1 addition, 1 deletion:
+
+--- deploy/kustomize/base/kustomization.yaml ---
+@@ -32,4 +32,4 @@ commonLabels:
+ images:
+   - name: golden-path-agent
+     newName: REGISTRY_PLACEHOLDER/golden-path-agent
+-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000
++    digest: sha256:d73ce33214c64fdfa19388ebbd111d1e8c24e0e17996e31b4b0df57549a242ac
+```
+
+`newName` untouched — `DEC-037`'s workspace-contamination fix holding
+under a real, successful push. Digest chain confirmed identical, read
+directly from each object: `digest-capture`'s result, `deploy-ephemeral`'s
+and `open-promotion-pr`'s received `image-ref` params, the live
+`ImageStreamTag`'s `dockerImageReference`, and the PR diff itself — all
+`sha256:d73ce33214c64fdfa19388ebbd111d1e8c24e0e17996e31b4b0df57549a242ac`.
+
+**Not merged.** Merging is the promotion event and stays behind the
+owner's explicit authorization — holding at the pre-C3/C4 STOP with this
+PR diff and the prepared C3/C4 manifest package presented together.
+
 **Holding here, per instruction, before Step C1d** (negative proof #1,
-seeded bad change) — the promotion-PR path (both fixes above) still
-needs live confirmation via a fresh `PipelineRun` before that holds too.
+seeded bad change) — since resolved; see `DECISIONS.md` `DEC-038` and
+`reports/phase-c-c1d-run.md`.

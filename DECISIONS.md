@@ -3367,3 +3367,60 @@ on a GitHub-side fine-grained PAT permission issue (`DEC-036`/`DEC-037`
 fixed the pipeline's own two bugs; the credential itself still needs the
 owner's action) — holding for the owner's input on that credential before
 any further promotion attempt, C3, or C4 work.
+
+## DEC-039 — Step C1c closed: real promotion PR opened, verified clean
+end to end
+
+**Document/scope:** the live `golden-path-agent-github-token` `Secret`
+(updated in place with a new PAT), `PipelineRun/golden-path-agent-ci-bmrfm`,
+GitHub PR #1. The owner provided a new fine-grained PAT (same disclosure
+note as `DEC-036` — provided directly in conversation, not run locally —
+noted once, not re-litigated per the owner's own "PAT rotation is parked,
+not the focus now" instruction). `Secret` updated in place
+(`--dry-run=client -o yaml | oc apply -f -`, never echoed). Reused the
+half-completed PVC from `PipelineRun` `tgt6g` deliberately avoided — its
+`open-promotion-pr` `TaskRun` had already created a local branch/commit
+before the prior 403, and retrying `git checkout -b` against an
+already-existing local branch would fail; rather than hand-repair a
+partially-mutated workspace (exactly the class of risk `DEC-036`/`DEC-037`
+just surfaced), triggered a clean full `PipelineRun` from `main` instead.
+
+**Result: fully green, first time end to end**, including
+`open-promotion-pr` — `fetch-source` through `destroy-ephemeral`, all
+twelve stages `Succeeded`. `DEC-036`/`DEC-037`'s two fixes hold under a
+real, successful push: the commit is still exactly the one-field digest
+bump, the URL-embedded auth reached GitHub cleanly, and this time GitHub
+accepted the push — confirming the earlier 403 really was the PAT's own
+permission scope, not a pipeline defect.
+
+**PR #1 verified directly against the GitHub API** (not inferred from
+`open-promotion-pr`'s own success status alone): `GET
+/repos/DarkDragonEl/golden-path-agent-template/pulls?state=open` returns
+exactly one PR, `head: promote/19a8876...` → `base: main`. `GET
+/pulls/1/files` confirms **exactly one file, exactly one line changed**:
+
+```
+--- deploy/kustomize/base/kustomization.yaml ---
+additions: 1 deletions: 1
+@@ -32,4 +32,4 @@ commonLabels:
+ images:
+   - name: golden-path-agent
+     newName: REGISTRY_PLACEHOLDER/golden-path-agent
+-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000
++    digest: sha256:d73ce33214c64fdfa19388ebbd111d1e8c24e0e17996e31b4b0df57549a242ac
+```
+
+`newName` is untouched (`DEC-037`'s fix holding: the CI-internal registry
+hostname never leaked into this diff). **Digest chain confirmed identical
+at every hop, read directly from each object, not assumed**:
+`digest-capture`'s own result, `deploy-ephemeral`'s received `image-ref`
+param, `open-promotion-pr`'s received `image-ref` param, the live
+`ImageStreamTag`'s `dockerImageReference`, and the PR's own diff all show
+the identical `sha256:d73ce33214c64fdfa19388ebbd111d1e8c24e0e17996e31b4b0df57549a242ac`.
+
+**Status:** Step C1c is now fully closed — the green path, both negative
+proofs' preconditions, and the real promotion PR all demonstrated live.
+**Not merged** — merging is the promotion event and stays behind the
+owner's explicit authorization, per their own instruction. Holding at the
+pre-C3/C4 STOP with the PR diff plus the prepared (committed, dry-run
+-validated, unapplied) C3/C4 manifest package for review together.
