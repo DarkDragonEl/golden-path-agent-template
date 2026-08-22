@@ -3,14 +3,12 @@
 ## Where this is
 
 - **Branch:** `feature/phase-b-golden-path`
-- **Last commit:** `3ac2290` — "DEC-017: gate semantics finalized --
-  deterministic sampling, named exclusions". About to be followed by a
-  documentation-only commit for the final forensic triage of the 6
-  remaining firm cases (proposals only, nothing applied).
-- **Working tree:** `DECISIONS.md`, `reports/feature-phase-b-golden-path.md`,
-  `HANDOFF.md` (this file), plus a new diagnostic script and its raw output
-  (`tools/diagnose_r3_final_triage.py`, `reports/r3-final-triage-raw.json`)
-  about to be committed together, documentation only.
+- **Last commit:** `a893aa9` — "DEC-018: final re-baseline -- domain gate
+  reaches PASS (60/62)". About to be followed by a documentation-only commit
+  for this report/handoff update.
+- **Working tree:** `reports/feature-phase-b-golden-path.md`, `HANDOFF.md`
+  (this file) about to be committed together, documentation only. All
+  code/prompt/eval-case changes are already committed as of `a893aa9`.
 
 ## Phase position
 
@@ -26,30 +24,27 @@ that section if anything below seems to skip a step you remember from
 **Accepted-plan B1/B2/B3/B3.5/B4 all done and committed. `E2E_DEMO_PLAN.md`'s
 B6 (OTel) is confirmed substantially incomplete/orphaned — see the R0
 crosswalk for the exact per-field classification, closure deferred to Step
-R4.** `DEC-013` (redesign, locked), `DEC-014` (R2 remedy batch), `DEC-015`
-(sampling pinned), `DEC-016` (`INJ-006` locked as a known-gap), and
-`DEC-017` (gate semantics finalized — deterministic sampling as the gate's
-own contract, `INJ-006`/`UAW-003` mechanically excluded) are all done and
-committed. Checkpoint B2 (`make up && make eval` green across all 8 domain
-categories — note: the literal `make eval` target does **not** currently
-run the domain suite, that's `make eval-domain`; also flagged in the R0
-crosswalk as a gap to close, deferred to R4) is not yet reached. Live-verified
-with `DEC-017`'s exclusions applied: `prompt_injection` and (usually)
-`unauthorized_write` now read `[ok]` for their two named exclusions; the
-other 6 firm cases (`ITR-004`, `ITR-007`, `KQA-012`, `TSEL-004`, `UAW-001`,
-`UAW-004`) are unresolved, now fully diagnosed (see below) and awaiting
-adjudication — Step R4 remains before Checkpoint B2 is reachable.
+R4.** `DEC-013` through `DEC-018` are all done and committed — full chain:
+redesign locked, R2 batch, sampling pinned, `INJ-006` known-gap, gate
+semantics finalized, final remediation batch. **The domain gate now reads
+PASS (60/62)** with a finalized four-item known-gap/measurement-tolerance
+list (`INJ-006`, `UAW-003`, `ITR-004`, `TSEL-004`) — live-verified, all 3
+re-baseline passes byte-identical. Checkpoint B2's remaining gap is purely
+mechanical: the literal `make eval` target still doesn't run the domain
+suite (that's `make eval-domain`) — closing that, plus plan-B6/OTel, is
+Step R4's job, not started yet. **Holding for owner confirmation of the
+final known-gap list before Step R4 begins**, per the owner's explicit
+instruction — do not start R4 without that confirmation.
 
 **Mission in progress** (owner-issued, sequenced R0 → R1 → R2 → R3 → R4 →
 Checkpoint B2 → Phase C → Phase D → Phase E, each step ending in a mandatory
-owner STOP): **Step R0/R1/R2/R3 (gate-semantics pick) acknowledged and
-implemented. The freeze on the remaining firm cases was lifted (determinism
-removed the noise justification) and one final, R1-style forensic triage of
-the 6 remaining firm cases is done — diagnosis and proposed remedies only,
-nothing applied.** Holding for owner adjudication of that table (see
-`reports/feature-phase-b-golden-path.md`'s "Mission Step R3 continuation"
-section) before the next batched remedy + re-baseline (mirroring R1→R2) and
-before Step R4 begins.
+owner STOP): **R0 through R3 (including the R3-continuation final
+remediation round) are all done.** Read
+`reports/feature-phase-b-golden-path.md`'s "Mission Step R3 final
+remediation" section for the complete evidence before touching anything
+related to `ITR-004`/`TSEL-004`/`INJ-006`/`UAW-003` again — per the owner's
+standing instruction, this was the final remediation round; no further
+prompt/case iteration is authorized on these four without new direction.
 
 ## This session's work: decide-then-retrieve reordering (`DEC-013`, locked)
 
@@ -190,6 +185,42 @@ redesigns for `UAW-001`/`UAW-004`, mirroring `UAW-002`/`UAW-005`'s
 already-approved treatment. **Holding for owner adjudication** before the
 next batched remedy + re-baseline and before Step R4 begins.
 
+## Step R3 final remediation — done, domain gate reaches PASS
+
+`DEC-018` records the final batch and re-baseline. Owner approved all six
+proposed remedies with a standing instruction: this is the final
+remediation round — whatever's still failing after the re-baseline becomes
+a named, dated known-gap (`INJ-006`'s format), no further iteration.
+
+**Applied**: `ITR-004`'s store fix (hyphen/underscore status
+normalization); `ITR-007`/`KQA-012` prompt hardenings; `TSEL-004`/`UAW-001`
+query redesigns; `UAW-004` redesignated `refusal_is_acceptable`.
+
+**Re-baseline: 60/62, byte-identical across all 3 deterministic passes.**
+4 of 6 remediated cases fully resolved (`ITR-007`, `KQA-012`, `UAW-001`,
+`UAW-004` — all 0/3, down from 1-3/3). `write_blocked` held every case,
+every pass. No new failures in any previously-clean category (checked
+explicitly, not assumed — the exact thing R2's experience raised as a
+risk).
+
+**Two new known-gaps, precisely diagnosed, not chased further:** `ITR-004`
+still fails — the hyphen/underscore fix closed 2 of at least 3 observed
+status-format variants; a third, space-separated form ("in progress")
+surfaced this round. `TSEL-004` still fails even with zero corpus overlap —
+`decide` correctly declines to fabricate rather than hallucinating a
+search, refining (not invalidating) the original corpus-overlap hypothesis
+into a deeper phrasing-driven classification-tendency finding. Both locked
+as `known-gap` in `eval/cli.py::KNOWN_GAP_TOLERANCES`, same
+write_blocked-preserving mechanism as `INJ-006`/`UAW-003`.
+
+**Finalized four-item list**: `INJ-006` (known-gap), `UAW-003`
+(measurement-tolerance), `ITR-004` (known-gap), `TSEL-004` (known-gap).
+Live-verified: `domain gate verdict: PASS`, 60/62, every category `[ok]`.
+
+**Holding for owner confirmation of this final known-gap list before Step
+R4 begins** — do not start R4 (fold domain gate into `make eval`, close
+plan-B6/OTel) without it, per the owner's explicit instruction.
+
 ## Invariants that must survive any future session
 
 These are load-bearing design decisions, not implementation details — do
@@ -247,6 +278,20 @@ not silently drift from them while doing other work:
    read-only with respect to model inputs — spans/attributes may observe
    state, never alter the system prompt, user message, or `tools=` argument
    actually sent to the model, for the same reason.
+7. **`KNOWN_GAP_TOLERANCES` (`eval/cli.py`, `DEC-016`/`DEC-017`/`DEC-018`)
+   is the only sanctioned way to exclude a case from the domain gate's
+   failure count — never add an ad hoc skip, an `if case_id ==` special
+   case elsewhere, or a bare threshold bump to paper over a specific case.
+   Every entry must be named, dated, carry a rationale, and list only the
+   specific excludable assertion substring(s) — the mechanism is
+   structurally safe (a `write_blocked` co-failure always defeats the
+   tolerance, unit-tested in `tests/test_gate_tolerance.py`) only because
+   every entry respects that discipline. The four current entries
+   (`INJ-006`, `UAW-003`, `ITR-004`, `TSEL-004`) are final as of this
+   session, per the owner's standing "no further iteration" instruction —
+   do not add a fifth without new direction, and do not widen an existing
+   entry's excludable-assertion list without re-verifying it still can't
+   mask a safety-property failure.
 
 ## Pointers
 
