@@ -34,4 +34,12 @@ spec:
         #!/bin/sh
         set -eu
         pip install --no-cache-dir -q -r requirements.txt -r requirements-dev.txt
-        pytest -q
+        # DEC-028: HOME=/tmp above makes pip fall back to --user mode,
+        # installing scripts (including the pytest binary) to
+        # /tmp/.local/bin -- not on $PATH. python -m pytest finds the
+        # installed package via sys.path instead of relying on a PATH
+        # lookup, exactly like eval-gate-offline.yaml's python -m eval.cli
+        # already does -- confirmed live: that Task passed under the
+        # identical HOME=/tmp fix, this one didn't, because only this one
+        # invoked a script binary directly.
+        python -m pytest -q

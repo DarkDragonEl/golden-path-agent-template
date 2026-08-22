@@ -2601,3 +2601,49 @@ steps, `syft`'s `/tmp` `emptyDir` fix, plus `DEC-026`'s two) fixed and
 independently verified — locally where practical, live where not, never
 just re-dry-run and trusted. Proceeding to re-trigger `PipelineRun`
 C1c-3.
+
+## DEC-028 — Step C1c, `PipelineRun` C1c-3: a fifth finding, a direct
+consequence of `DEC-027`'s own fix, fixed and verified
+
+**Document/scope:** `pipelines/tasks/unit-tests.yaml`. `PipelineRun`
+C1c-3 (`golden-path-agent-ci-h8bfx`) made real progress —
+`policy-validate` and `eval-gate-offline` both **passed** this time,
+confirming `DEC-027`'s `HOME=/tmp` fix works — but `unit-tests` still
+failed, differently again: `/tekton/scripts/script-0-...: pytest: not
+found`.
+
+**Root cause, directly caused by `DEC-027`'s own fix, not a new,
+unrelated bug**: `HOME=/tmp` makes `pip install` fall back to `--user`
+mode (confirmed in the log: `WARNING: The script pytest is installed in
+'/tmp/.local/bin' which is not on PATH`) — every installed console-script
+binary, including `pytest` itself, lands in `/tmp/.local/bin`, which is
+never added to `$PATH`. `eval-gate-offline.yaml` uses the **identical**
+`HOME=/tmp` fix and passed, because it invokes `python -m eval.cli run
+--all` — a module invocation resolved via `sys.path`, never `$PATH` —
+while `unit-tests.yaml` invoked `pytest -q` as a bare command, which
+*does* need `$PATH`. Confirmed live in the failure log, and confirmed as
+the fix by direct comparison, not guessed: the only structural difference
+between the Task that passed and the one that failed, under the exact
+same `HOME` fix, is direct-binary-invocation vs. module-invocation.
+
+**Fix, verified locally before the fourth cluster run**: `python -m
+pytest -q` instead of `pytest -q` — the same module-invocation pattern
+`eval-gate-offline.yaml`/`eval-gate-live.yaml` already use. Verified via
+the same `podman run -u 1001:0 -e HOME=/tmp` simulation `DEC-027`
+established: `pytest -q` reproduces `sh: pytest: not found` exactly;
+`python -m pytest -q` in the identical container succeeds (`161 passed, 1
+skipped` — the one skip being `DEC-026`'s own `SyRS`/`StRS` portability
+fix, correctly skipping here too, since this simulated container has no
+parent-workspace mount either — further, incidental confirmation that
+fix is working as designed).
+
+**Not treated as a surprise or a sign of a flawed process**: each of
+`DEC-026`/`DEC-027`/`DEC-028`'s findings was caused or surfaced by the
+*previous* entry's own fix landing correctly and changing the run's
+actual behavior for the first time — this is what iterating toward a
+genuinely least-privilege, portable pipeline against a real cluster looks
+like when nothing is assumed and every claim is checked, not a pattern
+to be alarmed by.
+
+**Status:** Fixed and verified. Proceeding to re-trigger `PipelineRun`
+C1c-4.
