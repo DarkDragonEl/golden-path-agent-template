@@ -3,20 +3,38 @@
 ## Graph shape
 
 ```
-retrieve -> reason -> tool_invoke -> human_approval -> respond
-               |            |              |
-               v            v              v
-            fallback     fallback       fallback
+decide -> tool_invoke -> human_approval -> respond
+   |            |              |
+   v            v              v
+fallback     fallback       fallback
+
+decide -> retrieve -> generate -> respond
+   |                      |
+   v                      v
+(as above)             fallback
 ```
 
-- **retrieve** (`agent/nodes/retrieve.py`) calls `agent/retrieval_client.py`,
-  which raises `NotImplementedError` until a real retrieval backend exists.
-  The node catches that and sets `retrieval_unavailable=True` instead of
+DEC-013 candidate (decide-then-retrieve reordering, replacing the earlier
+single `reason` node): `decide` (`agent/nodes/decide.py`) is the sole
+entry point and the sole tool-vs-no-tool decision point — it calls the
+model client with `agent/prompts/decide_system_prompt.md` and the tool
+schemas, and no retrieved context at all. Only when it selects no tool
+does `retrieve` (`agent/nodes/retrieve.py`) run, followed by `generate`
+(`agent/nodes/generate.py`), a second, separate model call with
+`agent/prompts/generate_system_prompt.md` (citation instructions, no tool
+schemas) and the retrieved context. This split exists because an
+unconditional-retrieval, single-call design let citation instructions
+compete with and beat tool-calling instructions whenever retrieval
+returned any topically-plausible context, even for tool-oriented queries
+(`DECISIONS.md` `DEC-012`) — see `DECISIONS.md` for the full diagnosis and
+`DEC-013` for this redesign's re-baseline result.
+
+- **retrieve** (`agent/nodes/retrieve.py`) calls `agent/retrieval_client.py`
+  and catches a lookup failure into `retrieval_unavailable=True` instead of
   crashing — the graph keeps running with zero domain content.
-- **reason** (`agent/nodes/reason.py`) calls the model client
-  (`agent/model_client.py`) with the system prompt
-  (`agent/prompts/system_prompt.md`, a TODO(domain) placeholder) plus
-  whatever context retrieval produced.
+- **decide**/**generate** (`agent/nodes/decide.py`, `agent/nodes/generate.py`)
+  each call the model client (`agent/model_client.py`) once, per the split
+  described above.
 - **tool_invoke** (`agent/nodes/tool_invoke.py`) calls the one MCP tool
   (`mcp_server/`) via `mcp_server/client.py`. Every call carries a `write`
   flag; `agent/policy.py::classify_action()` uses it to decide whether the

@@ -14,6 +14,8 @@ data:
   MCP_MODE: "mock"
   POLICY_BUNDLE_REF: "policy/baseline_policy.yaml"
   DATA_SOURCE_BINDING: "none"
+  MODEL_TEMPERATURE: "0"
+  MODEL_SEED: "42"
   MAX_REASONING_STEPS: "5"
   TOOL_TIMEOUT_SECONDS: "10"
   TOOL_RETRY_LIMIT: "2"

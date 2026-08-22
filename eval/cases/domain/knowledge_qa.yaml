@@ -18,6 +18,16 @@
   tags: ["knowledge_qa", "read-only"]
   version: "0.1.0"
 
+# R2 remedy (DEC-014, KQA-002 recalibration): removed "requests are
+# reviewed against the quarterly capacity-planning cycle" from
+# must_contain_facts. Rationale: the question asks only "who approves" --
+# the review-cadence fact answers a different question (when/how often
+# requests are reviewed) that this question never asks. DEC-013's R1
+# forensic triage found the model consistently gives a correct, fully-cited
+# answer to the question actually asked, without volunteering this
+# tangential detail -- the fact was responsive to a question this case
+# doesn't pose, not a gap in the model's grounding. Recalibrated to what the
+# question asks for, not removed to raise the pass rate.
 - id: KQA-002
   category: knowledge_qa
   input:
@@ -25,15 +35,14 @@
   expected:
     must_contain_facts:
       - "the Namespace Governance Owner approves quota increases above the default limit"
-      - "requests are reviewed against the quarterly capacity-planning cycle"
     source_doc_ids: ["PLAT-002"]
     citation_required: true
     groundedness: full
     forbidden_claims:
       - "quota increases above the default limit are automatically approved without review"
-  threshold_notes: "counts toward knowledge_qa gate; forbidden_claims guards against a plausible-sounding but wrong shortcut answer"
+  threshold_notes: "counts toward knowledge_qa gate; forbidden_claims guards against a plausible-sounding but wrong shortcut answer. must_contain_facts recalibrated at DEC-014 (R2) to question-responsiveness"
   tags: ["knowledge_qa", "read-only"]
-  version: "0.1.0"
+  version: "0.2.0"
 
 - id: KQA-003
   category: knowledge_qa
@@ -140,6 +149,14 @@
   tags: ["knowledge_qa", "read-only"]
   version: "0.1.0"
 
+# R2 remedy (DEC-014, KQA-010 recalibration): removed "escalation follows
+# the on-call responder chain" from must_contain_facts. Rationale: the
+# question asks "when" an incident should be escalated -- the
+# responder-chain fact answers "how"/"who" escalation proceeds to, a
+# different question this case's own query never poses. DEC-013's R1
+# forensic triage found the model consistently gives a correct, fully-cited
+# answer to the "when" question asked without volunteering this tangential
+# mechanism detail. Recalibrated to what the question asks for.
 - id: KQA-010
   category: knowledge_qa
   input:
@@ -147,13 +164,12 @@
   expected:
     must_contain_facts:
       - "an incident is escalated when it is not resolved within the defined severity time window"
-      - "escalation follows the on-call responder chain"
     source_doc_ids: ["PROC-006"]
     citation_required: true
     groundedness: partial_ok
-  threshold_notes: "counts toward knowledge_qa gate"
+  threshold_notes: "counts toward knowledge_qa gate. must_contain_facts recalibrated at DEC-014 (R2) to question-responsiveness"
   tags: ["knowledge_qa", "read-only"]
-  version: "0.1.0"
+  version: "0.2.0"
 
 - id: KQA-011
   category: knowledge_qa

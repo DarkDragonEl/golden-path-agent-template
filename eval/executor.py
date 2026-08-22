@@ -37,6 +37,7 @@ def _initial_state(session_id: str, case) -> dict:
         "messages": [],
         "reasoning_steps": 0,
         "tool_calls": [],
+        "model_calls": [],
         "pending_approval": False,
     }
 

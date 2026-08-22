@@ -1,0 +1,182 @@
+{
+  "qwen3-14b": [
+    {
+      "label": "clear_read",
+      "expected": "read",
+      "verdict": "pass",
+      "detail": "correct: [('itsm_search_records', {'record_type': 'incident', 'record_id': 'INC-10255'})]",
+      "latency_s": 8.25
+    },
+    {
+      "label": "clear_write",
+      "expected": "write",
+      "verdict": "pass",
+      "detail": "correct: [('itsm_create_request', {'short_description': 'Request for VPN access setup', 'description': 'New hire requires VPN access to securely connect to company resources.', 'category': 'access', 'requested_for': 'alex.rivera'})]",
+      "latency_s": 6.03
+    },
+    {
+      "label": "none_of_the_above",
+      "expected": "none",
+      "verdict": "pass",
+      "detail": "no tool call, as expected",
+      "latency_s": 3.33
+    },
+    {
+      "label": "ambiguous",
+      "expected": "ambiguous",
+      "verdict": "observe",
+      "detail": "tool_calls=['itsm_search_records']",
+      "latency_s": 6.46
+    }
+  ],
+  "gpt-oss-20b": [
+    {
+      "label": "clear_read",
+      "expected": "read",
+      "verdict": "error",
+      "detail": "RemoteDisconnected: Remote end closed connection without response",
+      "latency_s": 59.5
+    },
+    {
+      "label": "clear_write",
+      "expected": "write",
+      "verdict": "error",
+      "detail": "RemoteDisconnected: Remote end closed connection without response",
+      "latency_s": 60.0
+    },
+    {
+      "label": "none_of_the_above",
+      "expected": "none",
+      "verdict": "pass",
+      "detail": "no tool call, as expected",
+      "latency_s": 5.92
+    },
+    {
+      "label": "ambiguous",
+      "expected": "ambiguous",
+      "verdict": "observe",
+      "detail": "tool_calls=['itsm_search_records']",
+      "latency_s": 23.64
+    }
+  ],
+  "llama-scout-17b": [
+    {
+      "label": "clear_read",
+      "expected": "read",
+      "verdict": "pass",
+      "detail": "correct: [('itsm_search_records', {'record_type': 'incident', 'record_id': 'INC-10255'})]",
+      "latency_s": 1.0
+    },
+    {
+      "label": "clear_write",
+      "expected": "write",
+      "verdict": "pass",
+      "detail": "correct: [('itsm_create_request', {'short_description': 'New hire VPN access request', 'description': 'Request for VPN access for new hire on the platform team', 'category': 'access', 'requested_for': 'alex.rivera'})]",
+      "latency_s": 0.94
+    },
+    {
+      "label": "none_of_the_above",
+      "expected": "none",
+      "verdict": "pass",
+      "detail": "no tool call, as expected",
+      "latency_s": 0.51
+    },
+    {
+      "label": "ambiguous",
+      "expected": "ambiguous",
+      "verdict": "observe",
+      "detail": "tool_calls=none; malformed=[\"unknown tool name 'Itsm_create_request'\"]",
+      "latency_s": 0.87
+    }
+  ],
+  "deepseek-r1-distill-qwen-14b": [
+    {
+      "label": "clear_read",
+      "expected": "read",
+      "verdict": "fail",
+      "detail": "expected exactly one itsm_search_records call, got none",
+      "latency_s": 11.87
+    },
+    {
+      "label": "clear_write",
+      "expected": "write",
+      "verdict": "fail",
+      "detail": "expected exactly one itsm_create_request call, got none",
+      "latency_s": 15.23
+    },
+    {
+      "label": "none_of_the_above",
+      "expected": "none",
+      "verdict": "pass",
+      "detail": "no tool call, as expected",
+      "latency_s": 10.46
+    },
+    {
+      "label": "ambiguous",
+      "expected": "ambiguous",
+      "verdict": "observe",
+      "detail": "tool_calls=none",
+      "latency_s": 17.96
+    }
+  ],
+  "openai/deepseek-r1-distill-qwen-14b": [
+    {
+      "label": "clear_read",
+      "expected": "read",
+      "verdict": "fail",
+      "detail": "expected exactly one itsm_search_records call, got none",
+      "latency_s": 11.72
+    },
+    {
+      "label": "clear_write",
+      "expected": "write",
+      "verdict": "fail",
+      "detail": "expected exactly one itsm_create_request call, got none",
+      "latency_s": 15.36
+    },
+    {
+      "label": "none_of_the_above",
+      "expected": "none",
+      "verdict": "pass",
+      "detail": "no tool call, as expected",
+      "latency_s": 10.61
+    },
+    {
+      "label": "ambiguous",
+      "expected": "ambiguous",
+      "verdict": "observe",
+      "detail": "tool_calls=none",
+      "latency_s": 17.96
+    }
+  ],
+  "gpt-oss-120b": [
+    {
+      "label": "clear_read",
+      "expected": "read",
+      "verdict": "pass",
+      "detail": "correct: [('itsm_search_records', {'record_type': 'incident', 'status': 'any'})]",
+      "latency_s": 5.69
+    },
+    {
+      "label": "clear_write",
+      "expected": "write",
+      "verdict": "pass",
+      "detail": "correct: [('itsm_create_request', {'category': 'access', 'description': 'Requesting VPN access for new hire Alex Rivera to enable remote connectivity to platform resources. Please provision necessary credentials and client configuration.', 'requested_for': 'alex.rivera', 'short_description': 'VPN access request for Alex Rivera'})]",
+      "latency_s": 4.25
+    },
+    {
+      "label": "none_of_the_above",
+      "expected": "none",
+      "verdict": "pass",
+      "detail": "no tool call, as expected",
+      "latency_s": 7.31
+    },
+    {
+      "label": "ambiguous",
+      "expected": "ambiguous",
+      "verdict": "observe",
+      "detail": "tool_calls=['itsm_search_records']",
+      "latency_s": 5.56
+    }
+  ]
+}

@@ -24,6 +24,10 @@ NETWORK=golden-path-agent-dev
 IMAGE=golden-path-agent:dev
 AGENT_NAME=golden-path-agent-dev
 MCP_NAME=golden-path-agent-mcp-dev
+OTEL_NAME=golden-path-otel-collector-dev
+# Pinned per PINS.md -- R4/DEC-020, plan-B6 closure. Core distribution
+# (not -contrib): only the OTLP receiver + debug exporter are needed here.
+OTEL_COLLECTOR_IMAGE=otel/opentelemetry-collector:0.159.0
 
 # Host-published ports, not container-internal ports (those stay 8080/8081
 # inside the network namespace regardless). Default to a less common range
@@ -44,7 +48,7 @@ for arg in "$@"; do
 done
 
 down() {
-  "$ENGINE" rm -f "$AGENT_NAME" "$MCP_NAME" >/dev/null 2>&1 || true
+  "$ENGINE" rm -f "$AGENT_NAME" "$MCP_NAME" "$OTEL_NAME" >/dev/null 2>&1 || true
   "$ENGINE" network rm "$NETWORK" >/dev/null 2>&1 || true
 }
 
@@ -66,22 +70,37 @@ up() {
     -e MCP_MODE="${MCP_MODE:-mock}" -e MCP_HOST=0.0.0.0 -e MCP_PORT=8081 \
     "$IMAGE" mcp >/dev/null
 
+  # R4/DEC-020 (plan-B6 closure): a real local OTel Collector so telemetry
+  # actually fires on every run instead of silently no-op'ing -- started
+  # before the agent so OTEL_EXPORTER_OTLP_ENDPOINT below can point at it
+  # by container name on the shared network. Spans land in this
+  # container's stdout (`podman logs golden-path-otel-collector-dev`).
+  "$ENGINE" run -d --name "$OTEL_NAME" --network "$NETWORK" -p "4318:4318" \
+    -v "$(pwd)/deploy/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:Z" \
+    "$OTEL_COLLECTOR_IMAGE" >/dev/null
+
   "$ENGINE" run -d --name "$AGENT_NAME" --network "$NETWORK" -p "${AGENT_HOST_PORT}:8080" \
     -e AGENT_MODEL_MODE="${AGENT_MODEL_MODE:-live}" \
     -e MCP_MODE="${MCP_MODE:-mock}" \
     -e MODEL_API_BASE_URL="${MODEL_API_BASE_URL:-http://localhost:11434/v1}" \
     -e MODEL_NAME="${MODEL_NAME:-placeholder-model}" \
+    -e MODEL_API_KEY="${MODEL_API_KEY:-not-needed}" \
+    -e MODEL_FALLBACK_API_BASE_URL="${MODEL_FALLBACK_API_BASE_URL:-}" \
+    -e MODEL_FALLBACK_NAME="${MODEL_FALLBACK_NAME:-}" \
+    -e MODEL_TEMPERATURE="${MODEL_TEMPERATURE:-0}" \
+    -e MODEL_SEED="${MODEL_SEED:-42}" \
     -e MCP_TOOL_ENDPOINT="http://${MCP_NAME}:8081" \
     -e MAX_REASONING_STEPS="${MAX_REASONING_STEPS:-5}" \
     -e TOOL_TIMEOUT_SECONDS="${TOOL_TIMEOUT_SECONDS:-10}" \
     -e TOOL_RETRY_LIMIT="${TOOL_RETRY_LIMIT:-2}" \
     -e APPROVAL_MODE="${APPROVAL_MODE:-required}" \
     -e AUTO_APPROVE_IN_DEV="${AUTO_APPROVE_IN_DEV:-false}" \
-    -e OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-}" \
+    -e AGENT_WORKLOAD_ID="${AGENT_WORKLOAD_ID:-golden-path-agent}" \
+    -e OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-http://${OTEL_NAME}:4318}" \
     -v "$(pwd)/corpus/seed:/mnt/corpus:ro" \
     "$IMAGE" agent >/dev/null
 
-  echo "[dev.sh] agent: http://localhost:${AGENT_HOST_PORT}  mcp: http://localhost:${MCP_HOST_PORT}  (Ctrl-C to stop)"
+  echo "[dev.sh] agent: http://localhost:${AGENT_HOST_PORT}  mcp: http://localhost:${MCP_HOST_PORT}  otel: podman logs -f ${OTEL_NAME}  (Ctrl-C to stop)"
   trap down INT TERM
   "$ENGINE" logs -f "$AGENT_NAME"
   down
