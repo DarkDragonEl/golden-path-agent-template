@@ -1,15 +1,17 @@
-# Phase C, Step C4 (DECISIONS.md DEC-021). The Git-bootstrapped app-of-apps
-# root: syncs deploy/argocd/apps/ as a plain directory of Application
-# manifests (not Kustomize/Helm), so the *only* action needed to
-# instantiate every actively-deployed environment from Git alone is
-# applying this one object -- the deliverable Phase E's from-scratch
-# cluster refresh replays.
+# Phase C, Step C4 (DECISIONS.md DEC-021/DEC-040). The Git-bootstrapped
+# app-of-apps root: syncs deploy/argocd/apps/ as a plain directory of
+# Application manifests (not Kustomize/Helm) -- applying this one object
+# instantiates every GitOps-managed environment from Git alone.
 #
-# Deliberately scoped to only the two ACTIVELY deployed environments this
-# milestone (ephemeral-test, demo-prod) -- staging/pilot-prod's existing
-# stub Applications stay outside deploy/argocd/apps/, un-synced, per
-# DEC-021's "no staging, no pilot" decision for the demo (see
-# docs/environments.md).
+# Deliberately scoped to only demo-prod. ephemeral-test is pipeline-
+# managed, not GitOps-managed (deploy-ephemeral applies a specific
+# unpromoted digest per PipelineRun; an auto- or even manually-syncable
+# Application would fight that -- see
+# deploy/argocd/application-ephemeral-test.yaml's own header and
+# docs/environments.md's ownership-model line), so its Application
+# manifest deliberately stays outside this directory. staging/pilot-prod's
+# existing stub Applications stay outside it too, un-synced, per DEC-021's
+# "no staging, no pilot" decision for the demo (see docs/environments.md).
 #
 # Requires this AppProject to permit managing Application objects in
 # openshift-gitops as a destination -- see deploy/argocd/project.yaml's

@@ -20,24 +20,25 @@ C alone cannot prove the operator-install leg of the story.
 |---|---|---|---|
 | Local laptop | Fast dev loop, deterministic testing | yes | `scripts/dev.sh --offline` (plain `podman run`/`docker run`, no compose dependency), `.env.example` |
 | PR CI | Basic correctness + the eval promotion gate | yes (as the real Tekton `Pipeline`, `pipelines/`, Step C1) | `ci/pr-checks.yaml`'s shape, realized: `unit-tests` → `eval-gate-offline`/`eval-gate-live` → `container-build` → `sbom-generate` |
-| Ephemeral test | Validate integrated behavior in a real (short-lived) namespace, pre-promotion | yes | `deploy/kustomize/overlays/ephemeral-test/`, `deploy/argocd/apps/ephemeral-test.yaml`; deployed directly by the pipeline's own `deploy-ephemeral` Task, not by ArgoCD sync — see the app-of-apps note below for why |
+| Ephemeral test | Validate integrated behavior in a real (short-lived) namespace, pre-promotion | yes | `deploy/kustomize/overlays/ephemeral-test/`, `deploy/argocd/application-ephemeral-test.yaml`; deployed directly by the pipeline's own `deploy-ephemeral` Task, not by ArgoCD sync — see the ownership model below for why |
 | Demo production | The demo milestone's own promoted, always-on environment (`DECISIONS.md` `DEC-021`) | **yes — new at Step C4** | `deploy/kustomize/overlays/demo-prod/`, `deploy/argocd/apps/demo-prod.yaml`; ArgoCD-synced (`automated`, `selfHeal: true`) from the digest the promotion PR merge lands on `main` |
 | Staging | Validate against approved staging data / real identity | **no — explicitly out of scope this milestone** | `deploy/kustomize/overlays/staging/`, `deploy/argocd/application-staging.yaml` (stub, un-synced, not part of the app-of-apps root) |
 | Pilot production | Controlled, human-approval-gated value delivery | **no — explicitly out of scope this milestone** | `deploy/kustomize/overlays/pilot-prod/`, `deploy/argocd/application-pilot-prod.yaml` (stub, un-synced, not part of the app-of-apps root) |
 
-**Why ephemeral-test is pipeline-applied, not ArgoCD-synced, despite having
-its own `Application` manifest**: `deploy-ephemeral` (the pipeline `Task`)
-applies a specific *unpromoted*, just-built digest for the duration of one
-`PipelineRun`'s own gate stages — the whole point of the ephemeral-test
-step is validating a digest that is not yet on `main`. If ArgoCD also
-auto-synced this same `Application` with `selfHeal: true`, it would
-periodically reconcile the namespace back to whatever digest `main` last
-promoted, fighting the pipeline's own direct `oc apply` mid-run. The
-`Application` manifest exists (`deploy/argocd/apps/ephemeral-test.yaml`,
-part of the app-of-apps root per `DECISIONS.md` `DEC-021`) as a real,
-dry-run-validated artifact, but whether to actually let it sync live —
-and risk that exact conflict — is flagged as an open question for the
-owner's review at the Step C3/C4 STOP, not a settled design choice.
+**Ownership model (`DECISIONS.md` `DEC-040`, resolved at the Step C3/C4
+STOP): `demo-prod` is GitOps-managed (ArgoCD auto-sync); `ephemeral-test`
+is pipeline-managed (direct `oc apply`, a specific unpromoted digest,
+per `PipelineRun`).** `deploy-ephemeral` (the pipeline `Task`) applies a
+digest that is deliberately not yet on `main` — the whole point of the
+ephemeral-test step. If ArgoCD also synced that same namespace —
+automatically (`selfHeal` reverting the pipeline's own apply back to
+whatever `main` last promoted) or even just via a stray manual sync — it
+would fight that mechanism mid-run. `ephemeral-test`'s `Application`
+manifest (`deploy/argocd/application-ephemeral-test.yaml`) exists as a
+real, dry-run-validated scaffold for a *future* GitOps-synced path (one
+that would need its own digest-injection story compatible with ArgoCD
+sync, which doesn't exist yet) — deliberately kept outside
+`deploy/argocd/apps/`, so the app-of-apps root never syncs it.
 
 ## Promotion model
 
@@ -52,16 +53,17 @@ digest, image name, and namespace come out identically shaped, only the
 
 GitOps promotion at this MVP's scale is small `Application` manifests
 pointed at overlay paths — not an `ApplicationSet` generator matrix.
-Since Step C4 (`DECISIONS.md` `DEC-021`), the two actively-deployed
-`Application`s (`ephemeral-test`, `demo-prod`) live under
-`deploy/argocd/apps/`, synced via one Git-bootstrapped app-of-apps root
-(`deploy/argocd/application-root.yaml`) — applying that one object is
-enough to instantiate both from Git alone; nothing needs applying
-per-environment by hand. `demo-prod` syncs automatically (`prune: true,
-selfHeal: true`) — the digest-promotion PR *merge* is its actual human
-gate (`SysR-P-F-06`), not the sync itself. Staging/pilot-prod's stub
-`Application`s stay outside `deploy/argocd/apps/`, un-synced, not part of
-the app-of-apps root; **pilot-prod's `syncPolicy.automated` is `null`**
+Since Step C4 (`DECISIONS.md` `DEC-021`/`DEC-040`), `deploy/argocd/apps/`
+holds exactly the `Application`s the app-of-apps root
+(`deploy/argocd/application-root.yaml`) actually syncs — currently just
+`demo-prod` (see the ownership model above for why `ephemeral-test`
+deliberately isn't there too). Applying the one root object is enough to
+instantiate every GitOps-managed environment from Git alone; nothing
+needs applying per-environment by hand. `demo-prod` syncs automatically
+(`prune: true, selfHeal: true`) — the digest-promotion PR *merge* is its
+actual human gate (`SysR-P-F-06`), not the sync itself. Staging/pilot-prod's
+stub `Application`s stay outside `deploy/argocd/apps/` too, un-synced;
+**pilot-prod's `syncPolicy.automated` is `null`**
 regardless, preserving a manual-sync gate for whenever it is activated.
 
 ## Ephemeral-test namespace lifecycle
