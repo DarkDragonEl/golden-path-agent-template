@@ -111,6 +111,7 @@ def record_invocation_span(state: dict, request_id: str | None = None, span=None
                 "model_call.prompt_tokens": call.get("prompt_tokens") or -1,
                 "model_call.completion_tokens": call.get("completion_tokens") or -1,
                 "model_call.total_tokens": call.get("total_tokens") or -1,
+                "model_call.response_model": call.get("response_model") or "",
             },
         )
     last_call = state.get("model_calls", [])[-1] if state.get("model_calls") else {}

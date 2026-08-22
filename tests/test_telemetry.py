@@ -68,6 +68,43 @@ def test_every_model_call_gets_its_own_event_not_just_the_last():
     assert span.attributes["model.route"] == "primary"
 
 
+def test_model_call_event_carries_response_model():
+    # Post-Checkpoint-C backlog item 1 (model-identity capture): the
+    # backend's own reported model identity must be visible per call, not
+    # just the requested config.MODEL_NAME -- same "one event per call"
+    # requirement as route/reason_code above.
+    state = _state(
+        model_calls=[
+            {"node": "decide", "route": "primary", "reason_code": "none",
+             "prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12,
+             "response_model": "granite-3-2-8b-instruct-20260101"},
+        ]
+    )
+    span = _FakeSpan()
+    record_invocation_span(state, span=span)
+
+    model_call_events = [e for e in span.events if e[0] == "model_call"]
+    assert model_call_events[0][1]["model_call.response_model"] == "granite-3-2-8b-instruct-20260101"
+
+
+def test_model_call_event_response_model_defaults_empty_when_absent():
+    # A call record from before this field existed, or a total-failure
+    # call (response_model=None) -- must not KeyError, must not surface
+    # as the Python literal "None".
+    state = _state(
+        model_calls=[
+            {"node": "decide", "route": "none", "reason_code": "model_failure:APIConnectionError",
+             "prompt_tokens": None, "completion_tokens": None, "total_tokens": None,
+             "response_model": None},
+        ]
+    )
+    span = _FakeSpan()
+    record_invocation_span(state, span=span)
+
+    model_call_events = [e for e in span.events if e[0] == "model_call"]
+    assert model_call_events[0][1]["model_call.response_model"] == ""
+
+
 def test_every_tool_call_gets_its_own_event_with_classification():
     state = _state(
         tool_calls=[

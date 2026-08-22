@@ -259,4 +259,10 @@ def score_domain_case(case, trace) -> dict:
         # shape, so eval/reporter.py::print_summary works unchanged for
         # both EXAMPLE-*.yaml and domain results.
         "results": [{"assertion": detail, "detail": detail, "passed": ok} for ok, detail in results],
+        # Post-Checkpoint-C backlog item 1 (model-identity capture): passed
+        # through into eval/reporter.py's write_report output unchanged --
+        # every model call this case made, including each call's
+        # response_model (agent/model_client.py), for cross-session drift
+        # correlation (DEC-022's pattern) against every domain eval run.
+        "model_calls": state.get("model_calls", []),
     }

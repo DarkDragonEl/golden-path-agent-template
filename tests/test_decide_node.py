@@ -82,6 +82,7 @@ def test_model_failure_sets_fallback_reason_and_appends_none_route_to_model_call
             "prompt_tokens": None,
             "completion_tokens": None,
             "total_tokens": None,
+            "response_model": None,
         }
     ]
 
@@ -95,6 +96,7 @@ def test_tool_call_selected_appends_primary_none_to_model_calls(monkeypatch):
             "primary",
             "none",
             {"prompt_tokens": 20, "completion_tokens": 8, "total_tokens": 28},
+            "granite-3-2-8b-instruct-20260101",
         )
     )
     monkeypatch.setattr(decide_module, "get_model_client", lambda: stub)
@@ -110,13 +112,14 @@ def test_tool_call_selected_appends_primary_none_to_model_calls(monkeypatch):
             "prompt_tokens": 20,
             "completion_tokens": 8,
             "total_tokens": 28,
+            "response_model": "granite-3-2-8b-instruct-20260101",
         }
     ]
 
 
 def test_no_tool_call_sets_selected_tool_none(monkeypatch):
     monkeypatch.setattr(decide_module.config, "AGENT_MODEL_MODE", "live")
-    stub = _StubClient(returns=("no tool needed, this is a knowledge question", [], "primary", "none", None))
+    stub = _StubClient(returns=("no tool needed, this is a knowledge question", [], "primary", "none", None, "granite-3-2-8b-instruct-20260101"))
     monkeypatch.setattr(decide_module, "get_model_client", lambda: stub)
 
     result = decide_node(_base_state())
@@ -130,7 +133,7 @@ def test_context_never_reaches_decide_prompt(monkeypatch):
     # decide_node must never stitch it into the user message it sends --
     # that responsibility belongs solely to generate_node.
     monkeypatch.setattr(decide_module.config, "AGENT_MODEL_MODE", "live")
-    stub = _StubClient(returns=("no tool needed", [], "primary", "none", None))
+    stub = _StubClient(returns=("no tool needed", [], "primary", "none", None, "granite-3-2-8b-instruct-20260101"))
     monkeypatch.setattr(decide_module, "get_model_client", lambda: stub)
 
     decide_node(_base_state())

@@ -3550,3 +3550,47 @@ not assumed: `oc auth can-i get imagestreams --subresource=layers
 `ephemeral-test` — **both changes needed to reach `main` before ArgoCD's
 next reconciliation could pick them up**, not just the live cluster
 object.
+
+## DEC-043 — Post-Checkpoint-C backlog item 1: model-identity capture
+implemented
+
+**Document/scope:** `agent/model_client.py` (all three `complete()`
+implementations), `agent/state.py` (`ModelCallRecord`), `agent/nodes/decide.py`,
+`agent/nodes/generate.py`, `agent/telemetry.py`, `eval/domain_scorer.py`,
+`tests/test_model_client.py`, `tests/test_decide_node.py`,
+`tests/test_generate_node.py`, `tests/test_telemetry.py`. Owner
+authorization: "the post-C backlog is Phase D's first work item before
+D1 ... model-identity capture ... land first."
+
+**Implemented exactly as the runbook's own backlog entry specified**:
+`OpenAICompatibleModelClient.complete()` now also returns
+`response.model` — a standard OpenAI-compatible response field reporting
+which model identity actually served the request, which can differ from
+the requested `model` name (e.g. an alias resolving to a specific
+dated/versioned build). Threaded through the full call chain as a new
+tuple element (`FakeModelClient`/`RoutedModelClient` both updated to
+match, `FakeModelClient` always reporting `None` since there is no real
+backend), into a new `ModelCallRecord.response_model` field, into
+`agent/telemetry.py`'s existing per-call `model_call` span event
+(`model_call.response_model`, following the exact same
+per-event-not-scalar pattern already established for tokens — no new
+top-level span attribute), and into `eval/domain_scorer.py`'s per-case
+result dict (`state["model_calls"]` passed through unchanged into
+`eval/reporter.py::write_report`'s JSON output).
+
+**Both standing constraints held, verified not just asserted**:
+read-only w.r.t. model inputs — the actual `chat.completions.create(...)`
+call arguments are untouched by this change, confirmed by inspection (the
+new field is extracted from the *response*, alongside `usage`, using the
+identical pattern `DEC-020` already established for token counts). No
+`DEC-012`-style re-baseline needed for the same reason `DEC-020`'s own
+token-usage addition didn't need one — only observation of already-computed
+state changed.
+
+**Verified two ways**: the full test suite (164 tests, two new targeted
+regression tests added — `model_call.response_model` present when set,
+defaults to `""` not the Python literal `"None"` when absent/`None`,
+matching every other per-call attribute's own convention) and a live
+smoke call against the real MaaS endpoint (not just `FakeModelClient`'s
+plumbing) — confirmed `response.model` is a real, non-empty string field
+on this endpoint's actual responses, not merely schema-present-but-empty.

@@ -50,7 +50,7 @@ def _base_state(**overrides):
 
 
 def test_context_formatted_into_user_message(monkeypatch):
-    stub = _StubClient(returns=("An answer.\n\nSources: PLAT-003", [], "primary", "none", None))
+    stub = _StubClient(returns=("An answer.\n\nSources: PLAT-003", [], "primary", "none", None, "granite-3-2-8b-instruct-20260101"))
     monkeypatch.setattr(generate_module, "get_model_client", lambda: stub)
 
     docs = [{"doc_id": "PLAT-003", "version": "2", "passage_text": "Some passage text."}]
@@ -63,7 +63,7 @@ def test_context_formatted_into_user_message(monkeypatch):
 
 
 def test_no_context_omits_context_block(monkeypatch):
-    stub = _StubClient(returns=("I can't answer that from the platform docs.", [], "primary", "none", None))
+    stub = _StubClient(returns=("I can't answer that from the platform docs.", [], "primary", "none", None, "granite-3-2-8b-instruct-20260101"))
     monkeypatch.setattr(generate_module, "get_model_client", lambda: stub)
 
     generate_node(_base_state(retrieved_docs=[]))
@@ -81,6 +81,7 @@ def test_final_output_set_directly_from_model_text(monkeypatch):
             "primary",
             "none",
             {"prompt_tokens": 40, "completion_tokens": 12, "total_tokens": 52},
+            "granite-3-2-8b-instruct-20260101",
         )
     )
     monkeypatch.setattr(generate_module, "get_model_client", lambda: stub)
@@ -108,6 +109,7 @@ def test_model_failure_sets_fallback_reason_and_appends_none_route_to_model_call
         "prompt_tokens": None,
         "completion_tokens": None,
         "total_tokens": None,
+        "response_model": None,
     }
     # decide's earlier entry must survive, not be overwritten.
     assert result["model_calls"][0]["node"] == "decide"
@@ -117,7 +119,7 @@ def test_model_failure_sets_fallback_reason_and_appends_none_route_to_model_call
 def test_called_without_tools_kwarg(monkeypatch):
     # Regression guard: reintroducing TOOL_SCHEMAS here would resurrect
     # DEC-012's exact failure mode inside generate instead of decide.
-    stub = _StubClient(returns=("An answer.", [], "primary", "none", None))
+    stub = _StubClient(returns=("An answer.", [], "primary", "none", None, "granite-3-2-8b-instruct-20260101"))
     monkeypatch.setattr(generate_module, "get_model_client", lambda: stub)
 
     generate_node(_base_state())

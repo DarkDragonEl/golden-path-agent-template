@@ -18,6 +18,10 @@ class ModelCallRecord(TypedDict):
     prompt_tokens: Optional[int]  # R4/DEC-020: SRS-AGT-IF-08 "token consumption" -- None when
     completion_tokens: Optional[int]  # the backend doesn't report usage (e.g. FakeModelClient,
     total_tokens: Optional[int]  # or a route that failed before any response was returned).
+    response_model: Optional[str]  # Post-Checkpoint-C backlog item 1: the model identity the
+    # backend's own response reported for this specific call -- None for FakeModelClient or a
+    # route that failed before any response was returned. Read-only telemetry (see
+    # agent/model_client.py's own comment); never used to alter a request.
 
 
 class AgentState(TypedDict, total=False):

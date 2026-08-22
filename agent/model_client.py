@@ -30,7 +30,7 @@ class FakeModelClient:
     def complete(self, system_prompt: str, messages: list, tools: list | None = None):
         last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
         text = f"[offline-fake-response] acknowledged: {last_user[:120]}"
-        return text, [], "primary", "none", None
+        return text, [], "primary", "none", None, None
 
 
 class OpenAICompatibleModelClient:
@@ -68,7 +68,17 @@ class OpenAICompatibleModelClient:
                 "completion_tokens": response.usage.completion_tokens,
                 "total_tokens": response.usage.total_tokens,
             }
-        return choice.content, tool_calls, usage
+        # Post-Checkpoint-C backlog item 1 (DECISIONS.md, model-identity
+        # capture): `response.model` is a standard OpenAI-compatible field
+        # reporting which model identity actually served the request --
+        # can differ from the `model` name requested (e.g. an alias
+        # resolving to a specific dated/versioned build). Read-only w.r.t.
+        # model inputs, same constraint agent/telemetry.py's own header
+        # already holds itself to -- never used to alter a request, purely
+        # observational, threaded through for cross-session drift
+        # correlation (DEC-022's pattern).
+        response_model = response.model
+        return choice.content, tool_calls, usage, response_model
 
 
 def _classify_primary_failure(exc: Exception) -> str:
@@ -103,14 +113,14 @@ class RoutedModelClient:
 
     def complete(self, system_prompt: str, messages: list, tools: list | None = None):
         try:
-            text, tool_calls, usage = self._primary.complete(system_prompt, messages, tools=tools)
-            return text, tool_calls, "primary", "none", usage
+            text, tool_calls, usage, response_model = self._primary.complete(system_prompt, messages, tools=tools)
+            return text, tool_calls, "primary", "none", usage, response_model
         except Exception as primary_exc:  # noqa: BLE001 - reclassified below, not swallowed
             reason_code = _classify_primary_failure(primary_exc)
             if self._fallback is None:
                 raise
-            text, tool_calls, usage = self._fallback.complete(system_prompt, messages, tools=tools)
-            return text, tool_calls, "fallback", reason_code, usage
+            text, tool_calls, usage, response_model = self._fallback.complete(system_prompt, messages, tools=tools)
+            return text, tool_calls, "fallback", reason_code, usage, response_model
 
 
 def get_model_client():

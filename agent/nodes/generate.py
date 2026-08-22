@@ -38,7 +38,7 @@ def generate_node(state):
         user_message = f"Context:\n{context}\n\nQuestion: {user_message}"
 
     try:
-        text, tool_calls, route_used, reason_code, usage = model.complete(
+        text, tool_calls, route_used, reason_code, usage, response_model = model.complete(
             _load_system_prompt(), [{"role": "user", "content": user_message}]
         )
     except Exception as exc:  # noqa: BLE001 - total model failure (both routes exhausted, or none
@@ -52,6 +52,7 @@ def generate_node(state):
                 "prompt_tokens": None,
                 "completion_tokens": None,
                 "total_tokens": None,
+                "response_model": None,
             }
         ]
         return {
@@ -71,6 +72,7 @@ def generate_node(state):
             "prompt_tokens": (usage or {}).get("prompt_tokens"),
             "completion_tokens": (usage or {}).get("completion_tokens"),
             "total_tokens": (usage or {}).get("total_tokens"),
+            "response_model": response_model,
         }
     ]
     return {
