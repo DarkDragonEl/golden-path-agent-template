@@ -49,6 +49,11 @@ spec:
     - name: policy-sync-check
       image: docker.io/library/python:3.12-slim
       workingDir: $(workspaces.source.path)
+      env:
+        # DEC-027: pip install needs a writable $HOME under this project's
+        # restricted-v2-SCC identity -- see unit-tests.yaml's fuller note.
+        - name: HOME
+          value: /tmp
       script: |
         #!/bin/sh
         set -eu

@@ -2496,3 +2496,108 @@ for post-run inspection).
 **Status:** Both findings fixed and independently verified (not just
 re-run). Proceeding to re-trigger `PipelineRun` C1c-2 with both fixes in
 place.
+
+## DEC-027 — Step C1c, `PipelineRun` C1c-2: a third genuine finding
+(arbitrary non-root UID vs. `pip`/`syft`), fixed and verified before the
+third run
+
+**Document/scope:** `pipelines/tasks/unit-tests.yaml`,
+`eval-gate-offline.yaml`, `eval-gate-live.yaml`, `policy-validate.yaml`,
+`sbom-generate.yaml`. `PipelineRun` C1c-2 (`golden-path-agent-ci-dgqk7`,
+run under the corrected `golden-path-agent-ci-pipeline` `ServiceAccount`
+per `DEC-026`'s fix) failed too — but with a materially different failure
+shape than C1c-1: `unit-tests`, `eval-gate-offline`, and `policy-validate`
+all failed this time (`eval-gate-offline`/`policy-validate`'s `opa test`
+step had *succeeded* under the wrong, broader default SA in C1c-1). This
+pointed directly at the RBAC fix itself as the proximate trigger, not a
+coincidence — investigated before assuming, confirmed correct.
+
+**Root cause**: `golden-path-agent-ci-pipeline` (deliberately, per the
+owner's own standing instruction) has no `anyuid` SCC grant — it runs
+under the cluster default `restricted-v2`, which assigns an **arbitrary,
+high, non-root UID with no `/etc/passwd` entry** to every pod. The
+previous run's default `pipeline` `ServiceAccount` apparently carries a
+more permissive SCC (plausibly `anyuid`, a common OpenShift Pipelines
+convenience grant), which had been silently masking this class of bug —
+**the correct, least-privilege identity surfaced a real portability gap
+the broader, wrong identity had been hiding.** Confirmed live:
+`unit-tests`' failing step logs show `Permission denied: '/.local'` — an
+arbitrary UID with no passwd entry gets `$HOME=/`, and `pip`'s `--user`
+install target (`$HOME/.local`) is then unwritable. Same root cause,
+same fix needed, in every `python:3.12-slim` step that runs `pip install`
+(`unit-tests`, `eval-gate-offline`, `eval-gate-live`,
+`policy-validate`'s `policy-sync-check` step).
+
+**Fix, verified locally before trusting it on a third cluster run** (the
+discipline `DEC-026`'s own lesson calls for): `env: [{name: HOME, value:
+/tmp}]` on each affected step. Verified via `podman run -u 1001:0 -e
+HOME=/tmp ...` — `pip install` succeeds cleanly (exit 0, package imports),
+reproducing the live failure first (`HOME=/` fails identically to the
+cluster) to confirm the repro was faithful before trusting the fix.
+`/tmp` was chosen over the first-considered `/tekton/home` specifically
+because the latter's writability under this project's own restricted SCC
+was an **unverified assumption** — exactly the kind of thing `DEC-026`'s
+lesson says to check, not carry forward untested; `/tmp`'s
+world-writability is plain container/OS convention, confirmed locally,
+not Tekton-version- or SCC-configuration-dependent.
+
+**A fourth thing caught only because the local-simulation habit was
+already running**: `sbom-generate.yaml`'s `syft` step was never reached
+in either failed run yet (downstream of the now-fixed `unit-tests`), so
+it would have been the *next* failure on a third run if not checked
+preemptively. Tested locally first, deliberately, rather than waiting for
+a live failure to reveal it: `docker.io/anchore/syft` under the same
+arbitrary-UID simulation fails differently and more subtly than `pip` —
+`/tmp` itself is **not** world-writable in this specific minimal
+(distroless-style) image (confirmed: `mkdir /tmp/xdgcache: permission
+denied` even with `HOME`/`XDG_CACHE_HOME` redirected there), and syft's
+own image-pulling machinery ("stereoscope") hardcodes some of its own
+`/tmp` usage regardless of those env vars (`mkdir
+/tmp/stereoscope-...: permission denied`). Setting `HOME`/
+`XDG_CACHE_HOME` alone does not fix this — confirmed by testing that
+exact combination and watching it still fail. **Fix**: an `emptyDir`
+volume mounted directly *at* `/tmp` (not an env var), which overrides
+the image's own baked-in permissions with a genuinely writable directory
+regardless of arbitrary UID — the one fix in this entry that's a
+Kubernetes-level construct, not an env var, because the failure mode
+itself was filesystem-permission-level, not credential-resolution-level.
+Verified locally end to end, unpiped (a piped `$?` had first given a
+misleading "exit 1" — corrected by re-running without the pipe): a real
+93KB SBOM produced against a public test image, exit code genuinely `0`.
+The same `syft-tmp` `emptyDir` is also mounted in the *preceding*
+`build-registry-auth` step (writes `/tmp/.docker/config.json`) so both
+containers share the same writable directory at the same path — `syft`'s
+own `HOME=/tmp` then finds that config file for registry auth.
+
+**Due diligence on the remaining tool images, to avoid a fourth failed
+run for a fourth undiscovered instance of this same bug class**: `oc`
+(`origin-cli`, used by `digest-capture`/`deploy-ephemeral`/
+`security-tests`/`operational-tests`/`destroy-ephemeral`) checked under
+the same arbitrary-UID simulation — no hard failure, just a graceful
+"can't cache discovery" degradation (confirmed: `oc version --client`
+succeeds cleanly with `HOME=/`). `opa test`'s own step already runs via
+direct `command`/`args` exec (no shell, no writes needed beyond the
+already-redirected `>` in the *other* step) and had already succeeded in
+both prior runs regardless of which `ServiceAccount` ran it. `git`
+(`fetch-source`) had already succeeded in both prior runs under both
+identities — empirically proven fine, not just assumed. `open-promotion-pr`
+(also `alpine/git`) is not yet reached by any run; not preemptively
+simulated further given the pattern-match confidence from `fetch-source`'s
+own two clean runs — if it surfaces a real issue, it gets the same
+verify-first treatment when it actually happens, not speculative fixing
+now.
+
+**The generalized lesson from this entry, on top of `DEC-026`'s**: a
+broader, wrong `ServiceAccount`/SCC can silently mask an image-portability
+bug that only manifests under the *correct*, more restricted identity —
+finding this on the very next run after fixing the RBAC bug is not a
+coincidence to be surprised by; it is exactly the kind of thing
+least-privilege is supposed to surface, and should be expected as a normal
+consequence of tightening an identity, not treated as a new regression to
+be alarmed by.
+
+**Status:** All four findings (this entry's `pip`/`HOME` fix across four
+steps, `syft`'s `/tmp` `emptyDir` fix, plus `DEC-026`'s two) fixed and
+independently verified — locally where practical, live where not, never
+just re-dry-run and trusted. Proceeding to re-trigger `PipelineRun`
+C1c-3.
