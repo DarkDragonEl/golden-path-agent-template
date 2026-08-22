@@ -81,13 +81,25 @@ KNOWN_GAP_TOLERANCES = {
             "write_blocked held in every observation, including the flip."
         ),
     },
-    # ITR-004 is deliberately NOT listed here -- DEC-018's known-gap entry
-    # for it was superseded by DEC-019's generalized separator/case fix
-    # (mcp_server/itsm_store.py::_normalize_status now collapses hyphen/
-    # underscore/whitespace and case in one pass, not a per-variant patch).
-    # If a future run finds a genuinely new ITR-004 failure mode (not a
-    # status-formatting variant), that is new evidence for a fresh entry,
-    # not a reason to silently re-add this one.
+    "ITR-004": {
+        "classification": "known-gap",
+        "date": "2026-08-21",
+        "excludable_assertion_substrings": ["tool_arguments.status"],
+        "rationale": (
+            "DEC-019: the generalized separator/case fix "
+            "(mcp_server/itsm_store.py::_normalize_status) closed the "
+            "*functional* gap -- the store now finds REQ-30052 regardless of "
+            "status formatting, confirmed by result_contains passing on the "
+            "post-fix re-baseline, unlike DEC-018's entry. What remains is "
+            "narrower: the scorer's tool_arguments.status assertion does a "
+            "literal string comparison against decide's raw argument value "
+            "('in progress') before it ever reaches the store -- no store-side "
+            "fix can satisfy a check on the argument's exact text. Same "
+            "underlying phenomenon as DEC-018 (status-value formatting is not "
+            "stable), reclassified with a narrower, more precise scope now "
+            "that the functional half is fixed."
+        ),
+    },
     "TSEL-004": {
         "classification": "known-gap",
         "date": "2026-08-21",
