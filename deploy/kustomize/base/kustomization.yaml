@@ -27,9 +27,18 @@ commonLabels:
   app.kubernetes.io/part-of: golden-path-agent
 
 # CI/CD promotion updates only this digest field — the identical image is
-# promoted unmodified across ephemeral-test -> staging -> pilot-prod (see
-# docs/environments.md). TODO(platform): real registry + digest.
+# promoted unmodified across ephemeral-test -> demo-prod (see
+# docs/environments.md). `newName` resolved to the real value at Step C4
+# (DECISIONS.md DEC-042) -- not a placeholder needing anonymization: this
+# is OpenShift's own standard, predictable internal registry service DNS
+# name (present on every OpenShift cluster) plus this project's own
+# namespace, already public throughout this repo's committed RBAC/pipeline
+# manifests. Unlike the model endpoint (a real external hostname, never
+# committed), this value discloses nothing beyond what's already committed
+# elsewhere. `ephemeral-test`'s own pipeline-injected digest overrides this
+# `newName` too via `kustomize edit set image` (DEC-031) -- unaffected by
+# this change, since it always fully replaces both fields at apply-time.
 images:
   - name: golden-path-agent
-    newName: REGISTRY_PLACEHOLDER/golden-path-agent
+    newName: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent
     digest: sha256:d73ce33214c64fdfa19388ebbd111d1e8c24e0e17996e31b4b0df57549a242ac

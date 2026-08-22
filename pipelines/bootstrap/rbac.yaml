@@ -210,6 +210,14 @@ subjects:
   - kind: ServiceAccount
     name: golden-path-agent
     namespace: golden-path-agent-ephemeral-test
+  - kind: ServiceAccount
+    name: golden-path-agent
+    namespace: golden-path-agent-demo-prod
+    # Step C4 (DEC-042): demo-prod's own pods hit the identical
+    # cross-namespace image-pull gap ephemeral-test's own pods did
+    # (DEC-032) -- a RoleBinding's subject list is scoped per (SA,
+    # namespace) pair, so demo-prod needed its own entry added here, not
+    # inherited from ephemeral-test's.
 roleRef:
   kind: ClusterRole
   name: system:image-puller

@@ -3424,3 +3424,129 @@ proofs' preconditions, and the real promotion PR all demonstrated live.
 owner's explicit authorization, per their own instruction. Holding at the
 pre-C3/C4 STOP with the PR diff plus the prepared (committed, dry-run
 -validated, unapplied) C3/C4 manifest package for review together.
+
+## DEC-041 — Step C3/C4 execution: PR merged (the promotion event),
+`AppProject`/root `Application` applied; two bugs found and fixed before
+the app-of-apps actually synced
+
+**Document/scope:** `deploy/argocd/project.yaml` (missing `server:` field
+on the new `openshift-gitops` destination; the `spec.project`-enforcement
+comment corrected). GitHub PR #1, `pipelines/bootstrap/namespaces.yaml`,
+`golden-path-agent-secrets` (third copy). Owner authorization: PR diff
+reviewed and approved (one file, one line, digest matches the run's full
+chain — `DEC-039`); merge authorized; the C3/C4 sequence authorized with
+dry-run shown before each apply.
+
+**Executed, in order:**
+1. **PR #1 merged** (`PUT /repos/.../pulls/1/merge`, via a throwaway pod
+   sourcing the token from the `Secret`, never echoed — same pattern as
+   every prior GitHub API interaction this session) — merge commit
+   `de30536`, `deploy/kustomize/base/kustomization.yaml`'s digest now the
+   promoted `sha256:d73ce33...` on `main`. This is the actual promotion
+   event (`SysR-P-F-06`).
+2. `pipelines/bootstrap/namespaces.yaml` (with `golden-path-agent-demo-prod`
+   added) — dry-run (`created (server dry run)`), then applied for real.
+3. Third `golden-path-agent-secrets` copy provisioned in
+   `golden-path-agent-demo-prod` (6 keys — `MODEL_API_KEY`,
+   `MCP_AUTH_TOKEN`, plus the 4 model-endpoint keys per the envFrom-
+   shadowing mechanism `docs/phase-c-runbook.md` now documents explicitly).
+4. `deploy/argocd/project.yaml` (the widening) — dry-run, then applied.
+
+**Bug found: the new `openshift-gitops` destination entry was missing
+its `server:` field** — a plain authoring mistake, not caught by dry-run
+(schema-valid YAML, `AppProject` accepted it fine; the missing field only
+surfaced as a real `Application`-level `InvalidSpecError` — *"application
+destination server ... and namespace 'openshift-gitops' do not match any
+of the allowed destinations"* — once the root `Application` actually
+tried to reconcile against it). Fixed by adding the field; re-applied;
+confirmed via `argocd.argoproj.io/refresh=hard` annotation (forces
+immediate reconciliation instead of waiting out ArgoCD's default polling
+interval) that the condition cleared and `sync.status` moved to `Synced`.
+
+**Correction, not confirmation, on `spec.project` enforcement** — the
+owner asked to "confirm `spec.project` enforcement means the root can
+only create `Application`s belonging to this `AppProject`." Investigated
+via ArgoCD's own documentation (`WebFetch` against
+`argo-cd.readthedocs.io/en/stable/operator-manual/app-any-namespace/`)
+rather than asserting from memory, since this is a real security property
+on a shared, multi-tenant cluster and deserved actual verification: **this
+is not true as a structural ArgoCD guarantee.** Quoted directly: *"For
+backwards compatibility, Applications in the Argo CD control plane's
+namespace (`argocd`) are allowed to set their `.spec.project` field to
+reference any AppProject, regardless of the restrictions placed by the
+AppProject's `.spec.sourceNamespaces` field."* `openshift-gitops` is this
+cluster's control-plane namespace (the same role as the default `argocd`
+namespace), and both the root and its children live there — so this
+exemption applies. The comment in `project.yaml` originally asserted
+automatic enforcement; corrected to state the actual protection
+mechanism: `sourceRepos` scoping (the root can only ever sync manifests
+from this one repo) plus this repo's own commit discipline (every child
+manifest actually committed under `deploy/argocd/apps/` declares
+`spec.project: golden-path-agent`) — not an ArgoCD-enforced binding
+between a root `Application` and what its children declare. This does
+not change this project's actual exposure (nothing here was ever
+reachable by another tenant regardless), but the original claim would
+have been a false statement in `DECISIONS.md` had it gone unverified.
+
+**Status:** root `Application` applied, `Synced`/`Healthy`; `demo-prod`'s
+own child `Application` created and syncing. Two further, independent
+bugs surfaced at that point in the workload itself — see `DEC-042`.
+
+## DEC-042 — Step C4: `demo-prod`'s pods failed on `InvalidImageName` and
+a missing cross-namespace image-pull grant; both fixed and verified live
+
+**Document/scope:** `deploy/kustomize/base/kustomization.yaml` (`images.newName`),
+`pipelines/bootstrap/rbac.yaml` (`golden-path-agent-image-puller`
+`RoleBinding`, second subject added).
+
+**Bug 1 — `InvalidImageName`.** `demo-prod`'s `Deployment`s came up
+`0/1`, both pods stuck: `Error: InvalidImageName`, kubelet's own message:
+*"couldn't parse image name ... repository name must be lowercase"*.
+Root cause: `deploy/kustomize/base/kustomization.yaml`'s `images.newName`
+was the literal, never-resolved placeholder string
+`REGISTRY_PLACEHOLDER/golden-path-agent` — uppercase, not a real
+registry host, never valid as an actual image reference. This had never
+surfaced before because every environment that has ever actually run a
+pod from this base (`ephemeral-test`, exclusively) gets both `newName`
+*and* `digest` overwritten together, transiently, by the pipeline's own
+`deploy-ephemeral` Task (`kustomize edit set image`, `DEC-031`) — nothing
+in this repo's design had ever exercised the COMMITTED value of
+`newName` in a real deployment before `demo-prod`, the first
+purely-GitOps-synced (no pipeline injection step) environment. The
+one-field-only promotion PR (`DEC-039`) only ever touches `digest`, by
+design — it was never going to fix `newName` on its own, and nothing
+else was ever going to either.
+
+**Fix**: resolved `newName` to the real value directly in the committed
+file: `image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent`.
+Confirmed this is safe to commit, unlike the model endpoint value
+(`DEC-031`'s reasoning for why *that* stays a placeholder): this is
+OpenShift's own standard, predictable internal registry service DNS name
+(identical on every OpenShift cluster, discloses nothing
+organization-specific) plus this project's own namespace name, already
+public throughout this repo's committed RBAC/pipeline manifests. Nothing
+new is disclosed. `ephemeral-test`'s own pipeline-injected override is
+unaffected (it fully replaces both `newName` and `digest` at apply-time
+regardless of base's own committed value).
+
+**Bug 2 — cross-namespace image pull, again.** Expected this one going
+in, given `DEC-032` already diagnosed the identical class of gap for
+`ephemeral-test`: `pipelines/bootstrap/rbac.yaml`'s
+`golden-path-agent-image-puller` `RoleBinding` had exactly one subject
+(`golden-path-agent` `ServiceAccount` in `golden-path-agent-ephemeral-test`)
+— a `RoleBinding` subject list is scoped per `(ServiceAccount, namespace)`
+pair, so `demo-prod`'s own identically-named `ServiceAccount` in a
+*different* namespace was never covered. Fixed by adding a second subject
+entry (same `RoleBinding`, same `roleRef`, no new object). Verified live,
+not assumed: `oc auth can-i get imagestreams --subresource=layers
+--as=system:serviceaccount:golden-path-agent-demo-prod:golden-path-agent
+-n golden-path-agent-ci` → `yes`.
+
+**Both fixes dry-run validated before the real apply**
+(`oc kustomize` re-render confirmed the correct image reference;
+`oc apply --dry-run=server` on `rbac.yaml` showed the `RoleBinding`
+`configured`, everything else `unchanged`), applied, and — since
+`demo-prod` syncs directly from `main`'s committed content, unlike
+`ephemeral-test` — **both changes needed to reach `main` before ArgoCD's
+next reconciliation could pick them up**, not just the live cluster
+object.
