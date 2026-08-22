@@ -1869,3 +1869,195 @@ own exit criteria.
 **Status: holding at C1b's own STOP through owner review, now proceeding
 to C1c** (first real `PipelineRun`, green path) — evidence to follow in
 this section once C1c completes.
+
+**C1c** (first real green path — ten `PipelineRun`s to get there, full
+detail `DEC-026`–`DEC-039`, evidence `reports/phase-c-c1c-run.md`): every
+prior run surfaced a genuine cluster constraint, never an application-code
+bug — RBAC field placement (`spec.taskRunTemplate.serviceAccountName`,
+not top-level), arbitrary-non-root-UID tooling behavior (`pip`,
+`buildah`, `syft` all needed `$HOME`/`/tmp` handling), a documented
+upstream Kustomize limitation (base/overlay `images:` conflict),
+cross-namespace resource-reference limits (both K8s `secretKeyRef` and
+registry image-pull RBAC), and the deployed agent image having no `curl`
+at all. Each investigated to root cause, fixed, documented, re-triggered
+— the discipline of reading applied object state back rather than
+trusting `apply`/`create` success messages, established after a near-miss
+(`DEC-026`) where a misplaced field was silently pruned by the API server
+rather than rejected. `PipelineRun` C1c-11 (`golden-path-agent-ci-xscz6`)
+reached fully green through `destroy-ephemeral`, with `open-promotion-pr`
+failing on the expected, correct cause: the GitHub PAT hadn't been
+created yet (`Secret "golden-path-agent-github-token" not found`) —
+proving the stage fails closed without credentials, exactly as designed.
+
+**C1d** (negative proof #1, `DEC-038`, evidence
+`reports/phase-c-c1d-run.md`): a one-line seeded regression
+(`policy/approval_rules.yaml`: a write-classified action flipped to
+read-classified), on a dedicated branch never merged to `main`, run
+through the identical `Pipeline` with only the `revision` param
+overridden. `eval-gate-offline` failed with the exact predicted assertion
+mismatch; `unit-tests` (4 separate test failures) and `policy-validate`'s
+drift check independently caught the same root cause through different
+mechanisms, while `opa test` itself stayed green — three gates, one real
+regression, no artificial isolation. No promotion PR opened (confirmed
+against GitHub directly, not inferred); `destroy-ephemeral` still ran.
+
+**C1c's remaining piece — the real promotion PR** (`DEC-039`–`DEC-041`):
+a first PAT (owner-supplied) failed on a GitHub-side 403 — correctly
+diagnosed via a read-only API check as a permission-scope issue, not
+either of the two pipeline bugs it also surfaced along the way: GitHub's
+git-over-HTTPS endpoint rejects a bare `Authorization: Bearer` header for
+`git push` (fixed with the URL-embedded-credential form GitHub actually
+documents), and `deploy-ephemeral`'s own `kustomize edit set image`
+mutates `base/kustomization.yaml` in place in the *shared,
+PipelineRun-lifetime* workspace — still present, unreverted, when
+`open-promotion-pr` read the same file later in the same run, producing
+a 12-line diff instead of the intended one-field digest bump (caught
+before any push reached GitHub; fixed by reverting the file once its
+render is captured). A second PAT resolved the 403; `PipelineRun`
+`golden-path-agent-ci-bmrfm` went fully green end to end, including
+`open-promotion-pr` — **PR #1**, verified directly against the GitHub
+API: exactly one file, one line, `newName` untouched.
+
+**C4** (`DEC-021`/`DEC-040`–`DEC-042`, the app-of-apps + `demo-prod`):
+one open design question resolved by the owner at the pre-C3/C4 STOP —
+`ephemeral-test` stays pipeline-managed (its `Application` manifest is a
+real, dry-run-validated scaffold for a future GitOps-synced path, kept
+deliberately outside `deploy/argocd/apps/`, since an auto- or even
+manually-synced `Application` would fight `deploy-ephemeral`'s own
+per-run unpromoted-digest apply); only `demo-prod` is actually synced by
+the new app-of-apps root. `demo-prod`'s own overlay applies the `DEC-035`
+config-contract-completeness lesson to a GitOps-synced environment: the
+real model-endpoint values can't be injected at apply-time the way
+`ephemeral-test`'s pipeline Task does (ArgoCD's `selfHeal` would just
+revert it), so they come from a third `golden-path-agent-secrets` copy
+instead, shadowing the `ConfigMap`'s committed placeholder via
+`envFrom` ordering — documented as a standalone written answer in the
+runbook, not left implicit.
+
+Executing the sequence surfaced three more real, live-only bugs, none
+catchable by dry-run alone: (1) the new `openshift-gitops` `AppProject`
+destination was missing its `server:` field — schema-valid, only failed
+once the `Application` actually tried to reconcile; (2) an assumption
+about ArgoCD's own `spec.project` enforcement, checked against ArgoCD's
+own documentation rather than asserted — it turned out to be **wrong**:
+Applications in the GitOps control-plane namespace are explicitly exempt
+from `sourceNamespaces` project restrictions "for backwards
+compatibility," so the real protection here is `sourceRepos` scoping plus
+this repo's own commit discipline, not an ArgoCD-enforced binding —
+corrected in the manifest's own comment rather than left as a false
+claim; (3) `demo-prod`'s pods failed `InvalidImageName` — `base`'s
+committed `images.newName` was the literal, never-actually-resolved
+`REGISTRY_PLACEHOLDER` string, which had only ever worked because
+`ephemeral-test`'s pipeline Task overwrites it transiently — `demo-prod`
+is the first environment ever deployed purely from committed Git content,
+with no injection step, so the committed value had to become real
+(resolved to the internal registry's own standard, non-sensitive DNS
+name), alongside the same cross-namespace image-pull `RoleBinding` gap
+`DEC-032` had already fixed once for `ephemeral-test`, now needed for a
+second namespace too.
+
+## Checkpoint C — Closure
+
+Owner-approved at each STOP along the way (C1b's manifest/RBAC review,
+the pre-C3/C4 STOP's PR-diff review and open-question resolution). This
+section is the self-contained closure record, mirroring "Checkpoint B2 —
+Closure"'s structure: the accepted plan's exit criteria with their exact
+evidence, the sanity check this shared cluster makes part of the
+deliverable rather than hygiene, and the post-C backlog. `DEC-041`/`DEC-042`
+are the corresponding decision-log entries for the final execution step.
+
+### Exit criterion 1 — green pipeline
+
+`PipelineRun/golden-path-agent-ci-bmrfm`: all twelve stages `Succeeded`,
+including the full live 8-domain-category eval suite, the live
+zero-mutation check over real HTTP, and live fallback recovery. Full
+per-stage evidence: `reports/phase-c-c1c-run.md`.
+
+### Exit criterion 2 — negative proof #1 (seeded bad change blocked)
+
+`PipelineRun/golden-path-agent-ci-c1d-pg8xq`: a genuine one-line
+regression fails the gate (three independent mechanisms, in fact); no
+promotion PR opens (confirmed against GitHub directly); `destroy-ephemeral`
+still runs. Full evidence: `reports/phase-c-c1d-run.md`.
+
+### Exit criterion 3 — promotion only via GitOps PR merge
+
+PR #1 merged (`de30536`) after owner review of its diff — one file, one
+field. No rebuild, no direct push to `main` outside that merge, at any
+point in this phase.
+
+### Exit criterion 4 — negative proof #2 (digest equality, displayed)
+
+Three independent sources, read directly, not cross-derived:
+
+```
+main's committed digest:        sha256:d73ce33214c64fdfa19388ebbd111d1e8c24e0e17996e31b4b0df57549a242ac
+ephemeral-test's last deploy:   sha256:d73ce33214c64fdfa19388ebbd111d1e8c24e0e17996e31b4b0df57549a242ac
+demo-prod's live running pods:  sha256:d73ce33214c64fdfa19388ebbd111d1e8c24e0e17996e31b4b0df57549a242ac
+```
+
+Identical, sourced from the one GitOps commit, never rebuilt.
+
+### Coverage shape, restated at closure (`DEC-025`, full detail in the C1b
+section above and the runbook)
+
+No single stage runs all 8 domain categories against deployed pods, by
+deliberate split: `eval-gate-live` tests reasoning quality against the
+real model (identical whichever process runs it, in-process is
+sufficient); `security-tests`/`operational-tests` test exactly what an
+in-process run structurally cannot — environment injection, real
+`NetworkPolicy` enforcement, the write path over real HTTP, and fallback
+recovery in the deployed pod's own client. An HTTP-based eval executor
+remains a named phase-two integration point, landing alongside Phase D's
+own approval-service REST harness need.
+
+### End-of-phase sanity check — exit evidence, not hygiene
+
+On a shared, multi-tenant cluster this check is part of the deliverable,
+per the owner's own framing, not run silently:
+
+```
+$ oc get namespace -l app.kubernetes.io/part-of=golden-path-agent
+golden-path-agent-ci               Active
+golden-path-agent-demo-prod        Active
+golden-path-agent-ephemeral-test   Active
+```
+
+Exactly the three namespaces this project ever created — nothing else.
+`AppProject/golden-path-agent` (`openshift-gitops`) and its own two
+`Application` objects (`golden-path-agent-root`, `golden-path-agent-demo-prod`,
+both `spec.project: golden-path-agent`) are the only ArgoCD objects this
+project ever touched; other pre-existing tenants' `AppProject`s were
+enumerated by name only to confirm none were created or modified by this
+work, never read in detail or referenced in any committed file
+(`CLAUDE.md`'s anonymity rule applies to them exactly as it would to a
+real client).
+
+### The E3 sharing-moment artifact
+
+`reports/phase-c-sharing-run.md` — the live green run, the seeded gate
+failure, and digest promotion, packaged as a captured demonstration
+transcript, mirroring `reports/phase-b-sharing-run.md`'s own format.
+
+### Post-Checkpoint-C backlog — four items, priority order
+
+Full detail and rationale: `docs/phase-c-runbook.md` §5/6/7/8.
+(1) Model-identity capture — highest priority, since every `PipelineRun`
+from C1c onward is itself a fresh measurement session and the capture
+can't happen retroactively. (2) Cluster-tier OTel wiring — operator
+pinned, not yet installed. (3) Config-contract completeness check
+(`DEC-035`'s pattern, now observed twice — `scripts/dev.sh` at R4,
+the K8s config path at C1c — a mechanical check derived from
+`agent/config.py`'s own `_env()` calls, not another one-off patch). (4)
+PAT rotation — explicitly parked by the owner, lowest priority, the one
+item where waiting doesn't cost anything (unlike 1/2's drift-evidence
+loss). None of the four block Checkpoint C's own exit criteria.
+
+### Checkpoint C status: closed
+
+All four exit criteria verified live, with direct evidence for each —
+green pipeline, blocked bad-change promotion, PR-merge-only promotion,
+displayed digest equality. The sanity check confirms nothing outside this
+project's own namespace prefix and `AppProject` was touched. **Holding
+here for owner review — Phase D does not start without new
+authorization**, per this mission's established discipline.

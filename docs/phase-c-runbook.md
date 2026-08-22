@@ -244,15 +244,17 @@ This procedure protects against exactly the failure mode `DEC-022` had to
 investigate after the fact — it makes the diagnosis routine instead of a
 fresh forensic exercise each time it recurs.
 
-## 5/6/7. Post-Checkpoint-C backlog (priority order, owner-confirmed — NOT
-someday items)
+## 5/6/7/8. Post-Checkpoint-C backlog (priority order, owner-confirmed —
+NOT someday items)
 
-Three items deferred out of Step C1b/C1c's already-large batch. All three
+Four items deferred out of Step C1b–C4's already-large batch. All four
 are now explicitly **the first work items after Checkpoint C closes** —
 not a someday backlog, per the owner's own instruction on reviewing this
 runbook: the longer PipelineRuns exist without them, the more drift
 evidence (items 1/2) or the more repeat instances of an already-observed
-failure pattern (item 3) accumulate.
+failure pattern (item 3) accumulate. Item 4 is the one genuine exception
+to "the longer this waits the worse it gets" — explicitly lowest
+priority, parked rather than urgent, per the owner's own call.
 
 1. **Model-identity capture** (highest priority). If the live MaaS
    endpoint's response exposes a model identity/version field (an
@@ -304,10 +306,23 @@ failure pattern (item 3) accumulate.
    required key, failing loudly on any surface that's missing one. Cheap
    to build (a static-analysis script, no cluster access needed) and
    prevents a third instance of a pattern that has now bitten twice.
+4. **PAT rotation (parked, not forgotten).** The GitHub PAT stored as
+   `golden-path-agent-github-token` was supplied directly in conversation
+   twice (`DEC-036`, `DEC-039`) rather than run locally via the runbook's
+   own intended flow — a broader exposure than the mechanism's original
+   design (never seen by the agent at all). The owner explicitly deferred
+   this ("PAT rotation is parked, not the focus now") while a functional
+   promotion path was the priority. Lowest priority of the four — no
+   drift evidence is lost by waiting, unlike items 1/2 — but real:
+   regenerate the fine-grained PAT in GitHub's UI (same scopes, same
+   single-repo restriction) and update the `Secret` in place
+   (`docs/phase-c-runbook.md` §2's own rotation instructions already
+   cover the mechanism) once this milestone's active work settles.
 
 Neither model-identity capture nor OTel wiring blocks Checkpoint C
 itself — its own exit criteria (green pipeline, blocked bad-change
 promotion, displayed digest equality) don't require live tracing or
-model-identity correlation, and the same is true of item 3 (a build-time
-lint, not a runtime gate). All three are explicitly sequenced right after
-Checkpoint C closes, in the priority order above, not left to someday.
+model-identity correlation, and the same is true of items 3/4 (a
+build-time lint and a credential-hygiene follow-up, neither a runtime
+gate). All four are explicitly sequenced right after Checkpoint C closes,
+in the priority order above, not left to someday.
