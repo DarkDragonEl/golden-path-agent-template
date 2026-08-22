@@ -29,6 +29,13 @@ configMapGenerator:
         # any key in the merged/generated ConfigMap overall. Confirmed by
         # reproducing the failure locally before trusting the live fix:
         # "key 'MODEL_NAME' not found in resource".
+      - MODEL_FALLBACK_API_BASE_URL=http://dev-model-endpoint.example.com/v1 # TODO(platform): real fallback model endpoint
+      - MODEL_FALLBACK_NAME=placeholder-fallback-model # DEC-035: same
+        # pre-existing-literal requirement as MODEL_NAME above, for the
+        # same kustomize edit set configmap constraint -- fallback route
+        # was never wired into the K8s-deployed config path at all before
+        # DEC-035; SysR-P-F-12/CLAUDE.md's "one model route + one
+        # fallback" is a hard scope requirement.
       - DATA_SOURCE_BINDING=synthetic
       - APPROVAL_MODE=required
       - MCP_MODE=mock

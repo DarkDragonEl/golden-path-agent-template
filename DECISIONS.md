@@ -3085,3 +3085,83 @@ dry run)`), then a real `oc apply` for both (both `configured`).
 **Status:** Both fixes applied and locally verified; not yet confirmed
 live (that requires the next `PipelineRun`). Proceeding to re-trigger
 `PipelineRun` C1c-10.
+
+## DEC-035 — Step C1c, `PipelineRun` C1c-10: `security-tests` passed for
+the first time (`DEC-034`'s fix confirmed); `operational-tests` still
+failed, on a real gap — no fallback route was ever wired into the
+K8s-deployed config path
+
+**Document/scope:** `deploy/kustomize/base/configmap.yaml`,
+`deploy/kustomize/overlays/ephemeral-test/kustomization.yaml`,
+`pipelines/tasks/deploy-ephemeral.yaml`, the live
+`golden-path-agent-ci-config` `ConfigMap` (not in Git — see `DEC-031`'s
+own precedent for why the real endpoint value is never committed).
+`PipelineRun` C1c-10 (`golden-path-agent-ci-qzjw2`) confirmed `DEC-034`'s
+fix: `security-tests` (the `rest-zero-mutation-check` step) passed
+cleanly for the first time, and `destroy-ephemeral` correctly ran as the
+pipeline's always-run cleanup step despite the later failure. Only
+`operational-tests` still failed — but for a genuinely new reason, not a
+`curl` problem: `oc logs` showed the fixed `urllib.request` call
+succeeded and got a real JSON response back from the deployed pod, but
+that response was an escalation, not a fallback recovery:
+`"final_output": "This request could not be completed safely right now
+(escalation reason: model_failure:APIConnectionError)..."`.
+
+**Root cause:** `agent/config.py` defines `MODEL_FALLBACK_API_BASE_URL`/
+`MODEL_FALLBACK_NAME` as genuinely optional (`_env(...)` with no
+default — "Unset => no fallback", per its own comment). Neither
+`deploy/kustomize/base/configmap.yaml` nor the `ephemeral-test` overlay
+nor the live `golden-path-agent-ci-config` `ConfigMap` (the C1a-bootstrapped
+object `deploy-ephemeral`'s render step reads the real model endpoint
+from) ever declared these two keys — the fallback route was never wired
+into the K8s-deployed config path at all, in any environment, before this
+fix. `operational-tests.yaml`'s own header comment says it mirrors
+`DEC-020`'s local Podman demo — but `DEC-020`'s demo only ever ran with
+`.env` (which does have a real, working fallback pair) sourced directly;
+nothing in the C1a/C1b K8s manifest work carried that pair over. This is
+a real, previously-undetected gap in the deployed environment's
+configuration, not a further instance of the `curl`/RBAC/labeling class
+of plumbing bugs `DEC-026`–`DEC-034` fixed — it was undetectable before
+now because `operational-tests` had never successfully reached its actual
+HTTP call until `DEC-034`'s fix.
+
+**Fix**, mirroring the exact, already-approved local-dev fallback
+pattern (`.env`, gitignored: the *same* MaaS host as the primary route,
+a *different* model name — `DEC-020`'s own precedent, not a new design
+choice):
+- `deploy/kustomize/base/configmap.yaml`: added
+  `MODEL_FALLBACK_API_BASE_URL`/`MODEL_FALLBACK_NAME` as new keys, with
+  the same safe local-dev-shaped placeholder defaults `.env.example`
+  already documents (`http://localhost:11434/v1` /
+  `placeholder-fallback-model`).
+- `deploy/kustomize/overlays/ephemeral-test/kustomization.yaml`: added
+  the same two keys as `configMapGenerator` literals (placeholder
+  values), for the identical reason `DEC-031` added `MODEL_NAME` there —
+  `kustomize edit set configmap` can only override a key already
+  declared as a literal in this specific file.
+- `pipelines/tasks/deploy-ephemeral.yaml`'s `render-with-digest-override`
+  step: two new `env` entries (`configMapKeyRef` against
+  `golden-path-agent-ci-config`, mirroring `MODEL_API_BASE_URL`/
+  `MODEL_NAME` exactly) and two new `--from-literal=` flags on the
+  existing `kustomize edit set configmap golden-path-agent-config` call
+  — same command, same mechanism, no new step.
+- The live `golden-path-agent-ci-config` `ConfigMap` (`golden-path-agent-ci`
+  namespace): updated in place (`oc apply`, preserving the two existing
+  keys) with the real fallback pair, sourced directly from `.env` via a
+  Python transform piped straight into `oc apply` — the value was never
+  echoed to the terminal or written to any file; verified after the fact
+  by listing the ConfigMap's key names only (`sorted(data.keys())`), not
+  its values.
+
+**Verification before trusting it live:** `oc kustomize
+deploy/kustomize/overlays/ephemeral-test` rendered all four
+`MODEL_*`/`MODEL_FALLBACK_*` keys correctly with the placeholder values;
+`sh -n` on both of `deploy-ephemeral.yaml`'s rendered step scripts (both
+valid); `oc apply --dry-run=server` on the changed Task file
+(`configured (server dry run)`) before the real apply.
+
+**Status:** Fix applied, locally verified, and the live `ConfigMap`
+updated; not yet confirmed live end-to-end (that requires the next
+`PipelineRun` actually exercising `kill-primary-fallback-check` against a
+pod that now has a real fallback route). Proceeding to re-trigger
+`PipelineRun` C1c-11.
