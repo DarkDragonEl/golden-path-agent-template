@@ -38,6 +38,7 @@ def write_report(
     config_reference: str | None = None,
     thresholds_applied: dict | None = None,
     gate_verdict: str | None = None,
+    tolerated_known_gaps: list | None = None,
 ) -> Path:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     ts = timestamp or time.strftime("%Y%m%dT%H%M%S")
@@ -59,6 +60,10 @@ def write_report(
         "config_reference": config_reference,
         "thresholds_applied": thresholds_applied,
         "gate_verdict": gate_verdict,
+        # DEC-016/DEC-017 -- cases scored but explicitly, individually
+        # excluded from the gate's failure count (named, dated, and
+        # rationale-carrying, per KNOWN_GAP_TOLERANCES in eval/cli.py).
+        "tolerated_known_gaps": tolerated_known_gaps or [],
     }
     path.write_text(json.dumps(summary, indent=2))
     return path
