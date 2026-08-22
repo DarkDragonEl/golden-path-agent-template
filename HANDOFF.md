@@ -3,14 +3,14 @@
 ## Where this is
 
 - **Branch:** `feature/phase-b-golden-path`
-- **Last commit:** `2fb5a22` — "R3 sampling audit: pin temperature=0,
-  seed=42 on every model call". About to be followed by a documentation-only
-  commit for this R3 report/handoff update (`DEC-015`/`DEC-016`, the
-  deterministic re-baseline, and the gate-semantics options table).
+- **Last commit:** `3ac2290` — "DEC-017: gate semantics finalized --
+  deterministic sampling, named exclusions". About to be followed by a
+  documentation-only commit for the final forensic triage of the 6
+  remaining firm cases (proposals only, nothing applied).
 - **Working tree:** `DECISIONS.md`, `reports/feature-phase-b-golden-path.md`,
-  `HANDOFF.md` (this file) about to be committed together, documentation
-  only. All code changes for R3 (the sampling pin) are already committed as
-  of `2fb5a22`.
+  `HANDOFF.md` (this file), plus a new diagnostic script and its raw output
+  (`tools/diagnose_r3_final_triage.py`, `reports/r3-final-triage-raw.json`)
+  about to be committed together, documentation only.
 
 ## Phase position
 
@@ -27,25 +27,29 @@ that section if anything below seems to skip a step you remember from
 B6 (OTel) is confirmed substantially incomplete/orphaned — see the R0
 crosswalk for the exact per-field classification, closure deferred to Step
 R4.** `DEC-013` (redesign, locked), `DEC-014` (R2 remedy batch), `DEC-015`
-(sampling pinned, dominant noise source confirmed and closed), and
-`DEC-016` (`INJ-006` locked as a known-gap) are all done and committed.
-Checkpoint B2 (`make up && make eval` green across all 8 domain
+(sampling pinned), `DEC-016` (`INJ-006` locked as a known-gap), and
+`DEC-017` (gate semantics finalized — deterministic sampling as the gate's
+own contract, `INJ-006`/`UAW-003` mechanically excluded) are all done and
+committed. Checkpoint B2 (`make up && make eval` green across all 8 domain
 categories — note: the literal `make eval` target does **not** currently
 run the domain suite, that's `make eval-domain`; also flagged in the R0
-crosswalk as a gap to close, deferred to R4) is not yet reached — the gate
-still fails all 3 passes post-R3 (54/62, 55/62, 55/62 — much closer than any
-prior round), and Step R3's gate-semantics pick plus Step R4 remain before
-Checkpoint B2 is reachable.
+crosswalk as a gap to close, deferred to R4) is not yet reached. Live-verified
+with `DEC-017`'s exclusions applied: `prompt_injection` and (usually)
+`unauthorized_write` now read `[ok]` for their two named exclusions; the
+other 6 firm cases (`ITR-004`, `ITR-007`, `KQA-012`, `TSEL-004`, `UAW-001`,
+`UAW-004`) are unresolved, now fully diagnosed (see below) and awaiting
+adjudication — Step R4 remains before Checkpoint B2 is reachable.
 
 **Mission in progress** (owner-issued, sequenced R0 → R1 → R2 → R3 → R4 →
 Checkpoint B2 → Phase C → Phase D → Phase E, each step ending in a mandatory
-owner STOP): **Step R0/R1/R2 acknowledged. Step R3 (sampling audit +
-deterministic re-baseline + gate-semantics options) is done, holding at
-Checkpoint R3 for the owner's pick among the three presented options** (see
-`reports/feature-phase-b-golden-path.md`'s "Mission Step R3" section — a
-recommendation is given, not a decision). Step R4 (implement the picked
-gate semantics, close plan-B6/the `make eval` gap, reach Checkpoint B2) is
-next, not started.
+owner STOP): **Step R0/R1/R2/R3 (gate-semantics pick) acknowledged and
+implemented. The freeze on the remaining firm cases was lifted (determinism
+removed the noise justification) and one final, R1-style forensic triage of
+the 6 remaining firm cases is done — diagnosis and proposed remedies only,
+nothing applied.** Holding for owner adjudication of that table (see
+`reports/feature-phase-b-golden-path.md`'s "Mission Step R3 continuation"
+section) before the next batched remedy + re-baseline (mirroring R1→R2) and
+before Step R4 begins.
 
 ## This session's work: decide-then-retrieve reordering (`DEC-013`, locked)
 
@@ -148,6 +152,44 @@ the pick is explicitly the owner's, not made here.
 
 **Holding at Checkpoint R3** for that pick before Step R4 begins.
 
+## Step R3 continuation (gate semantics + final triage) — done
+
+`DEC-017` records the gate-semantics pick and its evidence; read
+`reports/feature-phase-b-golden-path.md`'s "Mission Step R3 continuation"
+section for the final triage's full adjudication table before touching
+`mcp_server/itsm_store.py`'s status matching, `decide_system_prompt.md`
+again, or any of `ITR-004`/`ITR-007`/`KQA-012`/`TSEL-004`/`UAW-001`/`UAW-004`.
+
+**Owner picked option (a)** — deterministic sampling is the gate's contract,
+no multi-pass. `eval/cli.py` now force-sets `MODEL_TEMPERATURE`/`MODEL_SEED`
+(not `setdefault`) before any `agent.config` import — the gate's own fixed
+contract, not inherited ambiently. A new, generic, safety-preserving
+exclusion mechanism (`KNOWN_GAP_TOLERANCES`) mechanically excludes a named,
+dated case from its category's gate count, but **only** when every failing
+assertion for that run is on the named excludable list — a `write_blocked`
+co-failure always defeats it (unit-tested). `INJ-006` (known-gap) and
+`UAW-003` (measurement-tolerance — diagnosed via 5 fresh reps, all passed
+cleanly, the failing variant didn't reproduce) are the two exclusions.
+Live-verified: `prompt_injection` now reads `0/0 [ok]`.
+
+**Freeze lifted, final triage done** (diagnosis + proposed remedies only,
+nothing applied): all 6 remaining firm cases got a precise, fully
+reproducible (2/2, cross-checked against the real scorer) mechanism-level
+diagnosis. One important self-correction along the way: `ITR-007` was
+previously called "unstable" — that was wrong, caught by cross-checking
+against the actual `tool_arguments.status` assertion instead of just
+eyeballing whether the right record was found; it's actually a firm,
+deterministic gap (the `status` argument is never extracted from natural
+language). Proposed remedies: a store-matching fix for `ITR-004` (hyphen/
+underscore status normalization, same class as `ITR-001`'s fix); prompt
+hardening for `ITR-007` and `KQA-012` (or an eval-case relaxation for
+`ITR-007`, owner's call); an eval-case topic change for `TSEL-004` (the
+corpus happens to cover its topic, letting the model sidestep the
+tool-selection decision it's meant to test); and query/`refusal_is_acceptable`
+redesigns for `UAW-001`/`UAW-004`, mirroring `UAW-002`/`UAW-005`'s
+already-approved treatment. **Holding for owner adjudication** before the
+next batched remedy + re-baseline and before Step R4 begins.
+
 ## Invariants that must survive any future session
 
 These are load-bearing design decisions, not implementation details — do
@@ -218,6 +260,10 @@ not silently drift from them while doing other work:
 - `reports/tool-call-raw-diagnostic.json` — Step 0's raw forensic capture.
 - `reports/r1-forensic-triage-raw.json` — Step R1's raw forensic capture
   (2 fresh reps per firm-ceiling case, full state).
+- `reports/uaw003-flip-diagnostic-raw.json` — `UAW-003`'s 5-rep diagnostic
+  (`DEC-017`).
+- `reports/r3-final-triage-raw.json` — the final 6-case triage's raw
+  capture (2 deterministic reps each).
 - `~/.claude/plans/read-claude-md-handoff-md-decisions-md-vast-hare.md` —
   this session's approved implementation plan, if useful for context on
   design choices made along the way.
