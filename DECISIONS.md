@@ -3269,3 +3269,101 @@ unverified. Debug `Pod` and the failed standalone `TaskRun` left in place
 as investigation record, not cleaned up beyond the debug `Pod` itself
 (deleted immediately after inspection, per this session's minimal-footprint
 discipline).
+
+## DEC-038 — Step C1d: negative proof #1, seeded bad change, executed and
+verified live
+
+**Document/scope:** `policy/approval_rules.yaml` (one line, on branch
+`test/c1d-seeded-eval-failure` only, never merged to `main`),
+`reports/phase-c-c1d-run.md` (new). Owner authorization: "negative proof
+#1 (seeded bad change) ... a change that fails eval-gate-live or
+eval-gate-offline on a threshold, not a build break ... confirm the run
+fails at the gate stage, no promotion PR is opened, and destroy-ephemeral
+still executes ... capture the failing stage's log excerpt ... the seeded
+change lives on a branch or is reverted cleanly — main stays known-good."
+
+**Design.** Flipped `placeholder_write_action`'s classification from
+`write` to `read` in `policy/approval_rules.yaml` — a genuine, plausible
+behavioral regression (a write-classified action silently skipping the
+human-approval gate), not a syntax/build error. Chosen over an
+`eval-gate-live`-based seed specifically to avoid any ambiguity with
+`DEC-022`'s documented live-model session-to-session drift — this
+regression is deterministic under `AGENT_MODEL_MODE=fake`, reproducible
+100% of the time, with no dependency on the live MaaS endpoint's
+behavior. **Verified locally before pushing anything** (this session's
+standing discipline): `AGENT_MODEL_MODE=fake python -m eval.cli run
+--all` failed exactly as designed (`EXAMPLE-002`: `pending_approval`
+expected `True`, got `False`; exit code 1). Committed to a dedicated
+branch (`test/c1d-seeded-eval-failure`), pushed, never touching `main` —
+confirmed `main` reverts cleanly on `git checkout main` (no residual
+diff). Triggered via a standalone `PipelineRun` overriding only the
+`revision` param to that branch — the identical `Pipeline` object, no
+special-casing, exactly the owner's requirement.
+
+**Result — richer evidence than anticipated, all live-confirmed via
+direct `oc logs` inspection, not inferred:**
+
+- **`eval-gate-offline` failed** with the exact predicted assertion
+  mismatch: `[FAIL] EXAMPLE-002 - invoke state_equals: expected
+  'pending_approval'==True, got False`. This is the specific proof the
+  owner asked for — the eval gate catching a real behavioral regression.
+- **`unit-tests` independently failed too** — and on inspection, more
+  broadly than the single test checked locally pre-push: 4 failures
+  (`test_eval_harness_smoke.py::test_example_002_passes`,
+  `test_graph_shell.py::test_write_path_pauses_for_approval`,
+  `test_graph_shell.py::test_resume_after_rejection_falls_back`,
+  `test_policy_limits.py::test_placeholder_write_action_classified_as_write_via_taxonomy`),
+  all traceable to the same one-line root cause.
+- **`policy-validate`'s `policy-sync-check` step independently failed**
+  too, with a precise, actionable message: `'placeholder_write_action':
+  policy/approval_rules.yaml='read' vs
+  policy/opa/approval_policy.rego='write'` — the rego mirror was
+  deliberately left untouched (a real developer's honest mistake would
+  most plausibly touch only the one file actually consulted at runtime),
+  so the sync-check's own drift detection fired correctly. **`opa test`
+  itself stayed green (11/11 PASS)** in the same `Task` — correctly
+  isolating that the rego bundle's own internal logic is undisturbed;
+  only the YAML/rego sync is broken, exactly the class of drift that
+  check exists to catch.
+- **Everything downstream never ran at all** (not "failed" — genuinely
+  absent from the `TaskRun` list): `container-build`, `digest-capture`,
+  `sbom-generate`, `deploy-ephemeral`, `eval-gate-live`, `security-tests`,
+  `operational-tests`, `open-promotion-pr` — normal Tekton DAG semantics
+  correctly skipped every task depending on a failed upstream stage.
+- **No promotion PR opened** — confirmed two ways: (a) `open-promotion-pr`
+  never appears in the `TaskRun` list at all (skipped, not failed); (b) a
+  direct, unauthenticated `GET
+  https://api.github.com/repos/DarkDragonEl/golden-path-agent-template/pulls?state=all`
+  against the live repo returned zero PRs of any state — the actual
+  GitHub-side ground truth, not inferred from pipeline status alone.
+- **`destroy-ephemeral` (the `finally:` task) still ran and succeeded** —
+  confirmed via its own log: `"No rendered-ephemeral.yaml on the
+  workspace (deploy-ephemeral likely never ran) -- nothing to delete."`
+  A genuine, honestly-reported no-op (nothing was ever deployed this run,
+  since the failure happened before `deploy-ephemeral`), not a silent
+  skip — the always-run `finally:` semantics hold even when there is
+  nothing to clean up.
+
+**Reframing worth recording**: three independent gates
+(`unit-tests`/Python assertions, `policy-validate`/YAML-rego drift
+detection, `eval-gate-offline`/behavioral eval harness) caught the exact
+same one-line regression through three structurally different
+mechanisms, while `opa test`'s own internal-consistency check correctly
+stayed green. This is a stronger, more honest negative proof than an
+artificially isolated single-gate failure would have been — genuine
+defense-in-depth, not a design flaw to explain away.
+
+**Cleanup**: the seeded change exists only on
+`test/c1d-seeded-eval-failure`, already pushed; never merged, `main`
+unaffected throughout. Branch left in place as reviewable evidence for
+now — trivial to delete once the owner has reviewed this entry, not
+deleted preemptively.
+
+**Status**: Step C1d complete, both required negative proofs from
+`DEC-021`'s Phase C kickoff now demonstrated (#1 here; #2, digest
+equality, is a C3/C4 item once real promotion is possible). The
+promotion-PR path itself (C1c's remaining piece) is separately blocked
+on a GitHub-side fine-grained PAT permission issue (`DEC-036`/`DEC-037`
+fixed the pipeline's own two bugs; the credential itself still needs the
+owner's action) — holding for the owner's input on that credential before
+any further promotion attempt, C3, or C4 work.
