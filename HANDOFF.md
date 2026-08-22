@@ -3,12 +3,17 @@
 ## Where this is
 
 - **Branch:** `feature/phase-b-golden-path`
-- **Last commit:** `a893aa9` — "DEC-018: final re-baseline -- domain gate
-  reaches PASS (60/62)". About to be followed by a documentation-only commit
-  for this report/handoff update.
-- **Working tree:** `reports/feature-phase-b-golden-path.md`, `HANDOFF.md`
-  (this file) about to be committed together, documentation only. All
-  code/prompt/eval-case changes are already committed as of `a893aa9`.
+- **Last code commit:** `6011a27` — "Fix two live-verification blockers
+  found during Checkpoint B2 exit checks" (env-var passthrough +
+  OTLP `/v1/traces` fix). About to be followed by a documentation-only
+  commit for this report/handoff/DEC-020 update.
+- **Working tree:** `DECISIONS.md`, `reports/feature-phase-b-golden-path.md`,
+  `HANDOFF.md` (this file) about to be committed together, documentation
+  only. All code/prompt/eval-case changes are already committed as of
+  `6011a27`.
+- **Step R4 is done. Checkpoint B2 is fully, live-verified complete.**
+  Mission is holding at the STOP after R4, per its own explicit
+  instruction — do not begin Phase C without new owner authorization.
 
 ## Phase position
 
@@ -22,29 +27,31 @@ that section if anything below seems to skip a step you remember from
 `E2E_DEMO_PLAN.md`.
 
 **Accepted-plan B1/B2/B3/B3.5/B4 all done and committed. `E2E_DEMO_PLAN.md`'s
-B6 (OTel) is confirmed substantially incomplete/orphaned — see the R0
-crosswalk for the exact per-field classification, closure deferred to Step
-R4.** `DEC-013` through `DEC-018` are all done and committed — full chain:
+B6 (OTel) is now closed (Step R4, `DEC-020`)** — every field R0 flagged
+(session, identities, retrieval, route+reason code, tool calls, policy
+decisions, output ref, plus latency/tokens/errors, prompt-template version,
+request id) is either implemented or explicitly, narrowly deferred (a
+first-class per-call latency attribute — out of R4's authorized scope).
+`DEC-013` through `DEC-020` are all done and committed — full chain:
 redesign locked, R2 batch, sampling pinned, `INJ-006` known-gap, gate
-semantics finalized, final remediation batch. **The domain gate now reads
-PASS (60/62)** with a finalized four-item known-gap/measurement-tolerance
-list (`INJ-006`, `UAW-003`, `ITR-004`, `TSEL-004`) — live-verified, all 3
-re-baseline passes byte-identical. Checkpoint B2's remaining gap is purely
-mechanical: the literal `make eval` target still doesn't run the domain
-suite (that's `make eval-domain`) — closing that, plus plan-B6/OTel, is
-Step R4's job, not started yet. **Holding for owner confirmation of the
-final known-gap list before Step R4 begins**, per the owner's explicit
-instruction — do not start R4 without that confirmation.
+semantics finalized, final remediation batch, `ITR-004` generalized,
+domain-gate fold + OTel closure + live Checkpoint B2 verification. **The
+domain gate reads PASS (60/62)** with the finalized four-item known-gap/
+measurement-tolerance list (`INJ-006`, `UAW-003`, `ITR-004`, `TSEL-004`).
+**`make eval` now runs the real gate** (EXAMPLE fixtures + all 8 domain
+categories) — Checkpoint B2's documented exit command finally tests what it
+claims to.
 
-**Mission in progress** (owner-issued, sequenced R0 → R1 → R2 → R3 → R4 →
-Checkpoint B2 → Phase C → Phase D → Phase E, each step ending in a mandatory
-owner STOP): **R0 through R3 (including the R3-continuation final
-remediation round) are all done.** Read
-`reports/feature-phase-b-golden-path.md`'s "Mission Step R3 final
-remediation" section for the complete evidence before touching anything
-related to `ITR-004`/`TSEL-004`/`INJ-006`/`UAW-003` again — per the owner's
-standing instruction, this was the final remediation round; no further
-prompt/case iteration is authorized on these four without new direction.
+**Mission status: R0 through R4 all done. Checkpoint B2 is fully, live-
+verified complete** — `make up && make eval` exit 0, REST zero-mutation
+check around a reject, kill-primary fallback with `model.route_reason_code`
+visible in the exported OTel trace. Read `reports/feature-phase-b-golden-path.md`'s
+"Mission Step R4" section and `DECISIONS.md`'s `DEC-020` for the full
+command-level evidence. **Holding at the mandatory STOP after R4, per the
+mission's explicit instruction — do not begin Phase C without new owner
+authorization.** Do not touch anything related to
+`ITR-004`/`TSEL-004`/`INJ-006`/`UAW-003` without new direction either — R3's
+"final remediation round" instruction still stands.
 
 ## This session's work: decide-then-retrieve reordering (`DEC-013`, locked)
 
@@ -221,6 +228,45 @@ Live-verified: `domain gate verdict: PASS`, 60/62, every category `[ok]`.
 R4 begins** — do not start R4 (fold domain gate into `make eval`, close
 plan-B6/OTel) without it, per the owner's explicit instruction.
 
+## Step R4 (domain gate fold + plan-B6/OTel closure) — done, Checkpoint B2 verified live
+
+`DEC-020` records the full scope and evidence; read
+`reports/feature-phase-b-golden-path.md`'s "Mission Step R4" section for
+the command-level trail before touching `Makefile`'s `eval`/`eval-fast`
+recipes, `agent/telemetry.py`, or `scripts/dev.sh`'s agent-container `-e`
+flags again.
+
+**R0's two gaps closed**: `make eval` now runs `eval-fast` (offline
+EXAMPLE pair, `AGENT_MODEL_MODE=fake` forced at the recipe level after a
+live-verification found the old soft default silently broke it) +
+`eval-domain` (the real 8-category gate). `agent/telemetry.py` closes every
+plan-B6 field — request id, workload id, out-of-band prompt-version
+hashes, a `model_call`/`tool_call` span event per list entry (not the
+last-write-wins scalars), token usage, fallback reason, output reference —
+verified read-only w.r.t. model inputs by diffing `model_client.py`
+(response-parsing only), so **no re-baseline was triggered**. A local OTel
+Collector (`otel/opentelemetry-collector:0.159.0`, `PINS.md`) is wired into
+`scripts/dev.sh`.
+
+**Two live-only bugs found and fixed during Checkpoint B2's own exit
+verification** (neither reachable by the offline suite): `scripts/dev.sh`
+never passed `MODEL_API_KEY`/fallback/`MODEL_TEMPERATURE`/`MODEL_SEED`
+into the agent container (live `/invoke` failed
+`model_failure:AuthenticationError`); `agent/telemetry.py`'s OTLP exporter
+404'd on every export (needed `/v1/traces` appended when `endpoint` is
+passed explicitly to the constructor). Both fixed, both re-verified live.
+
+**Checkpoint B2's full exit criteria, all live-verified**: `make up && make
+eval` exit 0 (60/62, all 8 categories); a write request drafted, rejected,
+and confirmed to produce zero `REQ-` mutation via `GET /records`; a
+deliberately broken primary model endpoint correctly triggering the
+fallback route, with `model.route: fallback` /
+`model.route_reason_code: primary_5xx` visible in the exported OTel trace.
+Stack torn down cleanly after; 162/162 tests still passing.
+
+**STOP at R4 completion, per the mission's explicit instruction.** Holding
+for owner review before Phase C.
+
 ## Invariants that must survive any future session
 
 These are load-bearing design decisions, not implementation details — do
@@ -268,16 +314,32 @@ not silently drift from them while doing other work:
    `generate`'s call) resurrects `DEC-012`'s diagnosed failure mode.
    Regression-guarded by `tests/test_decide_node.py::test_context_never_reaches_decide_prompt`
    and `tests/test_generate_node.py::test_called_without_tools_kwarg`.
-6. **Forward constraints on Step R4's OTel closure (recorded at R0, not yet
-   applicable to anything committed today).** When plan-B6's gap is closed:
-   (a) `SRS-AGT-DATA-01`'s prompt-version marker must live out-of-band (e.g. a
-   constant/hash attached only as a telemetry attribute), never embedded in
-   `decide_system_prompt.md`/`generate_system_prompt.md`'s own model-visible
-   content — doing the latter would make prompt-versioning itself trigger
-   `DEC-012`'s re-baseline rule. (b) OTel instrumentation must be strictly
-   read-only with respect to model inputs — spans/attributes may observe
-   state, never alter the system prompt, user message, or `tools=` argument
-   actually sent to the model, for the same reason.
+6. **OTel constraints from R0, now applied and verified (`DEC-020`), still
+   binding on any future telemetry change.** (a) `SRS-AGT-DATA-01`'s
+   prompt-version marker lives out-of-band (`agent/telemetry.py::_prompt_version`
+   reads the on-disk prompt file, returns a hash) — never embed a version
+   marker back into `decide_system_prompt.md`/`generate_system_prompt.md`'s
+   own model-visible content; doing so would make prompt-versioning itself
+   trigger `DEC-012`'s re-baseline rule. (b) OTel instrumentation must stay
+   strictly read-only with respect to model inputs — verified this session
+   by diffing `agent/model_client.py` and confirming the entire change was
+   response-parsing only, `chat.completions.create(...)` call arguments
+   byte-for-byte unchanged. Any future telemetry change must be verified
+   the same way (diff the actual model-call construction, don't assume)
+   before concluding no re-baseline is needed.
+6a. **Two container/telemetry gotchas found live in R4 — don't reintroduce
+    either.** `scripts/dev.sh`'s agent-container `podman run` must pass
+    every env var `agent/config.py` reads that has no safe hard default for
+    live use (`MODEL_API_KEY`, `MODEL_FALLBACK_API_BASE_URL`,
+    `MODEL_FALLBACK_NAME`, `MODEL_TEMPERATURE`, `MODEL_SEED`,
+    `AGENT_WORKLOAD_ID`) — a new `agent/config.py` value needs a matching
+    `-e` line here too, or it silently no-ops inside the container even
+    though it works from a host-side `.env`. `OTLPSpanExporter(endpoint=...)`
+    does **not** auto-append `/v1/traces` when `endpoint` is passed
+    explicitly (only when the exporter resolves the env var itself) — any
+    future OTLP endpoint construction must append the per-signal path
+    itself or spans silently 404 with no error on the collector side to
+    notice.
 7. **`KNOWN_GAP_TOLERANCES` (`eval/cli.py`, `DEC-016`/`DEC-017`/`DEC-018`)
    is the only sanctioned way to exclude a case from the domain gate's
    failure count — never add an ad hoc skip, an `if case_id ==` special

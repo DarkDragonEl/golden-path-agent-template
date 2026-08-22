@@ -1470,3 +1470,116 @@ before (`tool_arguments.status` only, not `result_contains`).
 60/62, every category `[ok]`.** Full detail in `DECISIONS.md` `DEC-019`.
 Per the owner's own authorization structure, proceeding directly to Step
 R4.
+
+## Mission Step R4 — domain gate folded into `make eval`, plan-B6/OTel
+closed, Checkpoint B2 exit verified live (`DEC-020`)
+
+Full rationale and design detail is in `DECISIONS.md`'s `DEC-020` — this
+section is the command-level evidence trail.
+
+### R0 gap #1 — `make eval` fold
+
+```
+Makefile:
+eval: eval-fast eval-domain
+eval-fast:
+	AGENT_MODEL_MODE=fake python -m eval.cli run --all
+eval-domain:
+	python -m eval.cli run --domain
+```
+
+Found live (not assumed correct): running the folded target in a shell
+that already had `AGENT_MODEL_MODE=live` exported broke `eval-fast`'s two
+`EXAMPLE-*.yaml` cases (0/2) — `eval/cli.py`'s `setdefault` is a soft
+default. Fixed by forcing `AGENT_MODEL_MODE=fake` at the Make-recipe level
+(commit `16f053f`). Re-verified: `eval-fast` 2/2 with `AGENT_MODEL_MODE=live`
+still exported in the calling shell.
+
+### R0 gap #2 — plan-B6/OTel closure
+
+`agent/telemetry.py` rewritten (commit `6cf78f4`): request id, workload id,
+per-prompt-file content-hash version markers (out-of-band), a `model_call`
+span event per `state["model_calls"]` entry (closes the route-coverage gap
+`DEC-009` already closed on the eval side), a `tool_call` span event per
+`state["tool_calls"]` entry carrying policy classification, token usage
+threaded through `model_client.py`/`state.py`/the decide+generate nodes,
+`fallback_reason`, `final_output.length`/`.preview`. New regression test
+`tests/test_telemetry.py::test_every_model_call_gets_its_own_event_not_just_the_last`.
+Verified read-only w.r.t. model inputs via `git diff agent/model_client.py`
+— the entire diff is response-parsing only, `chat.completions.create(...)`
+call arguments unchanged. **No re-baseline triggered.**
+
+Local OTel Collector pinned and wired (`PINS.md` first entry,
+`otel/opentelemetry-collector:0.159.0`, verified 2026-08-21):
+`scripts/dev.sh` now starts it before the agent container on the shared
+network; agent's `OTEL_EXPORTER_OTLP_ENDPOINT` defaults to it.
+
+### Two live-only bugs found during Checkpoint B2's own exit verification (commit `6011a27`)
+
+1. **`scripts/dev.sh` never passed `MODEL_API_KEY` (or the fallback
+   route, or `MODEL_TEMPERATURE`/`MODEL_SEED`/`AGENT_WORKLOAD_ID`) into the
+   agent container.** Symptom: live `/invoke` → `AuthenticationError`, no
+   fallback attempted. Fixed by adding the missing `-e` flags.
+2. **`agent/telemetry.py::init_telemetry()`'s OTLP exporter 404'd on every
+   export** (`Failed to export span batch code: 404, reason: Not Found`,
+   agent container log) — passing `endpoint` explicitly to
+   `OTLPSpanExporter` skips its own `/v1/traces` auto-append (that only
+   happens when the exporter resolves the env var itself). Fixed by
+   appending `/v1/traces` before constructing the exporter.
+
+### Checkpoint B2 full exit verification (live, this session)
+
+**`make up && make eval`:**
+
+```
+eval-fast: 2/2 PASS
+eval-domain:
+domain gate verdict: PASS
+  knowledge_qa: 0/1 max failures [ok]
+  itsm_read: 0/0 max failures [ok]
+  tool_selection: 0/1 max failures [ok]
+  draft_request: 0/0 max failures [ok]
+  out_of_domain: 0/0 max failures [ok]
+  unauthorized_write: 0/0 max failures [ok]
+  prompt_injection: 0/0 max failures [ok]
+  operational: 0/0 max failures [ok]
+tolerated: ITR-004 (known-gap), TSEL-004 (known-gap)
+```
+
+Exit 0. Containers up throughout: `golden-path-agent-dev`,
+`golden-path-agent-mcp-dev`, `golden-path-otel-collector-dev`.
+
+**REST zero-mutation check:**
+
+- Baseline `GET /records` (port 18081): 2 pre-existing `REQ-` records
+  (`REQ-30021`, `REQ-30052`).
+- `POST /invoke` (write-shaped query) → `itsm_create_request` drafted,
+  `pending_approval: true`, `result: null` (not yet executed).
+- `POST /approvals/{session_id}/resume {"decision": "reject"}` →
+  `final_output`: "...escalation reason: approval_not_granted:'reject'".
+- `GET /records` re-checked: identical 2 `REQ-` records, byte-for-byte —
+  zero mutation from the rejected write.
+
+**Kill-primary fallback demo:**
+
+- Separate throwaway container, `MODEL_API_BASE_URL` deliberately broken
+  (`...v1-deliberately-broken`), correct `MODEL_FALLBACK_API_BASE_URL`/
+  `MODEL_FALLBACK_NAME` from `.env` otherwise.
+- `POST /invoke` (read-shaped query) succeeded end-to-end with a correct
+  answer.
+- OTel Collector log (`debug` exporter) shows the exported span:
+  `model.route: fallback`, `model.route_reason_code: primary_5xx`, and a
+  `model_call` span event with matching route/reason code plus real token
+  counts (`prompt_tokens: 1388`, `completion_tokens: 19`).
+
+**Cleanup:** all containers and the dev network torn down
+(`podman ps -a`/`podman network ls` both empty after). Full offline test
+suite re-run post-fix: `.venv/bin/python -m pytest -q` → **162 passed.**
+
+### R4 status
+
+Complete. All three Checkpoint B2 exit criteria verified live. Both R0
+gaps closed. Per `DEC-020`'s note, no `DEC-012`-style re-baseline was
+required — telemetry is observation-only, confirmed by diff inspection, not
+assumption. **STOP at R4 completion, per the mission's explicit
+instruction** — holding for owner review before Phase C.

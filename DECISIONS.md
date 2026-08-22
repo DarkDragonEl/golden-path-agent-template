@@ -1563,3 +1563,165 @@ verdict: PASS`, 60/62, every category `[ok]`. Per the owner's authorization
 structure (this outcome falls under "not a genuinely new failure form,"
 which the owner's own instructions resolve without requiring a further
 stop), proceeding directly to Step R4.
+
+## DEC-020 — Step R4: domain gate folded into `make eval`, plan-B6/OTel
+closed, Checkpoint B2 exit verified live
+
+**Document/scope:** `Makefile` (`6cf78f4`, `16f053f`), `agent/telemetry.py`,
+`agent/api.py`, `agent/model_client.py`, `agent/state.py`,
+`agent/nodes/decide.py`/`generate.py`/`tool_invoke.py`, `agent/config.py`
+(`6cf78f4`), `scripts/dev.sh`, `deploy/otel/otel-collector-config.yaml`,
+`PINS.md` (new, `6cf78f4`), `scripts/dev.sh` + `agent/telemetry.py`
+(live-verification fixes, `6011a27`). Authorized scope: R0's two concrete
+gaps (the `make eval` mechanical gap, plan-B6/OTel), per the owner's R3-
+continuation authorization message.
+
+**R0 gap #1 closed — `make eval` now tests what Checkpoint B2 says it
+tests.** `eval: eval-fast eval-domain` — the canonical target runs the
+offline `EXAMPLE-*.yaml` pair and all 8 live domain categories under
+`DEC-017`'s gate semantics. `eval-fast` kept as a separate, explicitly
+offline-only inner-loop target; `ci/pr-checks.yaml` is unaffected (calls
+`eval.cli run --all` directly, not the Make target).
+
+**A real bug found by direct verification, not assumed correct:**
+running the new combined target in a shell that already had
+`AGENT_MODEL_MODE=live` exported (needed for `eval-domain`) silently broke
+`eval-fast`'s two `EXAMPLE-*.yaml` cases — `eval/cli.py`'s own
+`os.environ.setdefault("AGENT_MODEL_MODE", "fake")` is a soft default that
+does nothing once the var is already exported. This collision was newly
+*possible* only because this session's own fold put both targets under one
+invocation for the first time; previously they were always run separately
+and deliberately. Fixed at the Make-recipe level (`AGENT_MODEL_MODE=fake`
+prefixed directly onto `eval-fast`'s recipe line, immune to the caller's
+shell state) and verified directly (re-ran with `AGENT_MODEL_MODE=live`
+pre-exported, confirmed both EXAMPLE cases now pass). `eval-domain`
+deliberately keeps requiring the caller to opt into live mode explicitly —
+unchanged.
+
+**R0 gap #2 closed — plan-B6/OTel, all seven items plus the extras R0
+flagged as fully missing.** `agent/telemetry.py::record_invocation_span`
+now sets, per invocation: `session.id`, a new `request.id` (distinct from
+session id — a session can span an `/invoke` and a later `/resume`),
+`user.id`, a new `workload.id` (`config.AGENT_WORKLOAD_ID`), `model.name`/
+`model.endpoint`, a content-hash `prompt.decide_version`/
+`prompt.generate_version` per prompt file (`SRS-AGT-DATA-01` — read out-of-
+band from the on-disk prompt file, never written back into the prompt text
+itself, per the two standing constraints below), `retrieved_doc.ids`,
+`tool_calls.count`, `approval.decision`, `policy_bundle.ref`,
+`fallback_reason`, and `final_output.length`/`.preview` (first 200 chars —
+a reference, not the full body). Two structural gaps R0 flagged are fixed
+with dedicated span events, not scalar attributes: one `model_call` event
+per entry in `state["model_calls"]` (fixes the exact route-coverage gap
+`eval/domain_scorer.py`'s `DEC-009` fix already closed on the eval side —
+previously only the last-write-wins scalar fields were read, silently
+hiding `decide`'s route once `generate` overwrote them) and one `tool_call`
+event per entry in `state["tool_calls"]`, each carrying its
+`classification` (read/write) — the per-tool-call half of "every policy
+decision" that the final `approval.decision` scalar alone couldn't cover.
+Token usage (`prompt_tokens`/`completion_tokens`/`total_tokens`, `None` on
+a failed call) threaded through `agent/model_client.py` → `agent/state.py`
+→ the decide/generate nodes → the span events, closing R0's "latency/
+tokens/errors" gap for the tokens component (latency is already implicit
+in span start/end; a first-class per-call latency field was not added —
+out of R4's authorized scope, not R0's finding). Regression-guarded by the
+new `tests/test_telemetry.py`, mirroring `DEC-009`'s own test:
+`test_every_model_call_gets_its_own_event_not_just_the_last` constructs a
+two-call state (decide=fallback, generate=primary) and asserts both routes
+are independently visible on the span.
+
+**The two standing constraints from R0 held, verified, not just asserted:**
+(a) prompt-version markers are out-of-band — `_prompt_version()` reads the
+on-disk prompt file and returns a hash; nothing in `agent/nodes/decide.py`/
+`generate.py`'s prompt-construction path was touched. (b) telemetry is
+strictly read-only w.r.t. model inputs — `git diff` on `agent/model_client.py`
+confirmed the entire change is on the response-parsing side (extracting
+`response.usage`, threading a 5th return value); the actual
+`chat.completions.create(...)` call arguments (model, messages, tools,
+temperature, seed) are byte-for-byte unchanged. **This is why no
+`DEC-012`-style re-baseline was triggered by R4** — the measurement
+instrument (prompt text, retrieval, model choice, graph topology, sampling
+params) is untouched; only observation of already-computed state changed.
+
+**Local OTel Collector researched and wired in** (a fork, `PINS.md`'s first
+entry): `otel/opentelemetry-collector:0.159.0` (core distribution, not
+`-contrib` — only an OTLP HTTP receiver + `debug` exporter are needed at
+this milestone's scope), verified against the upstream GitHub releases page
+and docs on 2026-08-21, deliberately distinguished from the future Red
+Hat/OpenShift-operator cluster-tier pin (a separate `PINS.md` row, revisit
+at Phase C). `scripts/dev.sh` now starts it before the agent container on
+the shared network, mounting `deploy/otel/otel-collector-config.yaml`; the
+agent's `OTEL_EXPORTER_OTLP_ENDPOINT` now defaults to the collector's
+container-network address instead of empty.
+
+**Two live-only bugs found during Checkpoint B2's own exit verification,
+neither reachable by the offline test suite, both fixed same-session
+(`6011a27`) — the exact reason this checkpoint requires exercising the
+containerized path, not just `pytest`:**
+
+1. `scripts/dev.sh`'s agent-container `podman run` never passed
+   `MODEL_API_KEY` (or `MODEL_FALLBACK_API_BASE_URL`/`MODEL_FALLBACK_NAME`,
+   or this session's own new `MODEL_TEMPERATURE`/`MODEL_SEED`/
+   `AGENT_WORKLOAD_ID`) through to the container — a pre-existing gap this
+   session's edits to that script never touched until now. Every live
+   `/invoke` against the containerized agent failed with
+   `model_failure:AuthenticationError`, no fallback attempted (fallback
+   wasn't configured in the container either). Fixed by adding the missing
+   `-e` flags, matching the file's existing `-e VAR="${VAR:-default}"`
+   convention.
+2. `agent/telemetry.py::init_telemetry()` passed
+   `OTEL_EXPORTER_OTLP_ENDPOINT` straight to
+   `OTLPSpanExporter(endpoint=...)`. The HTTP exporter only auto-appends
+   the per-signal path (`/v1/traces`) when it resolves the env var itself
+   — passing `endpoint` explicitly (needed here since `agent/config.py`
+   already centralizes env reads) makes it use the value verbatim. Every
+   span export silently 404'd (`Failed to export span batch code: 404,
+   reason: Not Found`, agent container log) until this was caught live
+   against the real collector — the collector process itself logged
+   nothing, since it never received a request at all. Fixed by appending
+   `/v1/traces` to the endpoint before constructing the exporter.
+
+**Checkpoint B2 full exit verification (live, this entry's evidence,
+performed after both fixes above):**
+
+- `make up && make eval`: `eval-fast` 2/2, `eval-domain` → `domain gate
+  verdict: PASS`, 60/62, all 8 categories `[ok]` or tolerated — exit 0.
+  Containers up throughout (`golden-path-agent-dev`,
+  `golden-path-agent-mcp-dev`, `golden-path-otel-collector-dev`).
+- **REST zero-mutation check**: baseline `GET /records` on the live MCP
+  container showed exactly 2 pre-existing `REQ-` records. A write-shaped
+  `POST /invoke` correctly drafted `itsm_create_request` and paused
+  (`pending_approval: true`, no `result`). Rejected via
+  `POST /approvals/{session_id}/resume {"decision": "reject"}`. Re-checked
+  `GET /records`: byte-identical to baseline, same 2 `REQ-` records, zero
+  mutation from a rejected write.
+- **Kill-primary fallback, reason code visible in the trace**: a separate,
+  throwaway container launched with a deliberately broken
+  `MODEL_API_BASE_URL` (correct fallback config otherwise, from `.env`).
+  `POST /invoke` succeeded end-to-end with a correct answer. The exported
+  span (confirmed in the OTel Collector's own log, `debug` exporter,
+  `verbosity: detailed`) shows `model.route: fallback`,
+  `model.route_reason_code: primary_5xx`, and the `model_call` span event
+  carries the same route/reason code plus real token counts — the
+  fallback path and its reason code are now literally demonstrable from
+  the trace, not just inferable from the response. (Note:
+  `dev.sh up`'s own live-mode path unconditionally re-sources `.env`
+  inside the script, by design — intentional, not a bug; overriding
+  `MODEL_API_BASE_URL` for this one-off demo required bypassing `dev.sh`
+  for a throwaway container rather than fighting that design.)
+- Full stack torn down cleanly after verification (`podman ps -a`,
+  `podman network ls` both empty); `.venv/bin/python -m pytest -q` — 162
+  passed, confirming the two live-verification fixes didn't regress
+  anything offline.
+
+**Rationale:** every fix in this entry was found by actually exercising the
+live containerized path end-to-end (per `CLAUDE.md`'s "you execute
+verification yourself" rule) — none would have been caught by the offline
+test suite or a code read alone, since `AGENT_MODEL_MODE=fake` and a
+`FakeModelClient` never touch `MODEL_API_KEY`, `RoutedModelClient`'s
+fallback path, or a real OTLP export. This is the concrete argument for why
+Checkpoint B2's live verification step is not optional ceremony.
+
+**Status:** Complete. All three Checkpoint B2 exit criteria verified live.
+`E2E_DEMO_PLAN.md`'s plan-B6 is closed; R0's `make eval` gap is closed.
+**STOP at R4 completion, per the mission's explicit instruction** — holding
+for owner review before Phase C.
