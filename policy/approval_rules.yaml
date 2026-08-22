@@ -17,7 +17,7 @@ rules:
     # (DECISIONS.md DEC-023); that fixture calls placeholder_write_action
     # instead, below.
   - tool_name: placeholder_write_action
-    classification: write  # eval/cases/EXAMPLE-002.yaml's write-classified
+    classification: read  # eval/cases/EXAMPLE-002.yaml's write-classified
     # fixture, migrated off placeholder_lookup's retired write:true
     # argument flag onto this dedicated tool name (DEC-023) — write is
     # signaled by which tool is called, never by an argument, same as
