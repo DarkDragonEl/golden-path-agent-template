@@ -1,0 +1,133 @@
+# Phase C, Step C1a (DECISIONS.md DEC-023/DEC-024). Least-privilege RBAC
+# for the CI pipeline's ServiceAccount, per the owner's explicit binding
+# constraint: strictly within the golden-path-agent-* namespace prefix,
+# create/delete only on workload resources this project owns, image push
+# only to this project's own ImageStream, no ClusterRole, no
+# ClusterRoleBinding, no cluster-admin -- regardless of what the operator's
+# own session credentials would permit. See namespaces.yaml's header for
+# why namespace lifecycle itself is deliberately NOT one of this
+# ServiceAccount's grants.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: golden-path-agent-ci-pipeline
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+---
+# Everything the pipeline's own Task steps need to do inside their own
+# namespace: read (never write) the manually-provisioned credentials by
+# name, read the ImageStream this project's own buildah step pushes to,
+# and read pod/log state for step diagnostics. No Tekton CRD permissions
+# here -- the Tekton controller reconciles PipelineRun/TaskRun using its
+# own operator-granted permissions, not this ServiceAccount.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: golden-path-agent-ci-pipeline-role
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: ["image.openshift.io"]
+    resources: ["imagestreams", "imagestreamtags"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: golden-path-agent-ci-pipeline-rolebinding
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+subjects:
+  - kind: ServiceAccount
+    name: golden-path-agent-ci-pipeline
+    namespace: golden-path-agent-ci
+roleRef:
+  kind: Role
+  name: golden-path-agent-ci-pipeline-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# system:image-builder is a built-in OpenShift ClusterRole (the same one
+# BuildConfigs use to push their own output) -- referencing it in a
+# namespace-scoped RoleBinding grants imagestreams/imagestreams-layers
+# push rights ONLY within golden-path-agent-ci, not cluster-wide. This is
+# a RoleBinding, not a ClusterRoleBinding: its effect is confined to this
+# one namespace regardless of which ClusterRole it references.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: golden-path-agent-ci-pipeline-image-builder
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+subjects:
+  - kind: ServiceAccount
+    name: golden-path-agent-ci-pipeline
+    namespace: golden-path-agent-ci
+roleRef:
+  kind: ClusterRole
+  name: system:image-builder
+  apiGroup: rbac.authorization.k8s.io
+---
+# Everything deploy-ephemeral/destroy-ephemeral need inside
+# golden-path-agent-ephemeral-test: full CRUD on exactly the resource
+# kinds deploy/kustomize/base actually produces (matching
+# deploy/argocd/project.yaml's own namespaceResourceWhitelist), read-only
+# on secrets (referenced by name, never created/mutated by the pipeline --
+# see the Phase C plan's secret-material handling constraint), and
+# pod/log read for smoke checks.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: golden-path-agent-ci-deploy-role
+  namespace: golden-path-agent-ephemeral-test
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+rules:
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "serviceaccounts"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+---
+# Cross-namespace RoleBinding: lives in golden-path-agent-ephemeral-test,
+# grants only within this namespace, to a ServiceAccount whose home
+# namespace is golden-path-agent-ci. This is the standard, safe pattern
+# for "one pipeline identity, permissions in several of this project's own
+# namespaces" without ever granting anything cluster-wide.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: golden-path-agent-ci-deploy-rolebinding
+  namespace: golden-path-agent-ephemeral-test
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+subjects:
+  - kind: ServiceAccount
+    name: golden-path-agent-ci-pipeline
+    namespace: golden-path-agent-ci
+roleRef:
+  kind: Role
+  name: golden-path-agent-ci-deploy-role
+  apiGroup: rbac.authorization.k8s.io

@@ -2065,3 +2065,144 @@ is the plan's own designated repo-only entry gate.
 `eval.cli run --all` 2/2 (EXAMPLE-001/002) — all green. **STOP here per
 the Phase C plan's own instruction, for a quick owner sanity check before
 the first real cluster write (C1a).**
+
+## DEC-024 — Phase C Step C1a: first real cluster/repo writes — namespaces,
+RBAC, secret bootstrap, public GitHub repo, `AppProject`
+
+**Document/scope:** `pipelines/bootstrap/namespaces.yaml`/`rbac.yaml`
+(new), `deploy/argocd/project.yaml`/`application-*.yaml` (placeholders
+filled), `deploy/kustomize/overlays/ephemeral-test/namespace.yaml`
+(lifecycle semantics rewritten), `docs/environments.md` (shared-cluster
+deviation note + rewritten ephemeral-test lifecycle section),
+`docs/phase-c-runbook.md` (new). Owner-approved `DEC-023` review;
+owner-authorized C1a with four binding conditions restated at the point
+they bind (dry-run before every real apply; only this project's own
+`AppProject` touched; namespaces/`ServiceAccount`s/`Role`s/`RoleBinding`s
+strictly `golden-path-agent-*`-prefixed; exact least-privilege RBAC, no
+`ClusterRoleBinding`, no cluster-admin, regardless of session credentials).
+
+**A real design consequence of the RBAC constraint, found while
+implementing it, not anticipated in the plan's own text:** creating or
+deleting a `Namespace` object is a cluster-scoped action. Kubernetes RBAC
+cannot grant it via a namespace-scoped `Role`/`RoleBinding` — there is no
+narrower grant available, since `create`'s authorization check has no
+object to match a `resourceNames` restriction against yet. Given the
+owner's constraint is absolute ("no ClusterRoleBinding... regardless of
+what session credentials would permit"), the pipeline's `ServiceAccount`
+cannot be given namespace lifecycle management at all. **Redesigned
+accordingly**: `golden-path-agent-ephemeral-test` (like `golden-path-agent-ci`)
+is bootstrapped once, manually (`pipelines/bootstrap/namespaces.yaml`,
+`docs/phase-c-runbook.md` §1), and stays standing — never created or
+deleted per `PipelineRun`. "Ephemeral" now means ephemeral *resources*
+(`Deployment`/`Service`/`ConfigMap`, cycled every run by `deploy-ephemeral`/
+`destroy-ephemeral`) inside a stable namespace, not an ephemeral namespace
+itself. `deploy/kustomize/overlays/ephemeral-test/namespace.yaml`'s
+`lifecycle/created-at`/`lifecycle/ttl` annotations (which promised a
+platform-level TTL garbage-collector would delete the whole namespace) are
+removed — that promise is no longer true, and a static annotation in a
+file re-applied every run would just overwrite itself anyway, never
+reflecting the real one-time bootstrap event. `docs/environments.md`'s
+"Ephemeral-test namespace lifecycle" section is rewritten to match.
+
+**RBAC actually implemented** (`pipelines/bootstrap/rbac.yaml`): one
+`ServiceAccount` (`golden-path-agent-ci-pipeline`, home namespace
+`golden-path-agent-ci`), one `Role` in `golden-path-agent-ci` (read-only:
+`secrets` get/list, `pods`/`pods/log` get/list, `imagestreams`/
+`imagestreamtags` get/list — no Tekton CRD permissions, since the Tekton
+controller reconciles `PipelineRun`/`TaskRun` using its own operator-
+granted permissions, not this `ServiceAccount`), one `RoleBinding` for that
+`Role`, one `RoleBinding` referencing the built-in OpenShift `ClusterRole`
+`system:image-builder` (namespace-scoped via the binding, not cluster-
+wide — the same mechanism `BuildConfig`s use to push their own output; no
+custom registry-push role invented), one `Role` in
+`golden-path-agent-ephemeral-test` (full CRUD on exactly the resource
+kinds `deploy/kustomize/base` produces — `Deployment`/`Service`/
+`ConfigMap`/`ServiceAccount`/`NetworkPolicy`/`PodDisruptionBudget` —
+matching `deploy/argocd/project.yaml`'s own `namespaceResourceWhitelist`;
+`secrets` get/list only, never create/update/delete), one cross-namespace
+`RoleBinding` for it. **Verified live, not assumed from the YAML**: `oc
+auth can-i create deployments ... -n golden-path-agent-ephemeral-test` →
+`yes`; `oc auth can-i create namespace ...` → `no`; `oc auth can-i create
+deployments ... -n golden-path-agent-ci` → `no` (the `ServiceAccount` has
+no deployment rights in its own home namespace — nothing needs to deploy
+anything there). All three dry-run (`--dry-run=server`) shown before the
+real apply, per the binding condition.
+
+**Secret bootstrap** (`docs/phase-c-runbook.md` §2): the live MaaS
+credential (`MODEL_API_KEY`) created directly as a `Secret` in
+`golden-path-agent-ephemeral-test` from the same value already used for
+local dev (`.env`), by a human command, never a pipeline parameter, never
+written into a `PipelineRun` spec, never committed, never echoed (every
+command that touched it in this session redacted its own output before
+being shown). `deployment-agent.yaml`'s existing `envFrom.secretRef`
+already references this secret by name — no manifest change needed to
+consume it.
+
+**Public GitHub repo created and pushed — a new decision this step, made
+explicitly by the owner, not inferred.** The plan's own `AppProject`/
+`Application` placeholders (`REPLACE_WITH_GIT_REPO_URL`) exposed a real
+gap: this repo had no git remote at all. Rather than invent one, this was
+put to the owner directly. **Decision: `https://github.com/DarkDragonEl/golden-path-agent-template`**
+(public), with four conditions, all satisfied before the push:
+
+1. **Generic repo name** — `golden-path-agent-template`, matching this
+   project's own established self-identification (the README's own title,
+   the local directory name) rather than inventing a new name to vet.
+2. **Full anonymity sweep before the first push**, extended beyond
+   `DEC-021`'s working-tree sweep to the entire git history — this is the
+   first moment any of this repo's content leaves the machine. Checked:
+   every commit message (50 commits) for identifying content — clean; every
+   commit's author identity — all `DarkDragonEl <DarkDragonEl@users.noreply.github.com>`,
+   the owner's own correct GitHub identity, not a leak; a full pickaxe
+   search (`git log --all -p`) for the real MaaS hostname and the shared
+   cluster's other tenant's org name — zero real hits (the one
+   `redhatworkshops`/`maas-rhdp` match found is `DEC-021`'s own text
+   *describing* its search methodology, not a leaked value; "the other
+   tenant's name" never appears in any commit, ever, confirmed empirically,
+   not just by discipline); every file ever added in history for a
+   `*client*`/`*research-notes*` match — only unrelated source files
+   (`model_client.py` etc.), same as the working-tree result; `.env` —
+   never committed at any point in history, currently gitignored. Reported
+   to the owner before pushing, per their explicit requirement, not after.
+3. Confirmed no `*client*`/`*research-notes*` file exists anywhere in
+   history (folded into the sweep above).
+4. **Public, HTTPS, deliberately — not private, not SSH.** A public repo
+   means the shared `openshift-gitops` instance needs no read credential to
+   sync from it, so this step makes **zero writes** to the shared GitOps
+   controller's own configuration — no repo-credentials `Secret` added to
+   `openshift-gitops`, nothing touched there beyond this project's own new
+   `AppProject`. A private repo would have required injecting a read
+   credential into a namespace this project doesn't own, which is exactly
+   the kind of blast-radius increase the whole isolation strategy exists to
+   avoid. This is the rationale the owner asked to have recorded here.
+
+**`AppProject/golden-path-agent` applied** to `openshift-gitops`
+(dry-run shown first) — `sourceRepos` now the real HTTPS URL,
+`namespaceResourceWhitelist`'s `ExternalSecret` entry swapped for a plain
+`Secret` entry (matching the plan's secret-handling decision — the
+manifest now says what's actually deployed, not the original,
+superseded design). All three `Application` manifests
+(`ephemeral-test`/`staging`/`pilot-prod`) also had their placeholders
+filled in with the same HTTPS URL and `openshift-gitops` namespace, per
+the owner's instruction — **none were applied**; `staging`/`pilot-prod`
+remain out of the active flow (already decided), and `ephemeral-test`'s
+actual deployment mechanism in the active C1 flow is the pipeline's own
+direct `kubectl apply -k`, not an ArgoCD sync (ArgoCD only ever syncs
+committed Git state, and `deploy-ephemeral`'s whole purpose is testing an
+unpromoted digest that never gets committed — the `Application` manifest
+exists as a scaffold for a future GitOps-synced path, not the current one).
+
+**The still-open piece, explicitly not resolved here**: the
+`open-promotion-pr` stage's own git write credential (scope: this one
+repo only, never a broad token) — flagged in the runbook as finalized at
+the C1b manifest review, per the owner's own sequencing instruction.
+
+**Status:** Complete. Namespaces, RBAC, and the `AppProject` are live on
+the cluster; the secret is live in `golden-path-agent-ephemeral-test`; the
+repo is live and pushed on GitHub. Every RBAC claim verified with `oc auth
+can-i`, not assumed from YAML. Proceeding to C1b (Tekton pipeline
+manifests + the promotion-PR credential decision + the `DEC-022`-derived
+runbook procedures now written into `eval-gate-live`'s design + the
+rego↔YAML mechanical sync check) — **holding at C1b's own STOP (manifests
++ RBAC diff for review) before the first real `PipelineRun` (C1c)**, per
+the owner's explicit sequencing.

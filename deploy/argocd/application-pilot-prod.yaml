@@ -2,11 +2,11 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: golden-path-agent-pilot-prod
-  namespace: REPLACE_WITH_GITOPS_NAMESPACE # TODO(platform)
+  namespace: openshift-gitops
 spec:
   project: golden-path-agent
   source:
-    repoURL: REPLACE_WITH_GIT_REPO_URL # TODO(platform)
+    repoURL: https://github.com/DarkDragonEl/golden-path-agent-template.git
     targetRevision: main
     path: deploy/kustomize/overlays/pilot-prod
   destination:

@@ -1,0 +1,29 @@
+# Phase C, Step C1a (DECISIONS.md DEC-023/DEC-024). Applied once, by a
+# human, as a deliberate bootstrap step -- not by the pipeline itself. Both
+# namespaces are pre-created here, not created/destroyed per PipelineRun,
+# specifically because the pipeline's own ServiceAccount (rbac.yaml, this
+# directory) is granted NO cluster-scoped permissions at all (no
+# ClusterRoleBinding, no cluster-admin, per the owner's explicit
+# constraint) -- and creating/deleting a Namespace object is an inherently
+# cluster-scoped action that a namespace-scoped Role/RoleBinding cannot
+# grant (Kubernetes RBAC's `create` verb also does not support
+# `resourceNames` restriction, since the object doesn't exist yet at
+# authorization-check time -- there is no narrower grant available for
+# "create only this one namespace"). The "ephemeral" property of
+# ephemeral-test is preserved at the resource level instead: the pipeline's
+# deploy-ephemeral/destroy-ephemeral stages create and delete the
+# Deployments/Services/ConfigMaps inside this standing namespace on every
+# run, never the namespace itself.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: golden-path-agent-ephemeral-test
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent

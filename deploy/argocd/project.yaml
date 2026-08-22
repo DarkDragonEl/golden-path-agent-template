@@ -4,11 +4,20 @@ apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
   name: golden-path-agent
-  namespace: REPLACE_WITH_GITOPS_NAMESPACE # TODO(platform): the cluster's GitOps controller namespace
+  namespace: openshift-gitops # Phase C, DEC-024: the shared cluster's existing
+  # GitOps controller instance -- this AppProject is the only object this
+  # project touches in it; no other tenant's AppProject/Application is ever
+  # read, listed, or referenced.
 spec:
   description: Golden-path agent MVP — one repo, three promoted environments.
   sourceRepos:
-    - REPLACE_WITH_GIT_REPO_URL # TODO(platform): this scaffold's own repo, once created
+    - https://github.com/DarkDragonEl/golden-path-agent-template.git
+    # Public repo, HTTPS -- deliberate: the shared Argo CD instance needs no
+    # read credential to sync it, so this project makes zero writes to
+    # openshift-gitops beyond this one AppProject/its own Applications
+    # (DEC-024). A private repo would require injecting a read credential
+    # into the *shared* GitOps controller's own repo-credentials Secret --
+    # exactly the kind of blast-radius increase this plan avoids elsewhere.
   destinations:
     - namespace: golden-path-agent-ephemeral-test
       server: https://kubernetes.default.svc
@@ -31,5 +40,7 @@ spec:
       kind: ServiceAccount
     - group: policy
       kind: PodDisruptionBudget
-    - group: external-secrets.io
-      kind: ExternalSecret
+    - group: ""
+      kind: Secret # Phase C, DEC-024: plain Secret, not ExternalSecret --
+      # see the Phase C plan's secret-handling decision (ESO deferred as a
+      # clean phase-two integration point).

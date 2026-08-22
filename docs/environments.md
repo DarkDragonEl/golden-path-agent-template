@@ -1,5 +1,21 @@
 # Environments
 
+**On the SNO target being a shared, multi-tenant lab cluster, not a
+dedicated one (`DECISIONS.md` `DEC-024`):** the accepted delivery plan
+assumed Phase C would bootstrap a dedicated SNO from Git alone, operators
+included. The real target is a shared lab cluster where the OpenShift
+Pipelines and GitOps operators were already installed by prior, unrelated
+work, before this project ever touched it. Consequence, stated plainly
+rather than left for a colleague to notice: this project's own
+namespaces/RBAC/`AppProject`/pipeline/policy bundle all do bootstrap from
+Git as designed, but **operator installation does not** — installing or
+reinstalling cluster-wide operators on a shared, busy cluster is outside
+this project's authority and would itself be a blast-radius risk. Phase
+E's shared showcase cluster is therefore the first and only full
+from-scratch bootstrap test (operators included) — that raises the bar for
+what "exercised ≥2 refreshes" needs to mean at that milestone, since Phase
+C alone cannot prove the operator-install leg of the story.
+
 | Stage | Purpose | What's here |
 |---|---|---|
 | Local laptop | Fast dev loop, deterministic testing | `scripts/dev.sh --offline` (plain `podman run`/`docker run`, no compose dependency), `.env.example` |
@@ -28,13 +44,30 @@ production.
 
 ## Ephemeral-test namespace lifecycle
 
-`deploy/kustomize/overlays/ephemeral-test/namespace.yaml` creates the
-`Namespace` object itself (the other two overlays only set `namespace:` on
-existing resources — they assume the namespace already exists). It carries
-`lifecycle/created-at` and `lifecycle/ttl` annotations that a
-platform-level TTL garbage-collector (not part of this repo) is expected to
-consume to delete stale ephemeral namespaces. `lifecycle/created-at` is a
-placeholder the deploying pipeline must set to the real timestamp.
+`deploy/kustomize/overlays/ephemeral-test/namespace.yaml` declares the
+`Namespace` object (the other two overlays only set `namespace:` on
+existing resources — they assume the namespace already exists), but on the
+real SNO target this object is created once, out of band
+(`pipelines/bootstrap/namespaces.yaml`, applied manually — see the Phase C
+runbook), not per `PipelineRun` and not TTL-garbage-collected.
+
+**This is a deliberate deviation from the original design** (`DECISIONS.md`
+`DEC-024`), driven by RBAC, not convenience: creating/deleting a `Namespace`
+is a cluster-scoped action that a namespace-scoped `Role`/`RoleBinding`
+cannot grant (Kubernetes RBAC's `create` verb has no `resourceNames`
+restriction, since the target doesn't exist yet at authorization-check
+time), and the Phase C pipeline's own `ServiceAccount` is deliberately
+granted zero cluster-scoped permissions — no `ClusterRoleBinding`, no
+cluster-admin — regardless of what a human operator's own session could do
+(`pipelines/bootstrap/rbac.yaml`'s header). **"Ephemeral" now means
+ephemeral resources inside a stable namespace**: `deploy-ephemeral`/
+`destroy-ephemeral` cycle the `Deployment`/`Service`/`ConfigMap` objects on
+every `PipelineRun`; the `Namespace` itself persists across runs, and
+nothing deletes it on a TTL. `deploy/kustomize/overlays/ephemeral-test/namespace.yaml`
+carries no `lifecycle/*` annotation for exactly this reason: it is
+re-applied every run (`kubectl apply -k`, not a one-time action), so a
+static timestamp there would be overwritten back to itself on every
+apply rather than ever reflecting the real, one-time bootstrap event.
 
 ## Config that changes per environment
 
