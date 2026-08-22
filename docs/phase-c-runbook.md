@@ -134,6 +134,41 @@ that touches this secret — pipe through a redaction filter, or use
 `jsonpath`/`-o name` forms that never print `.data`, as done above and in
 `DEC-024`'s own evidence.
 
+**"Why doesn't Kustomize just set the model endpoint for demo-prod, the
+way the overlay already does for `MODEL_NAME`/`MCP_MODE`/etc.?"** — the
+question a future reviewer will ask on first reading
+`deploy/kustomize/overlays/demo-prod/kustomization.yaml`, answered once
+here rather than left implicit:
+
+1. The real endpoint value can never be committed to this public repo
+   (anonymity/no-real-infrastructure-detail rule) — every committed
+   overlay only ever has a safe placeholder for it.
+2. `ephemeral-test` solves this by having the *pipeline* inject the real
+   value at apply-time, into a scratch copy of the rendered manifest,
+   once per `PipelineRun` — never reconciled again afterward, so the
+   override sticks.
+3. `demo-prod` has no such injection point: it is synced by ArgoCD with
+   `syncPolicy.automated.selfHeal: true`. If the real value were somehow
+   applied on top of the `ConfigMap` `kustomize`/ArgoCD manages, `selfHeal`
+   would notice the drift from what's committed and revert it right back
+   to the placeholder on its next reconciliation pass.
+4. So the real value for `demo-prod` lives **only** in this `Secret` —
+   an object ArgoCD/Kustomize never touches at all for these keys, by
+   design (same reasoning `base/kustomization.yaml`'s own comment already
+   gives for why `externalsecret.yaml` was dropped rather than replaced
+   with a stub `Secret`).
+5. **Precedence, not absence, is what makes this work**:
+   `deploy/kustomize/base/deployment-agent.yaml`'s `envFrom` list has
+   `configMapRef` *before* `secretRef`. Kubernetes resolves duplicate keys
+   across an `envFrom` list by last-source-wins — so for
+   `MODEL_API_BASE_URL`/`MODEL_NAME`/`MODEL_FALLBACK_API_BASE_URL`/
+   `MODEL_FALLBACK_NAME`, which exist in *both* sources, the `Secret`'s
+   real value always shadows the `ConfigMap`'s placeholder inside the
+   running container. No code change, no extra manifest field — this
+   ordering already existed (it's how `MODEL_API_KEY` itself has always
+   worked, since it was never in the `ConfigMap` at all) and just needed
+   naming as the mechanism.
+
 ## 3. Promotion-PR git credential (mechanism finalized — Step C1b; creation
 still a pending manual action before C1c can exercise `open-promotion-pr`)
 
