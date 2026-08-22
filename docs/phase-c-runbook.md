@@ -66,13 +66,15 @@ oc auth can-i create namespace \
 ```
 
 ## 2. Model-endpoint credential (done — Step C1a; a second copy added at
-Step C1c, `DEC-033`)
+Step C1c, `DEC-033`; a third planned for Step C4, `DEC-039` — not yet
+created, since `golden-path-agent-demo-prod` doesn't exist until the
+bootstrap in §1 is extended and applied)
 
 The live MaaS credential (`MODEL_API_KEY`) is created directly as a
 Kubernetes `Secret`, from the same value already used for local dev
 (`.env`, gitignored) — never as a pipeline parameter, never written into a
-`PipelineRun` spec, never committed. **Two copies, in two namespaces, for
-two different consumers** — `secretKeyRef`/`configMapKeyRef` cannot
+`PipelineRun` spec, never committed. **Three copies, in three namespaces,
+for three different consumers** — `secretKeyRef`/`configMapKeyRef` cannot
 cross namespaces, confirmed live (`CreateContainerConfigError` on
 `eval-gate-live` before the second copy existed):
 
@@ -94,14 +96,38 @@ oc create secret generic golden-path-agent-secrets \
   -n golden-path-agent-ci \
   --from-literal=MODEL_API_KEY="$MODEL_API_KEY" \
   --from-literal=MCP_AUTH_TOKEN="not-needed"
+
+# Copy 3 (Step C4, DEC-039): golden-path-agent-demo-prod. Unlike copies 1
+# and 2, this copy ALSO carries the model-endpoint values themselves
+# (MODEL_API_BASE_URL/MODEL_NAME/MODEL_FALLBACK_API_BASE_URL/
+# MODEL_FALLBACK_NAME) -- demo-prod is ArgoCD-synced with selfHeal: true,
+# which would continuously stomp any apply-time ConfigMap override (the
+# mechanism copies 1/2's environment use) back to the committed
+# placeholder. The Secret is never Kustomize/ArgoCD-managed, so this is
+# safe; envFrom ordering in deployment-agent.yaml (secretRef listed after
+# configMapRef) makes these values shadow the ConfigMap's placeholder at
+# the container level -- see docs/environments.md's "Config that changes
+# per environment" section for the full mechanism. Run only after
+# golden-path-agent-demo-prod exists (pipelines/bootstrap/namespaces.yaml,
+# extended at Step C4) -- must exist before demo-prod's Application's
+# first sync, or its pod hits the same CreateContainerConfigError DEC-033
+# already diagnosed once.
+oc create secret generic golden-path-agent-secrets \
+  -n golden-path-agent-demo-prod \
+  --from-literal=MODEL_API_KEY="$MODEL_API_KEY" \
+  --from-literal=MCP_AUTH_TOKEN="not-needed" \
+  --from-literal=MODEL_API_BASE_URL="$MODEL_API_BASE_URL" \
+  --from-literal=MODEL_NAME="$MODEL_NAME" \
+  --from-literal=MODEL_FALLBACK_API_BASE_URL="$MODEL_FALLBACK_API_BASE_URL" \
+  --from-literal=MODEL_FALLBACK_NAME="$MODEL_FALLBACK_NAME"
 ```
 
 `deploy/kustomize/base/deployment-agent.yaml`'s `envFrom.secretRef` already
 references copy 1 by name — no manifest change was needed to consume it.
 If the credential ever needs rotating, re-run the same command against
-**both** namespaces (`oc create secret` fails on an existing name; use `oc
-create secret ... -o yaml --dry-run=client | oc apply -f -` to update in
-place instead).
+**all three** namespaces (`oc create secret` fails on an existing name; use
+`oc create secret ... -o yaml --dry-run=client | oc apply -f -` to update
+in place instead).
 
 **Verify the value is never echoed** when running or reviewing any command
 that touches this secret — pipe through a redaction filter, or use

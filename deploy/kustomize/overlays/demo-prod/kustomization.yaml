@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: golden-path-agent-demo-prod
+
+# Namespace is bootstrapped once, out-of-band (pipelines/bootstrap/namespaces.yaml)
+# -- see namespace.yaml in this directory (documentation only, not a
+# managed resource here) for why.
+resources:
+  - ../../base
+
+configMapGenerator:
+  - name: golden-path-agent-config
+    behavior: merge
+    literals:
+      - MCP_MODE=mock # DEC-021: demo-prod stays on the mock ITSM tool for
+        # this milestone, same as ephemeral-test -- no real tool backend
+        # exists yet (Annex A OI-02).
+      - APPROVAL_MODE=required
+      - DATA_SOURCE_BINDING=synthetic # CLAUDE.md: synthetic corpus only,
+        # never real client/organization data, in any promoted environment.
+      # DECISIONS.md DEC-035/DEC-039: MODEL_API_BASE_URL, MODEL_NAME,
+      # MODEL_FALLBACK_API_BASE_URL, and MODEL_FALLBACK_NAME are
+      # deliberately NOT overridden here, unlike ephemeral-test's overlay.
+      # ephemeral-test's real values are injected transiently at apply-time
+      # by the pipeline's own deploy-ephemeral Task (a one-shot `oc apply`,
+      # never reconciled again). demo-prod has no such injection point --
+      # it is synced by ArgoCD with syncPolicy.automated.selfHeal: true,
+      # which would continuously stomp any manually-applied override of a
+      # Kustomize-managed ConfigMap key straight back to whatever is
+      # committed here. Since the real endpoint can never be committed to
+      # this public repo (base/configmap.yaml's own placeholder is the
+      # committed value), these four keys are instead provisioned via a
+      # THIRD copy of the golden-path-agent-secrets Secret, in this
+      # namespace, alongside MODEL_API_KEY -- a Secret is never
+      # Kustomize/ArgoCD-managed (same established reasoning as
+      # base/kustomization.yaml's own comment on why externalsecret.yaml
+      # was dropped rather than replaced with a stub Secret). Kubernetes'
+      # own envFrom ordering (deployment-agent.yaml lists
+      # secretRef AFTER configMapRef) means the Secret's real values
+      # correctly shadow this ConfigMap's inherited base placeholders at
+      # the container level -- no code or manifest mechanism needed beyond
+      # that ordering, which already exists. See docs/phase-c-runbook.md's
+      # demo-prod bootstrap section for the exact manual provisioning step
+      # -- this is the config-contract completeness lesson (DEC-035)
+      # applied to a GitOps-synced environment: every required key IS
+      # declared (by base/configmap.yaml, DEC-035's own fix), and this
+      # comment states exactly where each demo-prod-specific real value
+      # actually comes from, so it is never silent.
+
+replicas:
+  - name: golden-path-agent
+    count: 1

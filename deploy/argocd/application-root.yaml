@@ -1,0 +1,38 @@
+# Phase C, Step C4 (DECISIONS.md DEC-021). The Git-bootstrapped app-of-apps
+# root: syncs deploy/argocd/apps/ as a plain directory of Application
+# manifests (not Kustomize/Helm), so the *only* action needed to
+# instantiate every actively-deployed environment from Git alone is
+# applying this one object -- the deliverable Phase E's from-scratch
+# cluster refresh replays.
+#
+# Deliberately scoped to only the two ACTIVELY deployed environments this
+# milestone (ephemeral-test, demo-prod) -- staging/pilot-prod's existing
+# stub Applications stay outside deploy/argocd/apps/, un-synced, per
+# DEC-021's "no staging, no pilot" decision for the demo (see
+# docs/environments.md).
+#
+# Requires this AppProject to permit managing Application objects in
+# openshift-gitops as a destination -- see deploy/argocd/project.yaml's
+# own DEC-021 update and the STOP presentation for why that widening is
+# scoped the way it is (this project's own Application objects only,
+# never another tenant's).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: golden-path-agent-root
+  namespace: openshift-gitops
+spec:
+  project: golden-path-agent
+  source:
+    repoURL: https://github.com/DarkDragonEl/golden-path-agent-template.git
+    targetRevision: main
+    path: deploy/argocd/apps
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-gitops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

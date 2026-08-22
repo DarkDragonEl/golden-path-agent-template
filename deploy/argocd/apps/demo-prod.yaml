@@ -1,0 +1,29 @@
+# Phase C, Step C4 (DECISIONS.md DEC-021). Auto-sync is deliberately ON
+# here (unlike pilot-prod's existing stub) -- the digest-promotion PR
+# merge (Step C3) is this environment's own human gate, per DEC-021's own
+# kickoff decision ("auto-sync on, since the PR-merge is the human gate").
+# Once merged, ArgoCD picks up the promoted digest with no further manual
+# apply step -- that is the whole point of the GitOps promotion model this
+# phase demonstrates.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: golden-path-agent-demo-prod
+  namespace: openshift-gitops
+spec:
+  project: golden-path-agent
+  source:
+    repoURL: https://github.com/DarkDragonEl/golden-path-agent-template.git
+    targetRevision: main
+    path: deploy/kustomize/overlays/demo-prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: golden-path-agent-demo-prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false # namespace is bootstrapped once, out-of-band
+        # (pipelines/bootstrap/namespaces.yaml) -- same reasoning as
+        # pilot-prod's existing stub, not ArgoCD-managed.

@@ -1,5 +1,8 @@
-# Single small AppProject scoped to this one repo and its three destination
-# namespaces — not a multi-service, multi-repo platform project.
+# Single small AppProject scoped to this one repo and its four destination
+# namespaces (three environment namespaces plus the shared GitOps
+# controller's own namespace, for this project's own Application objects
+# only -- see the openshift-gitops destination entry below) — not a
+# multi-service, multi-repo platform project.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -9,7 +12,7 @@ metadata:
   # project touches in it; no other tenant's AppProject/Application is ever
   # read, listed, or referenced.
 spec:
-  description: Golden-path agent MVP — one repo, three promoted environments.
+  description: Golden-path agent MVP — one repo, four promoted environments.
   sourceRepos:
     - https://github.com/DarkDragonEl/golden-path-agent-template.git
     # Public repo, HTTPS -- deliberate: the shared Argo CD instance needs no
@@ -21,10 +24,25 @@ spec:
   destinations:
     - namespace: golden-path-agent-ephemeral-test
       server: https://kubernetes.default.svc
+    - namespace: golden-path-agent-demo-prod
+      server: https://kubernetes.default.svc
     - namespace: golden-path-agent-staging
       server: https://kubernetes.default.svc
     - namespace: golden-path-agent-pilot-prod
       server: https://kubernetes.default.svc
+    - namespace: openshift-gitops # Step C4 (DEC-021): required for the
+      # root app-of-apps Application (deploy/argocd/application-root.yaml)
+      # to manage this project's OWN child Application objects
+      # (deploy/argocd/apps/*.yaml), which live in this namespace by
+      # ArgoCD's own convention -- the same "zero writes to
+      # openshift-gitops beyond this one AppProject/its own Applications"
+      # boundary already established for the AppProject object itself
+      # (DEC-024) and the three original Application stubs, just made
+      # reachable via app-of-apps instead of only direct `oc apply`. Still
+      # never touches another tenant's AppProject/Application -- every
+      # object this destination permits is scoped by `spec.project:
+      # golden-path-agent` on the object itself, enforced by ArgoCD
+      # regardless of destination namespace.
   namespaceResourceWhitelist:
     - group: apps
       kind: Deployment
@@ -44,3 +62,10 @@ spec:
       kind: Secret # Phase C, DEC-024: plain Secret, not ExternalSecret --
       # see the Phase C plan's secret-handling decision (ESO deferred as a
       # clean phase-two integration point).
+    - group: argoproj.io
+      kind: Application # Step C4 (DEC-021): the app-of-apps pattern --
+      # required for the root Application to create/manage the
+      # ephemeral-test and demo-prod child Application objects. Every
+      # Application this permits still only ever takes effect via this
+      # SAME AppProject's own `destinations`/`namespaceResourceWhitelist`
+      # boundaries -- it cannot be used to reach outside them.

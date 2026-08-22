@@ -1,3 +1,8 @@
+# Phase C, Step C4 (DECISIONS.md DEC-021). Moved here from
+# deploy/argocd/application-ephemeral-test.yaml unchanged -- this
+# directory is what the root app-of-apps Application
+# (deploy/argocd/application-root.yaml) actually syncs; content identical
+# to before the move, only the file's location changed.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

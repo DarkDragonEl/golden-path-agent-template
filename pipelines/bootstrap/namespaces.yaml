@@ -1,6 +1,10 @@
-# Phase C, Step C1a (DECISIONS.md DEC-023/DEC-024). Applied once, by a
-# human, as a deliberate bootstrap step -- not by the pipeline itself. Both
-# namespaces are pre-created here, not created/destroyed per PipelineRun,
+# Phase C, Step C1a (DECISIONS.md DEC-023/DEC-024), extended at Step C4
+# (DEC-021) for golden-path-agent-demo-prod. Applied once, by a human, as a
+# deliberate bootstrap step -- not by the pipeline itself, and not by
+# ArgoCD either (demo-prod's own Application deliberately sets
+# CreateNamespace=false, same reasoning as pilot-prod's existing stub --
+# see deploy/argocd/apps/demo-prod.yaml). All three namespaces are
+# pre-created here, not created/destroyed per PipelineRun or per sync,
 # specifically because the pipeline's own ServiceAccount (rbac.yaml, this
 # directory) is granted NO cluster-scoped permissions at all (no
 # ClusterRoleBinding, no cluster-admin, per the owner's explicit
@@ -25,5 +29,12 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: golden-path-agent-ephemeral-test
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: golden-path-agent-demo-prod
   labels:
     app.kubernetes.io/part-of: golden-path-agent
