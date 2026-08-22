@@ -3021,3 +3021,67 @@ auth can-i create pods --subresource=exec ...` correctly returns `yes`.
 auth can-i` with the correct subresource syntax; the label fix is
 logic-only, will be confirmed by the next `PipelineRun` actually finding
 the pod). Proceeding to re-trigger `PipelineRun` C1c-9.
+
+## DEC-034 — Step C1c, `PipelineRun` C1c-9: `eval-gate-live` passed (all
+8 domain categories, live model, first time); `security-tests` and
+`operational-tests` both failed on the same root cause, `curl` missing
+from the deployed agent image
+
+**Document/scope:** `pipelines/tasks/security-tests.yaml`
+(`rest-zero-mutation-check` step), `pipelines/tasks/operational-tests.yaml`
+(`kill-primary-fallback-check` step). `PipelineRun` C1c-9
+(`golden-path-agent-ci-q2xbb`) reached the furthest point yet:
+`fetch-source`, `unit-tests`, `eval-gate-offline`, `policy-validate`,
+`container-build`, `digest-capture`, `sbom-generate`, `deploy-ephemeral`,
+**`eval-gate-live`** (the full live 8-category domain suite, against the
+real model, in-process — `DEC-033`'s Finding-1 fix confirmed complete),
+and `destroy-ephemeral` all succeeded. Only two stages failed, both
+`oc logs`-confirmed to be the exact same root cause independently.
+
+**Root cause:** both stages `oc exec` into the deployed agent pod and
+then invoke `curl` inside it, to drive the real HTTP surface from inside
+the pod network (the same pattern `DEC-033`'s Finding 3 fixed the RBAC
+for). The deployed agent's own container image
+(`python:3.12-slim`-based, per `Containerfile`) has no `curl` installed
+— confirmed directly via `oc logs`: `executable file 'curl' not found in
+$PATH`. This is a property of the application image itself, not
+something either Task script could have detected without running live.
+
+**Decision/Fix:** do not add `curl` to the application image (it would
+be a permanent image change to serve a CI-only need, and this project's
+`CLAUDE.md` "one immutable artifact" rule already discourages growing
+the image's surface for incidental reasons). Instead, both steps now
+drive the HTTP calls with Python **stdlib** `urllib.request`, executed
+*inside* the pod via `oc exec -i ... -- python3 - <<'PYEOF' ... PYEOF`
+(a single stdin-piped script, not a `python3 -c "..."` argument — piping
+via stdin avoids shell-quoting the embedded JSON/curly-brace syntax
+through `oc exec`'s own argument parsing). `python3` is already present
+in the image (it's the application runtime); stdlib `urllib.request`
+needs no new dependency or version assumption, unlike reaching for the
+project's real `httpx>=0.27` dependency inside a throwaway CI script.
+
+- `security-tests.yaml`'s `rest-zero-mutation-check`: one heredoc
+  replacing four separate `curl` calls (`get_json`/`post_json`/
+  `request_count` helpers, then the before/invoke/reject/after/assert
+  sequence) — functionally identical to the previous `curl`-based
+  version, same assertions.
+- `operational-tests.yaml`'s `kill-primary-fallback-check`: one heredoc
+  replacing the single `curl -X POST /invoke` call, writing its JSON
+  response to `/tmp/resp.json` inside the Task's own pod (not the agent
+  pod) so the existing shell-side `final_output`/fallback assertions
+  (unchanged) continue to read it the same way.
+
+**Verification before trusting it live** (same discipline as prior
+fixes this phase): extracted the rendered heredoc body from each YAML
+file via `yaml.safe_load` (isolating exactly the lines between the
+`<<'PYEOF'` opener and the standalone `PYEOF` closer) and ran
+`python3 -m py_compile` on the extracted text — both confirmed valid
+Python syntax, correct indentation surviving the YAML block-scalar
+stripping. Also ran `sh -n` against each Task's full rendered
+`script:` text — both confirmed valid shell syntax. Then
+`oc apply --dry-run=server` for both files (both `configured (server
+dry run)`), then a real `oc apply` for both (both `configured`).
+
+**Status:** Both fixes applied and locally verified; not yet confirmed
+live (that requires the next `PipelineRun`). Proceeding to re-trigger
+`PipelineRun` C1c-10.

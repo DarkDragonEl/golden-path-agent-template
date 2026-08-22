@@ -53,14 +53,36 @@ spec:
         oc rollout status deployment/"$NAME" -n "$NS" --timeout=180s
         POD=$(oc get pod -n "$NS" -l app.kubernetes.io/instance="$NAME" -o jsonpath='{.items[0].metadata.name}')
 
-        resp=$(oc exec -n "$NS" "$POD" -- curl -s -X POST http://localhost:8080/invoke \
-          -H 'Content-Type: application/json' \
-          -d '{"query": "What is the status of incident INC-10240?", "write": false, "user_id": "ci-operational-test"}')
-        echo "$resp"
+        # DEC-034: python3/urllib inside the pod via stdin, not curl --
+        # same reason as security-tests.yaml's own fix (the agent's own
+        # image has no curl at all, confirmed live).
+        oc exec -i -n "$NS" "$POD" -- python3 - <<'PYEOF' > /tmp/resp.json
+        import json
+        import sys
+        import urllib.request
+
+        data = json.dumps(
+            {
+                "query": "What is the status of incident INC-10240?",
+                "write": False,
+                "user_id": "ci-operational-test",
+            }
+        ).encode()
+        req = urllib.request.Request(
+            "http://localhost:8080/invoke",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            resp = json.load(r)
+        json.dump(resp, sys.stdout)
+        PYEOF
+        cat /tmp/resp.json
 
         oc delete deployment "$NAME" -n "$NS" --wait=false
 
-        final_output=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('final_output') or '')")
+        final_output=$(python3 -c "import json; print(json.load(open('/tmp/resp.json')).get('final_output') or '')")
         [ -n "$final_output" ] || { echo "FAIL: no final_output -- fallback did not recover the request." >&2; exit 1; }
         echo "$final_output" | grep -qi "could not be completed safely" && {
           echo "FAIL: request escalated to human review instead of falling back -- fallback route may not be configured." >&2
