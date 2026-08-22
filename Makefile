@@ -30,8 +30,18 @@ eval: eval-fast eval-domain
 # Fast, fully offline EXAMPLE-*.yaml harness-mechanics smoke pair -- inner-
 # loop dev iteration only, not the promotion gate (that's `eval`, above).
 # ci/pr-checks.yaml's PR-check stage runs this exact command directly.
+#
+# AGENT_MODEL_MODE=fake is forced here, not left to eval/cli.py's own
+# os.environ.setdefault (a soft default that does nothing if the caller's
+# shell already exported AGENT_MODEL_MODE=live -- exactly what a caller
+# running the combined `eval` target after sourcing .env for eval-domain's
+# sake would have done. Found by direct verification, not assumed: running
+# `eval-fast`/`eval-domain` back to back in a shell with AGENT_MODEL_MODE
+# already exported silently broke EXAMPLE-001/002 before this line existed.
+# eval-domain intentionally has no such override -- it must keep requiring
+# the caller to explicitly opt into live mode, per its own comment below.
 eval-fast:
-	python -m eval.cli run --all
+	AGENT_MODEL_MODE=fake python -m eval.cli run --all
 
 # Equivalent to `eval`'s domain half alone -- useful when iterating on a
 # domain-only change without re-running the offline EXAMPLE pair.
