@@ -3,14 +3,14 @@
 ## Where this is
 
 - **Branch:** `feature/phase-b-golden-path`
-- **Last commit:** `6291c3d` — "R2 batch: apply all six Checkpoint
-  R1-approved remedies" (store matching fix, two prompt hardenings, two
-  eval-case redesigns, one eval-case recalibration). About to be followed by
-  a documentation-only commit for this R2 report/handoff update.
-- **Working tree:** `reports/feature-phase-b-golden-path.md` (Mission Step
-  R2's evidence table appended) and `HANDOFF.md` (this file, updated to
-  match) about to be committed together, documentation only. All code/prompt/
-  eval-case changes for R2 are already committed as of `6291c3d`.
+- **Last commit:** `2fb5a22` — "R3 sampling audit: pin temperature=0,
+  seed=42 on every model call". About to be followed by a documentation-only
+  commit for this R3 report/handoff update (`DEC-015`/`DEC-016`, the
+  deterministic re-baseline, and the gate-semantics options table).
+- **Working tree:** `DECISIONS.md`, `reports/feature-phase-b-golden-path.md`,
+  `HANDOFF.md` (this file) about to be committed together, documentation
+  only. All code changes for R3 (the sampling pin) are already committed as
+  of `2fb5a22`.
 
 ## Phase position
 
@@ -26,21 +26,26 @@ that section if anything below seems to skip a step you remember from
 **Accepted-plan B1/B2/B3/B3.5/B4 all done and committed. `E2E_DEMO_PLAN.md`'s
 B6 (OTel) is confirmed substantially incomplete/orphaned — see the R0
 crosswalk for the exact per-field classification, closure deferred to Step
-R4.** `DEC-013` (redesign, locked) and `DEC-014` (R2 remedy batch) are both
-done and committed. Checkpoint B2 (`make up && make eval` green across all 8
-domain categories — note: the literal `make eval` target does **not**
-currently run the domain suite, that's `make eval-domain`; also flagged in
-the R0 crosswalk as a gap to close, deferred to R4) is not yet reached — the
-gate still fails all 3 passes post-R2 (see below), and Steps R3/R4 remain
-before Checkpoint B2 is reachable.
+R4.** `DEC-013` (redesign, locked), `DEC-014` (R2 remedy batch), `DEC-015`
+(sampling pinned, dominant noise source confirmed and closed), and
+`DEC-016` (`INJ-006` locked as a known-gap) are all done and committed.
+Checkpoint B2 (`make up && make eval` green across all 8 domain
+categories — note: the literal `make eval` target does **not** currently
+run the domain suite, that's `make eval-domain`; also flagged in the R0
+crosswalk as a gap to close, deferred to R4) is not yet reached — the gate
+still fails all 3 passes post-R3 (54/62, 55/62, 55/62 — much closer than any
+prior round), and Step R3's gate-semantics pick plus Step R4 remain before
+Checkpoint B2 is reachable.
 
 **Mission in progress** (owner-issued, sequenced R0 → R1 → R2 → R3 → R4 →
 Checkpoint B2 → Phase C → Phase D → Phase E, each step ending in a mandatory
-owner STOP): **Step R0 and R1 acknowledged. Step R2 (batch owner-approved
-remedies + single re-baseline) is done, holding at Checkpoint R2 for owner
-review.** Step R3 (gate-semantics design for live-model noise, using
-`ITR-007`/`KQA-012`'s tracked instability as primary evidence) is next, not
-started.
+owner STOP): **Step R0/R1/R2 acknowledged. Step R3 (sampling audit +
+deterministic re-baseline + gate-semantics options) is done, holding at
+Checkpoint R3 for the owner's pick among the three presented options** (see
+`reports/feature-phase-b-golden-path.md`'s "Mission Step R3" section — a
+recommendation is given, not a decision). Step R4 (implement the picked
+gate semantics, close plan-B6/the `make eval` gap, reach Checkpoint B2) is
+next, not started.
 
 ## This session's work: decide-then-retrieve reordering (`DEC-013`, locked)
 
@@ -112,6 +117,37 @@ unstable, not fixed) and diagnosed the other 7 firm-ceiling cases precisely.
 **Holding at Checkpoint R2** for owner review before Step R3 (gate-semantics
 design for live-model noise) begins.
 
+## Step R3 (sampling audit + deterministic re-baseline) — done
+
+`DEC-015` records the sampling audit and the pin; `DEC-016` locks `INJ-006`
+as a final known-gap. Read `reports/feature-phase-b-golden-path.md`'s
+"Mission Step R3" section for the full evidence and the gate-semantics
+options table before picking (a)/(b)/(c) or implementing anything.
+
+**Sampling was confirmed as the dominant noise source, not just suspected.**
+Neither `temperature` nor `seed` was ever set before this step — pinning
+both (`temperature=0`, `seed=42`, `agent/config.py`, commit `2fb5a22`)
+collapsed the pass-to-pass flip rate from **87% (R2) to 12.5% (R3)** —
+7 of 8 remaining failing cases (`ITR-004`, `ITR-007`, `KQA-012`, `INJ-006`,
+`TSEL-004`, `UAW-001`, `UAW-004`) are now firm and perfectly reproducible;
+only `UAW-003` still flips. `OOD-006`/`DRQ-002` (R2's two unexplained new
+findings) are **fully clean under determinism** — confirmed as sampling
+noise, not a hardening side effect. Gate verdict is still FAIL (54/62,
+55/62, 55/62 — the closest to green of any round so far).
+`INJ-006` failed all 3 deterministic passes → locked as a known-gap
+(`DEC-016`): "model discretion under jailbreak framing cannot be reliably
+guaranteed by prompting alone" — but `write_blocked` held 100% across three
+independent measurement rounds, so this is framed as defense-in-depth
+demonstrated (walkthrough material), not a hidden weakness.
+
+Three gate-semantics options presented (deterministic-sampling-alone;
+multi-pass ≥2/3; per-category threshold adjustment), with timing data
+(~4 min/domain pass) and a recommendation — **(a) alone, plus a named
+exclusion for `INJ-006` mirroring the precedented `OPS-004` pattern** — but
+the pick is explicitly the owner's, not made here.
+
+**Holding at Checkpoint R3** for that pick before Step R4 begins.
+
 ## Invariants that must survive any future session
 
 These are load-bearing design decisions, not implementation details — do
@@ -140,14 +176,18 @@ not silently drift from them while doing other work:
    (`knowledge_qa`, `out_of_domain`, `itsm_read`, `draft_request`,
    `tool_selection`) before adoption — not just the categories that
    motivated testing it.
-4. **The prompt-is-instrument rule (`DEC-012`).** Both `decide_system_prompt.md`
-   and `generate_system_prompt.md` (the old single `system_prompt.md` no
-   longer exists) are part of the measurement instrument, on the same
-   footing as model choice, retrieval code, `.env` config, and graph
-   topology. Any change to either invalidates in-flight category
-   comparisons and requires a fresh, frozen-state, multi-pass re-baseline
-   before its results are compared against anything measured before the
-   change.
+4. **The prompt-is-instrument rule (`DEC-012`), now explicitly including
+   sampling config (`DEC-015`).** `decide_system_prompt.md`,
+   `generate_system_prompt.md`, model choice, retrieval code, graph
+   topology, and — as of this session — `MODEL_TEMPERATURE`/`MODEL_SEED`
+   (`agent/config.py`) are all part of the measurement instrument. Any
+   change to any of these invalidates in-flight category comparisons and
+   requires a fresh, frozen-state, multi-pass re-baseline before its results
+   are compared against anything measured before the change.
+   `temperature=0`/`seed=42` are the frozen values as of `DEC-015` — do not
+   change them without triggering that discipline; they were confirmed to
+   collapse ~87% of pass-to-pass flip noise down to ~12.5%, so a future
+   session moving off them silently would reopen a closed question.
 5. **New this session: `decide` never sees retrieved context, `generate`
    never sees tool schemas.** This is the literal fix, not an
    implementation detail — reintroducing either (e.g. "helpfully" passing
