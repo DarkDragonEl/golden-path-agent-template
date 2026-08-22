@@ -32,4 +32,4 @@ commonLabels:
 images:
   - name: golden-path-agent
     newName: REGISTRY_PLACEHOLDER/golden-path-agent
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:d73ce33214c64fdfa19388ebbd111d1e8c24e0e17996e31b4b0df57549a242ac
