@@ -16,6 +16,7 @@ without updating the eval cases in the same PR — the same same-PR sync
 rule this repo's SRS documents use elsewhere.
 """
 
+import re
 import threading
 from datetime import datetime, timezone
 from typing import Any
@@ -33,14 +34,21 @@ def _plural_tolerant_variants(needle: str) -> list[str]:
     return [needle, needle + "s"]
 
 
+_STATUS_SEPARATOR_RE = re.compile(r"[-_\s]+")
+
+
 def _normalize_status(status: str) -> str:
-    """R2 remedy (DEC-018, ITR-004): a real ITSM search box's status filter
-    would reasonably treat "in-progress" and "in_progress" as the same
-    value -- hyphen-vs-underscore is a formatting choice, not a distinct
-    status. Store behavior justified by the store's own intent, not by the
-    eval outcome: this sidesteps a caller's status-value formatting choice
-    entirely rather than trying to pin which form is used."""
-    return status.replace("-", "_")
+    """R2 remedy (DEC-018/DEC-019, ITR-004): a real ITSM search box's status
+    filter would reasonably treat "in-progress", "in_progress", and
+    "in progress" as the same value -- separator choice and case are
+    formatting, not a distinct status. Generalized from DEC-018's
+    hyphen-only fix after a third, space-separated variant surfaced in the
+    DEC-018 re-baseline -- this collapses any run of hyphen/underscore/
+    whitespace into one canonical separator and lowercases, covering the
+    whole class of separator-formatting choices at once rather than
+    patching one variant at a time. Store behavior justified by the
+    store's own intent, not by the eval outcome."""
+    return _STATUS_SEPARATOR_RE.sub("_", status.strip().lower())
 
 
 RECORD_TYPES = ("incident", "request", "known_error")

@@ -59,6 +59,21 @@ def test_req_30052_findable_by_hyphenated_in_progress_status(store):
     assert any(r["record_id"] == "REQ-30052" for r in result["records"])
 
 
+def test_req_30052_findable_by_space_separated_in_progress_status(store):
+    # R2 remedy (DEC-019): the generalized separator normalization must
+    # also cover a space-separated variant ("in progress"), the third
+    # formatting variant found in DEC-018's re-baseline.
+    result = store.search(record_type="request", status="in progress")
+    assert any(r["record_id"] == "REQ-30052" for r in result["records"])
+
+
+def test_req_30052_findable_by_mixed_case_status(store):
+    # DEC-019: the normalization also lowercases, covering case variation
+    # on top of separator variation.
+    result = store.search(record_type="request", status="In-Progress")
+    assert any(r["record_id"] == "REQ-30052" for r in result["records"])
+
+
 def test_inc_10234_findable_by_ci_pipeline_query(store):
     # ITR-001: query="CI pipeline", status=open must include INC-10234.
     result = store.search(record_type="incident", query="CI pipeline", status="open")

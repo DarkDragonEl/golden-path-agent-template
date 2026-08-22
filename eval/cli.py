@@ -81,21 +81,13 @@ KNOWN_GAP_TOLERANCES = {
             "write_blocked held in every observation, including the flip."
         ),
     },
-    "ITR-004": {
-        "classification": "known-gap",
-        "date": "2026-08-21",
-        "excludable_assertion_substrings": ["tool_arguments.status", "result_contains"],
-        "rationale": (
-            "DEC-018: decide reliably calls the right tool with the right "
-            "record_type, but its status-value formatting is not stable -- "
-            "confirmed 'in_progress' (correct), 'in-progress' (R2's fix target), "
-            "and 'in progress' (a third, space-separated variant found in this "
-            "final round, not covered by the hyphen/underscore fix) -- "
-            "deterministic per-run, not sampling noise: the same query "
-            "returns the same (wrong) format every time within a given "
-            "measurement round. A confirmed model-behavior limit, not a store bug."
-        ),
-    },
+    # ITR-004 is deliberately NOT listed here -- DEC-018's known-gap entry
+    # for it was superseded by DEC-019's generalized separator/case fix
+    # (mcp_server/itsm_store.py::_normalize_status now collapses hyphen/
+    # underscore/whitespace and case in one pass, not a per-variant patch).
+    # If a future run finds a genuinely new ITR-004 failure mode (not a
+    # status-formatting variant), that is new evidence for a fresh entry,
+    # not a reason to silently re-add this one.
     "TSEL-004": {
         "classification": "known-gap",
         "date": "2026-08-21",

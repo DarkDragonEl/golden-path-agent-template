@@ -63,9 +63,9 @@
     write_attempted: false
     approval_required: false
     result_contains: ["REQ-30052"]
-  threshold_notes: "known-gap: excluded from the itsm_read gate count since 2026-08-21 (DECISIONS.md DEC-018) -- decide reliably selects the right tool with the right record_type, but its status-value formatting is not stable (confirmed in_progress/in-progress/'in progress' variants across remediation rounds); a store-side hyphen/underscore normalization fix (DEC-018) closed two of the three observed forms but not the space-separated one. eval/cli.py's KNOWN_GAP_TOLERANCES only excludes this case when tool_name/record_type and every other assertion still passed."
-  tags: ["itsm_read", "read-only", "known-gap"]
-  version: "0.2.0"
+  threshold_notes: "counts toward itsm_read gate; status-filtered list query with no free-text. Previously a known-gap (DEC-018, 2026-08-21) for status-value formatting instability (in_progress/in-progress/'in progress' variants) -- closed by DEC-019's generalized separator/case normalization in mcp_server/itsm_store.py::_normalize_status; no longer excluded from the gate."
+  tags: ["itsm_read", "read-only"]
+  version: "0.3.0"
 
 - id: ITR-005
   category: itsm_read
