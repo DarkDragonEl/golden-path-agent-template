@@ -77,8 +77,14 @@ spec:
       taskRef: { name: digest-capture }
       runAfter: [container-build]
       params:
+        # DEC-031: no namespace prefix -- digest-capture's own TaskRun
+        # already executes in golden-path-agent-ci (where the ImageStream
+        # lives); `oc get imagestreamtag "ns/name:tag"` was live-confirmed
+        # NOT equivalent to `-n ns imagestreamtag name:tag` -- it triggers
+        # "there is no need to specify a resource type as a separate
+        # argument..." instead of resolving cross-namespace.
         - name: imagestream-tag
-          value: "golden-path-agent-ci/golden-path-agent:pr-$(tasks.fetch-source.results.commit-sha)"
+          value: "golden-path-agent:pr-$(tasks.fetch-source.results.commit-sha)"
 
     - name: sbom-generate
       taskRef: { name: sbom-generate }

@@ -127,6 +127,13 @@ rules:
   - apiGroups: [""]
     resources: ["services", "configmaps", "serviceaccounts"]
     verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+    # DEC-031: deploy/kustomize/base/ingress.yaml is a real managed
+    # resource in the rendered overlay -- missed in the original grant,
+    # confirmed live (deploy-ephemeral/destroy-ephemeral both hit
+    # "cannot get/delete resource ingresses").
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

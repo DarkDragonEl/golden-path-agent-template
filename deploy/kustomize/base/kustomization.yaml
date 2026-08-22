@@ -1,6 +1,16 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# DECISIONS.md DEC-031: externalsecret.yaml (an ExternalSecret stub) is no
+# longer a managed resource here -- the Phase C plan's secret-handling
+# decision (DEC-024) uses a plain Secret, manually provisioned out-of-band
+# (docs/phase-c-runbook.md §2), never applied by Kustomize/the pipeline.
+# A stub Secret object here (unlike the old ExternalSecret, which only
+# ever *referenced* material, never contained it) would risk `oc apply`
+# overwriting the real, manually-created secret's data with placeholder
+# content -- the safe fix is not declaring it as a managed resource at
+# all. deployment-agent.yaml's envFrom.secretRef still references
+# golden-path-agent-secrets by name; nothing here needs to create it.
 resources:
   - deployment-agent.yaml
   - deployment-mcp.yaml
@@ -9,7 +19,6 @@ resources:
   - ingress.yaml
   - serviceaccount.yaml
   - configmap.yaml
-  - externalsecret.yaml
   - networkpolicy.yaml
   - pdb.yaml
 

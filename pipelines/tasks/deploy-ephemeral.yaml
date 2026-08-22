@@ -1,8 +1,18 @@
-# Phase C, Step C1b. Applies deploy/kustomize/overlays/ephemeral-test with
-# a pipeline-scoped digest override -- kustomize edit set image writes the
-# override into a scratch copy of the overlay, never into the committed
-# base/kustomization.yaml (per the accepted plan's C1: "never committed to
-# base/"). Namespace lifecycle: golden-path-agent-ephemeral-test is
+# Phase C, Step C1b/C1c (DECISIONS.md DEC-031). Applies
+# deploy/kustomize/overlays/ephemeral-test with a pipeline-scoped digest
+# override -- kustomize edit set image runs against BASE's own
+# kustomization.yaml, in this scratch, uncommitted workspace checkout
+# only, never the committed repo (per the accepted plan's C1: "never
+# committed to base/" -- "never committed" describes the *repo*, not
+# which kustomization.yaml file gets edited transiently). Deliberately
+# NOT run against the overlay's own kustomization.yaml: confirmed live,
+# reproduced locally, and independently confirmed as a documented
+# upstream limitation (kubernetes-sigs/kustomize#1040/#4581) -- when both
+# base and an overlay declare an `images:` transformer for the same image
+# name, the overlay's override does not reliably take effect; base's own
+# value silently wins instead. Editing base's own file directly in this
+# scratch copy avoids the conflict entirely. Namespace lifecycle:
+# golden-path-agent-ephemeral-test is
 # pre-created (pipelines/bootstrap/namespaces.yaml) -- this Task manages
 # only the workload resources inside it, per DEC-024's RBAC redesign;
 # nothing here creates or deletes the Namespace object itself.
@@ -24,10 +34,34 @@ spec:
     - name: render-with-digest-override
       image: registry.k8s.io/kustomize/kustomize:v5.8.1
       workingDir: $(workspaces.source.path)/deploy/kustomize/overlays/ephemeral-test
+      env:
+        # DEC-031: security-tests/operational-tests hit the deployed
+        # agent's real /invoke HTTP endpoint, which needs a real model
+        # call -- the overlay's own committed configMapGenerator literal
+        # (MODEL_API_BASE_URL=http://dev-model-endpoint.example.com/v1)
+        # is a deliberate placeholder (this repo is public; the real
+        # endpoint is never committed). Overridden the same way the image
+        # digest is: at apply-time, in a scratch copy, never in Git --
+        # sourced from golden-path-agent-ci-config (C1a bootstrap, the
+        # same ConfigMap eval-gate-live already reads).
+        - name: MODEL_API_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: golden-path-agent-ci-config
+              key: MODEL_API_BASE_URL
+        - name: MODEL_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: golden-path-agent-ci-config
+              key: MODEL_NAME
       script: |
         #!/bin/sh
         set -eu
-        kustomize edit set image golden-path-agent="$(params.image-ref)"
+        (cd $(workspaces.source.path)/deploy/kustomize/base && \
+          kustomize edit set image golden-path-agent="$(params.image-ref)")
+        kustomize edit set configmap golden-path-agent-config \
+          --from-literal=MODEL_API_BASE_URL="${MODEL_API_BASE_URL}" \
+          --from-literal=MODEL_NAME="${MODEL_NAME}"
         kustomize build . > $(workspaces.source.path)/rendered-ephemeral.yaml
     - name: apply
       image: quay.io/openshift/origin-cli:4.20

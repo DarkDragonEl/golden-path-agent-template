@@ -2804,3 +2804,110 @@ any future infra work generally.
 **Status:** Fixed, RBAC verified live. Build behavior itself
 (fixed-pending-confirmation, same discipline as `DEC-029`) not yet
 re-verified — pending `PipelineRun` C1c-6.
+
+## DEC-031 — Step C1c, `PipelineRun` C1c-6: real progress
+(`container-build`/`digest-capture` succeeded — the first real image
+built and pushed) and four more findings, all fixed and verified locally
+before a seventh attempt
+
+**Document/scope:** `deploy/kustomize/base/kustomization.yaml`
+(`externalsecret.yaml` removed), `deploy/kustomize/base/externalsecret.yaml`
+(deleted), `deploy/kustomize/overlays/ephemeral-test/kustomization.yaml`
+(`namespace.yaml` removed from `resources:`, `MODEL_NAME` literal added),
+`pipelines/bootstrap/rbac.yaml` (`Ingress` grant added),
+`pipelines/pipeline.yaml` (`digest-capture`'s `imagestream-tag` param
+fixed), `pipelines/tasks/deploy-ephemeral.yaml` (image override moved to
+edit base directly; `MODEL_API_BASE_URL`/`MODEL_NAME` apply-time
+override added). `PipelineRun` C1c-6 (`golden-path-agent-ci-tk7hr`) is
+the first run where `container-build` and `digest-capture` both
+**succeeded** — `DEC-030`'s fix confirmed, a real image genuinely built
+and pushed. Progress moved to `sbom-generate`/`deploy-ephemeral`
+(parallel), both of which then failed, plus `destroy-ephemeral` in
+`finally:`.
+
+**Finding 1 — `sbom-generate` received an empty digest.**
+`digest-capture`'s own `TaskRun` result was `""`. Root cause: its `oc get
+imagestreamtag` call was invoked with a namespace-prefixed name
+(`"golden-path-agent-ci/golden-path-agent:pr-<sha>"`), which `oc`
+interprets differently than a plain cross-namespace lookup — confirmed
+live: `error: there is no need to specify a resource type as a separate
+argument...`. `digest-capture`'s own `TaskRun` already executes inside
+`golden-path-agent-ci` (where the `ImageStream` lives), so the prefix was
+never needed. **Fix, verified against the actual live `ImageStreamTag`
+`container-build` had just created** (not a synthetic test): the plain
+name resolves the real digest correctly.
+
+**Finding 2 — `deploy-ephemeral`/`destroy-ephemeral` both hit three
+distinct `Forbidden`/`no matches` errors**, all from the SAME underlying
+cause: two Phase C design decisions recorded in `DEC-024` (replace
+`ExternalSecret` with a plain, out-of-band `Secret`; the `Namespace`
+object is bootstrapped once, not pipeline-managed) were **documented but
+never actually implemented** — the files themselves still declared both
+as managed resources. Confirmed live (`no matches for kind
+"ExternalSecret"`, `cannot get/delete resource "namespaces"`) before
+fixing. **Fixed, this time by actually doing what was decided**:
+`externalsecret.yaml` deleted, no longer in `base/kustomization.yaml`'s
+`resources:` (a stub plain `Secret` was deliberately *not* substituted in
+its place — applying one would risk `oc apply` overwriting the real,
+manually-provisioned secret's data with placeholder content, a real risk
+an `ExternalSecret` never posed since it only ever referenced material,
+never contained it); `namespace.yaml` removed from the `ephemeral-test`
+overlay's `resources:` (the file itself is kept, just unreferenced, as
+metadata documentation). A third, related `Forbidden` (`ingresses`) was a
+plain, separate RBAC omission from `DEC-024`'s original grant — `base/`'s
+own `ingress.yaml` is a real managed resource that was simply never added
+to the `Role`; fixed and verified live (`oc auth can-i`).
+
+**Finding 3, caught locally before it could cause a confusing eighth
+failure — the deployed pods would have used the wrong image entirely.**
+Not yet actually observed as a live failure (the run never got past
+Finding 2's blockers) — found by verifying `deploy-ephemeral`'s digest-
+override step *actually renders what it claims* before trusting it
+further, the same discipline `DEC-026` established. Reproduced locally:
+`kustomize edit set image` on the *overlay* correctly writes the override
+into the overlay's own `kustomization.yaml` file, but `kustomize build`
+still renders `base/`'s own placeholder digest regardless — confirmed as
+a documented upstream Kustomize limitation
+(`kubernetes-sigs/kustomize#1040`/`#4581`): when both base and an overlay
+declare an `images:` transformer for the same image name, the overlay's
+override does not reliably take effect. **Fix**: the digest override now
+runs against `base/`'s own `kustomization.yaml`, in the same scratch,
+uncommitted workspace checkout (never the committed repo — "never
+committed to `base/`" describes the repository, not which file gets
+edited transiently). Verified end-to-end locally with the exact real
+digest `container-build` had just pushed, matching the real script's
+exact structure (subshell `cd`, relative paths) before trusting it live.
+
+**Finding 4, also caught locally, not yet a live failure**: the
+`ephemeral-test` overlay's committed `configMapGenerator` hardcodes a
+placeholder `MODEL_API_BASE_URL` (`http://dev-model-endpoint.example.com/v1`
+— deliberate, this repo is public) — but `security-tests`/
+`operational-tests` need the *deployed* agent pod to make real model
+calls over its real `/invoke` HTTP surface. Fixed the same way as the
+digest: an apply-time override (`kustomize edit set configmap`), sourced
+from `golden-path-agent-ci-config` (already populated with the real
+values at C1a bootstrap), never committed. **A sub-bug caught by testing
+this fix locally, not assumed working**: `kustomize edit set configmap`
+can only update a key already declared as a literal in that specific
+`kustomization.yaml` file, not any key present in the merged/generated
+`ConfigMap` overall — confirmed live: `key 'MODEL_NAME' not found in
+resource`, since the overlay only declared `MODEL_API_BASE_URL` as an
+override-able literal, not `MODEL_NAME`. Fixed by declaring a
+`MODEL_NAME` literal in the overlay (equal to base's own default, purely
+so an overridable entry exists), then verified the full override chain
+end-to-end locally.
+
+**Rationale for verifying Findings 3 and 4 locally instead of waiting for
+a seventh live failure**: by this point in Step C1c, the marginal cost of
+a careful local check (minutes) was clearly lower than another full
+`PipelineRun` cycle (build + push + live model calls, ~10+ minutes) to
+rediscover the same class of thing — the same judgment already applied to
+`syft`'s fix in `DEC-027`, reapplied here now that two genuinely
+untested, high-risk steps (image override, config override) were about
+to run live for the first time.
+
+**Status:** All four findings fixed and independently verified — Findings
+1/2's RBAC and resource-list fixes live via `oc auth can-i`/`oc apply
+--dry-run=server`; Findings 3/4's rendering logic locally, against the
+real digest and the real script structure, not a synthetic stand-in.
+Proceeding to re-trigger `PipelineRun` C1c-7.
