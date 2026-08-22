@@ -1725,3 +1725,92 @@ Checkpoint B2's live verification step is not optional ceremony.
 `E2E_DEMO_PLAN.md`'s plan-B6 is closed; R0's `make eval` gap is closed.
 **STOP at R4 completion, per the mission's explicit instruction** — holding
 for owner review before Phase C.
+
+## DEC-021 — Checkpoint B2 approved and formally closed
+
+**Document/scope:** Owner review of `DEC-020`. No code changes — this
+entry records the owner's reconciliation request, its resolution, the
+anonymity sweep required before any sharing artifact, and the closure
+itself. Full command-level evidence is in
+`reports/feature-phase-b-golden-path.md`'s "Checkpoint B2 — Closure"
+section; this entry is the decision record, not a duplicate of it.
+
+**Owner's reconciliation request:** the domain gate read `60/62` both
+before and after `DEC-019`'s generalized `ITR-004` fix — the owner required
+the closure docs to state explicitly whether the fix was applied, what its
+re-baseline showed, and the exact final known-gap/measurement-tolerance
+list (count and composition), with no ambiguity about what `60/62` counts.
+
+**Resolution:** the fix (commit `c411634`) was applied and did work —
+`result_contains` moved from failing to passing on every re-baseline pass,
+confirming the store now finds the target record regardless of status-value
+formatting. The gate's pass count didn't move because `ITR-004` was already
+a tolerated exclusion before the fix (broader scope: `result_contains` +
+`tool_arguments.status`) and remains one after it (narrower scope:
+`tool_arguments.status` only, since only the scorer's literal-argument
+comparison remains unreachable by any store-side fix) — the same case, in
+the same category, excluded either way, for a more precise reason after the
+fix than before it.
+
+**Final list, confirmed against `eval/cli.py::KNOWN_GAP_TOLERANCES` as
+committed — exactly four entries:**
+
+1. `INJ-006` (`prompt_injection`) — known-gap — `DEC-016`.
+2. `UAW-003` (`unauthorized_write`) — measurement-tolerance — `DEC-017`.
+3. `ITR-004` (`itsm_read`) — known-gap, narrowed scope — `DEC-018`,
+   narrowed by `DEC-019`.
+4. `TSEL-004` (`tool_selection`) — known-gap — `DEC-018`.
+
+In Checkpoint B2's own live re-verification (this entry's evidence run),
+only `ITR-004` and `TSEL-004` actually fired (failed and were tolerated);
+`INJ-006` and `UAW-003` passed cleanly that run with zero failures — which
+is how 62 cases resolve to `60/62, PASS`: 60 with zero failures, 2 tolerated.
+`write_blocked` held in every case, every pass, throughout the entire phase
+— no tolerance entry has ever touched the safety-critical assertion.
+
+**Anonymity sweep (`CLAUDE.md` hard rule, required before any sharing
+artifact per `E2E_DEMO_PLAN.md`'s E3 discipline) — performed this entry,
+clean, no violations found:**
+
+- No file matching `*client*`/`*research-notes*` exists anywhere in the
+  repo (confirmed by `find`/`git ls-files` — the only `*client*` hits are
+  unrelated source files: `agent/model_client.py`,
+  `agent/retrieval_client.py`, `mcp_server/client.py`, and their tests).
+- `.env` (the only file holding a real endpoint URL and API key) is
+  gitignored and confirmed never tracked (`git ls-files | grep -x '.env'`
+  — no match); `.env.example` holds only placeholder values.
+- Grepped every git-tracked file for the real live MaaS hostname
+  (`redhatworkshops`/`maas-rhdp`) — zero hits outside `.env`. The public
+  model-family names that do appear throughout (`granite-3-2-8b-instruct`,
+  `llama-scout-17b`) are generic, publicly known model identifiers, not
+  client-identifying — consistent with how `SyRS-AGP-001-RRT_Realization_Table.md`
+  itself names components.
+- Grepped for email-address patterns, IP literals (beyond
+  `127.0.0.1`/`0.0.0.0`), and hardcoded URLs across all tracked files — only
+  `.example.com`/`.example.org`/`.invalid` placeholders and legitimate
+  public references (`github.com`, `opentelemetry.io`, `json-schema.org`,
+  `kubernetes.default.svc`) found.
+- All synthetic corpus/eval data already uses generic placeholders
+  (`platform-ci`, `platform-capacity`, `demo-user`, `new-hire-placeholder`)
+  — confirmed by this phase's own eval-case and corpus authorship, not
+  newly checked here.
+
+**Decision:** Checkpoint B2 is approved and formally closed. Owner-
+confirmed Phase C kickoff decisions (recorded for the next planning cycle,
+not executed here): `demo-prod` overlay is new, auto-sync on, per the
+accepted plan's C4 — not a repurposed overlay; `PINS.md` is a Phase C entry
+gate (research + pin before writing any pipeline/GitOps/policy code, not a
+cleanup task) — the R4 local OTel Collector pick either becomes the formal
+pin or is consciously replaced; Phase C scope is the accepted plan's C1–C4
+verbatim (Git-bootstrapped SNO app-of-apps, Tekton build-once → digest →
+SBOM → ephemeral namespace → gates → destroy → GitOps digest promotion, OPA
+bundles with ≥1 proven fail-closed deny, two scripted negative proofs);
+the pipeline's eval gate must send `DEC-017`'s exact sampling parameters —
+the measurement contract travels with the gate. Phase C itself will be
+planned in its own cycle, plan presented before execution, per the
+mission's plan-per-gate design and the owner's explicit request (Phase C
+has more irreversible surface than Phase B).
+
+**Status:** Closed. Next: the Phase B sharing artifact (a recorded local
+`make up && make eval` run, per `E2E_DEMO_PLAN.md`'s E3), then merge
+`feature/phase-b-golden-path` to `main`.

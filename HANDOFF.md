@@ -11,9 +11,14 @@
   `HANDOFF.md` (this file) about to be committed together, documentation
   only. All code/prompt/eval-case changes are already committed as of
   `6011a27`.
-- **Step R4 is done. Checkpoint B2 is fully, live-verified complete.**
-  Mission is holding at the STOP after R4, per its own explicit
-  instruction — do not begin Phase C without new owner authorization.
+- **Checkpoint B2 is approved and formally closed (`DEC-021`).** Owner
+  reconciliation on the `ITR-004`/60-62 question is resolved (see
+  `DEC-021` / the report's "Checkpoint B2 — Closure" section). Anonymity
+  sweep performed, clean, no violations. Remaining before Phase C: produce
+  the Phase B sharing artifact (recorded `make up && make eval`, per
+  `E2E_DEMO_PLAN.md`'s E3), then merge this branch to `main`. Phase C
+  itself is not started — it will be planned in its own cycle and the plan
+  presented before execution, per the owner's explicit request.
 
 ## Phase position
 
@@ -266,6 +271,49 @@ Stack torn down cleanly after; 162/162 tests still passing.
 
 **STOP at R4 completion, per the mission's explicit instruction.** Holding
 for owner review before Phase C.
+
+## Checkpoint B2 — approved and closed (`DEC-021`)
+
+Owner reviewed `DEC-020` and approved, with one reconciliation required:
+state explicitly whether `DEC-019`'s `ITR-004` fix was applied, what its
+re-baseline showed, and the exact final known-gap/measurement-tolerance
+list — since the gate read `60/62` both before and after that fix, which
+could look like the fix did nothing. It didn't do nothing: `result_contains`
+moved from failing to passing; the gate's count didn't move because
+`ITR-004` was already tolerated before the fix (broader scope) and remains
+tolerated after it (narrower scope) — full explanation in `DEC-021` and the
+report's "Checkpoint B2 — Closure" section, which is now the
+self-contained reference for the final four-entry list
+(`INJ-006`/`UAW-003`/`ITR-004`/`TSEL-004`) — read that before citing "the
+known-gap list" from any earlier, now-superseded summary in this file.
+
+**Anonymity sweep performed, clean.** No `*client*`/`*research-notes*`
+file exists in the repo; `.env` (the only file with a real endpoint/key) is
+gitignored and untracked; no real hostnames, emails, or IPs found in any
+tracked file. Full method in `DEC-021`.
+
+**Remaining before Phase C, in order:** (1) produce the Phase B sharing
+artifact — a recorded local `make up && make eval` run, per
+`E2E_DEMO_PLAN.md`'s E3 ("a short recorded local run... shows the inner
+loop and laptop-parity story"); (2) merge `feature/phase-b-golden-path` to
+`main`, which formally closes Checkpoint B2. Phase C itself will be
+planned in its own cycle — plan presented before execution, not
+implemented directly off the owner's kickoff decisions below.
+
+**Phase C kickoff decisions on record** (owner-confirmed, not yet acted
+on): `demo-prod` overlay is new (not repurposed), auto-sync on, per the
+accepted plan's C4. `PINS.md` is a Phase C *entry gate* — research +
+pin the relevant Validated Patterns/AI Quickstarts/reference repos
+*before* writing any pipeline/GitOps/policy code, not a cleanup pass
+afterward; R4's local OTel Collector pick either becomes the formal pin or
+is consciously replaced. Phase C scope is the accepted plan's C1–C4
+verbatim (Git-bootstrapped SNO app-of-apps; Tekton build-once → digest →
+SBOM → ephemeral namespace → gates → destroy → GitOps digest promotion; OPA
+bundles with ≥1 proven fail-closed deny; two scripted negative proofs —
+seeded-bad-change PR fails the eval gate and isn't promoted, digest
+equality across namespaces). The pipeline's eval gate must send `DEC-017`'s
+exact sampling parameters (`MODEL_TEMPERATURE=0`, `MODEL_SEED=42`) — the
+measurement contract travels with the gate, not just the code.
 
 ## Invariants that must survive any future session
 
