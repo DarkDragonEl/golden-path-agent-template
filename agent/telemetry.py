@@ -51,9 +51,16 @@ def init_telemetry() -> None:
     global _initialized
     if _initialized or not config.OTEL_EXPORTER_OTLP_ENDPOINT:
         return
+    # The HTTP exporter only auto-appends the per-signal path (/v1/traces)
+    # when it resolves OTEL_EXPORTER_OTLP_ENDPOINT itself; passing `endpoint`
+    # explicitly (as here, since config.py already centralizes env reads)
+    # makes it use the value verbatim -- confirmed live against the R4 dev
+    # OTel Collector: the base URL alone 404'd ("Failed to export span
+    # batch code: 404, reason: Not Found") until /v1/traces was appended.
+    traces_endpoint = f"{config.OTEL_EXPORTER_OTLP_ENDPOINT.rstrip('/')}/v1/traces"
     provider = TracerProvider(resource=Resource.create({"service.name": config.OTEL_SERVICE_NAME}))
     provider.add_span_processor(
-        BatchSpanProcessor(OTLPSpanExporter(endpoint=config.OTEL_EXPORTER_OTLP_ENDPOINT))
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=traces_endpoint))
     )
     trace.set_tracer_provider(provider)
     _initialized = True

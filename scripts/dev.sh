@@ -84,12 +84,18 @@ up() {
     -e MCP_MODE="${MCP_MODE:-mock}" \
     -e MODEL_API_BASE_URL="${MODEL_API_BASE_URL:-http://localhost:11434/v1}" \
     -e MODEL_NAME="${MODEL_NAME:-placeholder-model}" \
+    -e MODEL_API_KEY="${MODEL_API_KEY:-not-needed}" \
+    -e MODEL_FALLBACK_API_BASE_URL="${MODEL_FALLBACK_API_BASE_URL:-}" \
+    -e MODEL_FALLBACK_NAME="${MODEL_FALLBACK_NAME:-}" \
+    -e MODEL_TEMPERATURE="${MODEL_TEMPERATURE:-0}" \
+    -e MODEL_SEED="${MODEL_SEED:-42}" \
     -e MCP_TOOL_ENDPOINT="http://${MCP_NAME}:8081" \
     -e MAX_REASONING_STEPS="${MAX_REASONING_STEPS:-5}" \
     -e TOOL_TIMEOUT_SECONDS="${TOOL_TIMEOUT_SECONDS:-10}" \
     -e TOOL_RETRY_LIMIT="${TOOL_RETRY_LIMIT:-2}" \
     -e APPROVAL_MODE="${APPROVAL_MODE:-required}" \
     -e AUTO_APPROVE_IN_DEV="${AUTO_APPROVE_IN_DEV:-false}" \
+    -e AGENT_WORKLOAD_ID="${AGENT_WORKLOAD_ID:-golden-path-agent}" \
     -e OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-http://${OTEL_NAME}:4318}" \
     -v "$(pwd)/corpus/seed:/mnt/corpus:ro" \
     "$IMAGE" agent >/dev/null
