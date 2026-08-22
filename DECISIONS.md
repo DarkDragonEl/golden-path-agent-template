@@ -2393,3 +2393,106 @@ schema-validated live. `tools/check_policy_sync.py` verified both modes,
 including a deliberate-drift negative test. RBAC diff re-verified with
 `oc auth can-i`. **Holding at the C1b STOP for manifest + RBAC review, per
 the owner's explicit instruction — no `PipelineRun` triggered yet.**
+
+## DEC-026 — Step C1c, first real `PipelineRun`: two genuine findings, both
+fixed and verified, before the green-path run
+
+**Document/scope:** `pipelines/pipelinerun-template.yaml`
+(`serviceAccountName` field relocation), `tests/test_trace_check.py`
+(portability fix). Owner-approved C1b review; C1c authorized ("Trigger the
+green path"). The first real `PipelineRun` (`golden-path-agent-ci-pxxnm`)
+failed — not at `open-promotion-pr` as expected (missing PAT), but at
+`unit-tests`, with `destroy-ephemeral` also failing in `finally:`. Both
+investigated fully before any fix, per this session's standing discipline.
+
+**Finding 1 — `unit-tests` failure, a real, pre-existing repo bug, not
+introduced by Phase C.** `tests/test_trace_check.py::test_real_syrs_and_strs_id_counts_match_documents_own_claims`
+reads `SyRS-AGP-001_EN.md`/`StRS_Agentic_AI_Platform_EN.md` from
+`repo_root.parent` — one directory *above* this git repo's own root.
+Those two files are workspace-level sources of truth (`CLAUDE.md`'s own
+numbered list), deliberately not duplicated into this repo since they're
+shared workspace governance, not this deliverable's own content. That
+means any checkout of only this repo — a real `git clone` (`fetch-source`'s
+own step), any external CI system, any other laptop — never has them.
+This test only ever passed by coincidence of running from this exact
+machine's directory layout; it was caught for the first time by the first
+genuinely isolated checkout this test ever ran in (`fetch-source`'s plain
+`git clone` into a fresh Tekton workspace). Confirmed scoped to exactly
+this one test (`grep` for `repo_root.parent`/`../` across the whole file —
+one match; a sibling test, `test_real_srs_documents_parse_without_error_and_match_known_counts`,
+correctly uses `repo_root / "srs"`, inside the repo, unaffected). **Fix**:
+`pytest.skip(...)` with an explicit, dated reason when the parent-workspace
+files aren't present, instead of failing — preserves the test's real
+regression-guard value for anyone running from the full workspace layout
+(it still runs and asserts for real here), while making `pytest -q`
+genuinely portable. Verified both directions, not assumed: a copy of the
+actual (fixed) working tree run from a directory with no parent SRS docs
+→ `1 skipped`; run from this machine (parent docs present) → still `1
+passed`, same as before the fix.
+
+**Finding 2 — `destroy-ephemeral` failure, and a much more significant
+root cause underneath it: the `PipelineRun` template's `serviceAccountName`
+field was in the wrong place, and every `TaskRun` silently ran under the
+wrong identity.** `destroy-ephemeral`'s own delete attempt (a stray
+`golden-path-agent-fallback-demo` cleanup — the object didn't actually
+exist, since `operational-tests` never ran; the request still hit an RBAC
+check before an existence check) failed `Forbidden`, as
+`system:serviceaccount:golden-path-agent-ci:pipeline` — **not**
+`golden-path-agent-ci-pipeline`, the identity every single `Task` in this
+run was supposed to use. Root cause, confirmed via `oc explain
+pipelinerun.spec`: in the `tekton.dev/v1` API this cluster runs, there is
+**no top-level `spec.serviceAccountName` field on `PipelineRun` at all** —
+it lives under `spec.taskRunTemplate.serviceAccountName`.
+`pipelines/pipelinerun-template.yaml` had it at the top level (an
+older/incorrect shape). **The API server did not reject this** — it
+silently pruned the unrecognized field and defaulted
+`taskRunTemplate.serviceAccountName` to the namespace's own auto-
+provisioned default `pipeline` `ServiceAccount`. Confirmed live: every
+`TaskRun` in the failed run (`fetch-source`, `unit-tests`,
+`policy-validate`, `eval-gate-offline`, `destroy-ephemeral`) had
+`spec.serviceAccountName: pipeline`, not the intended identity. **No
+actual damage resulted this time** — confirmed directly, not assumed: no
+stray `Deployment`/`Service` objects exist in
+`golden-path-agent-ephemeral-test` (only pre-existing, expected
+`ConfigMap`/`Secret` objects — CA bundles, `golden-path-agent-secrets`,
+OpenShift's standard per-namespace dockercfg secrets); the default
+`pipeline` SA's own cross-namespace reach into `ephemeral-test` happened
+to be denied too (`oc auth can-i delete deployments ... -n
+golden-path-agent-ephemeral-test --as=...:pipeline` → `no`) — but **within
+its own home namespace, `pipeline` is meaningfully broader than the
+custom identity this project designed**: confirmed via `oc auth can-i
+--list`, full CRUD on `secrets`, `routes`, `templates`,
+`deploymentconfigs`, and more in `golden-path-agent-ci` — exactly the
+kind of unintended-broader-identity outcome the owner's RBAC discipline
+exists to prevent, even though this particular run happened not to
+exercise any of that surface destructively.
+
+**The generalizable lesson, stated for future sessions, not just this
+fix**: server-side dry-run (`oc apply --dry-run=server`, used throughout
+C1a/C1b) proves a manifest is schema-valid — it does **not** prove every
+field written is one the schema actually recognizes and the controller
+actually consumes. An unrecognized field can be silently pruned rather
+than rejected, exactly what happened here. The fix going forward, applied
+to `pipelinerun-template.yaml`'s own header comment as a standing note:
+verify a field's real location with `oc explain <kind>.<path>` before
+trusting it from general API-version knowledge, and after applying, read
+the *live object's own spec* back to confirm a value landed where
+intended — not just that `oc apply`/`create` reported success.
+
+**Fix applied and independently verified** (not just re-dry-run and
+trusted — the exact discipline the lesson above calls for):
+`spec.taskRunTemplate.serviceAccountName: golden-path-agent-ci-pipeline`.
+`oc create --dry-run=server -o yaml` on the corrected template, its
+*returned object* inspected directly, confirms
+`taskRunTemplate.serviceAccountName: golden-path-agent-ci-pipeline` is
+really where the API server places it now.
+
+**Cleanup performed**: the failed `PipelineRun` deleted (its
+auto-provisioned workspace `PVC` cascade-deleted with it, confirmed via
+its owner reference — Tekton does not delete workspace `PVC`s on
+completion while the `PipelineRun` object itself still exists, by design,
+for post-run inspection).
+
+**Status:** Both findings fixed and independently verified (not just
+re-run). Proceeding to re-trigger `PipelineRun` C1c-2 with both fixes in
+place.
