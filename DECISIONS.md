@@ -4199,3 +4199,63 @@ oversight.
 (`DEC-045`, already committed) still need a live `oc auth can-i`
 dry-run/apply confirmation and a real `PipelineRun` before this step is
 complete.
+
+## DEC-051 — D1 implementation step (d), part 2: RBAC applied live, first
+real `PipelineRun`, one real deployed-agent config gap found and fixed
+
+**RBAC applied and verified live** (`pipelines/bootstrap/rbac.yaml`, no
+content change — `DEC-045`'s diffs were already committed, just not yet
+applied): `oc apply -f pipelines/bootstrap/rbac.yaml` — server-side
+dry-run first, confirmed only the two expected objects changed
+(`golden-path-agent-ci-deploy-role`, `golden-path-agent-image-puller`),
+everything else `unchanged`. Verification note: `oc auth can-i ... --as=
+system:serviceaccount:...` gave a false "no" for the `imagestreams/layers`
+check specifically (both the brand-new `golden-path-agent-approval`
+subject AND the pre-existing, already-working `golden-path-agent`
+subject — ruling out the new grant as the cause) — an environment/API
+quirk of that one resource type on this cluster, not a real RBAC
+failure. Verified instead, authoritatively, via `oc policy who-can get
+imagestreams/layers -n golden-path-agent-ci`, which lists both new
+`golden-path-agent-approval` subjects (`ephemeral-test`, `demo-prod`)
+correctly alongside the pre-existing entries. The `persistentvolumeclaims`
+grant verified cleanly both ways (`can-i` and `who-can` agreed). Noted
+here so a future session doesn't waste time re-diagnosing the same
+`can-i`/`imagestreams-layers` quirk.
+
+**First real `PipelineRun` against `main`** (`golden-path-agent-ci-jsxgv`,
+commits through `380a7dc`): `deploy-ephemeral` **succeeded** — the
+restructured manifests, the two-kustomization digest-override, and the
+new `rollout status deployment/golden-path-agent-approval` gate all
+worked as designed on the first live attempt. `security-tests` **failed**
+— a real finding, not a flake: the deployed agent pod's live write-path
+test got `fallback_reason: approval_service_failure:ConnectError`
+instead of `pending_approval: true`.
+
+**Root cause, found from the pod's own log, not guessed**:
+`agent/config.py`'s `APPROVAL_SERVICE_ENDPOINT` default
+(`http://localhost:8082`) is correct for the podman smoke test's
+port-mapped, single-host setup (`DEC-049`'s verification) but wrong for
+any real deployment, where the approval service is a separate pod behind
+its own Service. Unlike `DEC-044`'s completeness-checker targets, this
+key **has** a default, so `tools/check_config_contract.py`'s no-default-key
+mechanism correctly did not flag it as missing — a genuinely different
+bug class (a present-but-environment-wrong default), not a gap in that
+checker's own design. **Fix, not a new pattern**: added
+`APPROVAL_SERVICE_ENDPOINT: "http://golden-path-agent-approval:8082"` to
+`deploy/kustomize/base/configmap.yaml`, mirroring
+`MCP_TOOL_ENDPOINT: "http://golden-path-agent-mcp:8081"`'s own
+already-established Service-DNS convention exactly — zero new design.
+Verified via the same scratch-copy kustomize render used for `DEC-050`
+before touching the cluster again.
+
+**Flagged, not built**: extending `check_config_contract.py` to also
+catch a *present-but-wrong-for-deployment* default (as distinct from a
+*missing* no-default key) is a real, distinct completeness gap this
+incident exposes — noted as a candidate backlog item, not built now
+(`CLAUDE.md`'s scope guard: naming a "while we're at it" addition rather
+than silently doing it mid-verification).
+
+**Status:** fix applied to `deploy/kustomize/base/configmap.yaml`, RBAC
+confirmed live; re-running the `PipelineRun` next to confirm green,
+including the corrected write-path behavior, before this step is
+declared complete.

@@ -14,6 +14,11 @@ data:
   AGENT_MODEL_MODE: "live"
   MCP_TOOL_ENDPOINT: "http://golden-path-agent-mcp:8081"
   MCP_MODE: "mock"
+  APPROVAL_SERVICE_ENDPOINT: "http://golden-path-agent-approval:8082" # Phase D/
+  # DEC-051: mirrors MCP_TOOL_ENDPOINT's own Service-DNS convention exactly --
+  # agent/config.py's own default (http://localhost:8082) is a local-dev-only
+  # value, safe in the podman smoke test's port-mapped setup but wrong for
+  # any deployed pod, where the approval service is a separate pod/Service.
   POLICY_BUNDLE_REF: "policy/baseline_policy.yaml"
   DATA_SOURCE_BINDING: "none"
   MODEL_TEMPERATURE: "0"
