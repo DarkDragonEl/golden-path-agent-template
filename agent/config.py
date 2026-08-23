@@ -72,6 +72,17 @@ MODEL_FALLBACK_NAME = _env("MODEL_FALLBACK_NAME")
 MCP_TOOL_ENDPOINT = _env("MCP_TOOL_ENDPOINT", "http://localhost:8081")
 MCP_MODE = _env("MCP_MODE", "mock")  # mock | live
 
+# Approval-service contract (Phase D, DECISIONS.md DEC-008/DEC-045/DEC-049).
+# No mock/live toggle here, unlike MCP_TOOL_ENDPOINT above -- unlike the
+# mock ITSM tool (simple synchronous functions with an obvious in-process
+# equivalent), approval_service has real state-machine/atomicity behavior
+# already covered by its own test suite (tests/test_approval_service.py);
+# duplicating that here would risk drifting out of sync with the real
+# service. Contexts that must not depend on a live approval_service (the
+# eval harness) patch agent.approval_client's functions directly instead
+# -- see eval/domain_executor.py's _FakeApprovalService.
+APPROVAL_SERVICE_ENDPOINT = _env("APPROVAL_SERVICE_ENDPOINT", "http://localhost:8082")
+
 # Retrieval / data source binding (TODO(domain): real binding per environment)
 DATA_SOURCE_BINDING = _env("DATA_SOURCE_BINDING", "none")
 AGENT_CORPUS_DIR = _env("AGENT_CORPUS_DIR", "./corpus/seed")

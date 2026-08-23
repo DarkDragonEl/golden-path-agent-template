@@ -90,7 +90,8 @@ def test_final_output_set_directly_from_model_text(monkeypatch):
 
     assert result["final_output"] == "An answer.\n\nSources: PLAT-003"
     assert result["pending_approval"] is False
-    assert result["approval_action"] is None
+    assert result["drafted_action"] is None
+    assert result["approved_action"] is None
     assert result["model_calls"][-1]["total_tokens"] == 52
 
 

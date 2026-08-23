@@ -83,5 +83,6 @@ def generate_node(state):
         "model_calls": calls,
         "final_output": text or "",
         "pending_approval": False,
-        "approval_action": None,
+        "drafted_action": None,
+        "approved_action": None,
     }

@@ -2,22 +2,23 @@
 
 The graph is compiled with interrupt_before=["human_approval"], so execution
 actually pauses before this node runs whenever tool_invoke sets
-pending_approval=True. Resuming requires an external caller to set
-approval_decision via graph.update_state(...) and then call
-graph.invoke(None, thread_config) — see agent/api.py's
-POST /approvals/{session_id}/resume.
+pending_approval=True. Resuming is agent/approval_client.py::resolve_and_resume's
+job (called from agent/api.py's POST /approvals/{session_id}/resume) — it
+queries the approval service's own terminal-state (SRS-APR-IF-05), and
+only if that query reports a terminal state does it inject
+approved_action/approval_decision into checkpointed state and call
+graph.invoke(None, thread_config). This node never sees a client-supplied
+decision (DECISIONS.md DEC-008/DEC-049) — it only ever reads what
+resolve_and_resume already validated against the service.
 
-Phase B2 restructure: this node is now the sole invoker of a
-write-classified tool call, and only on an "approve" decision (SRS-AGT-F-04,
-SRS-MIT-SEC-01 — tool_invoke_node never calls a write-classified tool
-itself, it only drafts). On approve, the tool is invoked with exactly the
-arguments persisted in `approval_action` at draft time — read back from the
-graph's own checkpointed state, never from a node-scope variable or
-re-derived from anything else (DECISIONS.md DEC-008). This is the Phase B
-interim realization of what a standalone approval service's terminal-state
-query (Phase D, SRS-APR-IF-05) will source the arguments from instead; the
-invariant — execute exactly the approved arguments, from the persisted
-record, not a cached copy — is identical in both phases.
+Phase D graduation from Phase B2's interim mechanism: this node is still
+the sole invoker of a write-classified tool call, and only when
+approved_action is set (SRS-AGT-F-04, SRS-MIT-SEC-01 — tool_invoke_node
+never calls a write-classified tool itself, it only drafts and submits).
+On approval, the tool is invoked with exactly the arguments in
+approved_action — set by resolve_and_resume from the approval service's
+own IF-05 response, never from drafted_action (the node's own earlier
+draft, kept only for audit display) or any other cached copy.
 """
 
 from .. import config
@@ -26,17 +27,11 @@ from mcp_server.client import call_tool
 
 
 def human_approval_node(state):
-    decision = state.get("approval_decision")
+    approved_action = state.get("approved_action")
 
-    if decision is None and config.AUTO_APPROVE_IN_DEV:
-        # Dev-only convenience so `--offline` runs don't require a second
-        # call. Never set true in staging/pilot-prod overlay configmaps.
-        decision = "approve"
-
-    if decision == "approve":
-        approval_action = state.get("approval_action") or {}
-        tool_name = approval_action.get("tool_name")
-        arguments = approval_action.get("arguments", {})
+    if approved_action is not None:
+        tool_name = approved_action.get("tool_name")
+        arguments = approved_action.get("arguments", {})
 
         try:
             result = call_tool(tool_name, arguments, timeout=config.TOOL_TIMEOUT_SECONDS)
@@ -46,7 +41,13 @@ def human_approval_node(state):
             error = str(exc)
 
         tool_calls = state.get("tool_calls", []) + [
-            {"tool_name": tool_name, "arguments": arguments, "result": result, "error": error}
+            {
+                "tool_name": tool_name,
+                "arguments": arguments,
+                "result": result,
+                "error": error,
+                "classification": "write",
+            }
         ]
         if error:
             return {
@@ -58,6 +59,11 @@ def human_approval_node(state):
         final_output = format_tool_result(tool_name, result)
         return {"tool_calls": tool_calls, "final_output": final_output, "pending_approval": False}
 
+    # rejected, expired, or (AUTO_APPROVE_IN_DEV aside) any other non-approved
+    # outcome resolve_and_resume recorded -- SRS-APR-F-03: expired must be
+    # indistinguishable from rejected w.r.t. execution side effects, and
+    # both land here identically (no tool call either way).
+    decision = state.get("approval_decision")
     return {
         "pending_approval": False,
         "fallback_reason": f"approval_not_granted:{decision!r}",

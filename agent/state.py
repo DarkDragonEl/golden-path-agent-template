@@ -26,6 +26,8 @@ class ModelCallRecord(TypedDict):
 
 class AgentState(TypedDict, total=False):
     session_id: str
+    request_id: str  # Phase D/DEC-049: threaded into state (previously api.py-local
+    # only) so tool_invoke_node can supply SRS-APR-IF-01's originating_request_id.
     user_id: str
     input_query: str
     write_requested: bool
@@ -44,7 +46,19 @@ class AgentState(TypedDict, total=False):
     model_route_reason_code: Optional[str]  # ditto, last call only
     tool_calls: list[ToolCallRecord]
     pending_approval: bool
-    approval_action: Optional[dict]
-    approval_decision: Optional[Literal["approve", "reject"]]
+    proposal_id: Optional[str]  # Phase D/DEC-049: the approval service's own identifier for the
+    # submitted proposal (SRS-APR-IF-01), set by tool_invoke_node at submission time -- what
+    # agent/approval_client.py::resolve_and_resume's IF-05 query is correlated by.
+    drafted_action: Optional[dict]  # {tool_name, arguments} -- set by tool_invoke_node at draft/
+    # submission time. Kept ONLY for audit/evidence display (what was proposed); never read by the
+    # execution path (human_approval_node) again after submission -- see approved_action below.
+    approved_action: Optional[dict]  # {tool_name, arguments, proposal_id, approver_id, decided_at}
+    # -- set ONLY by resolve_and_resume, ONLY from the approval service's IF-05 response body,
+    # immediately before graph.invoke(None, ...). human_approval_node reads this field, never
+    # drafted_action -- this is the structural (not comment-only) enforcement of DEC-008's "execute
+    # exactly the arguments returned by the terminal-state query, never a locally cached copy."
+    approval_decision: Optional[Literal["approved", "rejected", "expired"]]  # the approval
+    # service's own state vocabulary (schemas.py's ProposalState), not the caller's verb -- this
+    # is a recorded OUTCOME, sourced from resolve_and_resume, never a client-supplied command.
     final_output: Optional[str]
     fallback_reason: Optional[str]

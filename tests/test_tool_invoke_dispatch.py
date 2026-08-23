@@ -8,6 +8,7 @@ independent of tests/test_write_gating.py's B2 write-gating focus.
 """
 
 import os
+from unittest.mock import patch
 
 os.environ.setdefault("AGENT_MODEL_MODE", "fake")
 os.environ.setdefault("MCP_MODE", "mock")
@@ -23,7 +24,8 @@ def test_selected_tool_read_classified_executes_eagerly():
     result = tool_invoke_node(state)
 
     assert result["pending_approval"] is False
-    assert result["approval_action"] is None
+    assert result["drafted_action"] is None
+    assert result["approved_action"] is None
     assert "resolved" in result["final_output"]
     assert result["tool_calls"][-1]["tool_name"] == "itsm_search_records"
     assert result["tool_calls"][-1]["result"] is not None
@@ -31,6 +33,9 @@ def test_selected_tool_read_classified_executes_eagerly():
 
 def test_selected_tool_write_classified_drafts_without_executing():
     state = {
+        "session_id": "sess-1",
+        "request_id": "req-1",
+        "user_id": "kim",
         "selected_tool": {
             "tool_name": "itsm_create_request",
             "arguments": {
@@ -42,10 +47,19 @@ def test_selected_tool_write_classified_drafts_without_executing():
         },
         "tool_calls": [],
     }
-    result = tool_invoke_node(state)
+    # Phase D/DEC-049: tool_invoke_node's write branch now submits a real
+    # proposal to the approval service -- patched here (no running service
+    # in this unit test), mirroring eval/domain_executor.py's own
+    # _FakeApprovalService pattern for the same reason.
+    with patch("agent.nodes.tool_invoke.approval_client.submit_proposal") as mock_submit:
+        mock_submit.return_value = {"proposal_id": "prop-1", "state": "pending"}
+        result = tool_invoke_node(state)
 
     assert result["pending_approval"] is True
-    assert result["approval_action"] == state["selected_tool"]
+    assert result["proposal_id"] == "prop-1"
+    assert result["drafted_action"] == state["selected_tool"]
+    mock_submit.assert_called_once()
+    assert mock_submit.call_args.kwargs["action_arguments"] == state["selected_tool"]["arguments"]
     # Drafted, not executed -- the tool_calls entry records no result yet.
     assert result["tool_calls"][-1]["result"] is None
     assert result["tool_calls"][-1]["error"] is None

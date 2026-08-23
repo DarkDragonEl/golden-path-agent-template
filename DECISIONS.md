@@ -3940,3 +3940,172 @@ left running.
 **Status:** Step (b) complete and verified live. Proceeding to (c) — the
 agent-side redesign (the atomic `state.py`/`tool_invoke.py`/
 `human_approval.py`/`api.py` change).
+
+## DEC-049 — D1 implementation step (c): the agent-side redesign — the
+graph now calls out to the standalone approval service; one real,
+previously-unaddressed gap found and fixed along the way
+
+**Document/scope:** `agent/config.py` (`APPROVAL_SERVICE_ENDPOINT`),
+`agent/state.py` (the field split), `agent/approval_client.py` (new),
+`agent/nodes/tool_invoke.py`, `agent/nodes/human_approval.py`,
+`agent/api.py`, `agent/nodes/generate.py` (one stale field), `eval/scorer.py`,
+`eval/domain_scorer.py`, `eval/executor.py`, `eval/domain_executor.py`,
+`eval/fake_approval_client.py` (new), and the test files touching any of
+the above.
+
+**The atomic change, landed together** (per `DEC-045`'s own LangGraph
+finding — `StateGraph(AgentState)` silently drops a node's write to an
+undeclared key, so this could not be staged incrementally without
+breaking the graph mid-way):
+
+- `agent/state.py`: `approval_action` retired; replaced with
+  `drafted_action` (audit-only, set by `tool_invoke_node`, never read by
+  the execution path again) and `approved_action` (set only by
+  `resolve_and_resume`, only from the approval service's own IF-05
+  response, immediately before `graph.invoke`) — the structural, not
+  comment-only, enforcement of `DEC-008`'s invariant. `proposal_id`
+  (correlation key) and `request_id` (threaded into state for the first
+  time — previously `api.py`-local only, needed for `SRS-APR-IF-01`'s
+  `originating_request_id`) added. `approval_decision`'s vocabulary
+  switched from the caller's verb (`"approve"/"reject"`) to the approval
+  service's own state vocabulary (`"approved"/"rejected"/"expired"`,
+  matching `schemas.py`'s `ProposalState`) — it now records an outcome,
+  never a client-supplied command.
+- `agent/approval_client.py` (new): `submit_proposal`/`get_proposal`
+  (thin HTTP wrappers, mirroring `mcp_server/client.py`'s own shape) plus
+  `resolve_and_resume(graph, thread_config)` — the ONE place the
+  "query IF-05, decide whether to touch the graph, inject, resume" logic
+  lives, used by both `agent/api.py`'s real `/resume` endpoint and, via a
+  patched `submit_proposal`/`get_proposal`, the eval harness's own resume
+  step. One executor for this logic, not two.
+- `agent/nodes/tool_invoke.py`'s write branch: drafts, then calls
+  `approval_client.submit_proposal(...)` for real — `action_type=tool_name`,
+  `target_system_id="mock-itsm"` (this demo's one enterprise tool, matching
+  `mcp_server/schemas.py`'s own `"source": "mock-itsm"` convention),
+  `evidence_refs=[]` (a deliberate, named simplification, not a bug —
+  `DEC-013`'s decide-then-retrieve reordering means `retrieve_node` is
+  never reached on a tool-selected turn, so retrieval citations can never
+  populate this list today; an empty list is legitimate at the schema
+  layer per `DEC-046`). A submission failure (approval-service
+  unreachable/erroring) routes to fallback with a
+  `approval_service_failure:<ExcType>` reason code, mirroring
+  `decide_node`/`generate_node`'s own total-failure pattern with a
+  distinct, honest prefix (not conflated with a model failure). Also
+  fixed, found while rewriting this file: the write-classified `tool_calls`
+  entry `human_approval_node` appends was missing `"classification": "write"`
+  entirely (a pre-existing, silent telemetry-completeness gap — `ToolCallRecord`
+  requires it, `TypedDict` never enforced it) — added.
+- `agent/nodes/human_approval.py`: reads `approved_action` only, never
+  `drafted_action`. `AUTO_APPROVE_IN_DEV`'s old in-node shortcut removed
+  entirely — see the relocation below.
+- `agent/api.py`: `ResumeRequest` is now an empty body (Layer 1/Layer 2
+  split — a resume call carries no claims, only a trigger; the decision
+  and arguments come exclusively from `resolve_and_resume`'s own IF-05
+  query). `/invoke` threads `request_id` into initial state.
+  `AUTO_APPROVE_IN_DEV` relocated here (see below), not left dropped.
+
+**A real design correction made mid-implementation, not silently
+absorbed**: the first draft of the `AUTO_APPROVE_IN_DEV` relocation put
+the shortcut inside `tool_invoke_node` itself (setting `approved_action`/
+`pending_approval: False` directly). This is wrong and was caught before
+being tested against anything, by re-reading `agent/graph.py` directly:
+`tool_invoke`'s own conditional edge (`routers.decide_after_tool`) only
+routes to `human_approval` — where the tool is actually invoked — when
+`pending_approval` is true, and `interrupt_before=["human_approval"]` is
+**unconditional at the graph level**, regardless of what any node's
+return value contains. A shortcut inside `tool_invoke_node` would have
+either skipped tool execution entirely (if it set `pending_approval:
+False`) or still hit the same interrupt pause anyway (if it kept
+`pending_approval: True`) — neither achieves what `AUTO_APPROVE_IN_DEV`'s
+own original comment promised ("so `--offline` runs don't require a
+second call"). Correct placement, and correct re-reading of that old
+comment: "a second call" meant a second **HTTP** round-trip
+(`/approvals/{id}/resume`), not a second internal `graph.invoke()` —
+`agent/api.py`'s `/invoke` handler can transparently make two internal
+`invoke()` calls within one HTTP request. Relocated there: `_auto_approve()`
+injects `approved_action`/`approval_decision` directly (bypassing the
+real approval service entirely for this dev-only path, exactly matching
+the old behavior's spirit) and calls `graph.invoke(None, ...)` a second
+time, still inside the same `/invoke` handler.
+
+**The real, previously-unaddressed gap this step found and fixed**: the
+eval harness (`eval/domain_executor.py`, driving Phase C's
+`eval-gate-offline`/`eval-gate-live` CI stages, plus `eval/executor.py`
+for the `EXAMPLE-*.yaml` harness-mechanics pair) drives the graph
+**directly** — `graph.invoke`/`graph.update_state` — bypassing
+`agent/api.py`'s HTTP layer entirely. Before this step, that was fine,
+since the interim mechanism never made a network call either. Once
+`tool_invoke_node` calls a real `approval_client.submit_proposal(...)`,
+every write-classified eval case (`draft_request`, `unauthorized_write`,
+the `EXAMPLE-002.yaml` fixture) would have needed a live, reachable
+approval_service just to run a plain offline `pytest`/`eval.cli` pass —
+silently breaking Phase C's own already-shipped, working CI gates the
+moment this redesign landed, if left unaddressed. Found during design,
+before writing any code for step (c), by working through the exact
+consequence of "the graph now makes a real HTTP call" rather than
+assuming the eval harness would keep working. Fixed using this
+codebase's own established idiom (`eval/domain_executor.py`'s existing
+`_apply_fault` — patching a real dependency for the duration of a test
+run, not inventing a new mechanism): `eval/fake_approval_client.py`
+(new) provides `FakeApprovalService`, an in-process double for
+`agent.approval_client.submit_proposal`/`get_proposal` — deliberately
+does not reimplement approval_service's own atomicity/persistence
+(`tests/test_approval_service.py`'s 51 tests already cover that against
+the real store), only the sequential single-proposal pattern one eval
+case exercises, plus a test-only `.decide()` helper. Wired into both
+`eval/domain_executor.py` (always active for every domain case, not
+fault-conditional) and `eval/executor.py` (the `EXAMPLE-*.yaml` path).
+Both now call `approval_client.resolve_and_resume` for their own resume
+steps too, instead of the old direct `graph.update_state` injection —
+the same code path the real API uses, now exercised against the patched
+fake instead of a live service.
+
+**Also fixed, found via a full-repo grep for the retired field name**:
+`agent/nodes/generate.py`'s "no tool needed" branch still set
+`"approval_action": None` (now `drafted_action`/`approved_action`, both
+`None`); `eval/scorer.py`'s `no_unapproved_write` assertion type and
+`eval/domain_scorer.py`'s `_score_itsm_read`/`_score_unauthorized_write`/
+`_score_prompt_injection` all read `approval_action`/checked for the old
+`"approve"` verb — updated to `drafted_action`/`"approved"`.
+**Deliberately NOT touched**: `tools/diagnose_*.py` (four one-off,
+already-served-their-purpose forensic scripts from earlier
+investigations, `DEC-016`/`DEC-017`'s own INJ-006/UAW-003 flip
+diagnostics, R1/R3 triage) — historical artifacts, not live tooling; their
+own captured output already lives in `reports/*.json`.
+
+**Verified, comprehensively, not just unit-tested**:
+- Full test suite: `216 passed` (was `215` before this step — one net
+  new test, `test_execution_uses_approved_action_not_drafted_action_when_they_diverge`,
+  the mutated-draft regression test the owner's own authorization
+  required — `drafted_action` and `approved_action` deliberately diverge
+  in this test; only `approved_action`'s value may ever reach the store).
+- `AGENT_MODEL_MODE=fake python -m eval.cli run --all` → `2/2` (both
+  `EXAMPLE-*.yaml` cases, exercising the real approve path through the
+  patched fake).
+- **The required deterministic domain pass** (owner addition #4): `AGENT_MODEL_MODE=live
+  python -m eval.cli run --domain` → `60/62 cases passed`, `domain gate
+  verdict: PASS`, the identical two tolerated known-gaps (`ITR-004`,
+  `TSEL-004`) as every prior run this phase — the gate result is
+  genuinely unmoved, confirming the redesign touched graph/plumbing code
+  only, never a model-visible input (prompts, retrieval, tool schemas,
+  sampling all byte-for-byte unchanged) — no `DEC-012`-style re-baseline
+  triggered, none needed.
+- **A full three-container live smoke test** (podman, agent + mcp +
+  approval_service, real network between them, no mocks anywhere): a
+  write-classified `/invoke` → real `pending_approval: true` →
+  `GET /proposals?state=pending` on the real approval_service shows the
+  exact proposal, `evidence_refs: []`, correct `originating_session_id`/
+  `agent_workload_id` → `POST .../decision` (`approve`) via the real
+  IF-02 endpoint → empty-body `POST /approvals/{id}/resume` →
+  `final_output: "PLACEHOLDER_TOOL_RESPONSE_MARKER"`, `pending_approval:
+  false`. Reject path verified the same way, live. **The premature-resume
+  case verified live, not just reasoned about**: calling `/resume` while
+  a proposal is still `pending` returns `pending_approval: true`
+  unchanged and does NOT consume the graph's interrupt — a second
+  `/resume` call, after the proposal is actually decided, still resumes
+  and completes normally. Cleaned up after (all three containers,
+  network, and image removed).
+
+**Status:** Step (c) complete and verified live, comprehensively.
+Proceeding to (d) — manifests into the `ephemeral-test` overlay, the RBAC
+diffs applied for real, `AUTH_MODE=none`, pipeline green.

@@ -16,10 +16,11 @@ import uuid
 from unittest.mock import patch
 
 import mcp_server.itsm_store as itsm_store_module
-from agent import config as agent_config
+from agent import approval_client, config as agent_config
 from agent.graph import build_graph
 from agent.retrieval_client import RetrievedChunk
 from agent.retrieval_client import retrieve as _real_retrieve
+from .fake_approval_client import FakeApprovalService
 
 
 class DomainExecutionTrace:
@@ -39,6 +40,8 @@ class DomainExecutionTrace:
 def _initial_state(session_id: str, case) -> dict:
     return {
         "session_id": session_id,
+        "request_id": f"{session_id}-req",  # Phase D/DEC-049: agent/api.py's own equivalent is a
+        # fresh uuid per API call; a case-derived value is fine here since one case makes one call.
         "user_id": "eval-harness",
         "input_query": case.input["query"],
         "write_requested": False,  # domain cases exercise real tool selection, not the legacy flag
@@ -120,7 +123,18 @@ def execute_domain_case(case) -> DomainExecutionTrace:
     injection_source = case.input.get("injection_source")
     injection_payload = case.input.get("injection_payload")
 
-    with _apply_fault(fault, fault_params):
+    # Phase D/DEC-049: tool_invoke_node's write branch now submits a real
+    # proposal to the standalone approval service over HTTP -- domain
+    # eval runs must never depend on one being reachable (this is what
+    # makes eval-gate-offline/eval-gate-live able to run without standing
+    # up approval_service, exactly as before this graduation). Always
+    # active for every case, not fault-conditional like _apply_fault
+    # above, since any write-classified case needs it, not just specific
+    # fault scenarios.
+    fake_approval = FakeApprovalService()
+    with patch("agent.approval_client.submit_proposal", side_effect=fake_approval.submit_proposal), patch(
+        "agent.approval_client.get_proposal", side_effect=fake_approval.get_proposal
+    ), _apply_fault(fault, fault_params):
         if injection_source == "document":
             # Simulate a compromised/malicious retrieved document: run
             # real retrieval (so the legitimate part of the question is
@@ -164,10 +178,19 @@ def execute_domain_case(case) -> DomainExecutionTrace:
         if case.category == "unauthorized_write":
             scenario = case.input.get("approval_scenario")
             if scenario in ("rejected", "expired") and state.get("pending_approval"):
-                decision = "reject" if scenario == "rejected" else "expired"
+                # Phase D/DEC-049: the real resume path is
+                # agent/approval_client.py::resolve_and_resume -- it
+                # queries the (patched, fake) approval service's own
+                # terminal-state and only then touches the graph, exactly
+                # like the real agent/api.py's /resume endpoint. Deciding
+                # the fake's own record first (test-only .decide(), not
+                # part of the real IF-02 contract) is what a real
+                # approver's decision would do server-side.
+                proposal_id = state.get("proposal_id")
+                decision = "rejected" if scenario == "rejected" else "expired"
+                fake_approval.decide(proposal_id, decision)
                 start = time.monotonic()
-                graph.update_state(thread_config, {"approval_decision": decision})
-                state = graph.invoke(None, thread_config)
+                state = approval_client.resolve_and_resume(graph, thread_config)
                 trace.record("resume", state, (time.monotonic() - start) * 1000)
             # bypass_attempt / not_requested: no resume call -- that's the
             # scenario itself (no decision is ever rendered).
