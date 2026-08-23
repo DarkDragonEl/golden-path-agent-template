@@ -244,6 +244,15 @@ subjects:
   - kind: ServiceAccount
     name: golden-path-agent-mcp
     namespace: golden-path-agent-demo-prod
+  - kind: ServiceAccount
+    name: default
+    namespace: golden-path-agent-otel
+    # Phase D4 (DEC-068): the OTel Collector's own traces-http sidecar
+    # reuses this project's own image (no new entrypoint.sh role needed
+    # for a generic `python3 -m http.server`) -- runs as the namespace's
+    # default ServiceAccount (no dedicated one created for a single,
+    # generic sidecar container), hits the identical cross-namespace
+    # pull gap every other role here already needed a subject entry for.
 roleRef:
   kind: ClusterRole
   name: system:image-puller

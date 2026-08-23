@@ -5262,3 +5262,105 @@ production-like namespace.
 **Status: D2 is complete.** Holding at the D2 verification STOP, per the
 owner's own instruction — not proceeding into D3/D4/Checkpoint D without
 further explicit review and authorization.
+
+## DEC-067 — D2 review closed; three closure notes recorded for the
+eventual Phase D report; D3+D4 authorized together
+
+**D2 review closed.** Owner reviewed `DEC-053` through `DEC-066` and
+accepted the evidence. Three notes recorded now, for the Phase D report
+this project produces at the end (mirroring how Phase C's own closure
+notes, e.g. the spec.project ArgoCD-enforcement correction, were folded
+into `reports/feature-phase-b-golden-path.md`):
+
+1. **Isolation runs both ways — walkthrough material.** `DEC-055`/`DEC-056`:
+   a different tenant's broken `CatalogSource` blocked this project's own
+   operator install cluster-wide; the response was to route around it
+   (the Keycloak project's own OLM-free install) without touching or
+   even proposing to touch the other tenant's resource, despite having
+   the technical privilege to. The blast-radius discipline this project
+   has held throughout Phase C/D isn't just "don't let others affect
+   us" — it held in the other direction too, unprompted, on a shared
+   cluster. Worth stating explicitly in the final report, not just
+   implied by the DEC entries.
+2. **`DEC-065`'s tradeoff, accepted, with two concrete follow-ups**:
+   (a) `docs/phase-d-runbook.md` gets an explicit Q&A: "shipping a
+   `ConfigMap`-only change to `demo-prod`? → the PR merge is still the
+   human gate; a documented `oc rollout restart` for the affected
+   `Deployment`(s) is a required, explicit step after it syncs, not
+   optional" — so this doesn't get silently rediscovered as a "why isn't
+   my config live" bug later. (b) `DEC-065`'s own backlog entry names
+   the `checksum/config`-annotation pattern explicitly as the Phase E
+   hardening candidate, not just "a fix exists somewhere."
+3. **`DEC-060` joins the lessons-learned list, the strongest exhibit
+   yet for "verify by executing, not by reading the code."** A whole
+   committed code path (`mcp_server/client.py`'s `MCP_MODE=live` branch)
+   had no matching server-side route at all, undetected across two full
+   phases (B and C) of this project's own development, review, and CI —
+   because nothing had ever actually executed that branch end to end.
+   Found only by asking "what would this code path actually DO if it
+   ran," not by reading it and assuming it worked because it looked
+   plausible and had existed for a while.
+
+**D3 and D4 authorized together**, per the owner's own execution
+structure — both light, sharing Checkpoint D's own exit criterion.
+Proceeding to D3's entry-gate decision (static page vs. CLI subcommand,
+to be stated with reasoning) and D4's entry gate (cluster-tier OTel
+Collector placement).
+
+## DEC-068 — D4 entry gate: cluster-tier OTel Collector live, plus a
+real cluster-networking quirk found and routed around
+
+**Placement decision**: a new namespace, `golden-path-agent-otel`, one
+`Deployment` (not the `opentelemetry-operator` route `PINS.md` had
+tentatively pinned but never installed) — a collector is a stateless
+forwarder, it doesn't need CRD-based lifecycle management the way
+Keycloak (a genuinely stateful server) did, and a plain `Deployment`
+avoids a second operator install with its own risk of hitting the same
+class of shared-catalog blocker `DEC-055`/`DEC-056` already cost real
+effort to route around once. Image re-verified live (still `0.159.0`,
+still the current stable release, `PINS.md`'s own local-dev pin, 2 days
+later). No `NetworkPolicy` added restricting ingress to it — mirrors
+Keycloak's own precedent (no `NetworkPolicy` there either), both being
+shared platform infra reachable from anywhere in this project's own
+namespaces, stated as a deliberate choice.
+
+**Exporter choice**: `debug` (live `oc logs` visibility) **and** `file`
+(JSON Lines to an `emptyDir`) together — the owner's own explicitly
+offered lighter option over a full Jaeger/Tempo install. `file` is
+what makes D4's own "one full trace, visibly stitched by session/proposal
+id" verification possible via a small scripted query
+(`tools/query_traces.py`) instead of a new UI.
+
+**A real finding, root-caused as far as was useful, then routed around**:
+the upstream `otel/opentelemetry-collector` image is fully distroless —
+no shell, no `tar`, nothing `oc exec`/`oc cp` can use to read the `file`
+exporter's own output at all. Added a sidecar container, sharing the
+same `emptyDir`, serving it over plain HTTP — reusing this project's
+own already-pushed image (already has `python3`, no new external image)
+rather than a new entrypoint.sh role for something this generic.
+**Second finding, live**: that sidecar's `python3 -m http.server`
+consistently failed to bind port `8888` — `OSError: Address already in
+use`, immediately, on every fresh pod, `SO_REUSEADDR` made no
+difference (ruling out a lingering-socket explanation) — while an
+unrelated high port (`19999`) bound cleanly on the first attempt. Not
+chased to full root cause (something in this shared cluster's own
+networking layer reserves that specific port in every pod's network
+namespace) — same posture this session has already taken twice before
+for cluster-specific quirks that don't warrant deeper investigation
+once a clean, verified workaround exists (`DEC-034`'s podman/IPv6-
+localhost finding, `DEC-051`'s `imagestreams/layers`/`can-i` finding).
+The `Deployment`'s own image-pull needed the same cross-namespace
+`image-puller` RBAC subject every other role here already needed.
+
+**Verified end to end, not just "the pod is Running"**: sent a
+hand-built OTLP/HTTP span from a real pod, confirmed the collector
+accepted it (`200`), confirmed it landed in the file export, fetched it
+back over the sidecar's own HTTP port from a different pod, confirmed
+the span's own name/attributes round-tripped correctly. Inspected the
+file's actual JSON structure (one full `ExportTraceServiceRequest` per
+line, not one line per span) — informs `tools/query_traces.py`'s own
+parsing, not guessed.
+
+**Status:** collector live and verified. Proceeding to D3's own
+entry-gate decision and build, and D4's implementation (span/event
+attributes on `agent`/`approval_service`, `tools/query_traces.py`).

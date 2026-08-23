@@ -57,3 +57,20 @@ metadata:
   name: golden-path-agent-keycloak
   labels:
     app.kubernetes.io/part-of: golden-path-agent
+---
+# Phase D4 entry gate (DECISIONS.md DEC-068). A sixth namespace for the
+# cluster-tier OTel Collector -- platform observability infrastructure,
+# not part of this project's own promoted image/environments, same
+# reasoning as golden-path-agent-keycloak's own separate namespace above.
+# Reachable cross-namespace from ephemeral-test/demo-prod/golden-path-agent-keycloak
+# (no NetworkPolicy restricts egress from any of those pods today, and
+# none is added restricting ingress here either -- mirrors Keycloak's own
+# precedent of no NetworkPolicy, both being shared platform infra reachable
+# from anywhere in this project's own namespaces, a deliberate choice
+# stated explicitly, not an oversight).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: golden-path-agent-otel
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
