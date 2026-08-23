@@ -63,4 +63,4 @@ commonLabels:
 images:
   - name: golden-path-agent
     newName: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent
-    digest: sha256:d61497ead8455f537e458763ae3399fc2ae2a8564eb722399070099670a9b2a6
+    digest: sha256:be48190f75ffd1c1592a01907e990d03c3d72d016755c257692d771be457439c
