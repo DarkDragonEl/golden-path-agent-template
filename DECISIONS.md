@@ -3665,3 +3665,89 @@ reverted; clean run confirmed after.
 and applied to the live `Task` object; live-pipeline verification (this
 step actually running inside a real `PipelineRun`) will happen at the
 next natural trigger rather than a dedicated speculative run.
+
+## DEC-045 — Phase D, Step D1: contracts STOP artifacts (approved plan,
+endpoint schemas, resume redesign, K8s manifests/RBAC diffs) — presented
+for review, nothing applied to the cluster, nothing wired into any live
+build
+
+**Document/scope:** Phase D plan
+(`~/.claude/plans/read-claude-md-handoff-md-decisions-md-vast-hare.md`),
+`approval_service/` (new package: `schemas.py`, `config.py`, `api.py`,
+`__init__.py`), eight new `deploy/kustomize/base/*-approval.yaml`
+manifests, `pipelines/bootstrap/rbac.yaml` (two additive diffs).
+
+**Plan approved** with four binding owner additions (`AUTH_MODE=none`
+must be structurally unable to reach `demo-prod`, once D2 lands; the
+agent-token-cannot-decide 403 is a named negative test for D2's
+verification; expiry must survive a pod restart, not just the record;
+the agent-side redesign gets a `DEC-012` instrument-rule statement plus
+one deterministic domain pass, not a full re-baseline) and one deferred
+decision with a stated owner lean (`agent`/`mcp` `ServiceAccount` split —
+decide formally at D2, leaning toward splitting). Keycloak
+(`rhbk-operator`), persistence (SQLite-on-PVC), the async-handoff Layer 2
+mechanism (client/UI-triggered re-check), D3 (direct-to-service), and D4
+(attribute-correlation over trace-context propagation) all ratified as
+proposed — full reasoning for each in the plan document itself.
+
+**Contracts produced for this STOP**, all schema/dry-run validated, none
+applied or wired in:
+
+- `approval_service/schemas.py` — `ProposalCreate`/`ProposalCreated`/
+  `ProposalDecision`/`ProposalDecided`/`ProposalRefused`/`ProposalSummary`/
+  `ProposalTerminal`, field-for-field against `srs/SRS-APR.md`'s
+  IF-01/02/04/05. `ProposalDecision` deliberately carries no identity
+  field (SEC-03).
+- `approval_service/api.py` — the five endpoints (`POST /proposals`,
+  `POST /proposals/{id}/decision`, `GET /proposals`,
+  `GET /proposals/{id}`, `GET /healthz`), route signatures + docstrings
+  stating exact behavior, bodies deliberately `NotImplementedError` —
+  business logic is the implementation step, after this STOP clears.
+  Confirmed importable, confirmed all five routes register correctly
+  (`app.routes` inspected directly, not assumed).
+- `approval_service/config.py` — env-injected config matching
+  `agent/config.py`'s own convention exactly, including `AUTH_MODE=none|oidc`
+  and `APPROVAL_TIMEOUT_SECONDS`.
+- Eight new `deploy/kustomize/base/*-approval.yaml` files (`serviceaccount`,
+  `configmap`, `pvc`, `deployment`, `service`, `networkpolicy`, `ingress`,
+  `pdb`) — each mirroring the corresponding existing `*-agent.yaml`
+  file's shape exactly, individually `oc apply --dry-run=server`
+  validated against `golden-path-agent-ephemeral-test` (all `created
+  (server dry run)`). **Deliberately not added to
+  `deploy/kustomize/base/kustomization.yaml`'s `resources:` list** —
+  `demo-prod`'s `Application` is already live with
+  `syncPolicy.automated.selfHeal: true`; wiring these in now would
+  deploy a non-functional (`NotImplementedError`-bodied) approval-service
+  to the running `demo-prod` environment on ArgoCD's very next
+  reconciliation. They stay inert, sitting unreferenced in the Kustomize
+  tree, until D1's implementation is complete and this is a deliberate,
+  reviewed step of its own.
+- `pipelines/bootstrap/rbac.yaml` — two additive diffs, both `oc apply
+  --dry-run=server` validated (`configured`, not yet applied): a new
+  `persistentvolumeclaims` rule on `golden-path-agent-ci-deploy-role`
+  (SQLite's PVC is the first this project manages), and two new subjects
+  on `golden-path-agent-image-puller` (`golden-path-agent-approval` in
+  both `golden-path-agent-ephemeral-test` and `golden-path-agent-demo-prod`
+  — the same cross-namespace image-pull grant `agent`/`mcp` already
+  needed, `DEC-032`/`DEC-042`'s pattern, added now rather than
+  rediscovered live later).
+
+**A real LangGraph mechanics finding, verified not assumed, from
+attempting the resume-redesign's `state.py` half of the diff in
+isolation**: `StateGraph(AgentState)` enforces the `TypedDict`'s declared
+keys as the graph's own state channels — renaming `approval_action` out
+of `AgentState` while `tool_invoke_node`/`human_approval_node` still
+read/write the old key **silently dropped** the node's write (not an
+error), breaking `test_resume_after_approval_completes` live.
+Reverted immediately (`git checkout -- agent/state.py`, confirmed `164
+passed`). Recorded as a hard sequencing constraint for the implementation
+step: `state.py`'s field split, `tool_invoke_node`'s write side,
+`human_approval_node`'s read side, and `api.py`'s `/resume` handler must
+land together, atomically, never incrementally.
+
+**Status:** Holding at the contracts STOP for the owner's review of the
+endpoint schemas, the resume redesign (documented in the plan; not yet
+applied to `agent/state.py`/`agent/nodes/*`/`agent/api.py`, per the
+finding above), and the manifests/RBAC diffs — before any
+`approval_service` business logic is written, per the owner's own staged
+sequence.
