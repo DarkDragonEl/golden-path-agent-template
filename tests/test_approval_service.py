@@ -605,7 +605,9 @@ def test_sec02_non_approver_identity_gets_403(oidc_client, monkeypatch):
         iss="https://idp.example.invalid/realms/demo",
         roles=["some-other-role"],  # explicitly lacks approval-approver
     )
-    created = oidc_client.post("/proposals", json=_valid_payload()).json()
+    created = oidc_client.post(
+        "/proposals", json=_valid_payload(), headers={"Authorization": f"Bearer {token}"}
+    ).json()
 
     response = oidc_client.post(
         f"/proposals/{created['proposal_id']}/decision",
@@ -626,7 +628,9 @@ def test_sec02_non_approver_refusal_is_audit_logged(oidc_client, monkeypatch, ca
         iss="https://idp.example.invalid/realms/demo",
         roles=[],
     )
-    created = oidc_client.post("/proposals", json=_valid_payload()).json()
+    created = oidc_client.post(
+        "/proposals", json=_valid_payload(), headers={"Authorization": f"Bearer {token}"}
+    ).json()
 
     with caplog.at_level(logging.WARNING, logger="approval_service.audit"):
         oidc_client.post(
@@ -648,7 +652,9 @@ def test_sec02_approver_role_present_succeeds(oidc_client, monkeypatch):
         iss="https://idp.example.invalid/realms/demo",
         roles=["approval-approver"],
     )
-    created = oidc_client.post("/proposals", json=_valid_payload()).json()
+    created = oidc_client.post(
+        "/proposals", json=_valid_payload(), headers={"Authorization": f"Bearer {token}"}
+    ).json()
 
     response = oidc_client.post(
         f"/proposals/{created['proposal_id']}/decision",
@@ -660,8 +666,18 @@ def test_sec02_approver_role_present_succeeds(oidc_client, monkeypatch):
     assert response.json()["decided_by"] == "grace"
 
 
-def test_sec02_missing_bearer_token_gets_401(oidc_client):
-    created = oidc_client.post("/proposals", json=_valid_payload()).json()
+def test_sec02_missing_bearer_token_gets_401(oidc_client, monkeypatch):
+    # The decision endpoint's own missing-token case -- setup still needs
+    # A valid token now that create_proposal itself requires one (DEC-069).
+    private_key, public_key = _rsa_keypair()
+    monkeypatch.setattr(auth, "_get_jwks_client", lambda issuer_url: _FakeJWKSClient(public_key))
+    setup_token = _make_token(
+        private_key, sub="agent-workload-identity", aud="approval-service",
+        iss="https://idp.example.invalid/realms/demo",
+    )
+    created = oidc_client.post(
+        "/proposals", json=_valid_payload(), headers={"Authorization": f"Bearer {setup_token}"}
+    ).json()
     response = oidc_client.post(f"/proposals/{created['proposal_id']}/decision", json={"decision": "approve"})
     assert response.status_code == 401
 
@@ -683,7 +699,9 @@ def test_sec02_agent_workload_token_without_approver_role_is_rejected_same_as_an
         iss="https://idp.example.invalid/realms/demo",
         roles=["agent-workload"],
     )
-    created = oidc_client.post("/proposals", json=_valid_payload()).json()
+    created = oidc_client.post(
+        "/proposals", json=_valid_payload(), headers={"Authorization": f"Bearer {agent_token}"}
+    ).json()
 
     response = oidc_client.post(
         f"/proposals/{created['proposal_id']}/decision",
@@ -703,6 +721,90 @@ def test_sec03_proposal_decision_schema_has_no_identity_field():
     assert fields == {"decision"}
     for spoofable in ("approver_id", "decided_by", "identity", "user_id", "sub"):
         assert spoofable not in fields
+
+
+# --- DEC-069: create_proposal/list_pending_proposals/get_proposal found
+# running with NO auth check at all under AUTH_MODE=oidc -- fail-open,
+# contradicting SEC-01 applied everywhere else. Fixed with
+# get_authenticated_caller (identity+audience only, no role check --
+# neither the agent's own workload nor an approver checking pending
+# proposals needs the approver role just to submit/read).
+
+
+def _oidc_token(private_key, **claims):
+    defaults = {"aud": "approval-service", "iss": "https://idp.example.invalid/realms/demo"}
+    defaults.update(claims)
+    return _make_token(private_key, **defaults)
+
+
+def test_create_proposal_missing_token_gets_401(oidc_client):
+    response = oidc_client.post("/proposals", json=_valid_payload())
+    assert response.status_code == 401
+
+
+def test_create_proposal_valid_token_no_role_needed_succeeds(oidc_client, monkeypatch):
+    private_key, public_key = _rsa_keypair()
+    monkeypatch.setattr(auth, "_get_jwks_client", lambda issuer_url: _FakeJWKSClient(public_key))
+    token = _oidc_token(private_key, sub="golden-path-agent", roles=[])  # no roles at all
+    response = oidc_client.post("/proposals", json=_valid_payload(), headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 201
+
+
+def test_list_pending_proposals_missing_token_gets_401(oidc_client, monkeypatch):
+    private_key, public_key = _rsa_keypair()
+    monkeypatch.setattr(auth, "_get_jwks_client", lambda issuer_url: _FakeJWKSClient(public_key))
+    token = _oidc_token(private_key, sub="golden-path-agent")
+    oidc_client.post("/proposals", json=_valid_payload(), headers={"Authorization": f"Bearer {token}"})
+
+    response = oidc_client.get("/proposals")
+    assert response.status_code == 401
+
+
+def test_list_pending_proposals_valid_token_succeeds(oidc_client, monkeypatch):
+    private_key, public_key = _rsa_keypair()
+    monkeypatch.setattr(auth, "_get_jwks_client", lambda issuer_url: _FakeJWKSClient(public_key))
+    token = _oidc_token(private_key, sub="golden-path-agent")
+    oidc_client.post("/proposals", json=_valid_payload(), headers={"Authorization": f"Bearer {token}"})
+
+    response = oidc_client.get("/proposals", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
+def test_get_proposal_missing_token_gets_401(oidc_client, monkeypatch):
+    private_key, public_key = _rsa_keypair()
+    monkeypatch.setattr(auth, "_get_jwks_client", lambda issuer_url: _FakeJWKSClient(public_key))
+    token = _oidc_token(private_key, sub="golden-path-agent")
+    created = oidc_client.post(
+        "/proposals", json=_valid_payload(), headers={"Authorization": f"Bearer {token}"}
+    ).json()
+
+    response = oidc_client.get(f"/proposals/{created['proposal_id']}")
+    assert response.status_code == 401
+
+
+def test_get_proposal_valid_token_succeeds(oidc_client, monkeypatch):
+    private_key, public_key = _rsa_keypair()
+    monkeypatch.setattr(auth, "_get_jwks_client", lambda issuer_url: _FakeJWKSClient(public_key))
+    token = _oidc_token(private_key, sub="golden-path-agent")
+    created = oidc_client.post(
+        "/proposals", json=_valid_payload(), headers={"Authorization": f"Bearer {token}"}
+    ).json()
+
+    response = oidc_client.get(f"/proposals/{created['proposal_id']}", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert response.json()["proposal_id"] == created["proposal_id"]
+
+
+def test_auth_mode_none_leaves_all_three_endpoints_unauthenticated(fresh_store):
+    # AUTH_MODE=none's own dev-convenience posture -- get_authenticated_caller
+    # short-circuits the same way get_current_approver already does.
+    api._use_store(fresh_store)
+    with TestClient(api.app) as client:
+        created = client.post("/proposals", json=_valid_payload())
+        assert created.status_code == 201
+        assert client.get("/proposals").status_code == 200
+        assert client.get(f"/proposals/{created.json()['proposal_id']}").status_code == 200
 
 
 def test_sec03_auth_mode_none_never_reads_identity_from_the_request_body(client):

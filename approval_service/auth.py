@@ -65,15 +65,11 @@ def _extract_roles(claims: dict) -> list:
     return [raw]
 
 
-def get_current_approver(request: Request) -> str:
-    """SRS-APR-SEC-02/03. Returns the deciding approver's identity,
-    established from the authenticated session -- never a client-supplied
-    field (ProposalDecision carries none). Raises HTTPException(401) for
-    a missing/invalid token; HTTPException(403), audit-logged, if the
-    validated token lacks the configured approver role (SEC-02)."""
-    if config.AUTH_MODE == "none":
-        return _DEV_APPROVER_IDENTITY
-
+def _validate_bearer_token(request: Request) -> dict:
+    """Shared identity+audience validation -- the part `get_current_approver`
+    and `get_authenticated_caller` both need. Raises HTTPException(401) for
+    a missing/invalid/wrong-audience/wrong-issuer token; never checks a
+    role (callers decide that, or don't)."""
     if config.AUTH_MODE != "oidc":
         raise HTTPException(status_code=500, detail=f"unsupported AUTH_MODE: {config.AUTH_MODE!r}")
 
@@ -99,6 +95,21 @@ def get_current_approver(request: Request) -> str:
     if not sub:
         raise HTTPException(status_code=401, detail="token missing 'sub' claim")
 
+    return claims
+
+
+def get_current_approver(request: Request) -> str:
+    """SRS-APR-SEC-02/03. Returns the deciding approver's identity,
+    established from the authenticated session -- never a client-supplied
+    field (ProposalDecision carries none). Raises HTTPException(401) for
+    a missing/invalid token; HTTPException(403), audit-logged, if the
+    validated token lacks the configured approver role (SEC-02)."""
+    if config.AUTH_MODE == "none":
+        return _DEV_APPROVER_IDENTITY
+
+    claims = _validate_bearer_token(request)
+    sub = claims["sub"]
+
     roles = _extract_roles(claims)
     if config.APPROVER_ROLE_VALUE not in roles:
         _audit_logger.warning(
@@ -109,3 +120,24 @@ def get_current_approver(request: Request) -> str:
         raise HTTPException(status_code=403, detail="caller lacks the approver role")
 
     return sub
+
+
+_DEV_CALLER_IDENTITY = "dev-caller"
+
+
+def get_authenticated_caller(request: Request) -> str:
+    """SRS-APR-SEC-03's identity-propagation requirement, applied to the
+    three endpoints DEC-069 found running with no auth check at all under
+    AUTH_MODE=oidc (create_proposal, list_pending_proposals, get_proposal)
+    -- fail-closed (SEC-01) demands SOME authenticated caller, but none of
+    these three are role-gated the way decide_proposal is: IF-04/IF-05 are
+    legitimately called by both the agent's own workload token and, for
+    D3's UI, a human approver's token, and neither needs the approver role
+    just to read. Identity+audience only, mirrors mcp_server/auth.py's own
+    get_authenticated_caller exactly (same rationale: this service's own
+    equivalent, no role concept for these three routes)."""
+    if config.AUTH_MODE == "none":
+        return _DEV_CALLER_IDENTITY
+
+    claims = _validate_bearer_token(request)
+    return claims["sub"]

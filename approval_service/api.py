@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Request
 
 from . import config
-from .auth import get_current_approver
+from .auth import get_authenticated_caller, get_current_approver
 from .schemas import (
     ProposalCreate,
     ProposalCreated,
@@ -120,11 +120,20 @@ def healthz():
 
 
 @app.post("/proposals", response_model=ProposalCreated, status_code=201)
-def create_proposal(body: ProposalCreate) -> ProposalCreated:
+def create_proposal(body: ProposalCreate, request: Request) -> ProposalCreated:
     """SRS-APR-IF-01/F-01. Caller: agent workload identity only (SEC-03).
+    DEC-069: requires SOME authenticated, correctly-audienced caller (not
+    role-gated -- there is no role for "is a legitimate workload," only
+    for "is an approver") -- found running with no auth check at all,
+    fail-open under AUTH_MODE=oidc, contradicting SEC-01. `initiating_user_id`
+    itself stays client-supplied (the pre-existing, separately-tracked
+    gap: no end-user login flow exists for whoever originates a query to
+    the agent's own /invoke -- out of D2's scope, not newly introduced or
+    newly fixed here).
     A replayed idempotency_key for the same originating_session_id
     returns the existing proposal's current state instead of creating a
     duplicate (SRS-APR-F-07)."""
+    get_authenticated_caller(request)
     record = _store.create_proposal(
         action_type=body.action_type,
         target_system_id=body.target_system_id,
@@ -191,10 +200,14 @@ def decide_proposal(proposal_id: str, body: ProposalDecision, request: Request) 
 
 @app.get("/proposals", response_model=list[ProposalSummary])
 def list_pending_proposals(
-    originating_session_id: str | None = None, originating_request_id: str | None = None
+    request: Request, originating_session_id: str | None = None, originating_request_id: str | None = None
 ) -> list[ProposalSummary]:
     """SRS-APR-IF-04/F-06. Lists proposals currently `pending`, filterable
-    by session/request id; full decision-context fields per F-05."""
+    by session/request id; full decision-context fields per F-05.
+    DEC-069: requires an authenticated caller (identity+audience, no role
+    check -- both the agent's own workload token and an approver's own
+    token are legitimate callers here)."""
+    get_authenticated_caller(request)
     records = _store.list_pending(
         originating_session_id=originating_session_id, originating_request_id=originating_request_id
     )
@@ -202,12 +215,15 @@ def list_pending_proposals(
 
 
 @app.get("/proposals/{proposal_id}", response_model=ProposalTerminal)
-def get_proposal(proposal_id: str) -> ProposalTerminal:
+def get_proposal(proposal_id: str, request: Request) -> ProposalTerminal:
     """SRS-APR-IF-05. Current state; once terminal, the full record
     including the *unmodified* `action_arguments` accepted at intake --
     this is what agent/approval_client.py's terminal-state query calls
     from the /resume handler, and the exact arguments DEC-008 requires
-    the agent to execute (never a locally cached copy)."""
+    the agent to execute (never a locally cached copy).
+    DEC-069: requires an authenticated caller (identity+audience, no role
+    check), same reasoning as list_pending_proposals above."""
+    get_authenticated_caller(request)
     record = _store.get_proposal(proposal_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"no such proposal: {proposal_id}")

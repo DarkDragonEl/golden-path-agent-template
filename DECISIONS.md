@@ -5364,3 +5364,67 @@ parsing, not guessed.
 **Status:** collector live and verified. Proceeding to D3's own
 entry-gate decision and build, and D4's implementation (span/event
 attributes on `agent`/`approval_service`, `tools/query_traces.py`).
+
+## DEC-069 — a real, significant gap found while planning D3: three
+approval-service endpoints ran with no auth check at all under
+`AUTH_MODE=oidc`
+
+**Finding, made while checking what D3's own UI needs to attach as a
+bearer token**: `approval_service/api.py`'s `create_proposal` (IF-01),
+`list_pending_proposals` (IF-04), and `get_proposal` (IF-05) never
+called `get_current_approver` or any auth dependency at all — under
+`AUTH_MODE=oidc`, all three were reachable by **any** caller, with no
+token, from anywhere with network access. Only `decide_proposal` (IF-02)
+had ever been auth-gated. Confirmed against the normative text, not just
+inferred: `SRS-APR-SEC-03` requires "the initiating user identity
+(SRS-APR-IF-01) **and** the approver identity (SRS-APR-IF-02) shall
+each be established from the enterprise identity provider's authenticated
+session" — and `SRS-APR-SEC-01`'s fail-closed posture, applied
+consistently everywhere else in this project, was silently not applied
+here. D2's own verification-STOP tests never caught this because they
+only exercised the decision endpoint's auth (`DEC-066`'s own tests 1–3);
+nothing in D1 or D2 ever tested "call `IF-01`/`IF-04`/`IF-05` with no
+token at all, under `AUTH_MODE=oidc`."
+
+**Scoped correctly, not over-corrected**: `SRS-APR-SEC-03`'s "initiating
+user identity" half is a separate, pre-existing, already-known gap
+(there is no end-user login flow for whoever originates a query to the
+agent's own `/invoke` at all, in any phase built so far — `initiating_user_id`
+has always been a plain client-supplied string, unrelated to D2's own
+scope of workload/approver identity) — **not** newly introduced or
+fixed here, stated explicitly so it isn't conflated with what this fix
+actually closes. What this fix closes is narrower and squarely D2-scope:
+the **calling workload's own identity** was never checked at all for
+these three routes, unlike every other route in this project once
+`AUTH_MODE`/`MCP_AUTH_MODE` flips to `oidc`.
+
+**Fix**: `approval_service/auth.py` gained `get_authenticated_caller`
+(identity+audience only, no role check — mirrors `mcp_server/auth.py`'s
+own function of the same name and purpose exactly: neither the agent's
+own workload token nor an approver's own token needs the approver role
+just to submit or read, only `decide_proposal` needs the role), factored
+out of a new shared `_validate_bearer_token` both `get_current_approver`
+and `get_authenticated_caller` now call. Wired into all three previously
+unguarded routes. `agent/approval_client.py`'s own calls already attach
+a bearer token (`DEC-060`) — this fix makes the *server* actually
+validate what the client was already sending, no client-side change
+needed.
+
+**Five existing tests broke, fixed correctly, not papered over**: each
+had been creating its setup proposal via an unauthenticated `POST
+/proposals` call, now correctly rejected — fixed by reusing each test's
+own already-generated token for the setup call (the exact token under
+test for the *decision* endpoint's own role check, which is a valid,
+correctly-audienced token regardless of its role — precisely what the
+new, role-agnostic check on `create_proposal` requires). Eight new
+tests added covering the fix directly: missing-token 401 and
+valid-token success for all three routes, plus one confirming
+`AUTH_MODE=none`'s existing dev-convenience posture is unaffected.
+Verified independently: full suite re-run, `243 passed` (was `236`).
+
+**Status:** fix complete, tested, ready to ship through the pipeline —
+this is an `approval_service/` code change, reaching `demo-prod` only
+via a real build → promotion → merge, the same path every other code
+change in this project takes. Proceeding to trigger that now, before
+D3/D4's own work, since D3's UI design depends on the now-final auth
+requirements and Checkpoint D's live demo needs this fix live regardless.
