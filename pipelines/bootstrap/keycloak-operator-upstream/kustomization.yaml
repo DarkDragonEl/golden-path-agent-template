@@ -1,0 +1,58 @@
+# Phase D, D2 entry gate (DECISIONS.md DEC-055/DEC-056). rhbk-operator's
+# own OLM Subscription (pipelines/bootstrap/keycloak-operator.yaml) is
+# blocked -- not by this project, by a different tenant's broken
+# CatalogSource poisoning OLM's cluster-wide resolution (DEC-055,
+# Red Hat KB 7052456). Unblock: the Keycloak project's own upstream,
+# OLM-free install path -- a plain kustomize remote base, pinned to an
+# exact tag, applied directly. Namespace-scoped, never touches
+# openshift-marketplace, no OLM resolver dependency at all.
+#
+# Fetched and READ in full before being trusted here (this project's own
+# "verify, don't assume" discipline) -- the upstream base
+# (github.com/keycloak/keycloak-k8s-resources, kubernetes/ path, tag
+# 26.7.2) contains one real cluster-scoped grant beyond the CRDs
+# themselves: a single ClusterRoleBinding granting the operator's own
+# ServiceAccount `get` on the cluster-scoped `config.openshift.io/ingresses`
+# resource (read-only -- lets the operator detect this cluster's own
+# ingress domain to correctly template Keycloak's Routes). Everything
+# else is namespace-scoped RoleBindings referencing ClusterRole
+# *templates* (the standard, safe pattern this project's own
+# pipelines/bootstrap/rbac.yaml already uses) -- functionally the same
+# minimum surface OLM's own CSV would have installed for this operator,
+# applied directly instead of through a Subscription. The operator is
+# configured (QUARKUS_OPERATOR_SDK_CONTROLLERS_*_NAMESPACES=
+# JOSDK_WATCH_CURRENT, upstream's own env var, unmodified here) to watch
+# only the namespace it's deployed into -- matching OLM's OwnNamespace
+# behavior, not AllNamespaces.
+#
+# namespace: below overrides the upstream base's own hardcoded
+# `namespace: keycloak` -- kustomize's built-in namespace transform
+# (which the upstream kustomization.yml itself already configures with
+# setRoleBindingSubjects: allServiceAccounts) rewrites every object's
+# metadata.namespace AND every RoleBinding/ClusterRoleBinding
+# ServiceAccount subject's namespace consistently, including the one
+# ClusterRoleBinding's explicit subject namespace -- verified by
+# rendering before applying, not assumed.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: golden-path-agent-keycloak
+
+resources:
+  - github.com/keycloak/keycloak-k8s-resources/kubernetes?ref=26.7.2
+
+# Verified live (rendered before applying): kustomize's built-in
+# namespace transform does NOT rewrite this one ClusterRoleBinding's
+# subject namespace -- it stays hardcoded to the upstream base's own
+# `keycloak` default even with setRoleBindingSubjects: allServiceAccounts
+# set upstream. A cross-namespace (ClusterRoleBinding-level) subject with
+# an explicit namespace is treated as deliberate and left alone. Patched
+# explicitly rather than assumed correct.
+patches:
+  - target:
+      kind: ClusterRoleBinding
+      name: keycloak-operator-clusterrole-binding
+    patch: |-
+      - op: replace
+        path: /subjects/0/namespace
+        value: golden-path-agent-keycloak

@@ -4535,3 +4535,108 @@ owner for a decision: whoever administers this shared cluster needs to
 either fix or remove `nousie-docling-catalog`, or another oc identity
 with clear authorization over it needs to act — this is not this
 project's call to make unilaterally.
+
+**External evidence for the diagnosis, supplied by the owner and
+recorded here**: Red Hat KB 7052456 ("Operator installation failed due
+to other CatalogSource in unhealthy state in OpenShift 4") documents
+this exact failure mode — the identical `failed to list bundles ...
+connection refused` signature, one unhealthy `CatalogSource` blocking
+unrelated Subscriptions cluster-wide. Also on record: Bugzilla 2076323
+("OLM blocks all operator installs if an openshift-marketplace
+catalogsource is unavailable"), OCPBUGS-24587 (same cross-namespace
+blast pattern). Classic OLM `v1alpha1` resolver behavior, not a
+configuration error on this project's part, and — confirmed independently
+— no per-`Subscription` workaround exists in that resolver.
+`OperatorHub.spec.disableAllDefaultSources` does not apply either: it
+only covers the cluster's own default catalogs, not a different tenant's
+custom one.
+
+## DEC-056 — D2 entry gate UNBLOCKED: Keycloak operator installed via
+its own upstream, OLM-free kustomize path — `DEC-055`'s blocker worked
+around without touching the broken shared resource
+
+**Document/scope:** `pipelines/bootstrap/keycloak-operator.yaml`
+(header comment updated, object **not** applied, kept as tech debt),
+`pipelines/bootstrap/keycloak-operator-upstream/kustomization.yaml`
+(new — the actual install path used), `PINS.md` (Phase D Keycloak rows
+revised).
+
+**Path chosen, per the owner's own research and explicit direction**:
+the Keycloak project's own published OLM-free install —
+`github.com/keycloak/keycloak-k8s-resources`, `kubernetes/` path
+(the plain, single-namespace-watching variant — deliberately not
+`kubernetes/cluster-wide/`), pinned to tag `26.7.2`. Namespace-scoped,
+zero `openshift-marketplace`/OLM resolver dependency — genuinely
+unaffected by `nousie-docling-catalog`.
+
+**Verified before trusting, not applied on the owner's word alone** (this
+project's own "verify, don't assume" discipline, applied here exactly as
+it has been to every prior external artifact this session): the tag's
+existence was confirmed live via the GitHub API (not assumed from the
+hint text), and the full manifest content (`kubernetes/kubernetes.yml`,
+434 lines) was fetched and read end to end before being referenced from
+any committed file. Finding from that read, stated plainly because it
+revises an earlier claim: this install path carries **one real
+cluster-scoped grant** beyond the CRDs — a single `ClusterRoleBinding`
+(`keycloak-operator-clusterrole-binding`) granting the operator's
+`ServiceAccount` `get` on the cluster-scoped `config.openshift.io/ingresses`
+resource (read-only; lets the operator detect this cluster's own ingress
+domain to correctly template Keycloak's `Route`s). `DEC-053`'s original
+"no `ClusterRoleBinding`" claim about the OLM path was written without
+having inspected the CSV's own `clusterPermissions` — likely incomplete;
+OLM's own CSV almost certainly needs this identical grant, just
+delivered through a different mechanism. Everything else in the bundle
+is namespace-scoped `RoleBinding`s referencing `ClusterRole` *templates*
+(the same safe pattern `pipelines/bootstrap/rbac.yaml` already uses) —
+functionally the same minimum surface OLM would have installed, applied
+directly instead of through a `Subscription`. Both images are upstream
+(`quay.io/keycloak/keycloak-operator:26.7.2`,
+`quay.io/keycloak/keycloak:26.7.2` via `RELATED_IMAGE_KEYCLOAK`), not
+Red Hat's `registry.redhat.io/rhbk/*` — the owner's own framing of this
+trade-off (Path A vs. Path B) accepted explicitly by proceeding with
+Path A. The operator watches only its own namespace
+(`QUARKUS_OPERATOR_SDK_CONTROLLERS_*_NAMESPACES=JOSDK_WATCH_CURRENT`,
+upstream's own default, unmodified) — matches `OwnNamespace`, not
+`AllNamespaces`.
+
+**A second real finding, caught by rendering before applying, not
+assumed from the owner's hint or upstream's own docs**: kustomize's
+built-in namespace transform does **not** rewrite the one
+`ClusterRoleBinding`'s subject namespace — it stayed hardcoded to the
+upstream base's own `keycloak` default even with
+`setRoleBindingSubjects: allServiceAccounts` already configured
+upstream (an explicit, cross-namespace subject on a cluster-scoped
+binding is evidently treated as deliberate and left alone). Fixed with
+an explicit JSON6902 patch in the local overlay, re-rendered, and
+confirmed via direct field inspection (not just "no error") that the
+subject namespace actually reads `golden-path-agent-keycloak` before
+ever applying anything.
+
+**Applied live, in order, each step verified**:
+1. Deleted the blocked `rhbk-operator` `Subscription`/`OperatorGroup`
+   from the cluster (kept in Git, per the owner's own "keep in Git,
+   mark blocked" instruction) — the `Namespace` stays.
+2. `oc apply --dry-run=server` on the full rendered upstream manifest
+   set — clean, no rejections.
+3. Applied for real: 4 `CustomResourceDefinition`s, `ServiceAccount`,
+   5 `ClusterRole`s, 5 `RoleBinding`s, 1 `ClusterRoleBinding`, `Service`,
+   `Deployment`.
+4. `oc rollout status deployment/keycloak-operator` — succeeded.
+5. Confirmed live, not just "rollout succeeded": pod `Running 1/1`; all
+   four CRDs registered (`oc get crd | grep k8s.keycloak.org`); operator
+   log shows all four controllers (`keycloakcontroller`,
+   `keycloakrealmimportcontroller`, `keycloakoidcclientcontroller`,
+   `keycloaksamlclientcontroller`) started cleanly, Quarkus fully up.
+
+**Tech debt, recorded explicitly, not silently accepted as permanent**:
+migrate to `rhbk-operator` via OLM (`pipelines/bootstrap/keycloak-operator.yaml`,
+kept committed for exactly this) once the shared cluster's
+`nousie-docling-catalog` is fixed by whoever administers it — the CRD
+group (`k8s.keycloak.org`) is identical between the two distributions,
+so this migration only swaps the operator, never the `Keycloak`/
+`KeycloakRealmImport` CRs D2 is about to build against it.
+
+**Status:** D2 entry gate's operator step complete and live-verified.
+Proceeding to Postgres (the entry gate's final step), then Keycloak
+CR/realm-import and the rest of D2 implementation, per the owner's full
+authorization.
