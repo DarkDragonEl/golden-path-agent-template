@@ -5161,3 +5161,104 @@ new problem).
 `AUTH_MODE=oidc`/`AGENT_OIDC_MODE=oidc`/`MCP_AUTH_MODE=oidc`/`MCP_MODE=live`
 all active. Proceeding to the full D2 verification-STOP evidence
 gathering (the five named tests) before holding for owner review.
+
+## DEC-065 — a real, structural gap found running the verification tests:
+`ConfigMap`-only changes never roll `demo-prod`'s already-existing pods
+
+**Finding**: Test 4 (MCP rejecting an absent/unscoped credential) initially
+**failed** — both the absent-token and wrong-audience calls returned
+`200` with real data, no enforcement at all. Root-caused, not guessed:
+`oc exec ... -- python3 -c "import os; print(os.environ.get('MCP_AUTH_MODE'))"`
+against the live `mcp` pod showed `none`, not `oidc` — the ConfigMap
+itself had the correct value (confirmed separately), but the running
+pod didn't have it.
+
+**Mechanism, understood before fixing anything**: `deployment-mcp.yaml`'s
+`envFrom.configMapRef` targets `golden-path-agent-config` by its plain,
+fixed name — this project's `configMapGenerator` entries all use
+`behavior: merge` against a base `ConfigMap` that is itself a plain,
+hand-written resource, not a generator's own output, so it never gets
+kustomize's usual hash-suffix-on-content-change treatment. A same-named
+`ConfigMap`'s content changing in place is invisible to the `Deployment`
+controller, which only watches its own pod template, not the content of
+objects it references — so `ArgoCD`'s `selfHeal` correctly updated the
+`ConfigMap` object, but nothing told the already-running `agent`/`mcp`
+pods (rolled fresh only via `PR #3`'s earlier, separate digest bump) to
+actually restart and pick up the new values. `golden-path-agent-approval`
+worked correctly from the very first request precisely because it was a
+**brand-new** `Deployment` this same sync wave created for the first
+time (`DEC-064`) — no prior pod existed to compare against, so there was
+no "stale pod" case to hit.
+
+**Fixed live**: `oc rollout restart` for all three `demo-prod`
+`Deployment`s; confirmed via the same direct `os.environ` read that the
+new pods actually carry `MCP_AUTH_MODE=oidc`/`MCP_MODE=live`/
+`AGENT_OIDC_MODE=oidc`/`AUTH_MODE=oidc` before re-running Test 4.
+
+**Named as a real, structural gap, not silently patched around**: any
+*future* `ConfigMap`-only change to a GitOps-synced overlay (`demo-prod`,
+and `staging`/`pilot-prod` whenever they activate) will hit this exact
+same silent-non-rollout behavior again, unless something forces a
+restart. The well-known fix for this class of problem is a
+`checksum/config`-style pod-template annotation (a hash of the
+ConfigMap's own content, changing whenever the data does, forcing
+Kubernetes to see a real pod-template diff) — **not implemented now**:
+real, additional infrastructure work, beyond this cutover's own scope,
+and arguably a Phase-two/showcase-cluster hardening item rather than a
+demo-milestone requirement (this milestone's own promotion model already
+requires a human-reviewed PR merge for every real change, per `CLAUDE.md`
+"promotion via GitOps PR merge only" — a manual `oc rollout restart` as
+a documented, occasional operational step is a defensible tradeoff at
+this scale, not obviously worth the added manifest complexity). Recorded
+here as a named, open backlog item for whoever picks up Phase E, not
+left as an undocumented surprise for someone else to rediscover.
+
+## DEC-066 — D2 verification STOP: all five named tests pass live
+against `demo-prod`
+
+Full evidence in `reports/phase-d-d2-verification.md`. Summary:
+
+1. **Real approver login → decision → `decided_by` reflects the token
+   identity**: `demo-approver`'s real password-grant token (client
+   `golden-path-agent-approver-ui`) decided a real, live `demo-prod`
+   proposal; `decided_by` in the response (`fb790f55-...`) matches
+   `demo-approver`'s own Keycloak `sub`, confirmed independently via the
+   admin API — not a placeholder, not a client-supplied claim. The
+   resulting write completed for real (`REQ-30100`).
+2. **Forged/absent/wrong-role token → refused, audit-logged** — tested
+   precisely, not glossed as one blanket "403": absent → `401 missing
+   bearer token`; forged (well-formed JWT, wrong signature) → `401
+   invalid token`; wrong-role (`demo-user`'s real, valid, correctly-
+   audienced token, no `approval-approver` role) → `403 caller lacks the
+   approver role`, and the approval-service's own log shows the audit
+   line (`refused decision attempt: identity=... reason=missing_approver_role`).
+3. **The agent's own client-credentials token on the decision endpoint →
+   `403`, audit-logged** (plan-approval addition #2): the real
+   `golden-path-agent-approval-workload` service-account token —
+   correctly audienced for approval-service, otherwise indistinguishable
+   from a "legitimate" caller — refused with the identical `403`/audit
+   line as the wrong-role human case, confirming this is structural
+   (correct by omission of the role, `DEC-054`'s own design point), not
+   an ad hoc check.
+4. **MCP server rejecting an absent/unscoped credential, live** — found
+   failing on the first attempt (`DEC-065`), root-caused, fixed
+   (`oc rollout restart`), re-verified: absent → `401`; wrong-audience
+   (a real, validly-signed approval-workload token) → `401 Audience
+   doesn't match`; the correctly-scoped `mcp-workload` token → `200`
+   with real data — proving fail-closed isn't blanket-denying everything.
+5. **The mechanical `AUTH_MODE=oidc` assertion for `demo-prod`,
+   demonstrated failing on a seeded `none`** — already covered at
+   `DEC-063`'s own commit time (seed → fail with the exact expected
+   findings → restore → pass again), for all three switches
+   (`AUTH_MODE`, `AGENT_OIDC_MODE`, `MCP_AUTH_MODE`), not just the one
+   named explicitly.
+
+Every rejected attempt across tests 2–4 left the target proposal
+untouched (`pending`, confirmed by direct query) and produced zero write
+side effects — the test proposal from tests 2/3 was rejected afterward
+to leave `demo-prod` clean, not left dangling as test debris in a
+production-like namespace.
+
+**Status: D2 is complete.** Holding at the D2 verification STOP, per the
+owner's own instruction — not proceeding into D3/D4/Checkpoint D without
+further explicit review and authorization.
