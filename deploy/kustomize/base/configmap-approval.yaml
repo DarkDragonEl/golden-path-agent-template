@@ -26,3 +26,7 @@ data:
   OIDC_AUDIENCE: "golden-path-agent-approval" # DEC-063: matches the
   # realm's own audience mapper on golden-path-agent-approval-workload/
   # golden-path-agent-approver-ui (DEC-058) -- same reasoning as above.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "" # DEC-071: empty = telemetry disabled,
+  # matching golden-path-agent-config's own base default exactly --
+  # ephemeral-test/demo-prod override it to the real cluster collector.
+  OTEL_SERVICE_NAME: "golden-path-agent-approval"

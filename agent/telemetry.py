@@ -87,6 +87,15 @@ def record_invocation_span(state: dict, request_id: str | None = None, span=None
 
     span.set_attribute("session.id", state.get("session_id", ""))
     span.set_attribute("request.id", request_id or "")
+    # Phase D4 (DECISIONS.md DEC-071): the attribute-correlation mechanism
+    # the plan settled on for stitching a trace across the async approval
+    # gap -- session.id already covers the pre-proposal portion; proposal.id
+    # is what lets a query join this span to approval_service's own spans
+    # for the SAME proposal, once one exists for this run. Empty string
+    # (not omitted) when no proposal was ever drafted this turn -- a
+    # consistent, always-present attribute is easier to query than one
+    # that's sometimes absent.
+    span.set_attribute("proposal.id", state.get("proposal_id") or "")
     span.set_attribute("user.id", state.get("user_id", ""))
     span.set_attribute("workload.id", config.AGENT_WORKLOAD_ID)
     span.set_attribute("model.name", config.MODEL_NAME)

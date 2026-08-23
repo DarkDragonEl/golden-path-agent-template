@@ -50,3 +50,28 @@ oc auth can-i create namespace --as=system:serviceaccount:golden-path-agent-ci:g
 `KeycloakRealmImport` -- those are D2 *implementation*, gated behind the
 D2 design STOP (`DECISIONS.md`, realm/client shape review), not this
 entry gate. Added to this runbook once implementation is authorized.
+
+## D3: reaching the approver UI locally
+
+This milestone has no working external `Ingress` route yet (already
+documented as a known limitation elsewhere in this project). A human
+operator walking through `agent/static/approver_ui.html` (served at
+`GET /ui`) needs **two separate** `oc port-forward` sessions running at
+once, since the page talks to the agent and the approval-service as two
+different origins by design (direct-to-service, not proxied through the
+agent):
+
+```sh
+# Terminal 1 -- the agent (serves the UI itself, and /invoke + /resume):
+oc port-forward svc/golden-path-agent 18080:8080 -n <ns>
+# then open http://localhost:18080/ui
+
+# Terminal 2 -- the approval-service (the UI's polling/decision calls):
+oc port-forward svc/golden-path-agent-approval 18082:8082 -n <ns>
+```
+
+The page's default `APPROVAL_SERVICE_ORIGIN` (`http://localhost:8082`)
+already matches Terminal 2's conventional port above, so no per-page
+edit is needed for that default layout; if a different local port is
+forwarded instead, set `window.APPROVAL_SERVICE_ORIGIN` before the
+page's own script runs (see the comment in `approver_ui.html` itself).

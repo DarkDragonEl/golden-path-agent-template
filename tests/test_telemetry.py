@@ -150,3 +150,15 @@ def test_no_model_calls_falls_back_to_scalar_fields():
     assert span.attributes["model.route"] == "none"
     assert span.attributes["model.route_reason_code"] == "model_failure:X"
     assert [e for e in span.events if e[0] == "model_call"] == []
+
+
+def test_proposal_id_set_when_a_proposal_exists(monkeypatch):
+    span = _FakeSpan()
+    record_invocation_span(_state(proposal_id="prop-123"), span=span)
+    assert span.attributes["proposal.id"] == "prop-123"
+
+
+def test_proposal_id_empty_string_when_no_proposal_drafted():
+    span = _FakeSpan()
+    record_invocation_span(_state(), span=span)
+    assert span.attributes["proposal.id"] == ""

@@ -1,6 +1,8 @@
 import uuid
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from . import approval_client, config
@@ -12,6 +14,12 @@ _graph = build_graph()
 
 init_telemetry()
 _tracer = get_tracer()
+
+# Phase D3: read once at import time, not per-request -- this is static
+# content that never changes at runtime (no templating, see GET /ui/config
+# below for the one piece of real environment config the page needs),
+# so a repeated disk read on every GET /ui would be pure waste.
+_APPROVER_UI_HTML = (Path(__file__).resolve().parent / "static" / "approver_ui.html").read_text()
 
 
 class InvokeRequest(BaseModel):
@@ -89,6 +97,23 @@ def _auto_approve(thread_config: dict, result: dict) -> dict:
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
+
+
+@app.get("/ui", response_class=HTMLResponse)
+def approver_ui():
+    return _APPROVER_UI_HTML
+
+
+@app.get("/ui/config")
+def approver_ui_config():
+    """The one piece of real environment config agent/static/approver_ui.html
+    needs (the OIDC issuer URL) -- fetched at page-load time instead of
+    templated into the static file, so GET /ui above can stay a plain,
+    byte-for-byte-static file read (see its own comment) rather than
+    growing a server-side templating step. Not secret: the same value is
+    already the committed default of config.OIDC_ISSUER_URL and is visible
+    to any browser completing the OIDC redirect anyway."""
+    return {"oidc_issuer_url": config.OIDC_ISSUER_URL}
 
 
 @app.post("/invoke")

@@ -5468,3 +5468,131 @@ path.
 
 **Status:** `DEC-069`'s fix is live. Proceeding to D3 (delegating the
 static UI's build) and D4 (telemetry wiring) in parallel.
+
+## DEC-071 — D4 implementation: real OTel spans on `approval_service`,
+`proposal.id` attribute correlation, `tools/query_traces.py`
+
+**`approval_service`'s own real OTel instrumentation, closing a
+long-standing deferral**: `api.py`'s own comment (since `DEC-046`) had
+explicitly deferred this — "wiring a real OTel exporter is a natural
+follow-up once this service's own config contract grows those fields."
+`approval_service/config.py` gained `OTEL_EXPORTER_OTLP_ENDPOINT`/
+`OTEL_SERVICE_NAME` (mirrors `agent/config.py`'s identical pair exactly);
+`approval_service/telemetry.py` (new) mirrors `agent/telemetry.py`'s
+init/tracer pattern exactly (same safe-no-op-until-configured behavior,
+same explicit `/v1/traces` suffix). Every route (`create_proposal`,
+`decide_proposal`, `list_pending_proposals`, `get_proposal`) now wraps
+its body in an explicit span (`agent/api.py`'s own established pattern —
+this project does not use FastAPI auto-instrumentation anywhere).
+`record_transition_span` — called from the one existing
+`_emit_transition_event` call site `create_proposal`/`decide_proposal`
+already both use, so the structured-log line (D1) and the new span
+attributes never drift apart — carries an explicit `span=None` testable
+parameter mirroring `record_invocation_span`'s own design (the OTel
+API's default no-op span has no readable `.attributes` a test could
+assert against).
+
+**The attribute-correlation mechanism** (the plan doc's own D4 section,
+adopted over real trace-context propagation across the human-latency
+gap): `agent/telemetry.py`'s `record_invocation_span` gained a
+`proposal.id` attribute alongside its existing `session.id` — the two
+values a query joins across both services by, not a shared trace id
+(each process's own span tree stays independent; nothing here attempts
+to thread one W3C trace context across the async wait).
+
+**`tools/query_traces.py`** (new): the "scripted query view" the owner's
+own plan approval explicitly offered as an acceptable, honest
+realization over a full Jaeger/Tempo install. Filters the collector's
+`file`-exporter output (`DEC-068`) by `session.id`/`proposal.id`,
+flattening every span **and** every span event (so e.g.
+`agent/telemetry.py`'s own `model_call`/`tool_call` events show up too,
+inheriting their parent span's own correlation attributes), sorted
+chronologically. Source format (one full `ExportTraceServiceRequest`
+JSON object per line, confirmed live at `DEC-068`) drove the parser's
+own shape directly, not assumed.
+
+**Config wired**: `OTEL_EXPORTER_OTLP_ENDPOINT` set to the real cluster
+collector (`DEC-068`) for both `golden-path-agent-config` and
+`golden-path-agent-approval-config`, in both `ephemeral-test` and
+`demo-prod` overlays; base stays empty (telemetry off by default,
+matching every other environment-flip pattern in this project).
+`tools/check_config_contract.py` caught the same class of gap it always
+does when a new no-default key appears without every surface declaring
+it — fixed the same way, a base default plus overlay overrides, not a
+new mechanism.
+
+**Verified**: full suite (`252 passed`, up from `243` before D3/D4's own
+new tests); `tools/check_config_contract.py` clean; a scratch
+`kustomize build` of `demo-prod` confirms `OTEL_EXPORTER_OTLP_ENDPOINT`
+renders correctly on both `ConfigMap`s.
+
+## DEC-072 — D3 implementation: the minimal approver UI, built by a
+delegated agent, reviewed directly
+
+**Entry-gate decision**: a single self-contained static HTML file
+(`agent/static/approver_ui.html`, inline CSS/JS, no framework/build
+toolchain), served by the agent's own `FastAPI` app at `GET /ui` —
+chosen over a CLI subcommand because `SRS-APR-QUAL-01`'s own quality bar
+("no elaborate portal, no training beyond one walkthrough") is easiest
+to demonstrate live, visually, in a browser at Checkpoint D. Direct-to-service
+per the plan's own entry-gate decision: the page calls `approval_service`
+directly for the decision-context/decide/list calls (`IF-02`/`IF-04`),
+never proxied through the agent.
+
+**Built by a delegated agent, reviewed directly against the actual file,
+not the summary alone**: Authorization Code + PKCE login (state-checked
+for CSRF, single-use code cleared from the URL immediately, access token
+kept in-memory only — never `localStorage`/`sessionStorage`, deliberately,
+so nothing outlives the tab); full decision-context display (every
+`ProposalSummary` field, not a curated subset — `QUAL-01`'s own
+single-view requirement taken literally); 3-second polling (the recorded
+Layer-2 mechanism, `DEC-045`); approve/reject buttons gated client-side
+on the `approval-approver` role claim (UX only — the server, `DEC-069`,
+is the real enforcement); race-safe handling of "someone else decided it
+first" (the pending list going empty triggers the same resume path a
+local decision would); every non-2xx response (`401`/`403`/`409`) shown
+with its real detail, never swallowed.
+
+**One real, if minor, bug found in review and fixed**: `decide()`'s own
+success path set a "Decision recorded..." message on `#decision-outcome`
+(inside `review-view`) immediately before calling `doResume()`, which
+sets `appState = "waiting"` and hides `review-view` in the same
+`render()` call — the confirmation message was being written to an
+element the user would never actually see. Fixed by routing that message
+through `doResume`'s own new optional parameter into `waiting-text`
+instead, which **is** visible during the finalize step. Re-verified the
+inline `<script>` block still parses cleanly (`node --check`) after the
+fix.
+
+**Two judgment calls, both sound**: (1) `APPROVAL_SERVICE_ORIGIN` is a
+page-load-time-overridable JS constant (`window.APPROVAL_SERVICE_ORIGIN`),
+not a hardcoded host/port — this project has no working external
+`Ingress` yet, so a live walkthrough reaches both services via separate
+`oc port-forward` sessions on operator-chosen local ports; documented in
+both the file itself and a new `docs/phase-d-runbook.md` "D3: reaching
+the approver UI locally" section (two `port-forward` commands, one per
+origin). (2) The OIDC issuer URL is fetched once at load from a new tiny
+`GET /ui/config` endpoint rather than templated server-side into the
+static file — keeps `GET /ui` a genuinely static, import-time-cached
+read, and avoids a second hardcoded copy of `agent/config.py`'s own
+`OIDC_ISSUER_URL` value.
+
+**CORS**: `approval_service/api.py` gained `CORSMiddleware`
+(`allow_origins=["*"]`) — required since the page's own origin (the
+agent's) differs from `approval_service`'s; permissive origin is
+acceptable here because the real security boundary is the required
+bearer-token auth already enforced on every route (`DEC-069`), which
+CORS permissiveness does not weaken (a browser-enforced same-origin
+convenience is not a substitute for authentication, and no origin can
+forge a valid Keycloak-signed token). Confirmed `agent/api.py` itself
+needs no CORS addition: the page is served BY the agent, so calls to
+`/invoke`/`/resume` are same-origin.
+
+**Verified**: full suite (`252 passed`); `GET /ui` returns real HTML
+(`200`, confirmed both by the delegated agent and independently,
+locally, by me after the fix); `GET /ui/config` returns the expected
+shape.
+
+**Status:** D3 and D4 both implementation-complete and reviewed.
+Proceeding to ship both through the pipeline together (one promotion,
+not two) and then Checkpoint D's own live run-through.

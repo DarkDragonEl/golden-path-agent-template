@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Golden Path Agent — Approver UI</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --border: #d7dbe0;
+    --text: #1f2430;
+    --muted: #5b6270;
+    --accent: #2757c8;
+    --accent-contrast: #ffffff;
+    --danger: #b3261e;
+    --ok: #1e7a34;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.4;
+  }
+  header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+  #identity-line {
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  main {
+    max-width: 720px;
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+    font-size: 0.9rem;
+  }
+  input[type="text"] {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.95rem;
+    margin-bottom: 0.9rem;
+  }
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .checkbox-row label { margin: 0; font-weight: normal; }
+  button {
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border: none;
+    border-radius: 4px;
+    padding: 0.55rem 1.1rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.secondary {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  button.reject { background: var(--danger); }
+  .btn-row { display: flex; gap: 0.6rem; margin-top: 0.8rem; }
+  dl { margin: 0; }
+  dl dt {
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    margin-top: 0.8rem;
+  }
+  dl dt:first-child { margin-top: 0; }
+  dl dd { margin: 0.15rem 0 0 0; }
+  pre {
+    background: #f0f1f4;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.6rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 0.15rem 0 0 0;
+  }
+  .error { color: var(--danger); font-size: 0.9rem; margin-top: 0.6rem; }
+  .note { color: var(--muted); font-size: 0.85rem; margin-top: 0.6rem; }
+  .outcome { font-size: 0.9rem; margin-top: 0.6rem; }
+  .spinner-text { color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Golden Path Agent — Approver UI</h1>
+  <div id="identity-line"></div>
+</header>
+
+<main>
+  <!-- Step 2: not logged in -->
+  <section id="login-view" class="panel">
+    <p>Sign in with your Keycloak identity to submit a query or review pending approvals.</p>
+    <button id="login-btn" type="button">Log in</button>
+    <div id="login-error" class="error"></div>
+  </section>
+
+  <!-- Step 3: query submission -->
+  <section id="query-view" class="panel" hidden>
+    <form id="query-form">
+      <label for="query-input">Query</label>
+      <input id="query-input" type="text" placeholder="e.g. create a ticket for..." required>
+      <div class="checkbox-row">
+        <input id="write-checkbox" type="checkbox">
+        <label for="write-checkbox">This is a write action</label>
+      </div>
+      <button id="submit-btn" type="submit">Submit</button>
+    </form>
+  </section>
+
+  <!-- Waiting / in-progress state (submitted, no proposal visible yet -- or finalizing after a decision) -->
+  <section id="waiting-view" class="panel" hidden>
+    <p class="spinner-text" id="waiting-text">Waiting for approval...</p>
+    <div class="btn-row">
+      <button id="start-over-btn-waiting" type="button" class="secondary">Start over</button>
+    </div>
+  </section>
+
+  <!-- Step 4/5: proposal review -->
+  <section id="review-view" class="panel" hidden>
+    <h2>Pending proposal</h2>
+    <dl>
+      <dt>Proposal id</dt><dd id="proposal-id"></dd>
+      <dt>Action type</dt><dd id="proposal-action-type"></dd>
+      <dt>Target system</dt><dd id="proposal-target-system"></dd>
+      <dt>Action arguments</dt><dd><pre id="proposal-arguments"></pre></dd>
+      <dt>Evidence references</dt><dd><pre id="proposal-evidence"></pre></dd>
+      <dt>Initiating user</dt><dd id="proposal-initiating-user"></dd>
+      <dt>Agent workload id</dt><dd id="proposal-agent-workload"></dd>
+      <dt>Originating session id</dt><dd id="proposal-session"></dd>
+      <dt>Originating request id</dt><dd id="proposal-request"></dd>
+    </dl>
+
+    <div id="decision-buttons" class="btn-row" hidden>
+      <button id="approve-btn" type="button">Approve</button>
+      <button id="reject-btn" type="button" class="reject">Reject</button>
+    </div>
+    <p id="decision-readonly-note" class="note" hidden>You are not an approver for this proposal -- read only.</p>
+    <div id="decision-outcome" class="outcome"></div>
+  </section>
+
+  <!-- Step 6/7: final result -->
+  <section id="result-view" class="panel" hidden>
+    <h2>Result</h2>
+    <dl>
+      <dt>Final output</dt><dd id="result-final-output"></dd>
+      <dt>Fallback reason</dt><dd id="result-fallback"></dd>
+    </dl>
+    <div class="btn-row">
+      <button id="start-over-btn" type="button">Start over / new query</button>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------
+
+// Judgment call (see docs/phase-d-runbook.md D3 subsection for the operator
+// note): this project has no working external Ingress this milestone, so a
+// live walkthrough reaches the agent and approval-service each via their
+// own separate `oc port-forward`, on ports the operator controls. Rather
+// than hardcode a specific host/port for the approval-service origin (which
+// would break the moment someone forwards a different local port), this is
+// a page-load-time configurable value with a sensible default matching the
+// conventional port-forward target. Whoever hosts this page for a
+// walkthrough can override it by setting `window.APPROVAL_SERVICE_ORIGIN`
+// in a small inline <script> before this one runs, or by editing the
+// default below.
+const APPROVAL_SERVICE_ORIGIN = window.APPROVAL_SERVICE_ORIGIN || "http://localhost:8082";
+
+// Not secret -- a public OAuth2/PKCE client id is meant to be visible to the
+// browser. No existing config.py var covers it (only workload client ids
+// live there), so it's a plain constant here.
+const CLIENT_ID = "golden-path-agent-approver-ui";
+
+// The page is served BY the agent (GET /ui below), so calls to the agent's
+// own /invoke and /approvals/{id}/resume are same-origin -- no config
+// needed, no CORS needed for these two calls.
+const AGENT_ORIGIN = window.location.origin;
+
+// The OIDC issuer URL is real environment config (agent/config.py's
+// OIDC_ISSUER_URL) and must not be duplicated as a second hardcoded string
+// in this static file. It is fetched once at page load from a tiny
+// `GET /ui/config` endpoint (see agent/api.py) rather than templated into
+// this HTML file server-side -- that keeps this file byte-for-byte static
+// (cacheable at import time, same as the rest of GET /ui) and keeps
+// "environment config" and "static asset" cleanly separated, matching this
+// project's own contracts-not-couplings convention.
+let OIDC_ISSUER_URL = null;
+
+// ---------------------------------------------------------------------
+// In-memory session state.
+//
+// accessToken/tokenClaims are deliberately plain module-level JS variables,
+// never localStorage/sessionStorage: access tokens are short-lived and this
+// is a single-page, no-routing app, so there is no benefit to persisting a
+// credential across a reload -- and a real cost (a stray token left behind
+// in browser storage after the tab closes). Session-only, in-memory, gone
+// on refresh -- the user just logs in again (see "no token refresh" note
+// in the project brief).
+// ---------------------------------------------------------------------
+let accessToken = null;
+let tokenClaims = null;
+
+let appState = "login"; // login | query | waiting | review | result
+let lastError = null;
+
+let currentSessionId = null;
+let currentProposalId = null;
+let latestProposal = null;
+let resultOutput = null;
+let resultFallback = null;
+let pollTimer = null;
+
+function $(id) { return document.getElementById(id); }
+
+// ---------------------------------------------------------------------
+// PKCE helpers
+// ---------------------------------------------------------------------
+
+function base64UrlEncodeBytes(bytes) {
+  let str = "";
+  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function randomPkceVerifier() {
+  const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  const arr = new Uint8Array(64); // well within the 43-128 char range required
+  crypto.getRandomValues(arr);
+  let out = "";
+  for (let i = 0; i < arr.length; i++) out += charset[arr[i] % charset.length];
+  return out;
+}
+
+function randomState() {
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return base64UrlEncodeBytes(arr);
+}
+
+async function sha256Base64Url(input) {
+  const data = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return base64UrlEncodeBytes(new Uint8Array(digest));
+}
+
+function currentPageUrlNoQuery() {
+  return window.location.origin + window.location.pathname;
+}
+
+function decodeJwtPayload(token) {
+  const payloadSegment = token.split(".")[1];
+  const b64 = payloadSegment.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+  const binary = atob(padded);
+  const json = decodeURIComponent(
+    Array.prototype.map
+      .call(binary, (c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+      .join("")
+  );
+  return JSON.parse(json);
+}
+
+function hasApproverRole() {
+  if (!tokenClaims || !tokenClaims.roles) return false;
+  const roles = tokenClaims.roles;
+  return Array.isArray(roles) ? roles.includes("approval-approver") : roles === "approval-approver";
+}
+
+// ---------------------------------------------------------------------
+// Login (step 2) + redirect landing (step 1)
+// ---------------------------------------------------------------------
+
+async function login() {
+  const verifier = randomPkceVerifier();
+  const challenge = await sha256Base64Url(verifier);
+  const state = randomState();
+  sessionStorage.setItem("pkce_code_verifier", verifier);
+  sessionStorage.setItem("oauth_state", state);
+
+  const redirectUri = currentPageUrlNoQuery();
+  const authUrl =
+    `${OIDC_ISSUER_URL}/protocol/openid-connect/auth` +
+    `?client_id=${encodeURIComponent(CLIENT_ID)}` +
+    `&response_type=code` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&scope=openid` +
+    `&code_challenge=${encodeURIComponent(challenge)}` +
+    `&code_challenge_method=S256` +
+    `&state=${encodeURIComponent(state)}`;
+  window.location.href = authUrl;
+}
+
+async function handleRedirect(params) {
+  const code = params.get("code");
+  const returnedState = params.get("state");
+  const expectedState = sessionStorage.getItem("oauth_state");
+  const verifier = sessionStorage.getItem("pkce_code_verifier");
+
+  // Authorization codes are single-use -- strip ?code=&state= immediately,
+  // before the exchange, so a refresh (even one that races the fetch below)
+  // never resubmits the same code.
+  history.replaceState({}, "", currentPageUrlNoQuery());
+  sessionStorage.removeItem("oauth_state");
+  sessionStorage.removeItem("pkce_code_verifier");
+
+  if (!expectedState || returnedState !== expectedState) {
+    showLoginError("Login failed: state mismatch (possible CSRF) -- please log in again.");
+    return;
+  }
+  if (!verifier) {
+    showLoginError("Login failed: missing PKCE verifier -- please log in again.");
+    return;
+  }
+
+  try {
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      code: code,
+      redirect_uri: currentPageUrlNoQuery(),
+      client_id: CLIENT_ID,
+      code_verifier: verifier,
+    });
+    const resp = await fetch(`${OIDC_ISSUER_URL}/protocol/openid-connect/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+    const tokenBody = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      showLoginError(`Token exchange failed (${resp.status}): ${JSON.stringify(tokenBody)}`);
+      return;
+    }
+    accessToken = tokenBody.access_token;
+    tokenClaims = decodeJwtPayload(accessToken);
+    lastError = null;
+  } catch (e) {
+    showLoginError(`Token exchange error: ${e}`);
+  }
+}
+
+function showLoginError(msg) {
+  lastError = msg;
+  accessToken = null;
+  tokenClaims = null;
+  appState = "login";
+}
+
+function sessionExpired() {
+  accessToken = null;
+  tokenClaims = null;
+  lastError = "Your session has expired or is no longer valid -- please log in again.";
+  appState = "login";
+  render();
+}
+
+// ---------------------------------------------------------------------
+// Step 3: submit a query
+// ---------------------------------------------------------------------
+
+async function submitQuery(ev) {
+  ev.preventDefault();
+  const query = $("query-input").value.trim();
+  if (!query) return;
+  const write = $("write-checkbox").checked;
+  const username = (tokenClaims && tokenClaims.preferred_username) || "unknown";
+
+  $("submit-btn").disabled = true;
+  try {
+    const resp = await fetch(`${AGENT_ORIGIN}/invoke`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: query, write: write, user_id: username }),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      alert(`/invoke failed (${resp.status}): ${JSON.stringify(body)}`);
+      return;
+    }
+    currentSessionId = body.session_id;
+    if (!body.pending_approval) {
+      resultOutput = body.final_output;
+      resultFallback = body.fallback_reason;
+      appState = "result";
+    } else {
+      currentProposalId = null;
+      latestProposal = null;
+      appState = "waiting";
+      $("waiting-text").textContent = "Waiting for approval...";
+      startPolling();
+    }
+    render();
+  } finally {
+    $("submit-btn").disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Step 4: polling the approval service's pending list
+// ---------------------------------------------------------------------
+
+function startPolling() {
+  stopPolling();
+  pollPending();
+  pollTimer = setInterval(pollPending, 3000);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+async function pollPending() {
+  if (!currentSessionId) return;
+  try {
+    const url =
+      `${APPROVAL_SERVICE_ORIGIN}/proposals?state=pending` +
+      `&originating_session_id=${encodeURIComponent(currentSessionId)}`;
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+
+    if (resp.status === 401) {
+      stopPolling();
+      sessionExpired();
+      return;
+    }
+    if (!resp.ok) {
+      // Transient server-side hiccup -- keep polling rather than erroring out.
+      return;
+    }
+
+    const list = await resp.json();
+    if (list.length === 0) {
+      if (currentProposalId) {
+        // It was pending a moment ago and now it's gone from the pending
+        // list -- someone else decided it first. Not an error: resolve it
+        // the same way our own decide() would.
+        stopPolling();
+        await doResume();
+      }
+      return;
+    }
+
+    latestProposal = list[0];
+    currentProposalId = latestProposal.proposal_id;
+    appState = "review";
+    render();
+  } catch (e) {
+    // Network hiccup -- keep polling.
+    console.error("poll error", e);
+  }
+}
+
+// ---------------------------------------------------------------------
+// Step 5: approve / reject
+// ---------------------------------------------------------------------
+
+async function decide(decision) {
+  stopPolling();
+  $("approve-btn").disabled = true;
+  $("reject-btn").disabled = true;
+  try {
+    const resp = await fetch(`${APPROVAL_SERVICE_ORIGIN}/proposals/${currentProposalId}/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ decision: decision }),
+    });
+    const body = await resp.json().catch(() => ({}));
+
+    if (resp.ok) {
+      // Found in review (not the brief): review-view (where
+      // decision-outcome lives) is hidden the instant doResume() below
+      // sets appState = "waiting" -- so this message was being set on an
+      // element the user never actually saw. Route it through
+      // waiting-text instead, which IS visible during doResume().
+      await doResume(`Decision recorded: ${body.state} (by ${body.decided_by}). Finalizing...`);
+      return;
+    }
+    if (resp.status === 401) {
+      sessionExpired();
+      return;
+    }
+
+    // 403 (role refusal) or 409 (already decided) or anything else --
+    // show the real error detail, never swallow it.
+    $("decision-outcome").textContent = `Decision not applied (${resp.status}): ${JSON.stringify(body.detail ?? body)}`;
+
+    if (resp.status === 409 && body.detail && body.detail.state && body.detail.state !== "pending") {
+      // Someone else already decided it -- it's terminal now, resolve it.
+      await doResume();
+      return;
+    }
+
+    // 403, or a 409 that is somehow still pending: nothing changed server
+    // side, so resume polling in case someone else decides it.
+    startPolling();
+  } catch (e) {
+    $("decision-outcome").textContent = `Network error: ${e}`;
+    startPolling();
+  } finally {
+    $("approve-btn").disabled = false;
+    $("reject-btn").disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Step 6: resume the agent once a decision is terminal
+// ---------------------------------------------------------------------
+
+async function doResume(waitingMessage) {
+  appState = "waiting";
+  render();
+  $("waiting-text").textContent = waitingMessage || "Finalizing...";
+  try {
+    const resp = await fetch(`${AGENT_ORIGIN}/approvals/${currentSessionId}/resume`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      resultOutput = null;
+      resultFallback = `resume failed (${resp.status}): ${JSON.stringify(body)}`;
+    } else {
+      resultOutput = body.final_output;
+      resultFallback = body.fallback_reason;
+    }
+  } catch (e) {
+    resultOutput = null;
+    resultFallback = `network error calling resume: ${e}`;
+  }
+  appState = "result";
+  render();
+}
+
+// ---------------------------------------------------------------------
+// Step 7: start over
+// ---------------------------------------------------------------------
+
+function startOver() {
+  stopPolling();
+  currentSessionId = null;
+  currentProposalId = null;
+  latestProposal = null;
+  resultOutput = null;
+  resultFallback = null;
+  $("query-input").value = "";
+  $("write-checkbox").checked = false;
+  appState = "query";
+  render();
+}
+
+// ---------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------
+
+function identityLine() {
+  if (!accessToken) return "";
+  const username = (tokenClaims && tokenClaims.preferred_username) || "(unknown)";
+  return hasApproverRole()
+    ? `Logged in as ${username} (approver)`
+    : `Logged in as ${username} (not an approver -- you can view but not decide)`;
+}
+
+function renderProposalDetail() {
+  const p = latestProposal;
+  if (!p) return;
+  $("proposal-id").textContent = p.proposal_id;
+  $("proposal-action-type").textContent = p.action_type;
+  $("proposal-target-system").textContent = p.target_system_id;
+  $("proposal-arguments").textContent = JSON.stringify(p.action_arguments, null, 2);
+  $("proposal-evidence").textContent = JSON.stringify(p.evidence_refs, null, 2);
+  $("proposal-initiating-user").textContent = p.initiating_user_id;
+  $("proposal-agent-workload").textContent = p.agent_workload_id;
+  $("proposal-session").textContent = p.originating_session_id;
+  $("proposal-request").textContent = p.originating_request_id;
+
+  const canDecide = hasApproverRole();
+  $("decision-buttons").hidden = !canDecide;
+  $("decision-readonly-note").hidden = canDecide;
+}
+
+function renderResult() {
+  $("result-final-output").textContent = resultOutput != null ? String(resultOutput) : "(none)";
+  $("result-fallback").textContent = resultFallback != null ? String(resultFallback) : "(none)";
+}
+
+function render() {
+  $("identity-line").textContent = identityLine();
+
+  $("login-view").hidden = true;
+  $("query-view").hidden = true;
+  $("waiting-view").hidden = true;
+  $("review-view").hidden = true;
+  $("result-view").hidden = true;
+
+  if (!accessToken) {
+    $("login-view").hidden = false;
+    $("login-error").textContent = lastError || "";
+    return;
+  }
+
+  if (appState === "review") {
+    $("review-view").hidden = false;
+    $("decision-outcome").textContent = $("decision-outcome").textContent || "";
+    renderProposalDetail();
+  } else if (appState === "waiting") {
+    $("waiting-view").hidden = false;
+  } else if (appState === "result") {
+    $("result-view").hidden = false;
+    renderResult();
+  } else {
+    $("query-view").hidden = false;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------
+
+async function init() {
+  try {
+    const cfgResp = await fetch("/ui/config");
+    const cfg = await cfgResp.json();
+    OIDC_ISSUER_URL = cfg.oidc_issuer_url;
+  } catch (e) {
+    document.body.innerHTML = "<p>Failed to load page configuration: " + e + "</p>";
+    return;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("code") && params.has("state")) {
+    await handleRedirect(params);
+  }
+  if (accessToken && appState === "login") {
+    appState = "query";
+  }
+  render();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  $("login-btn").addEventListener("click", login);
+  $("query-form").addEventListener("submit", submitQuery);
+  $("approve-btn").addEventListener("click", () => decide("approve"));
+  $("reject-btn").addEventListener("click", () => decide("reject"));
+  $("start-over-btn").addEventListener("click", startOver);
+  $("start-over-btn-waiting").addEventListener("click", startOver);
+  init();
+});
+</script>
+</body>
+</html>

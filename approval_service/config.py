@@ -37,3 +37,10 @@ APPROVER_ROLE_CLAIM = _env("APPROVER_ROLE_CLAIM", "roles")
 APPROVER_ROLE_VALUE = _env("APPROVER_ROLE_VALUE", "approval-approver")
 
 APPROVAL_PORT = int(_env("APPROVAL_PORT", "8082"))
+
+# Phase D4 (DECISIONS.md DEC-071): this config contract's own growth,
+# closing api.py's own long-standing note ("wiring a real OTel exporter
+# is a natural follow-up once this service's own config contract grows
+# these fields"). Mirrors agent/config.py's identical pair exactly.
+OTEL_EXPORTER_OTLP_ENDPOINT = _env("OTEL_EXPORTER_OTLP_ENDPOINT")
+OTEL_SERVICE_NAME = _env("OTEL_SERVICE_NAME", "golden-path-agent-approval")
