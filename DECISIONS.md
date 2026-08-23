@@ -4334,3 +4334,73 @@ verification STOP → D2 → D3 → D4 → Checkpoint D") — **not** proceeding
 into D2 (Keycloak/OIDC) without further explicit owner review and
 authorization of this evidence, matching every prior checkpoint's
 discipline in this project.
+
+## DEC-053 — D1 review closed; D2 authorized; `PR #2`'s promotion stays
+open by design, with a recorded cutover sequence
+
+**D1 review closed.** Owner reviewed `DEC-049` through `DEC-052` and
+`reports/phase-d-d1-verification.md` directly and accepted the evidence
+as sufficient. No further D1 work.
+
+**`PR #2` (`promote/fd141bb7...` → `main`) stays open, unmerged, by
+design** — not an oversight, not left dangling. Reasoning, recorded here
+because it drives D2's own first implementation step:
+
+- The PR's digest carries the Phase D-redesigned agent (`agent/approval_client.py`
+  calling a real approval service) — but `demo-prod` has no approval
+  service to submit to until D2 promotes the approval manifests into
+  `base/` (`DEC-046`'s sequencing rule).
+- The reverse order is worse: landing the base-wiring commit first (approval
+  manifests into `base/`, before the promotion PR merges) would deploy the
+  `approval` role against `demo-prod`'s *current*, pre-Phase-D digest —
+  whose `entrypoint.sh` has no `approval)` case at all (`DEC-048` added
+  it, `DEC-049`'s digest is what the still-open PR carries).
+- Neither order alone is safe; the dependency is genuinely circular
+  without a deliberate sequence.
+
+**Resolution — D2's cutover is one deliberate, short sequence, run in a
+single session** (recorded now, binding on D2's own first implementation
+step, mirroring how `DEC-046` recorded D1's sequencing rule ahead of
+needing it):
+
+1. Merge `PR #2` — `demo-prod`'s agent/mcp pods update to the
+   Phase-D-redesigned digest. Briefly, until step 2 lands: the write
+   path fails closed-degraded (`approval_service_failure:ConnectError`,
+   the same fallback path `DEC-051` found and fixed for `ephemeral-test`
+   — a real, honest failure mode, not a crash or a silent bypass);
+   read/knowledge paths are unaffected. Accepted — no audience scheduled
+   for this window.
+2. Immediately land D2's atomic base-wiring commit: the approval
+   manifests promoted into `base/` + `AUTH_MODE=oidc` + the mechanical
+   `demo-prod`-config assertion (`DEC-046`'s owner-binding requirement
+   #1) — **one commit**, not staged across two.
+3. Verify `demo-prod` syncs both changes and the full approve path works
+   live (mirroring `DEC-052`'s `ephemeral-test` evidence, now against
+   `demo-prod`).
+
+**Staleness contingency**: if `PR #2` goes stale against `main` before
+this sequence runs (D2's own changes will touch `base/kustomization.yaml`
+too), close it — do not force-merge a stale digest promotion. A fresh
+green `PipelineRun` against `main`'s then-current tip opens a new PR;
+digest promotion must always reflect a green run of what is actually on
+`main`, never a rebased/patched-up stale one.
+
+**D2 authorized**, per the owner's own execution structure: entry gate
+(`rhbk-operator` install, the one flagged cluster-scoped step — CRD
+registration — dry-run shown, apply held for explicit ack; Postgres for
+Keycloak as a plain `Deployment`+`PVC`, no new operator) → **design
+STOP** (realm/client shape; the agent/mcp `ServiceAccount`-split decision,
+owner's recorded lean: split) → implementation (realm-import from Git;
+`get_current_approver()` against the real issuer; `MCP_AUTH_TOKEN`
+becomes real and fail-closed; the cutover sequence above; `AUTH_MODE=oidc`
+everywhere beyond `ephemeral-test`'s own gate) → verification STOP (the
+five named negative/positive tests, listed in full at that STOP, not
+repeated here).
+
+**Status:** proceeding to D2's entry gate — researching the live
+`rhbk-operator` catalog state fresh (never trusting the Phase D plan's
+earlier research without re-checking, per this project's own "verify,
+don't assume" discipline), preparing the `Subscription`/`OperatorGroup`
+manifests and the Postgres scaffold, and preparing the design-STOP
+content (realm/client shape, SA-split proposal) — holding before
+applying anything, per the owner's explicit instruction.
