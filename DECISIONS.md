@@ -4109,3 +4109,93 @@ own captured output already lives in `reports/*.json`.
 **Status:** Step (c) complete and verified live, comprehensively.
 Proceeding to (d) — manifests into the `ephemeral-test` overlay, the RBAC
 diffs applied for real, `AUTH_MODE=none`, pipeline green.
+
+## DEC-050 — D1 implementation step (d), part 1: wiring the approval
+manifests into `ephemeral-test` — a real kustomize security-boundary
+finding, not assumed away
+
+**Document/scope:** `deploy/kustomize/base/approval/` (new nested
+directory — the eight `DEC-045` manifests moved here, `git mv`, plus a
+new `kustomization.yaml`), `deploy/kustomize/overlays/ephemeral-test/kustomization.yaml`,
+`pipelines/tasks/deploy-ephemeral.yaml`.
+
+**What the plan assumed, and what turned out to be wrong, caught before
+any live apply**: the Phase D plan's own "Sequencing" section (and DEC-046)
+described adding the eight approval manifests to
+`overlays/ephemeral-test/kustomization.yaml`'s own `resources:` list,
+"referencing the base-directory files directly, alongside `../../base`."
+Tested locally first (`podman run ... registry.k8s.io/kustomize/kustomize:v5.8.1
+build .` — the exact image/version `pipelines/tasks/deploy-ephemeral.yaml`
+already uses), per this project's own "verify, don't assume" discipline
+(`DEC-023`'s pattern), before writing that as the real overlay content.
+Result: a hard failure — `kustomize`'s own security restrictor rejects a
+bare file reference (`../../base/deployment-approval.yaml`, etc.) that
+is not in or below the *referencing* kustomization's own directory tree:
+`file '...' is not in or below '.../overlays/ephemeral-test'`. A
+kustomization-ROOT reference (a directory containing its own
+`kustomization.yaml` — exactly how `../../base` itself is already
+referenced) has no such restriction.
+
+**Fix**: a new nested kustomization, `deploy/kustomize/base/approval/`,
+containing the eight manifests (moved, not copied — no content
+duplication) plus its own `kustomization.yaml` (its own `resources:`,
+`commonLabels` mirroring `../kustomization.yaml`'s, and its own `images:`
+stanza — necessary because `deployment-approval.yaml`'s image field is
+invisible to `../kustomization.yaml`'s own images transform, which only
+ever sees resources actually in *its own* `resources:` list).
+`overlays/ephemeral-test/kustomization.yaml` now lists both
+`../../base` and `../../base/approval` — two sibling kustomization
+roots, each independently legal to reference this way.
+
+**The sequencing requirement (`DEC-046`) is preserved, verified, not just
+argued**: `base/approval/` is deliberately never added to
+`base/kustomization.yaml`'s own `resources:` list — confirmed live (local
+podman build of `deploy/kustomize/base` alone, the exact directory
+`demo-prod`'s ArgoCD `Application` syncs) that it renders zero approval
+resources; the sole `"approval"` string match in that output is the
+pre-existing, unrelated `APPROVAL_MODE=required` config key from Phase B.
+`demo-prod` remains genuinely untouched, not touched-by-omission.
+
+**A consequence for the pipeline task, found and fixed in the same
+pass**: `pipelines/tasks/deploy-ephemeral.yaml`'s digest-override step
+(`kustomize edit set image`, run against `base/kustomization.yaml` in
+the scratch checkout, per `DEC-031`'s own established reasoning for why
+it targets the owning kustomization and not the overlay) now needs a
+**second**, identical invocation against `base/approval/kustomization.yaml`
+— the same reasoning applies verbatim: that file owns
+`deployment-approval.yaml`'s image field, which `base/kustomization.yaml`'s
+own transform cannot see. Added, plus the matching revert
+(`git checkout --`) for both files, plus a third `oc rollout status`
+check (`deployment/golden-path-agent-approval`) in the `apply` step, so
+"pipeline green" actually gates on the new service coming up healthy,
+not merely applied.
+
+**Verified end-to-end, not just piecewise**: a full scratch-copy dry-run
+of the pipeline task's exact script (both `kustomize edit set image`
+calls, the `configmap` edit, `kustomize build .`) against the real,
+current repo content (not simplified test fixtures) — 17 rendered
+documents, correct kind counts, all three `Deployment`s carrying the
+identical injected fake digest, `golden-path-agent-approval`'s own
+distinct `ServiceAccount` (not shared with `agent`/`mcp`, per `DEC-045`'s
+finding), `AUTH_MODE: none` in the rendered `ConfigMap`, all objects
+correctly namespaced to `golden-path-agent-ephemeral-test`. Separately,
+`tools/check_config_contract.py` (`DEC-044`) still passes clean against
+the restructured tree.
+
+**Explicitly not touched, correctly out of scope for D1**:
+`deploy/argocd/project.yaml`'s `namespaceResourceWhitelist` — confirmed
+`ephemeral-test` is pipeline-`oc apply`-only, never ArgoCD-synced
+(`deploy/argocd/apps/` has exactly one child `Application`, `demo-prod`);
+the whitelist only becomes relevant once approval-service manifests are
+promoted into `base/` at D2, already flagged as a D2 item in the Phase D
+plan's own D1 section. `approval_service/config.py`'s own two no-default
+keys (`OIDC_ISSUER_URL`, `OIDC_AUDIENCE`) remain outside
+`check_config_contract.py`'s scan scope (it AST-parses `agent/config.py`
+only) — also explicitly a D2-scope item per the owner's plan-approval
+addition #1 ("Added to D2's implementation scope now"), not a D1
+oversight.
+
+**Status:** manifests wired and verified via local render; RBAC diffs
+(`DEC-045`, already committed) still need a live `oc auth can-i`
+dry-run/apply confirmation and a real `PipelineRun` before this step is
+complete.

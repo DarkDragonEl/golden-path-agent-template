@@ -16,6 +16,13 @@ namespace: golden-path-agent-ephemeral-test
 # longer referenced from `resources:`.
 resources:
   - ../../base
+  - ../../base/approval # DEC-046/DEC-050: the approval-service manifests --
+    # deliberately a nested kustomization root, not a plain file list, and
+    # deliberately not part of ../../base's own resources: (see that
+    # directory's own kustomization.yaml for why). AUTH_MODE=none is
+    # configmap-approval.yaml's own committed default -- no override
+    # needed here; D2 flips it to oidc in the same commit that promotes
+    # these manifests into ../../base itself.
 
 configMapGenerator:
   - name: golden-path-agent-config
