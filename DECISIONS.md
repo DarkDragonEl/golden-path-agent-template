@@ -4640,3 +4640,55 @@ so this migration only swaps the operator, never the `Keycloak`/
 Proceeding to Postgres (the entry gate's final step), then Keycloak
 CR/realm-import and the rest of D2 implementation, per the owner's full
 authorization.
+
+## DEC-057 — D2 entry gate complete: Postgres + `Keycloak` CR live and
+healthy
+
+**Postgres**: credential generated fresh (`openssl rand -base64 24`),
+created directly as a K8s `Secret` — never echoed, never logged, never
+committed, matching this project's established credential pattern. `oc
+apply -f pipelines/bootstrap/keycloak-postgres.yaml` — dry-run clean,
+applied, `rollout status` succeeded, pod `Running`, log confirms a real
+successful startup (`server started`, `accepting connections`,
+`ALTER ROLE` from the image's own `set_passwords.sh`) with no secret
+values present in the output.
+
+**`Keycloak` CR** (`pipelines/bootstrap/keycloak-cr.yaml`, new):
+schema fields confirmed against the live CRD (`oc explain
+keycloak.spec[...]`) before writing, not guessed. `instances: 1`;
+`db.vendor: postgres` pointed at the Service above via both secret
+keys; `http.httpEnabled: true` + `ingress.enabled: false` +
+`hostname.strict: false` — deliberately no TLS/Route at this layer,
+mirroring `deploy/kustomize/base/ingress.yaml`/`ingress-approval.yaml`'s
+own "deliberately not a Route," no-hardcoded-host convention exactly (a
+hand-written `Ingress` alongside the CR, same shape as the other two).
+`bootstrapAdmin.user.secret` references a second freshly-generated,
+never-echoed `Secret` (`golden-path-agent-keycloak-admin`).
+
+Dry-run clean, applied, `status.conditions[type=Ready].status` reached
+`True` within ~25s. Verified live, not just "Ready": `golden-path-agent-0`
+pod `Running`; the operator's own generated `Service`
+(`golden-path-agent-service`, ports `http:8080`/`management:9000`,
+confirmed by directly reading the live `Service` object rather than
+assuming the documented `<cr-name>-service` naming convention held) —
+the `Ingress`'s backend reference was written against this confirmed
+name, not the assumed one, before applying it.
+
+**Known, accepted limitation, not new**: the `Ingress` has no
+`IngressClass`/host assigned (`CLASS: <none>`, no `ADDRESS`) — same,
+already-documented "no external HTTP routing this milestone" limitation
+`reports/phase-c-sharing-run.md`'s own walkthrough section already states
+for the agent/mcp/approval `Ingress`es. Not a new gap Keycloak
+introduces. D2's own verification (real approver login, etc.) will use
+the same in-cluster `oc exec` HTTP pattern already established for the
+approval service, reaching Keycloak via its internal Service DNS
+(`golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080`)
+— which also becomes the `iss` claim on every token Keycloak issues
+here, since `hostname.strict: false` echoes back whatever URL a client
+used to reach it. `OIDC_ISSUER_URL` for both the agent (fetching tokens)
+and the approval service (validating them) will be pinned to this exact
+same internal URL, so the two sides stay consistent by construction.
+
+**Status: D2 entry gate fully complete and live.** Proceeding to realm
+import (test users, the three clients from the approved design-STOP
+shape) and `pipelines/bootstrap/provision-identity-secrets.sh`.
