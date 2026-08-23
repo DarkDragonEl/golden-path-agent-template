@@ -256,7 +256,8 @@ failure pattern (item 3) accumulate. Item 4 is the one genuine exception
 to "the longer this waits the worse it gets" — explicitly lowest
 priority, parked rather than urgent, per the owner's own call.
 
-1. **Model-identity capture** (highest priority). If the live MaaS
+1. **Model-identity capture — DONE (`DECISIONS.md` `DEC-043`), before
+   Phase D planning, per the owner's own priority.** If the live MaaS
    endpoint's response exposes a model identity/version field (an
    OpenAI-compatible response's `model` field, or a system-fingerprint-
    style header), capture it alongside every eval run's results —
@@ -285,8 +286,10 @@ priority, parked rather than urgent, per the owner's own call.
    is therefore a functional check (the call still succeeds) rather than
    a trace-based one (`model.route: fallback` visible in an exported
    span, matching `DEC-020`'s local demo).
-3. **Config-contract completeness check** (scope extended at the
-   Checkpoint C closure review to a second, related pattern — see below).
+3. **Config-contract completeness check — DONE (`DECISIONS.md` `DEC-044`),
+   before Phase D planning, per the owner's own priority.** (Scope
+   extended at the Checkpoint C closure review to a second, related
+   pattern — see below; both implemented together.)
    `DECISIONS.md` `DEC-035` records the second instance of the first
    pattern: an environment surface silently missing a key
    `agent/config.py` (the canonical consumer) actually requires. First
