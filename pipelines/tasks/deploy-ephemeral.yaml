@@ -11,12 +11,13 @@
 # base and an overlay declare an `images:` transformer for the same image
 # name, the overlay's override does not reliably take effect; base's own
 # value silently wins instead. Editing base's own file directly in this
-# scratch copy avoids the conflict entirely. Phase D/DEC-050:
-# base/approval/kustomization.yaml (a separate, nested kustomization for
-# the approval-service manifests, per DEC-046's sequencing decision) owns
-# its own Deployment's image field the same way base/kustomization.yaml
-# owns deployment-agent.yaml/deployment-mcp.yaml's -- gets the identical
-# edit-then-revert treatment below, for the identical reason. Namespace lifecycle:
+# scratch copy avoids the conflict entirely. Phase D2 cutover (DEC-063):
+# deployment-approval.yaml is now a plain base/ resource (promoted from
+# the DEC-050 nested kustomization at the cutover) -- this Task's single
+# `kustomize edit set image` against base/kustomization.yaml now covers
+# it too, same as deployment-agent.yaml/deployment-mcp.yaml; the second,
+# separate edit this Task used to need for base/approval/kustomization.yaml
+# is retired along with that directory. Namespace lifecycle:
 # golden-path-agent-ephemeral-test is
 # pre-created (pipelines/bootstrap/namespaces.yaml) -- this Task manages
 # only the workload resources inside it, per DEC-024's RBAC redesign;
@@ -81,13 +82,6 @@ spec:
         set -eu
         (cd $(workspaces.source.path)/deploy/kustomize/base && \
           kustomize edit set image golden-path-agent="$(params.image-ref)")
-        (cd $(workspaces.source.path)/deploy/kustomize/base/approval && \
-          kustomize edit set image golden-path-agent="$(params.image-ref)")
-        # DEC-050: base/approval/kustomization.yaml owns
-        # deployment-approval.yaml's own image field, which is invisible
-        # to base/kustomization.yaml's own images transform (it is never
-        # in that file's resources: list) -- needs its own, identical
-        # digest-override edit, same reasoning as the line above.
         kustomize edit set configmap golden-path-agent-config \
           --from-literal=MODEL_API_BASE_URL="${MODEL_API_BASE_URL}" \
           --from-literal=MODEL_NAME="${MODEL_NAME}" \
@@ -104,11 +98,8 @@ spec:
         # field onto the ORIGINAL, unmodified committed file. Revert the
         # mutation now that the render is already captured above; nothing
         # downstream in this Task needs the mutated file on disk, only
-        # rendered-ephemeral.yaml. Same reasoning applies to
-        # base/approval/kustomization.yaml (DEC-050) -- reverted alongside.
-        git -C $(workspaces.source.path) checkout -- \
-          deploy/kustomize/base/kustomization.yaml \
-          deploy/kustomize/base/approval/kustomization.yaml
+        # rendered-ephemeral.yaml.
+        git -C $(workspaces.source.path) checkout -- deploy/kustomize/base/kustomization.yaml
     - name: apply
       image: quay.io/openshift/origin-cli:4.20
       script: |

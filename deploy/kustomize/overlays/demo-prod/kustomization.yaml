@@ -13,9 +13,18 @@ configMapGenerator:
   - name: golden-path-agent-config
     behavior: merge
     literals:
-      - MCP_MODE=mock # DEC-021: demo-prod stays on the mock ITSM tool for
-        # this milestone, same as ephemeral-test -- no real tool backend
-        # exists yet (Annex A OI-02).
+      - MCP_MODE=live # DEC-063: revises DEC-021's own "same as
+        # ephemeral-test" framing, at the network-topology axis only --
+        # the mock ITSM *data* stays synthetic regardless of this value
+        # (itsm_search_records/itsm_create_request never branch on
+        # MCP_MODE at all, CLAUDE.md's synthetic-data-only rule is
+        # unaffected either way). What this flips is whether the agent
+        # calls MCP in-process (mock) or over real HTTP to the
+        # separately-deployed mcp pod (live) -- required for
+        # MCP_AUTH_MODE=oidc below to mean anything: enforcement on a
+        # call that never leaves the process isn't enforcement.
+      - AGENT_OIDC_MODE=oidc # DEC-063
+      - MCP_AUTH_MODE=oidc # DEC-063
       - APPROVAL_MODE=required
       - DATA_SOURCE_BINDING=synthetic # CLAUDE.md: synthetic corpus only,
         # never real client/organization data, in any promoted environment.
@@ -47,6 +56,15 @@ configMapGenerator:
       # declared (by base/configmap.yaml, DEC-035's own fix), and this
       # comment states exactly where each demo-prod-specific real value
       # actually comes from, so it is never silent.
+  - name: golden-path-agent-approval-config
+    behavior: merge
+    literals:
+      - AUTH_MODE=oidc # DEC-063: the D2 cutover's own binding requirement
+        # (DEC-046 owner-addition #1) -- the approval service now
+        # validates real Keycloak-issued tokens for every decision/query
+        # call in this environment. tools/check_config_contract.py's own
+        # new demo-prod-config assertion (DEC-063) mechanically fails if
+        # this line is ever reverted/omitted, not left to convention.
 
 replicas:
   - name: golden-path-agent

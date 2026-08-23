@@ -1,7 +1,10 @@
 """Post-Checkpoint-C backlog item 3 (DECISIONS.md DEC-035, scope extended
-to placeholder detection at the Checkpoint C closure review).
+to placeholder detection at the Checkpoint C closure review, and to
+demo-prod's own security-downgrade-switch assertion plus
+`approval_service/config.py`'s own key completeness at the D2 cutover,
+DEC-063).
 
-Two independent checks, run together, no cluster access needed:
+Four independent checks, run together, no cluster access needed:
 
 1. KEY COMPLETENESS. `agent/config.py` reads some env vars via a bare
    `_env(name)` call with no default argument at all -- for these, an
@@ -22,6 +25,26 @@ Two independent checks, run together, no cluster access needed:
    `*_PLACEHOLDER`). Any match not named on `KNOWN_PLACEHOLDERS` with a
    stated reason is a finding.
 
+3. APPROVAL-SERVICE KEY COMPLETENESS. The same check as (1), against
+   `approval_service/config.py`'s own no-default keys and
+   `configmap-approval.yaml` -- a separate config module this checker
+   never scanned before D2, since `agent/config.py` was the only one that
+   existed when this check was first built (DEC-035). Found live: with
+   `AUTH_MODE` at `"none"` throughout D1, `OIDC_ISSUER_URL`/`OIDC_AUDIENCE`
+   went completely undeclared with nothing to catch it -- exactly the
+   kind of gap this checker exists to prevent, closed here rather than
+   left as the same class of blind spot for a second config module.
+
+4. DEMO-PROD SECURITY-DOWNGRADE-SWITCH ASSERTION. `AGENT_OIDC_MODE`,
+   `MCP_AUTH_MODE`, and the approval service's own `AUTH_MODE` each
+   default to a safe-but-insecure value (needed to build/test before
+   their real dependency -- OIDC/Keycloak -- existed). This check
+   computes demo-prod's own *effective* config for each (base's
+   committed default, with demo-prod's own `configMapGenerator` override
+   applied on top, the same `behavior: merge` semantics Kustomize itself
+   uses) and asserts it is the secure value -- mechanically, not by
+   convention (DECISIONS.md DEC-046 owner-addition #1 / DEC-063).
+
 Both allow-lists use the same named/dated/rationale-carrying convention
 already established elsewhere in this repo (`eval/cli.py::KNOWN_GAP_TOLERANCES`,
 this script's own sibling `tools/check_policy_sync.py`) -- an exception
@@ -40,6 +63,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PY = REPO_ROOT / "agent" / "config.py"
+APPROVAL_CONFIG_PY = REPO_ROOT / "approval_service" / "config.py"
 ARGOCD_APPS_DIR = REPO_ROOT / "deploy" / "argocd" / "apps"
 KUSTOMIZE_BASE = REPO_ROOT / "deploy" / "kustomize" / "base"
 KUSTOMIZE_OVERLAYS = REPO_ROOT / "deploy" / "kustomize" / "overlays"
@@ -106,12 +130,16 @@ PLACEHOLDER_PATTERNS = [
 ]
 
 
-def _extract_no_default_env_keys() -> set[str]:
-    """AST-parse agent/config.py for every bare `_env("KEY")` call -- one
-    positional arg, no default -- the class of key with no safe fallback
-    at all. `_env_int`/`_env_str` always take a hard_default (3rd
-    positional), so they're structurally excluded from this class."""
-    tree = ast.parse(CONFIG_PY.read_text())
+def _extract_no_default_env_keys(config_py: Path = CONFIG_PY) -> set[str]:
+    """AST-parse a config.py module for every bare `_env("KEY")` call --
+    one positional arg, no default -- the class of key with no safe
+    fallback at all. `_env_int`/`_env_str` always take a hard_default
+    (3rd positional), so they're structurally excluded from this class.
+    Defaults to `agent/config.py`; `approval_service/config.py` has its
+    own, separate check (DEC-063 -- it went unscanned through all of D1,
+    since AUTH_MODE stayed "none" the whole time and the gap never
+    surfaced)."""
+    tree = ast.parse(config_py.read_text())
     keys = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -194,6 +222,50 @@ def check_key_completeness() -> list[str]:
     return problems
 
 
+def check_approval_service_key_completeness() -> list[str]:
+    """DEC-063: `approval_service/config.py`'s own no-default keys,
+    checked the same way `check_key_completeness()` checks `agent/config.py`'s
+    -- against `configmap-approval.yaml` (base + every overlay) only, not
+    `.env.example`/`scripts/dev.sh` (`approval_service` isn't part of that
+    local-dev flow, unlike `agent`/`mcp_server`). Found live while wiring
+    the D2 cutover: `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` had gone completely
+    unscanned through all of D1, since `AUTH_MODE` stayed `"none"` the
+    whole time and nothing ever exercised the gap."""
+    required = _extract_no_default_env_keys(APPROVAL_CONFIG_PY)
+    problems = []
+
+    base_declared = set(_configmap_generator_literal_map(
+        KUSTOMIZE_BASE / "kustomization.yaml", "golden-path-agent-approval-config"
+    ))
+    if not base_declared:
+        # base/kustomization.yaml doesn't use a configMapGenerator for this
+        # ConfigMap -- it's a plain resource file (configmap-approval.yaml)
+        # instead, per DEC-045's own shape. Read its literal `data:` keys
+        # directly in that case.
+        base_declared = set(
+            yaml.safe_load((KUSTOMIZE_BASE / "configmap-approval.yaml").read_text())["data"].keys()
+        )
+
+    surfaces = [("base (deploy/kustomize/base/configmap-approval.yaml)", "base", base_declared)]
+    for overlay_dir in sorted(p for p in KUSTOMIZE_OVERLAYS.iterdir() if p.is_dir()):
+        kfile = overlay_dir / "kustomization.yaml"
+        if kfile.exists():
+            declared = base_declared | set(_configmap_generator_literal_map(kfile, "golden-path-agent-approval-config"))
+            surfaces.append((f"overlay:{overlay_dir.name}", overlay_dir.name, declared))
+
+    for surface_name, shadow_lookup_key, declared in surfaces:
+        for key in sorted(required):
+            if key in declared:
+                continue
+            if (shadow_lookup_key, key) in KNOWN_SECRET_SHADOWED:
+                continue
+            problems.append(
+                f"{key!r} (no default in approval_service/config.py) is not declared by "
+                f"{surface_name} and is not on KNOWN_SECRET_SHADOWED"
+            )
+    return problems
+
+
 def _gitops_synced_overlay_paths() -> set[Path]:
     """Every overlay path a deploy/argocd/apps/*.yaml Application's own
     source.path actually points at -- these, plus base (every overlay
@@ -229,10 +301,62 @@ def check_placeholder_values() -> list[str]:
     return problems
 
 
+# --- Check 3: demo-prod's own security-downgrade-switch assertion ------
+# DECISIONS.md DEC-046 owner-addition #1 / DEC-063: these three switches
+# each have a safe-but-insecure default (needed so D1/D2 could be built
+# and tested before their real dependencies -- OIDC/Keycloak -- existed),
+# and each is exactly the kind of thing that is easy to leave un-flipped
+# by accident once it does. Mechanical, not conventional: this asserts
+# demo-prod's own EFFECTIVE, merged config (base's committed default,
+# with demo-prod's own configMapGenerator override applied on top, the
+# same `behavior: merge` semantics Kustomize itself uses) has the secure
+# value for every one of them.
+DEMO_PROD_REQUIRED_VALUES = {
+    ("golden-path-agent-config", "AGENT_OIDC_MODE"): "oidc",
+    ("golden-path-agent-config", "MCP_AUTH_MODE"): "oidc",
+    ("golden-path-agent-approval-config", "AUTH_MODE"): "oidc",
+}
+
+
+def _configmap_generator_literal_map(kustomization_path: Path, configmap_name: str) -> dict[str, str]:
+    doc = yaml.safe_load(kustomization_path.read_text())
+    literals = {}
+    for gen in doc.get("configMapGenerator") or []:
+        if gen.get("name") != configmap_name:
+            continue
+        for literal in gen.get("literals") or []:
+            key, _, value = literal.partition("=")
+            literals[key.strip()] = value.strip()
+    return literals
+
+
+def check_demo_prod_security_downgrade_switches() -> list[str]:
+    base_configmap = yaml.safe_load((KUSTOMIZE_BASE / "configmap.yaml").read_text())["data"]
+    base_approval_configmap = yaml.safe_load(
+        (KUSTOMIZE_BASE / "configmap-approval.yaml").read_text()
+    )["data"]
+    base_values = {"golden-path-agent-config": base_configmap, "golden-path-agent-approval-config": base_approval_configmap}
+
+    demo_prod_kfile = KUSTOMIZE_OVERLAYS / "demo-prod" / "kustomization.yaml"
+    problems = []
+    for (configmap_name, key), required_value in DEMO_PROD_REQUIRED_VALUES.items():
+        overrides = _configmap_generator_literal_map(demo_prod_kfile, configmap_name)
+        effective = overrides.get(key, base_values[configmap_name].get(key))
+        if effective != required_value:
+            problems.append(
+                f"demo-prod's effective {configmap_name}.{key} is {effective!r}, "
+                f"expected {required_value!r} -- a security-relevant downgrade switch "
+                f"left un-flipped (DECISIONS.md DEC-046/DEC-063)"
+            )
+    return problems
+
+
 def main() -> int:
     key_problems = check_key_completeness()
+    approval_key_problems = check_approval_service_key_completeness()
     placeholder_problems = check_placeholder_values()
-    problems = key_problems + placeholder_problems
+    downgrade_problems = check_demo_prod_security_downgrade_switches()
+    problems = key_problems + approval_key_problems + placeholder_problems + downgrade_problems
 
     if problems:
         print("CONFIG-CONTRACT CHECK FAILED:", file=sys.stderr)
@@ -241,11 +365,15 @@ def main() -> int:
         return 1
 
     required_count = len(_extract_no_default_env_keys())
+    approval_required_count = len(_extract_no_default_env_keys(APPROVAL_CONFIG_PY))
     scanned_count = len(_gitops_synced_overlay_paths())
+    switch_count = len(DEMO_PROD_REQUIRED_VALUES)
     print(
-        f"config-contract check OK -- {required_count} no-default key(s) accounted for "
+        f"config-contract check OK -- {required_count} agent no-default key(s) + "
+        f"{approval_required_count} approval_service no-default key(s) accounted for "
         f"across every deployment surface; {scanned_count} GitOps-synced-as-committed "
-        f"path(s) scanned for unresolved placeholders, none found undocumented"
+        f"path(s) scanned for unresolved placeholders, none found undocumented; "
+        f"{switch_count} demo-prod security-downgrade switch(es) confirmed flipped"
     )
     return 0
 

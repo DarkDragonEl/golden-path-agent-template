@@ -17,3 +17,12 @@ data:
   # manifest check), never left to convention.
   APPROVER_ROLE_CLAIM: "roles"
   APPROVER_ROLE_VALUE: "approval-approver"
+  OIDC_ISSUER_URL: "http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent" # DEC-063:
+  # found live while wiring the D2 cutover -- approval_service/auth.py
+  # reads this with NO default (DEC-045), and it was never declared here
+  # at all (AUTH_MODE stayed "none" through all of D1, so the gap never
+  # surfaced). Same internal Service DNS every other OIDC_ISSUER_URL in
+  # this repo uses -- safe to commit, unused while AUTH_MODE=none.
+  OIDC_AUDIENCE: "golden-path-agent-approval" # DEC-063: matches the
+  # realm's own audience mapper on golden-path-agent-approval-workload/
+  # golden-path-agent-approver-ui (DEC-058) -- same reasoning as above.

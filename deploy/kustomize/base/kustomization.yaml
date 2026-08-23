@@ -22,6 +22,27 @@ resources:
   - configmap.yaml
   - networkpolicy.yaml
   - pdb.yaml
+  # Phase D2 cutover (DECISIONS.md DEC-063): the approval-service
+  # manifests, promoted from the ephemeral-test-only nested kustomization
+  # (deploy/kustomize/base/approval/, DEC-050) into base/ directly, per
+  # DEC-046's own sequencing rule -- this is the one commit that also
+  # flips AUTH_MODE=oidc (demo-prod overlay) and adds the mechanical
+  # demo-prod assertion, all together, atomically. Flattened rather than
+  # kept as a nested kustomization: DEC-050's whole reason for the
+  # nesting was working around kustomize's file-reference restriction
+  # from ephemeral-test's overlay -- base/kustomization.yaml is these
+  # files' own directory, so no such restriction applies here, and
+  # flattening also means deployment-approval.yaml is now visible to
+  # this file's own images: transform below, retiring DEC-050's separate
+  # base/approval/kustomization.yaml images: stanza entirely.
+  - serviceaccount-approval.yaml
+  - configmap-approval.yaml
+  - pvc-approval.yaml
+  - deployment-approval.yaml
+  - service-approval.yaml
+  - networkpolicy-approval.yaml
+  - ingress-approval.yaml
+  - pdb-approval.yaml
 
 commonLabels:
   app.kubernetes.io/name: golden-path-agent

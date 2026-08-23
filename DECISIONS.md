@@ -5003,3 +5003,119 @@ suite re-run — `236 passed`, unchanged. A scratch `kustomize build` of
 **Status:** SA split and config-contract completeness both live/verified.
 Proceeding to the D2 cutover sequence (`DEC-053`'s recorded plan: merge
 `PR #2` → land the atomic base-wiring commit → verify `demo-prod` live).
+
+## DEC-063 — D2 cutover: `PR #2` found stale and replaced, atomic
+base-wiring commit landed, a real live-topology gap and a real missing-config
+gap both found and fixed before either could break `demo-prod`
+
+**`PR #2` closed unmerged, per `DEC-053`'s own recorded contingency**:
+main had moved with real *code* changes since that PR's digest was built
+(`DEC-060`'s OIDC token-exchange/MCP-auth-enforcement code postdates it)
+— merging it would have promoted `demo-prod` to a digest that cannot
+actually do OIDC. Confirmed by inspecting the PR's own diff (one line,
+the `images.digest` field) before deciding, not assumed. Closed with an
+explanation; a fresh `PipelineRun` against current `main`
+(`golden-path-agent-ci-2h4mg`) went green (all 13 stages) and opened
+`PR #3`, which was merged — this is the digest `demo-prod` now runs,
+built from the tip that actually includes D2's code.
+
+**A live-cluster finding that revised an earlier assumption, corrected
+before it caused a problem**: sequencing the RBAC diff (`DEC-061`)
+before the `git push`, on the assumption `demo-prod`'s ArgoCD
+`Application` was actively auto-syncing, turned out to rest on a false
+negative -- `oc get application -A` returned "No resources found,"
+because this cluster also has a *different*, unrelated `Application`
+CRD installed (`applications.app.k8s.io`, a generic Kubernetes SIG-apps
+type), and the bare short name resolved to that one instead of ArgoCD's
+own `applications.argoproj.io`. The fully-qualified query
+(`oc get applications.argoproj.io -A`) showed `golden-path-agent-demo-prod`
+and `golden-path-agent-root` both `Synced`, and — confirming sync was
+genuinely live the whole time — `demo-prod`'s `mcp` pod had already
+picked up the `DEC-061` `ServiceAccount` repoint via `selfHeal`, visible
+as a fresh `ReplicaSet` and `deployment.kubernetes.io/revision` bump,
+before this was even noticed. Same class of resource-name-ambiguity
+false-negative as `DEC-051`'s `imagestreams/layers`/`oc auth can-i`
+finding -- worth remembering together, both are this shared cluster's
+own quirks, not this project's bugs. No actual harm resulted (the RBAC
+sequencing precaution was correct regardless, and cost nothing).
+
+**The atomic base-wiring commit** (`deploy/kustomize/base/kustomization.yaml`,
+`deploy/kustomize/base/*-approval.yaml` (moved from `base/approval/`),
+`deploy/kustomize/base/configmap-approval.yaml`,
+`deploy/kustomize/overlays/ephemeral-test/kustomization.yaml`,
+`deploy/kustomize/overlays/demo-prod/kustomization.yaml`,
+`pipelines/tasks/deploy-ephemeral.yaml`, `tools/check_config_contract.py`)
+— everything below landed together, per `DEC-046`'s own sequencing rule:
+
+- **Approval manifests promoted into `base/` directly**, flattened out
+  of the `DEC-050` nested kustomization (`base/approval/`) rather than
+  kept nested -- that nesting existed only to work around kustomize's
+  file-reference restriction from `ephemeral-test`'s overlay; `base/`
+  is these files' own directory, so no such restriction applies once
+  they live there, and flattening also retires `DEC-050`'s separate
+  `images:` stanza entirely (`deployment-approval.yaml` is now visible
+  to `base/kustomization.yaml`'s own single transform). `ephemeral-test`'s
+  overlay and `deploy-ephemeral`'s pipeline Task both simplified to
+  match -- one `kustomize edit set image` call again, not two.
+- **`AUTH_MODE=oidc`** (`golden-path-agent-approval-config`, `demo-prod`
+  overlay only -- `base`'s own default stays `"none"`, so
+  `ephemeral-test`'s pipeline gate is genuinely unaffected, per the
+  owner's own "`AUTH_MODE=oidc` everywhere beyond `ephemeral-test`'s own
+  gate" instruction).
+- **`AGENT_OIDC_MODE=oidc`/`MCP_AUTH_MODE=oidc`** (`demo-prod` overlay).
+- **`MCP_MODE=live`** (`demo-prod` overlay) -- a real, considered
+  revision of `DEC-021`'s own "same as ephemeral-test" framing, at the
+  network-topology axis only: the mock ITSM's *data* stays synthetic
+  regardless (`itsm_search_records`/`itsm_create_request` never branch
+  on `MCP_MODE` at all), but `MCP_AUTH_MODE=oidc` enforcing nothing on a
+  call that never leaves the process would not be enforcement -- flagged
+  explicitly as a deliberate change to a prior decision, not silently
+  overridden.
+- **The mechanical demo-prod assertion** (`DEC-046` owner-addition #1):
+  `tools/check_config_contract.py`'s new
+  `check_demo_prod_security_downgrade_switches()` computes `demo-prod`'s
+  own *effective* config (base's committed default, overlay's own
+  override applied on top, the same `behavior: merge` semantics
+  Kustomize itself uses) for `AGENT_OIDC_MODE`/`MCP_AUTH_MODE`/`AUTH_MODE`
+  and asserts the secure value, mechanically. **Demonstrated failing on
+  a seeded regression**, per the verification-STOP's own required
+  evidence: temporarily reverted `AUTH_MODE`/`MCP_AUTH_MODE` to `"none"`
+  in a scratch copy, confirmed the checker fails with exactly the
+  expected two findings, restored, confirmed passing again.
+
+**A second real, previously-unaddressed gap found and fixed while
+wiring this**: `approval_service/config.py`'s `OIDC_ISSUER_URL`/
+`OIDC_AUDIENCE` (both no-default, `DEC-045`) had **never been declared
+anywhere** — `configmap-approval.yaml` never carried them, and
+`tools/check_config_contract.py`'s own completeness check only ever
+scanned `agent/config.py`, never `approval_service/config.py` (the exact
+gap `DEC-051` already named as explicit D2-scope: "explicitly a D2-scope
+item per the owner's plan-approval addition #1"). Flipping `AUTH_MODE=oidc`
+without this fix would have crashed the approval service the moment a
+request needed JWKS discovery (`issuer_url.rstrip("/")` on `None`).
+Fixed both instances of the problem, not just the immediate symptom:
+declared real, safe-to-commit values (the same internal Service DNS
+issuer URL and `golden-path-agent-approval` audience used everywhere
+else) in `configmap-approval.yaml`, **and** extended the checker with a
+new `check_approval_service_key_completeness()` (mirrors
+`check_key_completeness()`'s own logic, scoped to
+`configmap-approval.yaml`, no `.env.example`/`scripts/dev.sh`
+requirement since `approval_service` isn't part of that local-dev flow)
+— closing this class of blind spot for a second config module, not
+leaving it to recur. **Demonstrated catching a regression too**: same
+seed-then-restore verification as the demo-prod assertion above.
+
+**Verified before committing**: full test suite (`236 passed`,
+unchanged — this commit touches manifests/tooling, not application
+code); `tools/check_config_contract.py` clean; a scratch-copy
+`kustomize build` of `base/` alone, `demo-prod`, and `ephemeral-test`
+all render cleanly, with `demo-prod`'s render inspected field-by-field
+(all three `Deployment`s carry the fresh, D2-including digest; correct
+`ServiceAccount`s; `AUTH_MODE`/`AGENT_OIDC_MODE`/`MCP_AUTH_MODE`/
+`MCP_MODE` all correct).
+
+**Status:** the atomic base-wiring commit is ready to land and push --
+`demo-prod`'s `Application` (confirmed genuinely live via the correct
+CRD name) will pick it up via `selfHeal` immediately. Proceeding to push,
+then verify `demo-prod` live (step 3 of `DEC-053`'s cutover sequence),
+then the full D2 verification-STOP evidence gathering.
