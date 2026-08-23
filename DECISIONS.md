@@ -5596,3 +5596,52 @@ shape.
 **Status:** D3 and D4 both implementation-complete and reviewed.
 Proceeding to ship both through the pipeline together (one promotion,
 not two) and then Checkpoint D's own live run-through.
+
+## DEC-073 — D3/D4 shipped to `demo-prod`; Checkpoint D's live
+run-through complete
+
+**Shipped**: one `PipelineRun` (`golden-path-agent-ci-4jd6r`, all 13
+stages green) covering both `DEC-071`/`DEC-072` together — one
+promotion, `PR #5`, merged. `demo-prod` synced and rolled all three
+`Deployment`s to the new digest; live-confirmed `OTEL_EXPORTER_OTLP_ENDPOINT`
+correctly set on both `agent` and `approval_service`, and `GET /ui`
+serving real HTML (`200`, `23166` bytes).
+
+**A real, useful operational finding, hit live and worth recording**:
+mid-way through the Checkpoint D expiry scenario, a manual `ConfigMap`
+patch (`APPROVAL_TIMEOUT_SECONDS`) got silently reverted by `demo-prod`'s
+own `selfHeal: true` before the test could complete — expected,
+documented `ArgoCD` behavior for drift against a `GitOps`-synced
+environment, not a bug, but a real trap for exactly this kind of manual,
+time-sensitive verification step. The fix is procedural, not a code or
+manifest change: keep the patch → restart → test window short (the
+prior "config-only change" runbook Q&A, from the earlier closure notes,
+already covers the *shipping* half of this pattern — this is its
+*testing* half, worth folding into the same runbook entry the next time
+that section is touched).
+
+**Full evidence in `reports/checkpoint-d-run.md`** — the accepted plan's
+own exit criterion, verbatim, all five parts confirmed live: ask → cited
+answer (the flow works; one content-accuracy note recorded and
+explicitly *not* chased — pre-existing corpus/retrieval-quality
+territory, untouched by any Phase D work, already governed by Phase
+B/C's own eval gates); draft → approve → ticket exists (`REQ-30100`,
+`decided_by` matching the real approver's own Keycloak identity);
+reject → nothing written; expiry → nothing written; and — the
+centerpiece — one query (`tools/query_traces.py --session-id ...`) that
+shows the complete story across two independent processes, correctly
+time-ordered, from draft through a real identity's decision through
+execution, the attribute-correlation mechanism working exactly as
+designed rather than merely as claimed.
+
+**The D3 `SRS-APR-QUAL-01` non-developer walkthrough** is the one piece
+deliberately left for the owner's own live session (Authorization Code +
+PKCE genuinely needs a real browser, which this environment cannot
+drive) — everything the UI itself calls has been independently confirmed
+correct at the API level, per the plan's own "I'll be that walkthrough
+at Checkpoint D — design for it."
+
+**Status: Checkpoint D is complete.** D1 → D2 → D3 → D4 → Checkpoint D
+all closed, per the owner's own staged-sequence discipline maintained
+throughout Phase D. Holding here for the owner's own review and, when
+ready, their own live click-through of `GET /ui`.
