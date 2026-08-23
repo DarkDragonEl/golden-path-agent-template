@@ -235,6 +235,15 @@ subjects:
   - kind: ServiceAccount
     name: golden-path-agent-approval
     namespace: golden-path-agent-demo-prod
+  - kind: ServiceAccount
+    name: golden-path-agent-mcp
+    namespace: golden-path-agent-ephemeral-test
+    # Phase D2 (DEC-061): the agent/mcp ServiceAccount split -- mcp now
+    # runs under its own identity, hitting the identical cross-namespace
+    # pull gap every other role here already needed a subject entry for.
+  - kind: ServiceAccount
+    name: golden-path-agent-mcp
+    namespace: golden-path-agent-demo-prod
 roleRef:
   kind: ClusterRole
   name: system:image-puller

@@ -19,6 +19,34 @@ data:
   # agent/config.py's own default (http://localhost:8082) is a local-dev-only
   # value, safe in the podman smoke test's port-mapped setup but wrong for
   # any deployed pod, where the approval service is a separate pod/Service.
+  AGENT_OIDC_MODE: "none" # Phase D2/DEC-062: none | oidc, mirrors AUTH_MODE's
+  # own convention -- explicit here even though agent/config.py's own
+  # default is already "none", matching how MCP_MODE/AUTH_MODE(approval)
+  # are already declared explicitly rather than left implicit.
+  OIDC_ISSUER_URL: "http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent" # DEC-062:
+  # the internal cluster Service DNS Keycloak's own realm is reachable at
+  # (DEC-057) -- safe to commit, same class of value as
+  # MCP_TOOL_ENDPOINT/APPROVAL_SERVICE_ENDPOINT above (an internal service
+  # address, not a secret), identical across every environment (one realm
+  # serves all of them at this demo scale).
+  APPROVAL_OIDC_CLIENT_ID: "golden-path-agent-approval-workload" # DEC-062: not
+  # secret, identical everywhere -- the realm's own client id.
+  MCP_OIDC_CLIENT_ID: "golden-path-agent-mcp-workload" # DEC-062: same reasoning.
+  APPROVAL_OIDC_CLIENT_SECRET: "not-needed" # DEC-062: safe placeholder, mirrors
+  # MODEL_API_KEY's own "not-needed" convention -- demo-prod's real value
+  # comes from golden-path-agent-secrets instead (KNOWN_SECRET_SHADOWED),
+  # provisioned by pipelines/bootstrap/provision-identity-secrets.sh
+  # (DEC-059), never committed here.
+  MCP_AUTH_TOKEN: "not-needed" # DEC-062: same mechanism/reasoning as
+  # APPROVAL_OIDC_CLIENT_SECRET above -- this key already carried this
+  # exact placeholder value in the manually-provisioned Secret since
+  # Phase C (docs/phase-c-runbook.md); now also declared here so the
+  # config-contract completeness check (DEC-044) sees it everywhere,
+  # Secret-shadowed in demo-prod the identical way MODEL_FALLBACK_* is.
+  MCP_AUTH_MODE: "none" # DEC-062: none | oidc, gates mcp_server's own new
+  # POST /tools/{tool_name} auth check (mcp_server/auth.py) -- read
+  # directly via os.environ in mcp_server (no config module there), but
+  # declared here since deployment-mcp.yaml shares this same ConfigMap.
   POLICY_BUNDLE_REF: "policy/baseline_policy.yaml"
   DATA_SOURCE_BINDING: "none"
   MODEL_TEMPERATURE: "0"

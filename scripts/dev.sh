@@ -96,6 +96,13 @@ up() {
     -e APPROVAL_MODE="${APPROVAL_MODE:-required}" \
     -e AUTO_APPROVE_IN_DEV="${AUTO_APPROVE_IN_DEV:-false}" \
     -e AGENT_WORKLOAD_ID="${AGENT_WORKLOAD_ID:-golden-path-agent}" \
+    -e AGENT_OIDC_MODE="${AGENT_OIDC_MODE:-none}" \
+    -e MCP_AUTH_MODE="${MCP_AUTH_MODE:-none}" \
+    -e OIDC_ISSUER_URL="${OIDC_ISSUER_URL:-http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent}" \
+    -e APPROVAL_OIDC_CLIENT_ID="${APPROVAL_OIDC_CLIENT_ID:-golden-path-agent-approval-workload}" \
+    -e MCP_OIDC_CLIENT_ID="${MCP_OIDC_CLIENT_ID:-golden-path-agent-mcp-workload}" \
+    -e APPROVAL_OIDC_CLIENT_SECRET="${APPROVAL_OIDC_CLIENT_SECRET:-not-needed}" \
+    -e MCP_AUTH_TOKEN="${MCP_AUTH_TOKEN:-not-needed}" \
     -e OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-http://${OTEL_NAME}:4318}" \
     -v "$(pwd)/corpus/seed:/mnt/corpus:ro" \
     "$IMAGE" agent >/dev/null

@@ -18,6 +18,7 @@ resources:
   - service-mcp.yaml
   - ingress.yaml
   - serviceaccount.yaml
+  - serviceaccount-mcp.yaml
   - configmap.yaml
   - networkpolicy.yaml
   - pdb.yaml

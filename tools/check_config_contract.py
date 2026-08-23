@@ -60,6 +60,19 @@ KNOWN_SECRET_SHADOWED = {
     ("demo-prod", "MODEL_FALLBACK_NAME"): (
         "Same mechanism and reason as MODEL_FALLBACK_API_BASE_URL above."
     ),
+    ("demo-prod", "APPROVAL_OIDC_CLIENT_SECRET"): (
+        "DECISIONS.md DEC-062: base/configmap.yaml declares a safe "
+        "'not-needed' placeholder (satisfies completeness everywhere); "
+        "demo-prod's real value comes from golden-path-agent-secrets "
+        "instead, provisioned by pipelines/bootstrap/provision-identity-"
+        "secrets.sh (DEC-059) -- same shadowing mechanism as "
+        "MODEL_FALLBACK_API_BASE_URL above, documented here for the "
+        "identical reason even though base's own placeholder already "
+        "satisfies the completeness check on its own."
+    ),
+    ("demo-prod", "MCP_AUTH_TOKEN"): (
+        "Same mechanism and reason as APPROVAL_OIDC_CLIENT_SECRET above."
+    ),
 }
 
 # --- Check 2: known, documented placeholder exceptions -----------------

@@ -14,7 +14,7 @@ spec:
         app.kubernetes.io/name: golden-path-agent
         app.kubernetes.io/component: mcp
     spec:
-      serviceAccountName: golden-path-agent
+      serviceAccountName: golden-path-agent-mcp
       containers:
         - name: mcp
           image: golden-path-agent

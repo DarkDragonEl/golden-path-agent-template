@@ -4916,3 +4916,90 @@ rather than assumed).
 Proceeding to wire the new config into the deployed overlays and the D2
 cutover sequence (merge `PR #2` → atomic base-wiring commit → verify
 `demo-prod` live).
+
+## DEC-061 — agent/mcp `ServiceAccount` split, applied live
+
+**Document/scope:** `deploy/kustomize/base/serviceaccount-mcp.yaml`
+(new), `deploy/kustomize/base/serviceaccount.yaml`,
+`deploy/kustomize/base/approval/serviceaccount-approval.yaml` (comment
+updates only), `deploy/kustomize/base/kustomization.yaml`,
+`deploy/kustomize/base/deployment-mcp.yaml`,
+`pipelines/bootstrap/rbac.yaml`.
+
+Closes the `DEC-045` finding, per the owner's own confirmed lean: `agent`
+and `mcp` now run under distinct `ServiceAccount`s
+(`golden-path-agent`/`golden-path-agent-mcp`), mechanically mirroring
+`golden-path-agent-approval`'s own already-established path exactly —
+new SA manifest, `deployment-mcp.yaml`'s `serviceAccountName` repointed,
+`golden-path-agent-image-puller` `RoleBinding` extended with the same
+two-namespace subject pattern every other role here already has.
+
+**Both `TODO(platform)` workload-identity comments updated**, per the
+owner's own instruction — no longer a stale intention, a documented
+deferral: SA-token OIDC federation (a K8s `ServiceAccount` token
+exchanged directly against Keycloak, no stored secret) is named
+explicitly as the phase-two integration point; client-credentials
+(`agent/oidc_client.py`, `DEC-060`) is recorded as this milestone's
+actual choice, with the reasoning (real, unbudgeted extra complexity for
+this scope) stated inline, not just implied by omission.
+
+**RBAC applied live, before the base/ push**, not after: server dry-run
+confirmed only `golden-path-agent-image-puller` changed; applied for
+real; verified via `oc policy who-can get imagestreams/layers -n
+golden-path-agent-ci` (this session's own established authoritative
+check, `DEC-051` — `oc auth can-i --as=` is unreliable for this specific
+resource type on this cluster). Deliberately sequenced before pushing
+the `base/kustomization.yaml`/`deployment-mcp.yaml` changes: `demo-prod`
+auto-syncs `base/` with `selfHeal: true`, so the new `golden-path-agent-mcp`
+SA needed to already be able to pull the image before any Deployment
+started referencing it — avoids a self-inflicted `ImagePullBackOff`
+window.
+
+**Verified before pushing**: a scratch-copy `kustomize build` of `base/`
+alone (the exact tree `demo-prod` syncs) confirms both `ServiceAccount`s
+present and `deployment-mcp.yaml` correctly repointed.
+
+## DEC-062 — config-contract completeness: five new no-default OIDC keys,
+caught by `DEC-044`'s own checker exactly as designed
+
+Adding `OIDC_ISSUER_URL`/`APPROVAL_OIDC_CLIENT_ID`/
+`APPROVAL_OIDC_CLIENT_SECRET`/`MCP_OIDC_CLIENT_ID`/`MCP_AUTH_TOKEN` to
+`agent/config.py` (all bare `_env(name)`, no default — `DEC-060`) tripped
+`tools/check_config_contract.py` across every deployment surface, on the
+very first run after `DEC-060`'s commit — the completeness checker
+`DEC-044` built doing exactly the job it was built for, catching a real
+gap before it could reach a live deployment. Fixed the same way every
+prior instance of this class of finding has been fixed, not a new
+mechanism:
+
+- `OIDC_ISSUER_URL`/`APPROVAL_OIDC_CLIENT_ID`/`MCP_OIDC_CLIENT_ID` are
+  not secret (an internal Service DNS URL, two client names) — declared
+  with real, identical-everywhere values directly in
+  `deploy/kustomize/base/configmap.yaml`, `.env.example`,
+  `scripts/dev.sh` — same class of value as `MCP_TOOL_ENDPOINT`/
+  `APPROVAL_SERVICE_ENDPOINT`, safe to commit.
+- `APPROVAL_OIDC_CLIENT_SECRET`/`MCP_AUTH_TOKEN` are real secrets —
+  declared with a safe `"not-needed"` placeholder everywhere (mirroring
+  `MODEL_API_KEY`'s own established convention; `MCP_AUTH_TOKEN` already
+  carried this exact placeholder value in the manually-provisioned
+  Secret since Phase C, now also reflected in the ConfigMap for
+  completeness); `demo-prod`'s real values come from
+  `golden-path-agent-secrets` instead (`DEC-059`'s provisioning script),
+  shadowing the ConfigMap via the same `envFrom` ordering
+  `MODEL_FALLBACK_API_BASE_URL`/`MODEL_FALLBACK_NAME` already established
+  — two new `KNOWN_SECRET_SHADOWED` entries added for the identical
+  documented reason.
+- `AGENT_OIDC_MODE`/`MCP_AUTH_MODE` (both have code-level defaults,
+  not required by the checker) declared explicitly in
+  `deploy/kustomize/base/configmap.yaml` anyway, matching
+  `MCP_MODE`/`AUTH_MODE`(approval)'s own established explicit-not-implicit
+  style.
+
+**Verified**: `tools/check_config_contract.py` — clean (`8 no-default
+key(s) accounted for`, up from 3 before `DEC-060`/`DEC-062`). Full test
+suite re-run — `236 passed`, unchanged. A scratch `kustomize build` of
+`base/` alone confirms every new key renders with the intended value.
+
+**Status:** SA split and config-contract completeness both live/verified.
+Proceeding to the D2 cutover sequence (`DEC-053`'s recorded plan: merge
+`PR #2` → land the atomic base-wiring commit → verify `demo-prod` live).
