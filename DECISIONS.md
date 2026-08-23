@@ -4267,3 +4267,70 @@ wired, RBAC diffs live, `AUTH_MODE=none` confirmed in the rendered
 config, pipeline green. Proceeding to gather the D1 verification-STOP's
 required live-cluster evidence (approve/reject/expiry, pod-restart-
 survives-pending, live concurrency race) before holding for owner review.
+
+## DEC-052 — D1 verification STOP: live-cluster evidence gathered,
+holding for owner review
+
+**Document/scope:** `reports/phase-d-d1-verification.md` (new, full
+evidence). No code changes — this entry and the report are the
+verification-STOP artifact itself.
+
+A standing deployment of the real pushed image
+(`sha256:35414e4d...440427`, the digest `golden-path-agent-ci-vx9qj`
+produced) was applied manually to `golden-path-agent-ephemeral-test`
+(same render process `deploy-ephemeral` uses, but left standing rather
+than torn down by `destroy-ephemeral` at the end of one `PipelineRun`,
+since exercising restart/expiry/concurrency scenarios needs a deployment
+that outlives a single pipeline stage). Seven scenarios run against it,
+every request issued from inside the real deployed agent pod
+(`oc exec -i ... -- python3 -`, matching `DEC-034`'s established
+in-cluster HTTP pattern) over the real cluster network, through the real
+`NetworkPolicy`:
+
+1. **Approve** → real ticket created (`REQ-30100`) only after approval.
+2. **Reject** → zero mutation, correct escalation message.
+3. **Premature resume** (bonus) → does not consume the interrupt,
+   confirming `DEC-049`'s podman-smoke-test finding also holds against
+   the real cluster deployment.
+4. **F-02 concurrent-decision race** → two threads inside the agent pod,
+   barrier-synchronized, fire `approve`+`reject` at the same proposal
+   simultaneously; exactly one won (`200`), the other refused (`409`
+   with the actual current state), the terminal record reflects only the
+   winner.
+5. **Expiry** (`APPROVAL_TIMEOUT_SECONDS` temporarily lowered to `5` for
+   this and the next two scenarios, restored to `3600` after) → the
+   periodic in-process scanner correctly transitions pending→expired;
+   `decided_by`/`decided_at` stay `None` (the D1 contracts-STOP owner
+   requirement, `DEC-046` item 3); zero mutation; a late decision attempt
+   is refused (`409`).
+6. **Restart-overdue-expiry pickup** (owner addition #3, plan approval)
+   → submitted, then the approval-service pod killed within 4 seconds
+   (before its own periodic scanner could have caught it even once);
+   the new pod's mandatory *startup* sweep caught the already-overdue
+   record immediately on restart, not on the next periodic tick.
+7. **Pod-restart-survives-pending** (`APPROVAL_TIMEOUT_SECONDS` raised
+   back to `120`) → killed the pod while a proposal was pending and
+   well inside its timeout window; the record survived (`DATA-01`) and
+   correctly stayed `pending` (not prematurely expired by the restart
+   itself); the restarted pod's decision/resume path proven fully live
+   by completing a real approve→execute round-trip (`REQ-30102`)
+   against it.
+
+Every scenario the owner's plan-approval message named by name
+("approve/reject/expiry, pod-restart-survives-pending, live concurrency
+race") is confirmed, plus two extras exercised at negligible incremental
+cost. Full request/response evidence, timestamps, and pod names in
+`reports/phase-d-d1-verification.md`.
+
+**Cleanup**: `APPROVAL_TIMEOUT_SECONDS` restored to the committed value;
+the entire manually-applied manifest set deleted; confirmed
+`golden-path-agent-ephemeral-test` empty again
+(`oc get all` → `No resources found`) — no stray state left on the
+shared cluster from this verification pass.
+
+**Status: D1 is complete.** Holding here per the owner's own staged-
+sequence instruction ("D1 entry gate → contracts STOP → implementation →
+verification STOP → D2 → D3 → D4 → Checkpoint D") — **not** proceeding
+into D2 (Keycloak/OIDC) without further explicit owner review and
+authorization of this evidence, matching every prior checkpoint's
+discipline in this project.
