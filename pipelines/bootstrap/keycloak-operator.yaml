@@ -1,0 +1,50 @@
+# Phase D, D2 entry gate (DECISIONS.md DEC-053). The one flagged
+# cluster-scoped step in the whole Phase D plan: CRD registration
+# (keycloaks.k8s.keycloak.org, keycloakrealmimports.k8s.keycloak.org) is
+# structurally cluster-scoped for any operator install, unavoidable
+# regardless of which Keycloak realization was picked (PINS.md's own
+# research note). Everything else here -- the OperatorGroup, the
+# Subscription, the operator's own resulting Deployment -- is
+# namespace-scoped to golden-path-agent-keycloak only, matching every
+# other Phase C/D install in this project (no ClusterRoleBinding, no
+# AllNamespaces install mode -- rhbk-operator does not even support
+# AllNamespaces, per PINS.md).
+#
+# Applied manually, by a human with cluster-admin-adjacent access, same
+# category as pipelines/bootstrap/namespaces.yaml/rbac.yaml -- never by
+# the CI pipeline's own ServiceAccount (which has zero cluster-scoped
+# grants, deliberately). Per the owner's own kickoff instruction: present
+# with dry-run output, apply only after explicit ack.
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: golden-path-agent-keycloak
+  namespace: golden-path-agent-keycloak
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  targetNamespaces:
+    - golden-path-agent-keycloak
+---
+# PINS.md: rhbk-operator, channel stable-v26.6, CSV
+# rhbk-operator.v26.6.6-opr.1, catalog redhat-operators -- re-verified
+# live 2026-08-22, byte-identical to the Phase D plan's original
+# research. installPlanApproval: Manual + startingCSV pinned to this
+# exact CSV, deliberately not OLM's default auto-upgrade behavior --
+# this project's own "pin exact versions" discipline (CLAUDE.md's "Reuse
+# over building" rule), applied to an operator subscription the same way
+# it has been applied to every other pinned component in PINS.md.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: rhbk-operator
+  namespace: golden-path-agent-keycloak
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  channel: stable-v26.6
+  name: rhbk-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Manual
+  startingCSV: rhbk-operator.v26.6.6-opr.1

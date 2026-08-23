@@ -4404,3 +4404,71 @@ don't assume" discipline), preparing the `Subscription`/`OperatorGroup`
 manifests and the Postgres scaffold, and preparing the design-STOP
 content (realm/client shape, SA-split proposal) — holding before
 applying anything, per the owner's explicit instruction.
+
+## DEC-054 — D2 entry gate: `rhbk-operator`/Postgres manifests prepared,
+dry-run only, holding for ack before applying
+
+**Document/scope:** `pipelines/bootstrap/namespaces.yaml` (adds
+`golden-path-agent-keycloak`), `pipelines/bootstrap/keycloak-operator.yaml`
+(new — `OperatorGroup`+`Subscription`), `pipelines/bootstrap/keycloak-postgres.yaml`
+(new — `PersistentVolumeClaim`+`Deployment`+`Service`), `docs/phase-d-runbook.md`
+(new), `PINS.md` (new Phase D section).
+
+**`rhbk-operator` re-verified live, not trusted from the Phase D plan's
+earlier research**: `oc get packagemanifest rhbk-operator -n
+openshift-marketplace` today — byte-identical to the original research:
+default channel `stable-v26.6`, CSV `rhbk-operator.v26.6.6-opr.1`,
+`OwnNamespace`/`SingleNamespace` only (no `AllNamespaces`), catalog
+`redhat-operators`. Owned CRDs confirmed: `keycloaks.k8s.keycloak.org`,
+`keycloakrealmimports.k8s.keycloak.org` (both `v2beta1`/`v2alpha1`, no
+webhook/cert-manager dependency in the CSV description). Cluster still
+`4.20.23`, unchanged, within the CSV's stated support range.
+
+**A new, fifth namespace** (`golden-path-agent-keycloak`) — not folded
+into `demo-prod` or any existing namespace: `rhbk-operator` needs one it
+owns outright (`OwnNamespace`), and Keycloak is platform identity
+infrastructure, not part of this project's own promoted image/environments
+(`deploy/kustomize/`). Same manual, human-applied bootstrap discipline as
+the three existing namespaces, flagged explicitly per the owner's kickoff
+instruction (namespace creation is itself cluster-scoped, no
+namespace-scoped `Role` can grant it).
+
+**`Subscription` pinned, not left to OLM's default auto-upgrade**:
+`installPlanApproval: Manual` + `startingCSV:
+rhbk-operator.v26.6.6-opr.1` — this project's own "pin exact versions"
+discipline (`CLAUDE.md`'s "Reuse over building" rule), applied to an
+operator subscription the same way every other component in `PINS.md`
+is pinned.
+
+**Keycloak's own database**: a plain `Deployment`+`PVC` (no new
+operator, per the plan's own D2 decision), using OpenShift's built-in
+`openshift/postgresql:15-el9` `ImageStream` tag (confirmed live via `oc
+get istag -n openshift` — no `16` tag exists on this cluster; `15` is
+within Keycloak/RHBK's supported range) — deliberately the cluster's
+own already-present, registry-credential-free image over an external
+`postgres:16`, for the same reason `DEC-028` chose SQLite for the
+approval service: avoids a **second**, independent instance of the
+`restricted-v2` arbitrary-non-root-UID fight class (this ImageStream's
+image is already S2I/OpenShift-runtime-shaped). Credentials: a plain
+`Secret`, manually provisioned, never committed — the same established
+pattern as `golden-path-agent-secrets` (`DEC-024`), not a new mechanism.
+
+**Verification performed, nothing applied**: `oc apply -f
+pipelines/bootstrap/namespaces.yaml --dry-run=server` — only the new
+namespace shows `created`, the three existing ones `unchanged`. The
+operator/Postgres manifests dry-run `--dry-run=client` (their target
+namespace does not exist yet, so server-side validation isn't available
+until the entry gate itself is applied) — field-checked additionally
+against the live API server's own schema (`oc explain
+subscription.spec`/`operatorgroup.spec`) to confirm `channel`,
+`installPlanApproval`, `name`, `source`, `sourceNamespace`,
+`startingCSV`, `targetNamespaces` are all real, correctly-typed fields,
+not guessed.
+
+**Status: holding.** Per the owner's explicit instruction, these three
+manifests are prepared and committed as review artifacts — **nothing
+has been applied to the cluster**. Presenting the dry-run output and the
+D2 design-STOP content (realm/client shape, SA-split proposal) in the
+same turn and waiting for explicit ack before running any of: the
+namespace create, the operator `Subscription`, or the Postgres
+`Deployment`.

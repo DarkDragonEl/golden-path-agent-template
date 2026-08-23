@@ -38,3 +38,22 @@ metadata:
   name: golden-path-agent-demo-prod
   labels:
     app.kubernetes.io/part-of: golden-path-agent
+---
+# Phase D, D2 entry gate (DECISIONS.md DEC-053). A fifth, separate
+# namespace for Keycloak + its own Postgres -- not folded into
+# golden-path-agent-demo-prod or any existing namespace. rhbk-operator's
+# only supported install modes are OwnNamespace/SingleNamespace (PINS.md,
+# verified live) -- it needs one namespace it owns outright, and Keycloak
+# itself is platform identity infrastructure, not part of this project's
+# own promoted image/environments (deploy/kustomize/), so it does not
+# belong inside any of those three. Same manual, human-applied bootstrap
+# discipline as the three namespaces above -- flagged explicitly per the
+# owner's kickoff instruction, since creating a Namespace is itself a
+# cluster-scoped action no namespace-scoped Role can grant (see this
+# file's own header comment).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: golden-path-agent-keycloak
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
