@@ -5428,3 +5428,43 @@ via a real build → promotion → merge, the same path every other code
 change in this project takes. Proceeding to trigger that now, before
 D3/D4's own work, since D3's UI design depends on the now-final auth
 requirements and Checkpoint D's live demo needs this fix live regardless.
+
+## DEC-070 — `DEC-069` shipped to `demo-prod`; a real pipeline-Task
+drift found and fixed along the way
+
+**A live pipeline `Task` object was stale**, found the hard way: the
+first `PipelineRun` for `DEC-069`'s fix failed at `deploy-ephemeral` —
+`cd: can't cd to .../deploy/kustomize/base/approval: No such file or
+directory`. Root cause: `pipelines/tasks/deploy-ephemeral.yaml`'s own
+committed content was correctly simplified back at `DEC-063` (the
+`base/approval/` nested kustomization it referenced was flattened away
+that same commit), but the **live, cluster-applied** `Task` object was
+never re-synced afterward — `oc apply -f pipelines/tasks/` had last run
+during D1's own step (d), before any of `DEC-050`through `DEC-069`'s
+pipeline-task edits. The same class of gap `DEC-065` found for
+`Deployment`s/`ConfigMap`s (committed ≠ live, nothing re-syncs it
+automatically) — here for Tekton `Task`s, which are **never**
+GitOps-managed at all in this project (deliberately, `pipelines/bootstrap/`'s
+own manual-apply discipline), so a re-apply is a required, easy-to-forget
+manual step after editing anything under `pipelines/tasks/`. Fixed:
+`oc apply -f pipelines/tasks/` (all twelve `Task`s were drifted, not
+just this one — all "configured," none "unchanged"), confirmed the fix
+landed in the live object before retriggering.
+
+**Second `PipelineRun` (`golden-path-agent-ci-rpw87`) green, all 13
+stages.** `PR #4` merged; `demo-prod`'s `Application` needed the same
+hard-refresh nudge `DEC-064`/`DEC-065` already established (ArgoCD's own
+default poll interval hadn't caught up yet) before the new digest
+actually rolled.
+
+**Verified live, not assumed from "the pod restarted"**: all three
+previously-unguarded routes (`POST /proposals`, `GET /proposals`, `GET
+/proposals/{id}`) now correctly return `401 missing bearer token` with
+no credential, confirmed directly against the real `demo-prod`
+approval-service. A full real submit → approve (real `demo-approver`
+token) → resume round-trip still completes correctly end to end
+(`REQ-30100`) — the fix closes the gap without breaking the legitimate
+path.
+
+**Status:** `DEC-069`'s fix is live. Proceeding to D3 (delegating the
+static UI's build) and D4 (telemetry wiring) in parallel.
