@@ -72,6 +72,14 @@ spec:
     - group: policy
       kind: PodDisruptionBudget
     - group: ""
+      kind: PersistentVolumeClaim # Phase D2 (DECISIONS.md DEC-064): the
+      # approval service's SQLite persistence (pvc-approval.yaml,
+      # SRS-APR-DATA-01) is the first PVC this Application's own
+      # namespaceResourceWhitelist needed -- flagged as a D2 item back at
+      # DEC-050/DEC-051, missed at the D2 cutover commit (DEC-063), found
+      # live within minutes (every -approval resource stuck OutOfSync)
+      # and fixed here rather than left unresolved.
+    - group: ""
       kind: Secret # Phase C, DEC-024: plain Secret, not ExternalSecret --
       # see the Phase C plan's secret-handling decision (ESO deferred as a
       # clean phase-two integration point).

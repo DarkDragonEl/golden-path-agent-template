@@ -5119,3 +5119,45 @@ all render cleanly, with `demo-prod`'s render inspected field-by-field
 CRD name) will pick it up via `selfHeal` immediately. Proceeding to push,
 then verify `demo-prod` live (step 3 of `DEC-053`'s cutover sequence),
 then the full D2 verification-STOP evidence gathering.
+
+## DEC-064 — `demo-prod` sync found broken within minutes of the cutover
+push, root-caused and fixed live
+
+**Finding**: pushing `DEC-063`'s commit, `demo-prod`'s `Application`
+reported `Synced`/sync-operation-`Succeeded` overall, but every single
+`-approval`-suffixed resource (`ConfigMap`, `ServiceAccount`, `Service`,
+`Deployment`, `Ingress`, `NetworkPolicy`, `PodDisruptionBudget`, and the
+`PersistentVolumeClaim`) sat `OutOfSync`/`Missing` — none of them had
+actually been created. Root cause, confirmed by reading
+`deploy/argocd/project.yaml`'s live `namespaceResourceWhitelist` directly
+rather than guessed: `PersistentVolumeClaim` was never added to it — the
+exact gap already named twice before (`DEC-050`: "explicitly not touched,
+correctly out of scope for D1... the whitelist only becomes relevant
+once approval-service manifests are promoted into `base/` at D2,
+already flagged as a D2 item"; `DEC-051`: same note, restated) — and
+missed at the moment it actually became relevant, `DEC-063`'s own
+cutover commit. One rejected kind blocked the entire sync batch for
+every new resource in it, not just the `PersistentVolumeClaim` itself.
+
+**Fixed live**: added `PersistentVolumeClaim` to
+`deploy/argocd/project.yaml`'s whitelist (mirroring exactly how
+`Ingress` needed the same treatment once, per `DEC-024`/`DEC-031`'s own
+precedent) — dry-run clean, applied for real (this `AppProject` is a
+manually-applied bootstrap object, same category as
+`pipelines/bootstrap/namespaces.yaml`/`rbac.yaml`, never itself
+GitOps-managed). Forced a hard refresh
+(`argocd.argoproj.io/refresh=hard` annotation) rather than waiting for
+the next poll interval. **Confirmed fixed, not assumed**: every
+`-approval` resource reached `Synced`; all three `Deployment`s
+(`golden-path-agent`, `golden-path-agent-mcp`, `golden-path-agent-approval`)
+confirmed `Healthy` by name, individually, not inferred from the
+aggregate Application health (which will never reach `Healthy` overall —
+both `Ingress` objects stay `Progressing` forever, the same already-
+documented "no external HTTP routing this milestone" limitation, not a
+new problem).
+
+**Status:** `demo-prod` cutover complete and live — all three components
+(`agent`, `mcp`, `approval`) `Healthy`, running the fresh digest,
+`AUTH_MODE=oidc`/`AGENT_OIDC_MODE=oidc`/`MCP_AUTH_MODE=oidc`/`MCP_MODE=live`
+all active. Proceeding to the full D2 verification-STOP evidence
+gathering (the five named tests) before holding for owner review.
