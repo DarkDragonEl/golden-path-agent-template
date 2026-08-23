@@ -4255,7 +4255,15 @@ incident exposes — noted as a candidate backlog item, not built now
 (`CLAUDE.md`'s scope guard: naming a "while we're at it" addition rather
 than silently doing it mid-verification).
 
-**Status:** fix applied to `deploy/kustomize/base/configmap.yaml`, RBAC
-confirmed live; re-running the `PipelineRun` next to confirm green,
-including the corrected write-path behavior, before this step is
-declared complete.
+**Status:** fix applied, RBAC confirmed live. Second `PipelineRun`
+(`golden-path-agent-ci-vx9qj`) — **all 13 stages succeeded**, including
+`security-tests` (the corrected write path) and `open-promotion-pr`
+(opened `PR #2`, `promote/fd141bb7...` → `main`, the standing
+digest-promotion mechanism from Phase C, unchanged — only
+`base/kustomization.yaml`'s digest field, still does not touch
+`base/approval/` at all, per `DEC-046`/`DEC-050`; left open for the
+owner's own merge decision, not merged here). Step (d) complete: manifests
+wired, RBAC diffs live, `AUTH_MODE=none` confirmed in the rendered
+config, pipeline green. Proceeding to gather the D1 verification-STOP's
+required live-cluster evidence (approve/reject/expiry, pod-restart-
+survives-pending, live concurrency race) before holding for owner review.
