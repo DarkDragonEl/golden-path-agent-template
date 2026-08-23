@@ -4692,3 +4692,137 @@ same internal URL, so the two sides stay consistent by construction.
 **Status: D2 entry gate fully complete and live.** Proceeding to realm
 import (test users, the three clients from the approved design-STOP
 shape) and `pipelines/bootstrap/provision-identity-secrets.sh`.
+
+## DEC-058 — realm import applied live: role, three clients, two test
+users — plus a real Keycloak behavior found and fixed before it could
+silently break D2's own verification
+
+**`pipelines/bootstrap/keycloak-realm-import.yaml`** (new): schema
+confirmed against the live CRD before writing (`oc explain
+keycloakrealmimport.spec.realm[...]`). Realm `golden-path-agent`; role
+`approval-approver` (the exact value `approval_service/config.py`'s own
+`APPROVER_ROLE_VALUE` default already expects, from D1); three clients
+exactly matching the owner-approved design-STOP shape
+(`golden-path-agent-approval-workload`, `golden-path-agent-mcp-workload`
+— both confidential/client-credentials, distinct audiences
+`golden-path-agent-approval`/`golden-path-agent-mcp` via an explicit
+`oidc-audience-mapper` on each, since Keycloak's default token shape does
+not otherwise separate them; `golden-path-agent-approver-ui` — public,
+Authorization Code + PKCE, plus `directAccessGrantsEnabled: true`
+enabled deliberately and only for D2's own verification, since no
+browser exists in this environment to drive a real Authorization Code
+flow — D3's real UI will use Authorization Code + PKCE exclusively,
+never this grant, stated explicitly in the file's own comment). Every
+client also carries a `oidc-usermodel-realm-role-mapper` mapping realm
+roles to a flat top-level `roles` claim — `approval_service/auth.py`'s
+`_extract_roles()` reads a flat claim, not Keycloak's nested
+`realm_access.roles` default. Two users, `demo-approver`
+(`realmRoles: [approval-approver]`) and `demo-user` (none) — the owner's
+own explicit D2-approval requirement, for the wrong-role 403 negative
+test.
+
+**Deliberately secret-free**: no client `secret` field, no user
+`credentials` block, anywhere in this file — see `DEC-059` for the full
+provisioning mechanism and why it uses Keycloak's own admin-API
+"regenerate client secret" endpoint instead of this CRD's
+`spec.placeholders` import-time substitution mechanism.
+
+**Applied live, `Done: True`, no errors.** Verified against the real
+admin API (`oc exec` into the already-live Postgres pod, this session's
+established in-cluster HTTP pattern, `DEC-034`/`DEC-052`), not just the
+CR's own status: realm exists and enabled; role list includes
+`approval-approver`; all three clients present with the expected
+`publicClient`/`serviceAccountsEnabled` values; both users present.
+
+**A real finding, reproduced live before being trusted as fixed**:
+`demo-approver`'s direct-grant (Resource Owner Password) login initially
+failed — `400 invalid_grant, "Account is not fully set up"` — even
+though the user's own `requiredActions` list was empty. Root cause,
+confirmed by inspecting the realm's live "User Profile" configuration
+via the admin API: Keycloak's declarative User Profile feature refuses
+direct-grant login for a user missing profile fields the realm considers
+required (`email`/`firstName`/`lastName`), regardless of the per-user
+`requiredActions` list being empty — a realm-level default this
+project's own realm-import never touched, not something misconfigured.
+Fixed live via the admin API (`email`/`firstName`/`lastName`/
+`emailVerified: true` set on both `demo-approver` and `demo-user`,
+synthetic values only) and confirmed working — `demo-approver`'s token
+now correctly carries `roles: ["approval-approver"]`; `demo-user`'s
+login also succeeds, its token correctly carries **no** `roles` claim at
+all (confirmed this is handled correctly, not a bug: `_extract_roles()`
+treats a missing claim as `[]`, so the SEC-02 role check still correctly
+denies it). The committed `keycloak-realm-import.yaml` was updated to
+include these fields directly, so a fresh environment (Phase E's
+showcase-cluster replay) gets this right on the first import, without
+needing this manual patch step.
+
+## DEC-059 — `pipelines/bootstrap/provision-identity-secrets.sh`: the
+owner's secrets-handling directive, implemented and live-verified
+
+**Script** (`pipelines/bootstrap/provision-identity-secrets.sh`, new,
+executable): implements the owner's own explicit directive verbatim —
+committed mechanism, never-committed values, idempotent/re-runnable for
+both a fresh environment and rotation (the same code path for both,
+deliberately — every run regenerates fresh values for everything it
+manages, there is no "only if missing" branch to keep in sync by hand).
+
+**Which path the realm-import CRD made cleaner, stated as requested**:
+Keycloak's own admin-API "regenerate client secret" endpoint
+(`POST .../clients/{id}/client-secret`), called directly by this script
+— **not** the CRD's `spec.placeholders` import-time substitution
+mechanism. Reasoning: the regenerate-endpoint works identically whether
+a client was created two seconds ago (fresh environment) or two months
+ago (rotation) — one code path for both, rather than placeholder
+substitution (import-time only) plus a separate mechanism for rotation.
+
+**Mechanism**: authenticates as Keycloak's bootstrap admin (the
+`golden-path-agent-keycloak-admin` `Secret`, `DEC-057`); regenerates
+both workload clients' secrets; writes them into `golden-path-agent-secrets`
+(the same, already-existing Secret each consuming namespace already has
+from Phase C) in `golden-path-agent-ephemeral-test` and
+`golden-path-agent-demo-prod`, via `oc patch --type merge` so only the
+new keys (`APPROVAL_OIDC_CLIENT_SECRET`, `MCP_AUTH_TOKEN`) are touched —
+`MODEL_API_KEY` and demo-prod's model-endpoint keys are left completely
+alone, confirmed live by reading the key list back after patching, not
+assumed. `MCP_AUTH_TOKEN`'s env var name/Secret key is deliberately
+unchanged (per the owner's own instruction) — its *meaning* changes (a
+static placeholder → the mcp-workload client's real OIDC client secret),
+its name does not, avoiding a K8s-Secret-key rename ripple. Also
+regenerates both demo users' passwords via the admin API's reset-password
+endpoint, storing them in their own `Secret`
+(`golden-path-agent-demo-users`, `golden-path-agent-keycloak`) for later
+walkthrough retrieval — a documented `oc get secret ... -o jsonpath`
+command, never printed by the script itself.
+
+**Why `oc exec` for the Keycloak admin-API calls**: this script runs on
+an operator's own machine, outside the cluster network, and there is no
+working external `Ingress` route yet (`DEC-057`'s own noted, pre-existing
+limitation). Reuses this session's own established, already-proven
+pattern (`DEC-034`/`DEC-052`): `oc exec -i <pod> -- python3 -`, targeting
+the Postgres pod the entry gate (`DEC-057`) already guarantees exists —
+no new pod spun up.
+
+**Header comment states the production-swap framing explicitly** (the
+owner's own requirement — "that sentence is walkthrough material"): this
+script is the demo-scale realization of what a real ESO/Vault
+integration (already pinned as this project's deferred phase-two
+integration point) would do continuously in a real deployment.
+
+**Verified live, twice, not just "it ran without error"**: first run —
+all four consuming-namespace patches/creates succeeded; read the
+resulting `Secret` key lists back (never the values) and confirmed
+`MODEL_API_KEY`/demo-prod's model-endpoint keys survived the merge
+patch untouched, only the new keys were added. Second run (rotation
+semantics) — identical clean output, no errors. **End-to-end proof, not
+just "the API call returned 200"**: exchanged the freshly-provisioned
+`APPROVAL_OIDC_CLIENT_SECRET`/`MCP_AUTH_TOKEN` values for real tokens
+against the live realm and decoded their claims — correct `aud`
+(`golden-path-agent-approval`/`golden-path-agent-mcp` respectively),
+correct `azp`, and confirmed **neither** workload client's token carries
+the `approval-approver` role (the design's own negative-test property,
+true by construction, not by any explicit deny rule).
+
+**Status:** identity infrastructure (operator, Postgres, Keycloak CR,
+realm, secrets) fully live and verified end to end. Proceeding to the
+agent-side/MCP-side code (delegated to a subagent, in progress) and then
+the cutover sequence.
