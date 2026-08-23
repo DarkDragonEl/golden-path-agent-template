@@ -4472,3 +4472,66 @@ D2 design-STOP content (realm/client shape, SA-split proposal) in the
 same turn and waiting for explicit ack before running any of: the
 namespace create, the operator `Subscription`, or the Postgres
 `Deployment`.
+
+## DEC-055 — D2 entry gate BLOCKED: cluster-wide OLM resolution failure,
+caused by another tenant's broken `CatalogSource`, not this project's
+
+**Applied**: `golden-path-agent-keycloak` `Namespace` (real, live) and
+`rhbk-operator`'s `OperatorGroup`+`Subscription` (real, live) — both
+owner-authorized this turn. **Not applied**: Postgres, held back once
+the blocker below was found (see Status).
+
+**Finding**: `rhbk-operator`'s `Subscription` never produced an
+`InstallPlan` (`status.installplan` stayed empty through 10+ minutes of
+polling, well past any normal OLM resolution latency). Root cause,
+confirmed via `catalog-operator`'s own logs, not guessed: OLM's resolver
+does a *global* pass across every `CatalogSource` visible in
+`openshift-marketplace` before issuing an `InstallPlan` for **any**
+namespace's Subscription — and one of those catalogs,
+`nousie-docling-catalog` (a different tenant's — "Nousie Platform",
+`AGE 40d`, both its pods `ImagePullBackOff`, one with `23` restarts),
+is unreachable: `failed to list bundles: rpc error: ... connection
+refused`. The log shows this exact error firing for resolution attempts
+across *other* tenants' namespaces too (`openshift-storage`,
+`nousie-claude-automation`, `nousie-rag-cicd`) in the same pass — this
+is not specific to `golden-path-agent-keycloak` or caused by anything
+this project did.
+
+**Confirmed genuinely blocking, not transient**: polled 10+ minutes,
+`InstallPlan` never appeared. Cross-checked whether *any* Subscription
+has resolved successfully since this broken catalog appeared: every
+successful `InstallPlan` found cluster-wide
+(`openshift-gitops-operator`, `servicemeshoperator3`, `nfd`,
+`rhods-operator`, `docling-operator`, `gpu-operator-certified`) has a
+creation timestamp from before or right around `nousie-docling-catalog`'s
+own `40d` age — none is fresher. No evidence any *new* Subscription has
+resolved successfully in that window; this Subscription is not an
+unlucky one-off.
+
+**Why not just fixed**: `nousie-docling-catalog` is not this project's
+resource — it belongs to a different tenant on this shared cluster.
+Deleting, scaling down, or otherwise modifying it (even though this
+session's `oc` identity appears to have the technical privilege to do
+so) would be exactly the kind of blast-radius violation this project has
+avoided throughout Phase C/D — touching another tenant's infrastructure
+without their knowledge or explicit authorization. Not attempted.
+
+**No clean per-Subscription workaround identified**: OLM's classic
+`v1alpha1` resolver has no documented way to scope a single
+`Subscription`'s resolution to exclude one specific unhealthy catalog —
+`spec.source`/`spec.sourceNamespace` name which catalog *provides* the
+package, not which catalogs the resolver is allowed to consult while
+checking for conflicts.
+
+**Status: D2 entry gate paused here.** `Namespace` and
+`Subscription`/`OperatorGroup` are live and correctly configured, simply
+waiting on a real, external blocker — left in place, not rolled back
+(nothing about them is wrong; nothing here needs reverting). Postgres
+deliberately not yet applied, to avoid getting further ahead of the
+actual gating dependency while this is unresolved. Not proceeding into
+Keycloak CR/realm-import/any further D2 work, since essentially all of
+it depends on `rhbk-operator` actually installing. Reporting to the
+owner for a decision: whoever administers this shared cluster needs to
+either fix or remove `nousie-docling-catalog`, or another oc identity
+with clear authorization over it needs to act — this is not this
+project's call to make unilaterally.
