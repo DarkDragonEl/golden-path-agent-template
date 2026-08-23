@@ -3823,3 +3823,81 @@ pipeline green. Then hold at the D1 verification STOP — live cluster
 run-through (approve/reject/expiry), pod-restart-survives-pending-approval,
 the restart-overdue-expiry pickup, and `F-02`'s concurrency race exercised
 live, not just unit-tested.
+
+## DEC-047 — D1 implementation step (a): approval-service business logic
++ full `SRS-APR` §6 test set, reviewed and verified independently
+
+**Document/scope:** `approval_service/store.py` (new), `approval_service/auth.py`
+(new), `approval_service/api.py` (route bodies filled in; signatures/
+decorators/docstrings unchanged from `DEC-045`'s frozen contract),
+`tests/test_approval_service.py` (new, 51 tests), `requirements.txt`
+(`pyjwt[crypto]>=2.8,<3.0` added).
+
+**`store.py` — `ApprovalStore`**, exactly the four operations specified
+(`create_proposal`/`get_proposal`/`list_pending`/`transition_to_terminal`),
+no update/delete method anywhere in the module (`SEC-04`, verified
+structurally by `inspect`-based test, not just "we didn't write one").
+`transition_to_terminal` is the single atomic write path for
+approve/reject *and* expiry — one `UPDATE ... WHERE state='pending'` per
+connection, SQLite's own file-level lock (`busy_timeout`) serializing
+concurrent callers so exactly one ever wins — **confirmed under real
+threaded contention** (`threading.Barrier` forcing two decisions to race,
+`ThreadPoolExecutor`), not asserted from reading the SQL alone. `F-07`
+idempotency uses a partial unique index on
+`(originating_session_id, idempotency_key)`, with the `IntegrityError`
+path handling a *concurrent* replay race, not just a sequential one — a
+detail beyond what was strictly asked, correctly justified (F-07's
+guarantee should hold under a race exactly the same as F-02's).
+
+**`ExpiryScanner`** — `sweep()` is one method, called both by `start()`'s
+mandatory immediate pass (`DEC-046`'s restart-overdue-pickup requirement)
+and the periodic loop `start()` also launches — a single place expiry
+logic lives, not two implementations to keep in sync.
+
+**`auth.py` — `get_current_approver`**: `AUTH_MODE=none` returns a fixed
+identity; `AUTH_MODE=oidc` implemented for real (JWKS discovery via
+`.well-known/openid-configuration`, cached per issuer) — **the algorithm
+used to verify a token is taken from the matched JWK
+(`signing_key.algorithm_name`), not the token's own header claim**,
+avoiding the classic JWT algorithm-confusion class of vulnerability. 401
+on missing/invalid token, 403 (audit-logged) on a valid token lacking
+the configured approver role — deliberately does not special-case "is
+this the agent's own token," per the brief: an agent token without the
+role is rejected by the identical logic that rejects anyone else without
+it, closing the agent-token-cannot-decide requirement (`DEC-045`'s
+owner addition #2) at the mechanism level now, ahead of D2's own
+verification test of it live.
+
+**Test suite** — 51 new tests, one or more per every "Needed" row in
+`SRS-APR.md`'s §6 verification table, plus both `DEC-046` additions
+explicitly (`test_dec046_*`, 4 tests: absent-`evidence_refs` reject,
+expired-proposal `decided_by`/`decided_at`-`None` parity at both the
+store and `IF-05` API level, and the restart-overdue-pickup path
+exercised both in isolation and through the real app lifespan). Spot-
+checked directly, not just trusted from the delegated report:
+`test_f02_concurrent_decisions_one_wins_one_refused` uses real threads
+and a barrier, not a mock; `test_sec01_no_execution_side_effect_when_store_raises`
+asserts the proposal is still absent from a live `GET /proposals` query
+after the simulated failure, a stronger check than "the HTTP call
+returned an error."
+
+**Independently verified, not just trusted from the delegated summary**:
+read `store.py`/`auth.py`/`api.py` directly; ran `python -m pytest -q`
+myself after installing the new dependency — `215 passed` (164
+pre-existing + 51 new), matching the delegated report exactly;
+confirmed `git status` shows only the expected new/modified files (the
+runtime SQLite DB file is already covered by the repo's existing
+top-level `state/` `.gitignore` rule, no stray artifact).
+
+**Deviation flagged by the implementation, accepted**: telemetry
+(`SRS-APR-IF-03`) realized via structured, correlated `logging` calls,
+not a second OTel `TracerProvider` — `approval_service/config.py`'s
+frozen contract has no `OTEL_EXPORTER_OTLP_ENDPOINT`/`OTEL_SERVICE_NAME`
+fields, and extending that frozen file was out of this implementation
+step's authority. Accepted as the right call for this step; a real OTel
+exporter is a natural D4 (trace dashboard) follow-up once this service's
+own config contract grows those fields — not silently dropped, named
+here for D4 to pick up.
+
+**Status:** Step (a) complete and verified. Proceeding to (b) —
+`entrypoint.sh`/`Containerfile` wiring and a local podman smoke test.
