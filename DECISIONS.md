@@ -3901,3 +3901,42 @@ here for D4 to pick up.
 
 **Status:** Step (a) complete and verified. Proceeding to (b) —
 `entrypoint.sh`/`Containerfile` wiring and a local podman smoke test.
+
+## DEC-048 — D1 implementation step (b): `approval` entrypoint role wired,
+live podman smoke test
+
+**Document/scope:** `entrypoint.sh` (third case, `approval`), `Containerfile`
+(`COPY approval_service/`, `APPROVAL_PORT` env, `state/approval` pre-created,
+port `8082` exposed).
+
+Additive only — `agent`/`mcp` cases and their own `COPY`/`ENV`/`EXPOSE`
+entries untouched. `approval` mirrors `mcp`'s exact shape: `exec uvicorn
+approval_service.api:app --host 0.0.0.0 --port "${APPROVAL_PORT:-8082}"`.
+`state/approval` (the SQLite PVC mount point, `APPROVAL_DB_PATH`'s
+default parent) pre-created at build time alongside `AGENT_STATE_DIR`/
+`AGENT_CORPUS_DIR`, matching the existing precedent rather than relying
+implicitly on `state/`'s own `chmod -R g=u` letting the arbitrary UID
+create the subdirectory lazily at runtime.
+
+**Live podman smoke test** (image built from this `Containerfile`,
+run with the real `approval` role, not just import-checked): container
+started cleanly (lifespan startup — including the mandatory expiry-scanner
+sweep, `DEC-046`'s addition — completed with no error under the real
+arbitrary-non-root-UID/restricted-filesystem environment, not just under
+pytest's own process). `/healthz` → `200 {"status":"ok"}`. Full flow
+exercised end to end over real HTTP: `POST /proposals` → `pending`;
+`GET /proposals/{id}` (IF-05) → full context, `decided_by`/`decided_at`
+`null`; `POST /proposals/{id}/decision` (`AUTH_MODE=none`'s default
+identity, `"dev-approver"`) → `approved`; `GET /proposals/{id}` again →
+`action_arguments` unchanged from intake, `decided_by`/`decided_at`
+populated. One quirk noted, confirmed environment-specific not a real
+bug: `curl` to `localhost:<port>` initially got "connection reset by
+peer" — this session's own podman networking resolves `localhost` to
+`::1` (IPv6) first and the rootless port-publish here doesn't listen on
+it; `127.0.0.1` (forced IPv4) worked immediately. Container/image
+cleaned up after the smoke test (`podman stop`/`rm`/`rmi`) — nothing
+left running.
+
+**Status:** Step (b) complete and verified live. Proceeding to (c) — the
+agent-side redesign (the atomic `state.py`/`tool_invoke.py`/
+`human_approval.py`/`api.py` change).
