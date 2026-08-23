@@ -101,3 +101,92 @@ def test_resume_after_rejection_falls_back():
         result = approval_client.resolve_and_resume(graph, thread_config)
     assert result["fallback_reason"] is not None
     assert "PLACEHOLDER_TOOL_RESPONSE_MARKER" not in (result.get("final_output") or "")
+
+
+# --- Phase D2: approval_client's OIDC bearer-header attachment -------------
+
+
+class _FakeHttpResponse:
+    def __init__(self, body):
+        self._body = body
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._body
+
+
+def test_submit_and_get_proposal_send_no_auth_header_when_oidc_mode_none(monkeypatch):
+    import httpx
+
+    from agent import config
+
+    monkeypatch.setattr(config, "AGENT_OIDC_MODE", "none")
+    captured = {}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        captured["post_headers"] = headers
+        return _FakeHttpResponse({"proposal_id": "prop-1", "state": "pending"})
+
+    def fake_get(url, headers=None, timeout=None):
+        captured["get_headers"] = headers
+        return _FakeHttpResponse({"proposal_id": "prop-1", "state": "pending"})
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    approval_client.submit_proposal(
+        action_type="itsm_create_request",
+        target_system_id="mock-itsm",
+        action_arguments={},
+        evidence_refs=[],
+        initiating_user_id="pytest",
+        agent_workload_id="golden-path-agent",
+        originating_session_id="sess-1",
+        originating_request_id="req-1",
+    )
+    approval_client.get_proposal("prop-1")
+
+    assert "Authorization" not in captured["post_headers"]
+    assert "Authorization" not in captured["get_headers"]
+
+
+def test_submit_and_get_proposal_attach_bearer_header_when_oidc_mode_oidc(monkeypatch):
+    import httpx
+
+    from agent import config, oidc_client
+
+    monkeypatch.setattr(config, "AGENT_OIDC_MODE", "oidc")
+    monkeypatch.setattr(config, "OIDC_ISSUER_URL", "https://idp.example.invalid/realms/demo")
+    monkeypatch.setattr(config, "APPROVAL_OIDC_CLIENT_ID", "golden-path-agent-approval-workload")
+    monkeypatch.setattr(config, "APPROVAL_OIDC_CLIENT_SECRET", "the-client-secret")
+    monkeypatch.setattr(oidc_client, "get_service_token", lambda *a, **kw: "fake-access-token")
+
+    captured = {}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        captured["post_headers"] = headers
+        return _FakeHttpResponse({"proposal_id": "prop-1", "state": "pending"})
+
+    def fake_get(url, headers=None, timeout=None):
+        captured["get_headers"] = headers
+        return _FakeHttpResponse({"proposal_id": "prop-1", "state": "pending"})
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    approval_client.submit_proposal(
+        action_type="itsm_create_request",
+        target_system_id="mock-itsm",
+        action_arguments={},
+        evidence_refs=[],
+        initiating_user_id="pytest",
+        agent_workload_id="golden-path-agent",
+        originating_session_id="sess-1",
+        originating_request_id="req-1",
+    )
+    approval_client.get_proposal("prop-1")
+
+    assert captured["post_headers"]["Authorization"] == "Bearer fake-access-token"
+    assert captured["get_headers"]["Authorization"] == "Bearer fake-access-token"

@@ -4826,3 +4826,93 @@ true by construction, not by any explicit deny rule).
 realm, secrets) fully live and verified end to end. Proceeding to the
 agent-side/MCP-side code (delegated to a subagent, in progress) and then
 the cutover sequence.
+
+## DEC-060 — D2 implementation: agent-side OIDC token exchange, MCP
+credential enforcement — built by a delegated agent, reviewed directly
+against the actual diffs, not the summary alone
+
+**Document/scope:** `agent/oidc_client.py` (new), `mcp_server/auth.py`
+(new), `agent/config.py`, `agent/approval_client.py`,
+`mcp_server/client.py`, `mcp_server/server.py`, five new/extended test
+files.
+
+**A real, adjacent finding surfaced before any code was written, not
+mid-review**: `mcp_server/client.py`'s `MCP_MODE=live` branch
+(`httpx.post(f"{MCP_TOOL_ENDPOINT}/tools/{tool_name}", ...)`) has never
+actually worked — `mcp_server/server.py` mounts a real MCP
+`streamable_http_app()` (JSON-RPC wire protocol) plus a small separate
+`rest_app` with only `/records`/`/records/{record_id}`/`/reset` routes;
+no `/tools/{tool_name}` route existed anywhere. `MCP_MODE` has been
+`mock` (in-process, no network hop) in every overlay's committed
+ConfigMap so far — the separately-deployed `mcp` pod has never actually
+been reached over HTTP by the agent in any deployment to date, ephemeral-
+test included. "MCP credential enforcement" is meaningless without this
+path genuinely working. Fixed with a small, deliberately-scoped
+addition — one new plain REST route on the *existing* `rest_app`,
+dispatching to the same four tool functions the in-process branch
+already dispatches to — not a real MCP-protocol-compliant HTTP client,
+which would be a different, much larger, unrequested scope. Named
+explicitly rather than silently expanded into or silently worked around.
+
+**Built** (mirroring `approval_service/auth.py`'s already-reviewed D1
+shape throughout, deliberately, not a fresh design):
+- `agent/oidc_client.py`: `get_service_token(issuer_url, client_id,
+  client_secret)` — OAuth2 client-credentials grant, in-process cache
+  keyed by `(issuer_url, client_id)`, `time.monotonic()`-based expiry
+  with a 30s safety buffer (never wall-clock).
+- `agent/config.py`: `AGENT_OIDC_MODE=none|oidc` (mirrors `AUTH_MODE`'s
+  convention), `OIDC_ISSUER_URL`, `APPROVAL_OIDC_CLIENT_ID/SECRET`,
+  `MCP_OIDC_CLIENT_ID`, and `MCP_OIDC_CLIENT_SECRET = _env("MCP_AUTH_TOKEN")`
+  — the env var/Secret key name is deliberately unchanged (owner's own
+  instruction), only its Python binding's name changed to reflect what
+  the value now actually is.
+- `agent/approval_client.py`: both `submit_proposal`/`get_proposal`
+  attach `Authorization: Bearer <token>` when `AGENT_OIDC_MODE=oidc`, via
+  one shared `_auth_headers()` helper — `resolve_and_resume` inherits
+  this automatically (confirmed by reading it: it only ever calls
+  `get_proposal`).
+- `mcp_server/client.py`: the (now-real) live branch attaches the same
+  kind of bearer header, reusing `AGENT_OIDC_MODE` as the single
+  agent-wide OIDC on/off switch rather than a third toggle — this is the
+  agent's own outbound call either way, one switch is correct.
+- `mcp_server/auth.py` (new): `get_authenticated_caller(request)` —
+  identity+audience validation only, deliberately no role check (MCP has
+  no analogue of `approval-approver`); same JWKS-discovery-and-cache
+  shape and algorithm-confusion-safe validation as
+  `approval_service/auth.py`, kept as a separate sibling file rather
+  than a shared library (two independently-owned services in this
+  repo's own boundary model; duplicating this much is cheaper than a
+  shared auth module for one demo-scope route). New `MCP_AUTH_MODE=none|oidc`
+  toggle, read directly via `os.environ` (no config module exists in
+  `mcp_server` to add a setting to for this alone). Audience
+  (`golden-path-agent-mcp`) is a hardcoded module constant rather than a
+  configured value, for the same reason.
+- `mcp_server/server.py`: the new `POST /tools/{tool_name}` route,
+  gated by `get_authenticated_caller`; the three pre-existing
+  introspection routes untouched, still ungated (unchanged from their
+  own documented "never called by the agent" posture).
+
+**Reviewed directly against the actual diffs before trusting them** —
+every changed/new file read in full, not the delegated agent's summary
+alone: the auth logic genuinely mirrors `approval_service/auth.py`'s
+shape (not just claimed to); the new REST route's dispatch reuses the
+exact same tool functions the in-process branch already calls (no
+behavior drift between mock and live paths beyond the network hop
+itself); `agent/config.py`'s and `agent/approval_client.py`'s diffs are
+minimal and match the specified shape exactly; the new tests
+(`tests/test_oidc_client.py`, `tests/test_mcp_auth.py`,
+`tests/test_mcp_client_oidc.py`, plus additions to
+`tests/test_graph_shell.py`/`tests/test_itsm_mcp_server.py`) genuinely
+exercise cache-hit/cache-miss/expiry/per-client-id-isolation,
+missing/malformed/wrong-audience/wrong-issuer/missing-sub tokens, and
+the new REST route's own auth gating — not superficial.
+
+**Verified independently, not by trusting the reported count**: full
+suite re-run from a clean shell — `236 passed` (was `216` before this
+step; matches the delegated agent's own report exactly, re-confirmed
+rather than assumed).
+
+**Status:** agent-side/MCP-side code complete, reviewed, and verified.
+Proceeding to wire the new config into the deployed overlays and the D2
+cutover sequence (merge `PR #2` → atomic base-wiring commit → verify
+`demo-prod` live).

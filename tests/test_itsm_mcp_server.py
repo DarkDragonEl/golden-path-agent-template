@@ -136,6 +136,33 @@ def test_rest_reset_restores_seed_set_after_a_write(rest_client):
     assert len(ids) == 8
 
 
+# --- REST tool-call surface (Phase D2: the MCP_MODE=live path's real ---
+# --- HTTP target -- previously a 404, mcp_server/client.py's own note) --
+
+
+def test_rest_call_tool_unknown_tool_name_gets_404(rest_client):
+    resp = rest_client.post("/tools/not_a_real_tool", json={})
+    assert resp.status_code == 404
+
+
+def test_rest_call_tool_dispatches_to_the_real_tool_function(rest_client):
+    resp = rest_client.post("/tools/itsm_search_records", json={"record_type": "incident"})
+    assert resp.status_code == 200
+    assert resp.json()["count"] >= 1
+
+
+def test_rest_call_tool_default_auth_mode_none_requires_no_token(rest_client, monkeypatch):
+    monkeypatch.delenv("MCP_AUTH_MODE", raising=False)
+    resp = rest_client.post("/tools/placeholder_lookup", json={"query": "anything"})
+    assert resp.status_code == 200
+
+
+def test_rest_call_tool_oidc_mode_missing_token_gets_401(rest_client, monkeypatch):
+    monkeypatch.setenv("MCP_AUTH_MODE", "oidc")
+    resp = rest_client.post("/tools/placeholder_lookup", json={"query": "anything"})
+    assert resp.status_code == 401
+
+
 def test_rest_state_matches_mcp_tool_state_for_the_same_record(rest_client):
     # SRS-MIT-IF-04's own verification method: "state visible via REST
     # matches state returned via MCP" for the same record.

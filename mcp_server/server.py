@@ -27,9 +27,10 @@ restructure), not this one.
 import os
 from contextlib import AsyncExitStack, asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from mcp.server.fastmcp import FastMCP
 
+from . import auth as mcp_auth
 from .itsm_store import store
 from .schemas import (
     ItsmCreateRequestInput,
@@ -172,6 +173,29 @@ def rest_get_record(record_id: str):
 def rest_reset():
     store.reset()
     return {"status": "reset"}
+
+
+# --- REST tool-call surface (mcp_server/client.py's MCP_MODE=live path) ---
+# Unlike the introspection routes above, this one IS the agent's real
+# server-to-server surface for MCP_MODE=live -- the only REST route this
+# server gates with auth (mcp_server/auth.py, MCP_AUTH_MODE).
+
+_TOOL_DISPATCH = {
+    "placeholder_lookup": placeholder_lookup,
+    "placeholder_write_action": placeholder_write_action,
+    "itsm_search_records": itsm_search_records,
+    "itsm_create_request": itsm_create_request,
+}
+
+
+@rest_app.post("/tools/{tool_name}")
+def rest_call_tool(tool_name: str, arguments: dict, request: Request):
+    mcp_auth.get_authenticated_caller(request)
+
+    fn = _TOOL_DISPATCH.get(tool_name)
+    if fn is None:
+        raise HTTPException(status_code=404, detail=f"unknown tool: {tool_name}")
+    return fn(**arguments)
 
 
 def build_app() -> FastAPI:

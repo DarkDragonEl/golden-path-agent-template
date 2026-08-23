@@ -83,6 +83,23 @@ MCP_MODE = _env("MCP_MODE", "mock")  # mock | live
 # -- see eval/domain_executor.py's _FakeApprovalService.
 APPROVAL_SERVICE_ENDPOINT = _env("APPROVAL_SERVICE_ENDPOINT", "http://localhost:8082")
 
+# Agent workload OIDC identity (Phase D2). AGENT_OIDC_MODE=none mirrors
+# approval_service's own AUTH_MODE=none escape hatch -- everything built
+# before D2's real IdP existed keeps working unauthenticated. =oidc
+# attaches a client-credentials bearer token (agent/oidc_client.py) to
+# both outbound calls this workload makes: approval_service and the MCP
+# tool server's REST route.
+AGENT_OIDC_MODE = _env("AGENT_OIDC_MODE", "none")  # none | oidc
+OIDC_ISSUER_URL = _env("OIDC_ISSUER_URL")  # no default -- required when AGENT_OIDC_MODE=oidc
+APPROVAL_OIDC_CLIENT_ID = _env("APPROVAL_OIDC_CLIENT_ID")
+APPROVAL_OIDC_CLIENT_SECRET = _env("APPROVAL_OIDC_CLIENT_SECRET")
+MCP_OIDC_CLIENT_ID = _env("MCP_OIDC_CLIENT_ID")
+MCP_OIDC_CLIENT_SECRET = _env("MCP_AUTH_TOKEN")  # reuses the existing golden-path-agent-secrets
+# key name (already wired via deployment-agent.yaml's envFrom since Phase C) -- this Python
+# binding's name reflects what the value actually is now: the mcp-workload client's own OIDC
+# client secret, not a static bearer token. Env var name kept for continuity with the
+# already-provisioned Secret; only this Python-side name changed to reflect the real new meaning.
+
 # Retrieval / data source binding (TODO(domain): real binding per environment)
 DATA_SOURCE_BINDING = _env("DATA_SOURCE_BINDING", "none")
 AGENT_CORPUS_DIR = _env("AGENT_CORPUS_DIR", "./corpus/seed")

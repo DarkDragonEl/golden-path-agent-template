@@ -14,7 +14,19 @@ executor).
 
 import httpx
 
-from . import config
+from . import config, oidc_client
+
+
+def _auth_headers() -> dict:
+    """AGENT_OIDC_MODE=none: no header at all, matching AUTH_MODE=none on
+    the approval-service side (which does no validation). =oidc: attach
+    this workload's own client-credentials bearer token."""
+    if config.AGENT_OIDC_MODE != "oidc":
+        return {}
+    token = oidc_client.get_service_token(
+        config.OIDC_ISSUER_URL, config.APPROVAL_OIDC_CLIENT_ID, config.APPROVAL_OIDC_CLIENT_SECRET
+    )
+    return {"Authorization": f"Bearer {token}"}
 
 
 def submit_proposal(
@@ -45,7 +57,9 @@ def submit_proposal(
     }
     if idempotency_key is not None:
         body["idempotency_key"] = idempotency_key
-    response = httpx.post(f"{config.APPROVAL_SERVICE_ENDPOINT}/proposals", json=body, timeout=timeout)
+    response = httpx.post(
+        f"{config.APPROVAL_SERVICE_ENDPOINT}/proposals", json=body, headers=_auth_headers(), timeout=timeout
+    )
     response.raise_for_status()
     return response.json()
 
@@ -55,7 +69,9 @@ def get_proposal(proposal_id: str, timeout: float = 10.0) -> dict:
     for a decided proposal's outcome and, for `approved`, its unmodified
     `action_arguments`. DECISIONS.md DEC-008: the caller must execute
     exactly what this returns, never a locally cached copy."""
-    response = httpx.get(f"{config.APPROVAL_SERVICE_ENDPOINT}/proposals/{proposal_id}", timeout=timeout)
+    response = httpx.get(
+        f"{config.APPROVAL_SERVICE_ENDPOINT}/proposals/{proposal_id}", headers=_auth_headers(), timeout=timeout
+    )
     response.raise_for_status()
     return response.json()
 
