@@ -3751,3 +3751,75 @@ applied to `agent/state.py`/`agent/nodes/*`/`agent/api.py`, per the
 finding above), and the manifests/RBAC diffs — before any
 `approval_service` business logic is written, per the owner's own staged
 sequence.
+
+## DEC-046 — D1 contracts STOP approved, two corrections, one binding
+sequencing decision for D1→D2
+
+**Document/scope:** `approval_service/schemas.py` (`ProposalCreate.evidence_refs`),
+Phase D plan (sequencing section, new), this entry — the authoritative
+record D2 inherits the manifest-promotion requirement from.
+
+**Correction 1 — `evidence_refs` must be required, not defaulted.**
+`ProposalCreate.evidence_refs: list[str] = Field(default_factory=list)`
+meant an *absent* field silently became `[]` and passed validation —
+`SRS-APR-F-01` lists evidence references among the required intake
+fields and mandates a 422/no-record reject for any missing required
+field. Absence and emptiness are different questions, ruled separately:
+the field is now required (no default), so a missing field is a genuine
+schema reject; an *empty* list remains valid at this layer — F-01
+governs presence only, and whether a zero-citation write is ever
+legitimate is eval-territory (agent behavior), not intake-schema
+territory. Verified directly: an empty-list submission still validates;
+an absent field now raises `pydantic.ValidationError`. A dedicated
+schema-reject test for the absent-field path (distinct from the
+already-planned empty-arguments-dict case) is added to D1's `(a)`
+implementation-step test set.
+
+**Correction 2 (clarification, not a code change) — expiry/rejection
+parity confirmed as an explicit test requirement.** `SRS-APR-F-03`
+requires an expired proposal be "indistinguishable from a rejection with
+respect to execution side effects." D1's implementation must add one
+explicit test asserting: an `IF-05` terminal-state query for an expired
+proposal has `decided_by`/`decided_at` as `None` (no approver ever
+decided it), and the agent-side `approval_client`/`human_approval_node`
+path treats `expired` exactly like `rejected` for execution purposes
+(no tool invocation either way) — not inferred from the two paths
+happening to look similar, asserted directly.
+
+**Sequencing decision — where the approval manifests live, D1 through
+D2, binding on D2, not a suggestion:**
+
+- **D1**: the eight `deploy/kustomize/base/*-approval.yaml` manifests are
+  added to `deploy/kustomize/overlays/ephemeral-test/kustomization.yaml`'s
+  own `resources:` list (referencing the base-directory files directly —
+  Kustomize overlays may reference individual resource files alongside
+  `../../base`, without those files needing to be imported through
+  `base/kustomization.yaml` itself). This lets the pipeline's own gate
+  exercise the real service, `AUTH_MODE=none`, on every `PipelineRun` —
+  while `deploy/kustomize/base/kustomization.yaml` stays untouched, so
+  `demo-prod` (which builds from `base/` + its own overlay, referencing
+  none of these files) remains completely unaffected by D1's work.
+- **D2**: the eight manifests are promoted into
+  `deploy/kustomize/base/kustomization.yaml`'s own `resources:` list —
+  **in the same commit** as flipping `AUTH_MODE=oidc` and adding the
+  mechanical `demo-prod`-config assertion (`DEC-045`'s owner addition
+  #1, enforced via `tools/check_config_contract.py` or an equivalent
+  manifest check). One atomic change: base-wiring + `oidc` +
+  the completeness-check rule together, never staged separately — so the
+  **first time `demo-prod`'s `Application` ever syncs approval-service at
+  all**, it is already OIDC-enforced, never running with `AUTH_MODE=none`
+  in the promoted environment for even one sync cycle.
+
+**Status:** D1 contracts STOP closed, implementation authorized per the
+plan's own ordered sequence: (a) service + store + the full `SRS-APR` §6
+test set, (b) `entrypoint.sh` role + local podman smoke test, (c)
+agent-side redesign (the atomic `state.py`/`tool_invoke.py`/
+`human_approval.py`/`api.py` change `DEC-045` already flagged, plus the
+`arguments_executed == arguments_approved` mutated-draft regression test)
+followed by one deterministic domain pass (`DEC-012` instrument-rule
+statement, expect `60/62` unmoved), (d) manifests into the
+`ephemeral-test` overlay + the RBAC diffs applied for real, `AUTH_MODE=none`,
+pipeline green. Then hold at the D1 verification STOP — live cluster
+run-through (approve/reject/expiry), pod-restart-survives-pending-approval,
+the restart-overdue-expiry pickup, and `F-02`'s concurrency race exercised
+live, not just unit-tested.

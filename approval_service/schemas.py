@@ -8,7 +8,7 @@ Contracts-STOP artifact (DEC-045): schemas only, no business logic here.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 ProposalState = Literal["pending", "approved", "rejected", "expired"]
 Decision = Literal["approve", "reject"]
@@ -16,12 +16,19 @@ Decision = Literal["approve", "reject"]
 
 class ProposalCreate(BaseModel):
     """SRS-APR-IF-01. Missing required field -> the endpoint returns 422
-    and creates no record (SRS-APR-F-01)."""
+    and creates no record (SRS-APR-F-01).
+
+    evidence_refs is required (no default) -- DEC-045's contracts-STOP
+    correction: F-01 lists evidence references among the required intake
+    fields, so an *absent* field must reject. An *empty* list is a
+    separate, allowed question at this layer (F-01 governs presence, not
+    whether a zero-citation write is ever legitimate -- that's eval-
+    territory, not intake-schema territory)."""
 
     action_type: str
     target_system_id: str
     action_arguments: dict
-    evidence_refs: list[str] = Field(default_factory=list)
+    evidence_refs: list[str]
     initiating_user_id: str
     agent_workload_id: str
     originating_session_id: str
