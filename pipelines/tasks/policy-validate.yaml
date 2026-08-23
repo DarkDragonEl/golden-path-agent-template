@@ -1,6 +1,7 @@
-# Phase C, Step C1b (DECISIONS.md DEC-025). SysR-P-F-11 -- the CI pipeline
-# validates policy bundles. Two checks, deliberately kept separate steps
-# since opa and python don't share one container image:
+# Phase C, Step C1b (DECISIONS.md DEC-025), extended post-Checkpoint-C
+# (DEC-043/DEC-044). SysR-P-F-11 -- the CI pipeline validates policy
+# bundles and the config contract. Three checks, deliberately kept
+# separate steps where opa and python don't share one container image:
 #   1. opa test policy/opa/ -- the policy-definition unit tests themselves
 #      (proves the rego's own internal logic, including the fail-closed
 #      deny path, is correct).
@@ -10,9 +11,14 @@
 #      owner's explicit note on DEC-023's review: the rego mirror's
 #      "kept in sync by hand" discipline needed to become an enforced
 #      invariant, not just a documented hope.
-# Neither check is a live enforcement point -- agent/policy.py stays the
-# sole Policy Decision Point at request time (see approval_policy.rego's
-# own header).
+#   3. tools/check_config_contract.py -- the DEC-035/DEC-042 pattern (a
+#      deployment surface silently missing a required key, or a GitOps-
+#      synced environment consuming an unresolved placeholder value)
+#      turned into an enforced invariant the same way check 2 already did
+#      for the policy/rego drift class -- post-Checkpoint-C backlog item 3.
+# None of the three is a live enforcement point -- agent/policy.py stays
+# the sole Policy Decision Point at request time (see
+# approval_policy.rego's own header).
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -62,3 +68,15 @@ spec:
           --rego-classification-file tool_classification.json \
           --rego-default-file default_classification.json
         rm -f tool_classification.json default_classification.json
+
+    - name: config-contract-check
+      image: docker.io/library/python:3.12-slim
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: HOME
+          value: /tmp
+      script: |
+        #!/bin/sh
+        set -eu
+        pip install --no-cache-dir -q pyyaml
+        python tools/check_config_contract.py

@@ -3594,3 +3594,74 @@ matching every other per-call attribute's own convention) and a live
 smoke call against the real MaaS endpoint (not just `FakeModelClient`'s
 plumbing) — confirmed `response.model` is a real, non-empty string field
 on this endpoint's actual responses, not merely schema-present-but-empty.
+
+## DEC-044 — Post-Checkpoint-C backlog item 3: config-contract
+completeness + placeholder detection implemented, scope extended per the
+Checkpoint C closure review
+
+**Document/scope:** `tools/check_config_contract.py` (new),
+`pipelines/tasks/policy-validate.yaml` (new `config-contract-check`
+step). Owner authorization: land before D1; scope explicitly extended at
+closure review to also detect unresolved placeholders
+(`REPLACE_WITH_*`/`*_PLACEHOLDER`), not just missing keys —
+`REGISTRY_PLACEHOLDER` (`DEC-042`) named as that pattern's third
+instance.
+
+**Two independent mechanisms, one script**, mirroring
+`tools/check_policy_sync.py`'s own named/dated/rationale-carrying
+tolerance-list convention rather than inventing a new one:
+
+1. **Key completeness.** AST-parses `agent/config.py` for every bare
+   `_env(name)` call with no default argument at all (`_env_int`/
+   `_env_str` are structurally excluded — both always take a
+   `hard_default`) — today, exactly three: `MODEL_FALLBACK_API_BASE_URL`,
+   `MODEL_FALLBACK_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`. Verifies each is
+   declared (present as a key, any value) across `.env.example`,
+   `scripts/dev.sh`, `deploy/kustomize/base/configmap.yaml`, and every
+   overlay's `configMapGenerator` — an overlay inheriting a key
+   unmodified from base counts as declared (matches Kustomize's own
+   `behavior: merge` semantics; an overlay is never required to redeclare
+   a key it has no reason to override) — or named on `KNOWN_SECRET_SHADOWED`
+   with a stated reason (currently: `demo-prod`'s two fallback keys,
+   `DEC-039`'s Secret-shadowing mechanism).
+2. **Placeholder detection.** Reads `deploy/argocd/apps/*.yaml`'s own
+   `source.path` fields to derive exactly which overlay paths a
+   GitOps-synced `Application` consumes precisely as committed (today:
+   `demo-prod`), plus `deploy/kustomize/base/` (every overlay builds on
+   it) — self-updating if a new `Application` is ever added there, not a
+   hand-maintained list. Scans every manifest under those paths for
+   placeholder-shaped values (`REPLACE_WITH_*`, `*_PLACEHOLDER`, and the
+   `placeholder-*`/`PLACEHOLDER*` family `REGISTRY_PLACEHOLDER`/
+   `placeholder-model`/`placeholder-fallback-model` belong to) —
+   deliberately narrow (not `localhost`/`example.com`, which are
+   legitimate placeholders in `ephemeral-test`'s own overlay, since that
+   one *is* pipeline-injected at apply-time, not consumed as-committed).
+   Any match not named on `KNOWN_PLACEHOLDERS` is a finding.
+
+**Design correction found and fixed before this was usable**: the first
+draft required every overlay to *independently* redeclare every
+no-default key, which produced false positives for `OTEL_EXPORTER_OTLP_ENDPOINT`
+(base's own empty-string default is a legitimate "telemetry disabled"
+resting state, not a placeholder needing resolution) and for
+`staging`/`pilot-prod` (explicitly not deployed this milestone — nothing
+consumes their inherited placeholder yet). Fixed by having each overlay's
+declared-key set include base's own keys (an overlay only needs
+redeclaring a key it actually overrides) — this single fix resolved every
+false positive without needing to special-case "is this environment
+active this milestone" at all.
+
+**Verified it actually catches real regressions, not just that it runs
+clean** — the same discipline `check_policy_sync.py` itself was verified
+with: deliberately removed `MODEL_FALLBACK_NAME` from base's `ConfigMap`
+(caught, correctly attributed to `base` plus every overlay lacking its
+own override); deliberately reintroduced a `REPLACE_WITH_*`-shaped value
+into `demo-prod`'s own overlay path (caught, correct file/line). Both
+reverted; clean run confirmed after.
+
+**Wired into CI**, not left as a manually-run script: a new
+`config-contract-check` step in `pipelines/tasks/policy-validate.yaml`
+(same lightweight `python:3.12-slim` + `pyyaml` shape as the existing
+`policy-sync-check` step; no cluster access needed). Dry-run validated
+and applied to the live `Task` object; live-pipeline verification (this
+step actually running inside a real `PipelineRun`) will happen at the
+next natural trigger rather than a dedicated speculative run.
