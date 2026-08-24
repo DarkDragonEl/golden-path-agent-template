@@ -6315,3 +6315,38 @@ never started -- no git push, no branch, no PR, nothing to close
 unmerged, the cleanest possible realization of "no promotion authority."
 
 `reports/phase-e-refresh-log.md` updated with this run's results.
+
+## DEC-082 — Pre-push anonymity sweep caught a real endpoint-convention
+violation in already-committed history; fixed by local history rewrite
+before anything left the machine
+
+Owner-requested full sweep (`docs/phase-e-kickoff-plan.md` §5.2's own
+procedure, run over the entire `origin/main..main` range before this
+session's first push, not just this session's own commits) found a real
+MaaS endpoint hostname committed twice in the `feature/workspace-tooling`
+merge (`DEC-079`'s own commit, plus `8555495`): captured verbatim into
+`reports/feature-workspace-tooling.md` and `.claude/skills/pre-flight/SKILL.md`
+from live `/pre-flight` output, in violation of this repo's established
+"every committed model endpoint is an `example.com` placeholder" rule
+(`docs/environments.md`) — a real hit, not a false positive (confirmed
+by checking each commit's own diff, not just working-tree content, which
+also turned up two harmless matches in `DECISIONS.md`'s own
+already-existing, pre-`DEC-078` text discussing the sweep methodology in
+the abstract).
+
+Fixed by rewriting local history (`git rebase -i --rebase-merges`,
+`edit` on each of the two offending commits, redacted to
+`model-endpoint.example.com`, `--continue` through the merge) rather
+than a redaction commit on top — nothing had been pushed yet, so this
+was the only point where the real hostname could be kept out of
+`origin`'s history entirely rather than left permanently retrievable.
+Re-swept the full rewritten range commit-by-commit afterward: zero hits.
+Working tree and every file this session touched verified unchanged by
+the rewrite (spot-checked `DECISIONS.md`, `scripts/bootstrap.sh`,
+`pipelines/tasks/fetch-source.yaml`, `pipelines/bootstrap/namespaces.yaml`).
+
+Worth recording as its own entry, not folded into `DEC-079`/`DEC-081`:
+this is the sweep procedure catching a real violation on first serious
+contact, from a peer session's own live-tested, otherwise-solid work —
+the exact scenario `docs/phase-e-kickoff-plan.md` §5.2 names as "a
+repeat, not a one-time gate," now with a concrete instance to point to.
