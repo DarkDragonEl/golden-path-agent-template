@@ -5911,12 +5911,16 @@ to `approver_ui.html` -- would be a genuine, more complete fix, but
 touches the image (full pipeline/promotion cycle) for a capability
 `SRS-APR-QUAL-01`'s own walkthrough doesn't require: a private window
 achieves the identical identity-isolation a real logout would, at zero
-image risk. Not recorded as a Phase E hardening candidate -- unlike
-`DEC-065`/`DEC-075`'s named candidates, this isn't infrastructure debt,
-it's a correctly-scoped, already-complete docs fix. The verification
-script itself uses a second Playwright browser *context* (an isolated
-cookie jar, the automated equivalent of a private window) for the same
-reason.
+image risk. The verification script itself uses a second Playwright
+browser *context* (an isolated cookie jar, the automated equivalent of a
+private window) for the same reason.
+
+**Named hardening candidate, not implemented now (same pattern as
+`DEC-065`/`DEC-075`)**: a real logout control in `approver_ui.html`
+(call Keycloak's OIDC end-session endpoint, clear local JS state) so a
+single browser session can exercise multiple identities without relying
+on a private window -- more complete than today's fix, but touches the
+image, so it's a Phase E backlog item, not this session's.
 
 **Diagnostics configured and enforced, not just collected**: every
 scenario captures a screenshot (`reports/browser-walkthrough-screenshots/`,
