@@ -1,12 +1,15 @@
 # Session handoff
 
-**This file was rewritten at the close of Phase E's kickoff session**
-(previously rewritten at Checkpoint D's formal closure; `DEC-078`
-through `DEC-082` had drifted out of it since). `DECISIONS.md`
-(currently through `DEC-082`) is the authoritative, complete,
+**This file was rewritten twice in the same Phase E kickoff session** —
+once after the first execution pass, again immediately after `DEC-083`/
+`DEC-084` superseded part of what the first rewrite said. `DECISIONS.md`
+(currently through `DEC-084`) is the authoritative, complete,
 chronological record of every decision this project has made — this
 file is a *pickup* summary, not a substitute for it. When in doubt,
-`DECISIONS.md` wins.
+`DECISIONS.md` wins. **If you read an older cached copy of this file or
+any summary of this session predating `DEC-083`, its "Next session's
+mission" (a three-part registry migration) is superseded — read
+`DEC-083`/`DEC-084` before acting on it.**
 
 ## Where this is
 
@@ -34,18 +37,23 @@ done**, with real results, not just a plan:
   independently reproduced on a different cluster and image build from
   the same commit). `open-promotion-pr` failed cleanly on a missing
   credential — blocked by construction, not just by discipline.
-- **A real, previously-unflagged architecture gap was found and named,
-  not silently patched around**: `DECISIONS.md` `DEC-078` — the single
-  shared `images:` digest pin in `deploy/kustomize/base/kustomization.yaml`
-  is not portable across clusters (it resolves to whichever cluster's
-  own internal registry happens to be running it), and if a second
-  cluster's pipeline ever merged its own promotion PR against that one
-  shared pin, it would silently break the SNO's already-live `demo-prod`.
-  This session's showcase bootstrap deliberately does **not** grant the
-  showcase promotion authority (`DEC-078`'s "Option 2"). The real fix —
-  three coupled, separately-reviewed commits ending in the showcase
-  getting real promotion authority over its own digest — is scoped but
-  **not implemented**. See "Next session's mission" below.
+- **A real, previously-unflagged architecture gap was found, named, and
+  then resolved by owner decision — not by the structural fix originally
+  scoped**: `DECISIONS.md` `DEC-078` found that the single shared
+  `images:` digest pin in `deploy/kustomize/base/kustomization.yaml`
+  isn't portable across clusters, and that a second cluster's pipeline
+  merging its own promotion PR would silently break the SNO's live
+  `demo-prod`. `DEC-078`'s own three-part structural fix (hosted
+  registry → per-cluster overlays → parametrized promotion) is **now
+  superseded, not implemented** — `DEC-083` adopted a **single-active-
+  cluster model** instead: the showcase owns the shared pin and promotes
+  normally; the SNO's `demo-prod` is deprotected (its own root
+  app-of-apps' auto-sync disabled live, never committed) and frozen at
+  its last digest. `DEC-084` records this actually executed: both SNO
+  patches applied and confirmed durable, and — first time in this
+  project's history — a second cluster's pipeline opened and got a real
+  promotion PR (#6) merged, with the showcase's own `demo-prod` synced,
+  `Healthy`, and functionally confirmed live (`GET /healthz` → `200`).
 - **A real anonymity-rule violation was caught pre-push and fixed by
   local history rewrite** (`DECISIONS.md` `DEC-082`) — a live MaaS
   hostname had been committed twice (via the concurrent
@@ -53,15 +61,18 @@ done**, with real results, not just a plan:
   violation of this repo's "every committed model endpoint is a
   placeholder" rule. Fixed before anything left the machine; the pushed
   history has zero occurrences, verified commit-by-commit.
-- **The STOP 3/STOP 4 artifacts the kickoff plan named are drafted**:
-  `reports/phase-d-sharing-run.md` (the after-D sharing moment),
-  `docs/showcase-access.md` (the sharing-schedule template, structure
-  only — no real names/emails), `SHOWCASE_NOTES.md` (E4's feedback-log
-  skeleton), `docs/showcase-walkthrough-script.md` (the ~20-minute
-  script). None of these have been *used* yet (no real sharing moment
-  has happened) — they're ready for when one can.
+- **The STOP 3/STOP 4 artifacts the kickoff plan named are drafted, and
+  their blocking condition is now resolved**: `reports/phase-d-sharing-run.md`
+  (the after-D sharing moment), `docs/showcase-access.md` (the
+  sharing-schedule template, structure only — no real names/emails),
+  `SHOWCASE_NOTES.md` (E4's feedback-log skeleton),
+  `docs/showcase-walkthrough-script.md` (the ~20-minute script). These
+  were drafted while the showcase's `demo-prod` had nothing running
+  (`DEC-078`'s original state) — it now does (`DEC-084`), so the first
+  real sharing moment is genuinely unblocked. See "Next session's
+  mission" below.
 
-**`DECISIONS.md` `DEC-078` through `DEC-082`** cover all of this in full
+**`DECISIONS.md` `DEC-078` through `DEC-084`** cover all of this in full
 detail. A few real live findings worth knowing before touching either
 cluster again:
 
@@ -97,54 +108,66 @@ cluster again:
   *range*, not just working-tree content at HEAD (a per-commit diff
   check catches things a HEAD-only grep would miss if a later commit
   happened to also touch the same line).
+- `DEC-083`/`DEC-084` — `deploy/argocd/apps/demo-prod.yaml` and
+  `deploy/argocd/application-root.yaml` are single files **every**
+  cluster bootstraps identically from the same Git history — a
+  cluster-local decision (like deprotecting one cluster's `demo-prod`)
+  can only ever be a live-only patch, never a commit to those files, or
+  it would apply to every cluster. `scripts/bootstrap.sh` now guards the
+  one real silent-failure mode this creates (a routine re-run silently
+  re-enabling a deliberately-frozen cluster's auto-sync) — read its
+  `--reenable-sync` usage text before re-running it against the SNO for
+  any reason.
+- `DEC-084` — reused the SNO's existing `golden-path-agent-github-token`
+  PAT for the showcase's own promotion path (copied Secret-to-Secret,
+  value never echoed) rather than provisioning a second credential —
+  matches the owner's own "simplest path wins" framing for this
+  decision. `§8`'s PAT rotation (still deferred) now needs to rotate
+  this value in **both** clusters' `golden-path-agent-ci` namespaces
+  whenever it happens, not just the SNO's.
 
 ## Next session's mission
 
-**`DECISIONS.md` `DEC-078`'s three-part follow-up, starting with part 1
-(the hosted-registry migration).** This is the real fix for the
-registry-portability gap — not optional polish, load-bearing for the
-showcase ever being a genuine second live environment:
+**`DEC-078`'s three-part registry-migration follow-up is superseded
+(`DEC-083`) — do not resume it without new owner direction.** The
+showcase's `demo-prod` is now live and `Healthy` (`DEC-084`), so the two
+milestones that were blocked on it are the actual next work:
 
-1. **Hosted-registry migration** — `deploy/kustomize/base/kustomization.yaml`'s
-   `newName` to an externally-reachable registry (e.g. `ghcr.io` under
-   the same GitHub account already used for the promotion-PR credential);
-   `pipelines/pipeline.yaml`'s `image-repo` default;
-   `pipelines/tasks/digest-capture.yaml` rewritten off `oc get
-   imagestreamtag` onto buildah's own digest result; a new registry
-   push/pull `Secret` + `imagePullSecrets`; RRT row 16's Notes column +
-   a new `PINS.md` row. **Verify against the SNO's live `demo-prod`
-   first** — this changes what an already-working system pulls from.
-2. **Per-cluster digest pins via overlays** — move the `images:` block
-   out of `deploy/kustomize/base/` into per-cluster `demo-prod` overlays
-   (`overlays/demo-prod-sno/`, `overlays/demo-prod-showcase/`). Makes
-   the shared-pin breakage path structurally impossible, not just
-   discipline-avoided.
-3. **Promotion-PR parametrized by target overlay** — `open-promotion-pr`
-   takes the overlay as a parameter. **After this lands, grant the
-   showcase promotion authority over its own overlay** — that grant is
-   this follow-up's own closure.
-
-One repo throughout — no second repo, no branch-per-cluster; flag it if
-anything drifts that way.
+1. **The first real sharing moment.** `docs/showcase-access.md` has the
+   schedule template and the anonymity-sweep procedure; the owner still
+   needs to fill in the actual access list (who, when) — that's their
+   own call, not something to invent. Once they do, run the sweep
+   (`DEC-082` is the concrete reminder of why it matters), then share.
+   `reports/phase-d-sharing-run.md` and `docs/showcase-walkthrough-script.md`
+   are ready to use, but were written before the promotion — re-verify
+   their content still matches the live showcase (digest, pod state)
+   before presenting.
+2. **Refresh #2.** Needs a second from-scratch provision of the showcase
+   (or the same sandbox torn down and re-requested within its
+   reservation window) — the showcase sandbox's TTL/renewal is an
+   owner-managed operational item (`DEC-078`), not discoverable from
+   inside the cluster; check the reservation portal directly before
+   planning this. This is the run that actually proves the nine
+   `DEC-080`/`DEC-081` bootstrap fixes held without re-discovery, **and**
+   should re-run through a real promotion this time (`DEC-084`'s own
+   path is now the normal one, not a special case) to confirm the whole
+   cycle — bootstrap → pipeline → promotion → sync — repeats cleanly on
+   a second from-scratch instance.
 
 **Also pending, lower priority, explicitly not blocking the above**:
 
-- **Refresh #2** — needs a second from-scratch provision of the showcase
-  (or the same sandbox torn down and re-requested within its reservation
-  window). The showcase sandbox's TTL/renewal is an owner-managed
-  operational item (`DEC-078`), not something discoverable from inside
-  the cluster — check the reservation portal directly before planning
-  this.
 - **§8 PAT rotation** — still explicitly deferred by the owner (`DEC-036`/
-  `DEC-039`/`docs/phase-c-runbook.md`'s own backlog item 4). Unrelated to
-  the registry work above; do it separately whenever convenient.
+  `DEC-039`/`docs/phase-c-runbook.md`'s own backlog item 4). Now touches
+  **both** clusters' `golden-path-agent-ci` namespaces (`DEC-084`), not
+  just the SNO's, whenever it happens.
 - **A real in-app logout control** (`DEC-076`) — named Phase E hardening
   candidate, touches the image, needs its own authorization.
 - **The `DEC-065` `ConfigMap`-rollout `checksum/config`-annotation fix**
   — named, not yet implemented.
-- **Real sharing moments** — blocked on (a) the registry follow-up
-  giving the showcase's `demo-prod` something to actually show, and
-  (b) the owner filling in `docs/showcase-access.md`'s access list.
+- **The per-cluster-overlays / hosted-registry evolution path** — fully
+  documented (`DEC-078`, kept for reference by `DEC-083`), not scheduled.
+  Only revisit if the owner decides a second live cluster is genuinely
+  needed again — until then, treat it as background, not a backlog item.
 
 ## Invariants that must survive any future session
 
@@ -212,21 +235,29 @@ changed something.)
    need an explicit `oc rollout restart` to actually reach already-
    running pods (`DEC-065`) — a `Deployment` spec/digest change rolls
    automatically, a `ConfigMap`-only change does not.
-9. **New at Phase E — the single-registry-pin constraint (`DEC-078`).**
-   `deploy/kustomize/base/kustomization.yaml`'s `images:` block is a
-   *single, shared* pin — it is not yet safe for a second cluster's
-   pipeline to have promotion authority over it (that pipeline would
-   overwrite the SNO's own live pin). Do not grant a second cluster's
-   `open-promotion-pr` a working GitHub PAT until `DEC-078`'s three-part
-   follow-up (hosted registry → per-cluster overlay pins → parametrized
-   promotion) has actually landed and been verified. This invariant
-   retires itself once that follow-up closes.
+9. **New at Phase E, updated by `DEC-083`/`DEC-084` — the single-pin,
+   single-active-cluster model.** `deploy/kustomize/base/kustomization.yaml`'s
+   `images:` block is still a *single, shared* pin — that hasn't changed
+   — but the resolution is no longer "restrict promotion authority," it
+   is "only one cluster's `demo-prod` is ever active." The **showcase**
+   is that cluster now; its pipeline promotes normally. The **SNO's**
+   `demo-prod` is deliberately deprotected (its root app-of-apps'
+   auto-sync disabled live, never committed) and must **stay** that way
+   unless the owner explicitly decides to make the SNO active again.
+   Never run `scripts/bootstrap.sh ... --reenable-sync` against the SNO
+   without that explicit direction — it silently reverses this
+   invariant. If a second cluster is ever genuinely needed live at the
+   same time as the showcase, `DEC-078`'s documented (not implemented)
+   three-part fix is the evolution path — do not grant a second
+   cluster's pipeline promotion authority ad hoc without it.
 
 ## Pointers
 
 - `DECISIONS.md` — the complete, authoritative decision history,
-  `DEC-001` through `DEC-082`. Always read the tail before starting new
-  work in a fresh session.
+  `DEC-001` through `DEC-084`. Always read the tail before starting new
+  work in a fresh session — `DEC-083`/`DEC-084` specifically, since they
+  supersede what an earlier read of this file (or a stale cached
+  summary) might say about the registry-migration plan.
 - `PINS.md` — every pinned component version, with the live-verification
   date and source. Phase E added a "Phase E — Shared showcase cluster"
   section (operator channels/CSVs, storage class, registry state, all
@@ -251,8 +282,12 @@ changed something.)
   markers.
 - `reports/phase-d-sharing-run.md`, `docs/showcase-access.md`,
   `SHOWCASE_NOTES.md`, `docs/showcase-walkthrough-script.md` — the
-  STOP 3/STOP 4 artifacts, drafted, not yet used for a real sharing
-  moment.
+  STOP 3/STOP 4 artifacts. Their blocking condition (`DEC-078`'s
+  not-yet-serving showcase) is resolved as of `DEC-084` — the real
+  blocker now is only the owner filling in `docs/showcase-access.md`'s
+  access list. Re-verify content (digest, pod state) still matches the
+  live showcase before the first real use, since both were drafted
+  before the promotion.
 - `reports/phase-c-sharing-run.md`, `reports/phase-b-sharing-run.md` —
   the earlier sharing artifacts these new ones follow the same shape as.
 - `reports/phase-d-d1-verification.md`, `reports/phase-d-d2-verification.md`,

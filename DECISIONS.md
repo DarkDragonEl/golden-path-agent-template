@@ -6431,3 +6431,52 @@ substitution remain documented (`DEC-078`) as the evolution path if two
 live clusters are ever genuinely needed again — this amendment doesn't
 delete that option, it just declines to build it now for a scenario that
 isn't the current one.
+
+## DEC-084 — DEC-083 executed: SNO deprotected and confirmed durable,
+showcase now the single active cluster with a real merged promotion
+
+**SNO deprotection, applied and verified**: `golden-path-agent-root`'s
+`spec.syncPolicy.automated` patched to `null` live (`oc patch
+applications.argoproj.io golden-path-agent-root -n openshift-gitops
+--type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'`), same for
+`golden-path-agent-demo-prod`'s own object. Re-checked after a wait, not
+just immediately after patching: both stayed `null` — no drift-reversion
+observed, confirming the root's own freeze is what makes the demo-prod
+patch durable, not luck. SNO `demo-prod` frozen at digest
+`sha256:db408a27...` (unchanged from before this decision), pods still
+`Running`, dev environment (Podman inner loop, pipeline) fully
+unaffected — no `deploy/argocd/*` files were committed, matching
+`DEC-083`'s own live-only mechanism exactly.
+
+**Showcase promoted for real, first time in this project's history a
+second cluster's pipeline has done this**: the existing
+`golden-path-agent-github-token` PAT was copied from the SNO's
+`golden-path-agent-ci` namespace directly into the showcase's own
+(value read into a shell variable, base64-decoded, piped straight into
+`oc create secret`, never printed, never written to a file, unset
+immediately after) — reusing the same credential `docs/phase-c-runbook.md`
+§3 already documents, not inventing a second one, matching the owner's
+own "simplest path wins" framing for this decision. A fresh
+`PipelineRun` (`golden-path-agent-ci-xjd4c`) went green through all 13
+tasks including `open-promotion-pr`, which opened real PR #6 against
+`DarkDragonEl/golden-path-agent-template` — reviewed (one-line diff,
+old digest → the showcase's own freshly-built digest, exactly the
+established `DEC-039` one-field-only shape) and merged via `gh pr merge`.
+ArgoCD's `golden-path-agent-demo-prod` `Application` on the showcase
+synced to the new digest; all three `Deployment`s report `Healthy`, all
+three pods `1/1 Running` on `sha256:ba1c4228...`; a direct in-pod
+`GET /healthz` returned `200`, confirmed functionally live, not just
+`Synced` on paper. The `Application`'s own top-level `health.status`
+stays `Progressing` — both `Ingress` objects never resolve a
+`LoadBalancer` status (no external HTTP routing this milestone, the same
+pre-existing, already-documented condition every environment in this
+project has always had) — a known ArgoCD default-health-check quirk, not
+a new defect; every `Deployment`/`Service`/`PDB` resource is individually
+`Healthy`.
+
+**Result**: the showcase is now the single active cluster in the sense
+`DEC-083` defines — it owns the live pin, its promotion path works
+end-to-end for real, and the SNO's own `demo-prod` can no longer be
+silently dragged toward a digest it can't pull. First sharing moment and
+refresh #2 are the next milestones (`HANDOFF.md`, rewritten alongside
+this entry).

@@ -114,4 +114,19 @@ to recur on refresh #2.
 sandbox lifetime/renewal is an owner-managed operational item — the
 owner is tracking the reservation portal directly. Refresh #2 is the
 run that actually proves fix #1–#6 above held without re-discovery, and
-is a separate, later exercise.
+is a separate, later exercise — and should now go through a real
+promotion (see the update below), not stop short of one.
+
+---
+
+**Update, same session, after this log was first written**: the
+`ImagePullBackOff`/"known-incomplete" state described above is
+resolved. `DEC-083`/`DEC-084` superseded the registry-migration plan
+with a single-active-cluster model — the SNO's `demo-prod` was
+deprotected and frozen instead, and the showcase ran a second
+`PipelineRun` through a real merged promotion (PR #6). The showcase's
+`demo-prod` is now `Synced`, all three `Deployment`s `Healthy`, running
+digest `sha256:ba1c4228...`, functionally confirmed (`GET /healthz` →
+`200`). Left in place above as an accurate record of refresh #1's own
+state at the time — see `DECISIONS.md` `DEC-083`/`DEC-084` for the full
+account of what changed and why.
