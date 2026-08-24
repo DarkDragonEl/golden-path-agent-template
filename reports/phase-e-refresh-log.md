@@ -94,6 +94,14 @@ authority this session, not a bug. The optional one-off `skopeo copy
 --all --preserve-digests` mentioned in `DEC-078` was **not attempted
 this refresh** — deferred, see below.
 
+**Owner-acknowledged consequence of skipping the skopeo copy**: the
+first sharing moment against the showcase (`docs/phase-e-kickoff-plan.md`
+§5.1's "after D" moment) is blocked until `DEC-078`'s first follow-up
+commit (the hosted-registry migration) gives the showcase's `demo-prod`
+something actually running — no colleague gets the showcase URL before
+then. Not a gap in this refresh; a known, accepted sequencing
+consequence of the owner's own scope decision.
+
 **Refresh target evaluation**: PASS on timing (~38 min vs. half-day
 target). Refresh #1 completes the full definition's step (c) — one full
 pipeline run went green — and is **partial** on step (d) — the
