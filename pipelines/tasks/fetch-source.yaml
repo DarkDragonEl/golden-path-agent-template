@@ -2,6 +2,18 @@
 # git-clone -- see PINS.md's "git-clone" row for why this is a plain
 # custom Task rather than the Tekton Hub git-clone Task (that catalog's
 # own hub.tekton.dev page is marked deprecated).
+#
+# Phase E, DEC-080/DEC-081: `git clone ... .` refuses to run in a
+# non-empty directory -- found live on the showcase cluster, whose
+# storage class (`ocs-external-storagecluster-ceph-rbd`, ODF/Ceph RBD
+# block mode) formats each fresh PV as ext4, which always creates a
+# `lost+found` directory. `git clone` treats that as "not empty" and
+# fails ("fatal: destination path '.' already exists"). The SNO's own
+# storage class evidently never surfaced this (different provisioner,
+# or the workspace PV there happens not to get a visible lost+found).
+# `git init` + `fetch` + `checkout` produces an identical on-disk result
+# and HEAD state, but never performs `clone`'s own empty-directory
+# check -- same shallow-fetch depth, same result read by the step below.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -28,5 +40,8 @@ spec:
       script: |
         #!/bin/sh
         set -eu
-        git clone --branch "$(params.revision)" --depth 1 "$(params.repo-url)" .
+        git init -q .
+        git remote add origin "$(params.repo-url)"
+        git fetch --depth 1 origin "$(params.revision)"
+        git checkout -q FETCH_HEAD
         git rev-parse HEAD | tr -d '\n' > "$(results.commit-sha.path)"

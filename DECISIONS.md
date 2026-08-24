@@ -6263,3 +6263,55 @@ yet this session; no promotion-PR authority granted (`DEC-078` Option 2
 unchanged).
 
 Full timing and the refresh-target evaluation: `reports/phase-e-refresh-log.md`.
+
+## DEC-081 — First full green `PipelineRun` on the showcase cluster: two
+more undocumented gaps found and fixed, 60/62 eval parity with the SNO,
+`open-promotion-pr` blocked by construction
+
+Continuing refresh #1 (`DEC-080`): triggering an actual `PipelineRun`
+surfaced two more gaps neither `docs/phase-e-kickoff-plan.md` §2.3 nor
+this session's own bootstrap sequence had accounted for, since applying
+`pipelines/pipeline.yaml`/`pipelines/tasks/*.yaml` themselves was never
+written down anywhere as its own bootstrap step (now `scripts/bootstrap.sh`
+step 7):
+
+1. **`fetch-source`'s `git clone ... .` fails on this cluster's storage
+   class.** `ocs-external-storagecluster-ceph-rbd` (ODF/Ceph RBD, block
+   mode) formats every fresh PV as ext4, which always creates a
+   `lost+found` directory — `git clone` refuses a "non-empty" target
+   directory. The SNO's own storage class never surfaced this. Fixed in
+   `pipelines/tasks/fetch-source.yaml`: `git init` + `remote add` +
+   `fetch --depth 1` + `checkout FETCH_HEAD` instead of `git clone` —
+   identical on-disk result and `HEAD` state, but performs no
+   empty-directory check.
+2. **`golden-path-agent-ci-config`, a plain `ConfigMap` read by
+   `deploy-ephemeral`/`eval-gate-live` for the model-endpoint values,
+   was never created by anything in `pipelines/bootstrap/` and never
+   documented** despite `deploy-ephemeral.yaml`'s own header comment
+   calling it "C1a bootstrap" — evidently hand-created on the SNO at
+   some earlier point and never captured. Now documented in
+   `docs/phase-c-runbook.md` §2b (mirroring §2's already-established
+   `.env`-sourced pattern) and checked by `scripts/bootstrap.sh` step 6
+   alongside the `demo-prod` model-endpoint `Secret` check.
+
+**Result, once both fixes landed**: a full `PipelineRun`
+(`golden-path-agent-ci-bzrhl`) went green through every gate --
+`unit-tests`, `eval-gate-offline`, `policy-validate`, `container-build`,
+`digest-capture`, `sbom-generate`, `deploy-ephemeral`, `eval-gate-live`,
+`security-tests`, `operational-tests` all `Succeeded`; `destroy-ephemeral`
+cleaned the namespace back to empty afterward. `eval-gate-live`'s own
+domain run scored **60/62, `TSEL-004` the only excluded-by-tolerance
+failure** -- the exact same standing baseline this project has reported
+since Phase B, now independently reproduced on a completely different
+cluster, completely different image build, same commit. Real evidence
+toward the blueprint's own reproducibility claim, not just the bootstrap
+mechanics.
+
+**`open-promotion-pr` failed with `CreateContainerConfigError`, blocked
+by construction rather than by discipline**: `golden-path-agent-github-token`
+was never provisioned on this cluster (`DEC-078` Option 2, deliberately
+deferred alongside the wider PAT-rotation item). The TaskRun's own pod
+never started -- no git push, no branch, no PR, nothing to close
+unmerged, the cleanest possible realization of "no promotion authority."
+
+`reports/phase-e-refresh-log.md` updated with this run's results.

@@ -27,16 +27,16 @@ trivially satisfied — there is no prior showcase state to tear down,
 this being the first-ever showcase.
 
 **Start**: ~07:19 UTC (first `oc login` + pre-flight discovery).
-**Stop**: ~07:39 UTC (`golden-path-agent-demo-prod` confirmed `Synced`,
-pods in the expected `ImagePullBackOff` state per `DEC-078`).
-**Elapsed**: ~20 minutes — comfortably under the half-day target, even
+**Stop**: ~07:57 UTC (first full green `PipelineRun`,
+`golden-path-agent-ci-bzrhl`, completed).
+**Elapsed**: ~38 minutes — comfortably under the half-day target, even
 counting all live debugging below as part of this refresh's own time
 (per the refresh definition, a refresh needing manual fixes is not
 disqualified).
 
 **Manual fixes found and fixed during this refresh** (all now committed,
 so the *next* refresh should not need to repeat any of them —
-`DEC-080` has full detail on each):
+`DEC-080`/`DEC-081` have full detail on each):
 
 1. OLM `installPlanApproval: Manual` needs explicit InstallPlan approval
    even for the pinned `startingCSV` — fixed in `scripts/bootstrap.sh`.
@@ -57,22 +57,50 @@ so the *next* refresh should not need to repeat any of them —
    `argocd.argoproj.io/managed-by` namespace label for write access
    (the SNO's pre-installed GitOps operator never needed this) — fixed
    in `pipelines/bootstrap/namespaces.yaml`.
+7. `pipelines/pipeline.yaml`/`pipelines/tasks/*.yaml` were never applied
+   by anything in `pipelines/bootstrap/` and never documented as their
+   own step — fixed: `scripts/bootstrap.sh` step 7 now applies them.
+8. `fetch-source`'s `git clone ... .` fails on this cluster's storage
+   class (`ocs-external-storagecluster-ceph-rbd`, ext4-formatted block
+   PVs always carry a `lost+found` directory) — fixed in
+   `pipelines/tasks/fetch-source.yaml` (`DEC-081`).
+9. `golden-path-agent-ci-config` (the model-endpoint `ConfigMap`
+   `deploy-ephemeral`/`eval-gate-live` read) was never created or
+   documented anywhere — fixed and documented in
+   `docs/phase-c-runbook.md` §2b, checked by `scripts/bootstrap.sh`
+   step 6 (`DEC-081`).
 
-**Known-incomplete, by design (`DEC-078` Option 2)**: no `PipelineRun`
-executed yet this refresh; the showcase's `demo-prod`-equivalent is
-`Synced` but its three `Deployment`s are `ImagePullBackOff` — the base
-digest pin resolves to this cluster's own, empty internal registry. This
-is the documented, expected consequence of not granting the showcase
-promotion authority this session, not a bug. The optional one-off
-`skopeo copy --all --preserve-digests` mentioned in `DEC-078` was **not
-attempted this refresh** — deferred, see below.
+**Pipeline run, once fixes #7–9 landed**: one full `PipelineRun`
+(`golden-path-agent-ci-bzrhl`) went green through every gate —
+`unit-tests`, `eval-gate-offline`, `policy-validate`, `container-build`,
+`digest-capture`, `sbom-generate`, `deploy-ephemeral`, `eval-gate-live`,
+`security-tests`, `operational-tests` — `destroy-ephemeral` cleaned up
+afterward. `eval-gate-live` scored **60/62** (only `TSEL-004` excluded
+by tolerance) — the exact same standing baseline reported since Phase B,
+now independently reproduced on a different cluster and a different
+image build from the same commit. `open-promotion-pr` failed with
+`CreateContainerConfigError` — blocked by construction (no GitHub PAT
+provisioned on this cluster, `DEC-078` Option 2), not merely by
+discipline: its TaskRun pod never started, so no branch was pushed, no
+PR was opened, nothing needed closing.
 
-**Refresh target evaluation**: PASS on timing (~20 min vs. half-day
-target). Refresh #1 is **partial** against the full definition's step
-(c)/(d) — no pipeline run, no fully-serving `demo-prod`-equivalent —
-by deliberate scope decision (`DEC-078`), not a failure to meet the
-target. Six real bootstrap-sequence bugs found and fixed live; none of
-them are expected to recur on refresh #2.
+**Known-incomplete, by design (`DEC-078` Option 2)**: the showcase's
+`demo-prod`-equivalent is `Synced` but its three `Deployment`s stay
+`ImagePullBackOff` — the base digest pin resolves to this cluster's own,
+empty internal registry, and the ephemeral-test image built by this
+refresh's `PipelineRun` was never promoted to that pin. This is the
+documented, expected consequence of not granting the showcase promotion
+authority this session, not a bug. The optional one-off `skopeo copy
+--all --preserve-digests` mentioned in `DEC-078` was **not attempted
+this refresh** — deferred, see below.
+
+**Refresh target evaluation**: PASS on timing (~38 min vs. half-day
+target). Refresh #1 completes the full definition's step (c) — one full
+pipeline run went green — and is **partial** on step (d) — the
+`demo-prod`-equivalent isn't fully serving — by deliberate scope
+decision (`DEC-078`), not a failure to meet the target. Nine real
+bootstrap/pipeline gaps found and fixed live; none of them are expected
+to recur on refresh #2.
 
 **Refresh #2**: not attempted this session. Per `DEC-078`'s own note,
 sandbox lifetime/renewal is an owner-managed operational item — the

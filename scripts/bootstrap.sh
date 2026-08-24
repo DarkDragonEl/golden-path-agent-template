@@ -95,7 +95,7 @@ ensure_operator() {
   wait_for_csv "$ns" "$csv" "$timeout"
 }
 
-log "=== step 1/8: cluster-scoped operators (Pipelines, GitOps) ==="
+log "=== step 1/9: cluster-scoped operators (Pipelines, GitOps) ==="
 ensure_operator openshift-operators "OpenShift Pipelines" \
   pipelines/bootstrap/pipelines-operator.yaml \
   openshift-pipelines-operator-rh.v1.22.5 300
@@ -103,7 +103,7 @@ ensure_operator openshift-operators "OpenShift GitOps" \
   pipelines/bootstrap/gitops-operator.yaml \
   openshift-gitops-operator.v1.20.6 300
 
-log "=== step 2/8: namespaces + rbac ==="
+log "=== step 2/9: namespaces + rbac ==="
 oc apply -f pipelines/bootstrap/namespaces.yaml
 oc apply -f pipelines/bootstrap/rbac.yaml
 
@@ -135,7 +135,7 @@ if ! oc get secret golden-path-agent-keycloak-admin -n golden-path-agent-keycloa
     --from-literal=password="$(openssl rand -base64 18)" >/dev/null
 fi
 
-log "=== step 3/8: keycloak ==="
+log "=== step 3/9: keycloak ==="
 KEYCLOAK_PATH="olm"
 if ! ensure_operator golden-path-agent-keycloak "rhbk-operator" \
     pipelines/bootstrap/keycloak-operator.yaml \
@@ -149,7 +149,7 @@ oc apply -f pipelines/bootstrap/keycloak-postgres.yaml
 oc apply -f pipelines/bootstrap/keycloak-cr.yaml
 oc apply -f pipelines/bootstrap/keycloak-realm-import.yaml
 
-log "=== step 4/8: cluster-tier otel collector ==="
+log "=== step 4/9: cluster-tier otel collector ==="
 oc apply -f pipelines/bootstrap/otel-collector.yaml
 
 log "=== waiting for Keycloak to report Ready before provisioning identity secrets ==="
@@ -187,10 +187,10 @@ while true; do
   sleep 5; RI_WAITED=$((RI_WAITED + 5))
 done
 
-log "=== step 5/8: identity secrets (idempotent by regeneration -- DEC-059) ==="
+log "=== step 5/9: identity secrets (idempotent by regeneration -- DEC-059) ==="
 ./pipelines/bootstrap/provision-identity-secrets.sh
 
-log "=== step 6/8: manual secret check ==="
+log "=== step 6/9: manual secret + config check ==="
 # Real gap found live: provision-identity-secrets.sh (step 5) creates
 # golden-path-agent-secrets in demo-prod itself if it doesn't yet exist
 # (with just APPROVAL_OIDC_CLIENT_SECRET/MCP_AUTH_TOKEN) -- an
@@ -199,34 +199,59 @@ log "=== step 6/8: manual secret check ==="
 # and the four MODEL_*_URL/NAME keys, none of which have a ConfigMap
 # fallback for the API key. Check for the specific key that matters
 # instead of mere secret existence.
+#
+# Second real gap found live, running the pipeline itself (deploy-ephemeral
+# failed CreateContainerConfigError): golden-path-agent-ci-config, a plain
+# ConfigMap (not a Secret -- MODEL_API_BASE_URL/MODEL_NAME/MODEL_FALLBACK_*
+# are not credential material) read by both deploy-ephemeral and
+# eval-gate-live, was never created by anything in pipelines/bootstrap/
+# and never documented in docs/phase-c-runbook.md despite deploy-ephemeral.yaml's
+# own header comment calling it "C1a bootstrap" -- evidently created by
+# hand on the SNO at some point and never captured. Now documented in
+# docs/phase-c-runbook.md S2b and checked here.
+NEEDS_MANUAL=false
 if ! oc get secret golden-path-agent-secrets -n golden-path-agent-demo-prod \
     -o jsonpath='{.data.MODEL_API_KEY}' 2>/dev/null | grep -q .; then
+  NEEDS_MANUAL=true
+  log "  missing: golden-path-agent-secrets (MODEL_API_KEY) in golden-path-agent-demo-prod -- docs/phase-c-runbook.md S2"
+fi
+if ! oc get configmap golden-path-agent-ci-config -n golden-path-agent-ci >/dev/null 2>&1; then
+  NEEDS_MANUAL=true
+  log "  missing: golden-path-agent-ci-config in golden-path-agent-ci -- docs/phase-c-runbook.md S2b"
+fi
+if [ "$NEEDS_MANUAL" = "true" ]; then
   cat <<'EOF'
 
-[bootstrap.sh] STOPPING -- manual secret provisioning required before
-demo-prod's Application can sync a working pod (docs/phase-c-runbook.md
-S2 has the exact commands, 3 namespaces: golden-path-agent-ephemeral-test,
-golden-path-agent-ci, golden-path-agent-demo-prod).
+[bootstrap.sh] STOPPING -- manual secret/config provisioning required
+before demo-prod can sync a working pod and before deploy-ephemeral can
+run (docs/phase-c-runbook.md S2 and S2b have the exact commands).
 
-Optional, only if you intend to run the pipeline through open-promotion-pr
-(docs/phase-c-runbook.md S3, golden-path-agent-github-token secret in
-golden-path-agent-ci) -- NOTE (DEC-078): this session's Option 2 does not
-grant this cluster's pipeline promotion authority over the shared main
-digest pin; any resulting PR gets closed unmerged.
+S3 (golden-path-agent-github-token, open-promotion-pr's PAT) is optional
+-- NOTE (DEC-078): this session's Option 2 does not grant this cluster's
+pipeline promotion authority over the shared main digest pin regardless
+of whether that secret exists; any resulting PR gets closed unmerged.
 
-Re-run this script with the same kubeconfig once the model-endpoint
-secret exists in golden-path-agent-demo-prod -- every step above is
-idempotent and will skip straight through.
+Re-run this script with the same kubeconfig once the items above exist
+-- every step above is idempotent and will skip straight through.
 EOF
   exit 0
 fi
-log "model-endpoint secret present in golden-path-agent-demo-prod, continuing"
+log "model-endpoint secret and CI config present, continuing"
 
-log "=== step 7/8: argocd app-of-apps root ==="
+log "=== step 7/9: pipeline + task definitions ==="
+# Real gap found live: applying pipelines/pipeline.yaml and
+# pipelines/tasks/*.yaml was never written down anywhere in this
+# project's docs or scripts -- on the SNO this was evidently done ad hoc
+# during Phase C's own live session and never captured. Without this, a
+# PipelineRun fails immediately with CouldntGetPipeline.
+oc apply -f pipelines/pipeline.yaml -n golden-path-agent-ci
+oc apply -f pipelines/tasks/ -n golden-path-agent-ci
+
+log "=== step 8/9: argocd app-of-apps root ==="
 oc apply -f deploy/argocd/project.yaml
 oc apply -f deploy/argocd/application-root.yaml
 
-log "=== step 8/8: verification ==="
+log "=== step 9/9: verification ==="
 sleep 5
 oc get applications.argoproj.io -n openshift-gitops
 

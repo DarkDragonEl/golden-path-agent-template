@@ -169,6 +169,35 @@ here rather than left implicit:
    worked, since it was never in the `ConfigMap` at all) and just needed
    naming as the mechanism.
 
+## 2b. CI pipeline config (done — Step C1a; found undocumented at
+`DECISIONS.md` `DEC-081`, Phase E's first from-scratch showcase bootstrap)
+
+`golden-path-agent-ci-config`, a plain `ConfigMap` (not a `Secret` —
+`MODEL_API_BASE_URL`/`MODEL_NAME`/`MODEL_FALLBACK_API_BASE_URL`/
+`MODEL_FALLBACK_NAME` are not credential material) in
+`golden-path-agent-ci`, read by both `pipelines/tasks/deploy-ephemeral.yaml`
+and `pipelines/tasks/eval-gate-live.yaml` at apply-time — the same
+apply-time-override mechanism §2 above uses for `demo-prod`'s `Secret`,
+applied here to the *pipeline's own* run-time config instead of a
+deployed environment's. `deploy-ephemeral.yaml`'s own header comment
+already called this "C1a bootstrap," but the actual creation command was
+never written down until now — found live when a genuinely fresh
+`golden-path-agent-ci` namespace hit `CreateContainerConfigError` on
+`deploy-ephemeral`'s own `render-with-digest-override` step, something
+that could never surface on the SNO once this `ConfigMap` was created
+there by hand, undocumented, at some earlier point in this project's
+history.
+
+```sh
+set -a && . ./.env && set +a
+oc create configmap golden-path-agent-ci-config \
+  -n golden-path-agent-ci \
+  --from-literal=MODEL_API_BASE_URL="$MODEL_API_BASE_URL" \
+  --from-literal=MODEL_NAME="$MODEL_NAME" \
+  --from-literal=MODEL_FALLBACK_API_BASE_URL="$MODEL_FALLBACK_API_BASE_URL" \
+  --from-literal=MODEL_FALLBACK_NAME="$MODEL_FALLBACK_NAME"
+```
+
 ## 3. Promotion-PR git credential (mechanism finalized — Step C1b; creation
 still a pending manual action before C1c can exercise `open-promotion-pr`)
 
