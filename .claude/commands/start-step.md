@@ -29,10 +29,16 @@ disagree, the DEC entries win -- say so explicitly in the brief.
    looks stale relative to what the latest DEC entries describe running).
 4. Determine the current phase from whichever is more recent -- the
    latest DEC entries or HANDOFF.md's own "where this is" section -- and
-   read the matching `docs/phase-<x>-runbook.md`. If the current phase's
-   runbook doesn't exist yet (e.g. a new phase just kicked off and no
-   runbook has been written), say that plainly rather than reading a
-   stale earlier-phase runbook and presenting it as current.
+   read the matching phase artifact. **Two naming patterns exist,
+   confirmed live, not just theoretical:** `docs/phase-<x>-runbook.md`
+   once a phase is actually executing, but a phase that's been planned
+   and is awaiting owner authorization (not yet started) instead gets
+   `docs/phase-<x>-kickoff-plan.md` -- a real example: at the moment
+   this note was written, Phase D had just formally closed and Phase E
+   existed only as `docs/phase-e-kickoff-plan.md`, not a runbook. Check
+   for both patterns (`ls docs/phase-*.md`) before concluding nothing
+   exists for the current phase; only say "no artifact yet" if neither
+   pattern matches.
 
 ## Output format
 

@@ -17,17 +17,14 @@ project's governance rule (read-only work runs automatically; anything
 state-changing requires explicit human invocation), this skill is safe
 to auto-invoke.
 
-**Provenance note — read before running.** This file was authored during
-the `feature/workspace-tooling` mission entirely from static source
-(`deploy/kustomize/`, `pipelines/bootstrap/`, `approval_service/api.py`,
-`agent/config.py`, `.env.example`) with **zero cluster access** — that
-mission's non-interference rules excluded `oc` entirely, since a
-different session held live cluster access at the time. Every command
-below is grounded in a real name found in those files, but the skill has
-**never been run against a real cluster**. Two specific spots are marked
-`[VERIFY ON FIRST LIVE RUN]` where the source didn't pin an exact field —
-everything else is a real name, not a guess. Update this note once a
-live run confirms (or corrects) the marked spots.
+**Provenance note.** Written from static source during
+`feature/workspace-tooling`'s build phase, then **live-tested in full
+against real `golden-path-agent-demo-prod`/`golden-path-agent-keycloak`**
+during that same mission's release phase, once the parallel Checkpoint-D
+session had finished. All 6 checks passed on the first live run after
+one fix (see check 6's port note below); the two previously-uncertain
+spots (Keycloak pod label, `KeycloakRealmImport` status field) are now
+pinned to real confirmed values.
 
 ## Checks, in order
 
@@ -61,19 +58,19 @@ not expect a fourth deployment here.)
 ### 3. Keycloak ready (`golden-path-agent-keycloak`)
 
 ```bash
-oc get pods -n golden-path-agent-keycloak
-# [VERIFY ON FIRST LIVE RUN] narrow with the operator's real label, e.g.:
-#   oc get pods -n golden-path-agent-keycloak -l app.kubernetes.io/managed-by=keycloak-operator
-oc get keycloakrealmimport -n golden-path-agent-keycloak -o yaml
-# [VERIFY ON FIRST LIVE RUN] confirm the exact status-condition field
-# the Keycloak Operator's KeycloakRealmImport CRD uses (commonly a
-# `status.conditions[]` entry with type Done/Started — pin the real
-# jsonpath here once seen live, e.g.:
-#   -o jsonpath='{.items[0].status.conditions[?(@.type=="Done")].status}'
+oc get pods -n golden-path-agent-keycloak -l app.kubernetes.io/managed-by=keycloak-operator
+# confirmed live: returns the Keycloak StatefulSet pod (golden-path-agent-0)
+# plus a Completed realm-import job pod -- Completed/0-of-1-ready on that
+# second one is normal for a finished Job, not a failure.
+
+oc get keycloakrealmimport -n golden-path-agent-keycloak \
+  -o jsonpath='{.items[0].status.conditions[?(@.type=="Done")].status}{"\n"}{.items[0].status.conditions[?(@.type=="HasErrors")].status}{"\n"}'
+# confirmed live shape: three named conditions, Done/Started/HasErrors,
+# each {status: "True"|"False", type, message}.
 ```
-**Green:** the Keycloak CR's pod(s) all `Running`/`Ready`; the realm
-import's completion condition is `True`. **Red:** any pod not ready, or
-the realm import still in progress / failed.
+**Green:** the StatefulSet pod `Running`/`1/1`; `Done` = `"True"` and
+`HasErrors` = `"False"`. **Red:** pod not ready, `Done` != `"True"`, or
+`HasErrors` = `"True"`.
 
 ### 4. Model endpoint (MaaS) responds
 
@@ -94,20 +91,25 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST "$BASE_URL/chat/completions" \
 `$BASE_URL` at all — if the MaaS endpoint isn't directly reachable from
 wherever this skill runs (only reachable in-cluster), rerun the same
 curl via `oc exec` into the `golden-path-agent` pod instead of from the
-skill's own shell; note which path was used in the output.
+skill's own shell; note which path was used in the output. Confirmed
+live: directly reachable from outside the cluster (no `oc exec` needed)
+— `200` against the real endpoint.
 
 ### 5. Approval-service auth posture (DEC-069's property)
 
 There is **no `/proposals/pending` route** — the real "list pending"
 endpoint is `GET /proposals` (optionally `?state=pending`). Reach it via
-a port-forward to the `golden-path-agent-approval` service, port `8082`
-(the DEC-075-corrected local port — not `18082`):
+a port-forward to the `golden-path-agent-approval` service — any free
+local port works here (confirmed live; unlike check 6, this call
+carries no bearer token and so has no issuer/port to match, e.g. `8082`
+is just a conventional suggestion, not a requirement):
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' "http://localhost:8082/proposals"
 ```
 **Green:** HTTP `401` (unauthenticated request correctly rejected — this
-is the exact property DEC-069 fixed and DEC-070 re-verified live).
+is the exact property DEC-069 fixed and DEC-070 re-verified live;
+confirmed again live during this skill's own release-phase testing).
 **Red:** HTTP `200` — this means `AUTH_MODE` is not `oidc` in demo-prod,
 i.e. the write-approval boundary is open. **This is a real finding, not
 a flaky check — stop and report it, do not retry expecting a different
@@ -115,31 +117,67 @@ answer.**
 
 ### 6. No stale pending proposals in demo-prod
 
+Needs a bearer token. `get_authenticated_caller` doesn't require the
+approver role for `GET /proposals`, so any authenticated identity works
+— get one via client-credentials against Keycloak, same mechanism
+`agent/oidc_client.py` uses:
+
 ```bash
-# Requires a bearer token (any authenticated identity — get_authenticated_caller
-# does not require the approver role for GET /proposals). Obtain one the same
-# way agent/oidc_client.py does: client-credentials grant against
-# OIDC_ISSUER_URL using APPROVAL_OIDC_CLIENT_ID's credentials.
-curl -s "http://localhost:8082/proposals?state=pending" -H "Authorization: Bearer $TOKEN" | jq 'length'
+oc port-forward svc/golden-path-agent-service 8080:8080 -n golden-path-agent-keycloak &
+CLIENT_SECRET=$(oc get secret golden-path-agent-secrets -n golden-path-agent-demo-prod -o jsonpath='{.data.APPROVAL_OIDC_CLIENT_SECRET}' | base64 -d)
+TOKEN=$(curl -s -X POST "http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&client_id=golden-path-agent-approval-workload&client_secret=$CLIENT_SECRET" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
+curl -s "http://localhost:8082/proposals?state=pending" -H "Authorization: Bearer $TOKEN"
 ```
-**Green:** `0`. **Red:** any proposal listed — debris from a prior
-session (e.g. an unresolved walkthrough) that should be resolved
-(reject, not silently ignored) before handing the environment to
-someone new.
+
+**Real finding, confirmed live — the Keycloak port-forward's local port
+must be exactly `8080`, not an arbitrary free port.** Keycloak stamps
+the token's `iss` claim from the request's own `Host` header (hostname
+*and* port), and `approval_service` validates `iss` against its
+configured `OIDC_ISSUER_URL`
+(`http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent`)
+byte-for-byte. Forwarding to a different local port (tried `38080`
+first, to stay clear of the owner's own port-forwards on `8080`)
+produces a token with `:38080` baked into `iss` and a hard `401 invalid
+token: Invalid issuer` from `approval_service` — confirmed by decoding
+the token and comparing against the ConfigMap's real value. The
+hostname must also already resolve to `127.0.0.1` (a one-line
+`/etc/hosts` entry — `docs/owner-walkthrough.md` documents adding this;
+this check assumes it's already present, e.g. left over from a prior
+walkthrough, and does not add or remove it itself). The
+`approval-service` side has **no equivalent port constraint** — it
+never validates its own URL against anything, so forwarding it to any
+free local port works (confirmed live on `38082`, not the conventional
+`8082`); only the Keycloak forward is picky, because it's the value
+baked into the token, not just an address you happen to be curling.
+
+**Green:** `[]` (empty array). **Red:** any proposal listed — debris
+from a prior session (e.g. an unresolved walkthrough) that should be
+resolved (reject, not silently ignored) before handing the environment
+to someone new.
+
+Clean up both port-forwards (`kill %1 %2` or by PID) when done — they're
+this check's own scaffolding, not something to leave running.
 
 ## Output format
 
 ```
 Pre-flight: golden-path-agent-demo-prod
-  [✓] 1. Session alive (oc whoami: <user>)
-  [✓] 2. Deployments ready (3/3)
-  [✓] 3. Keycloak ready (pod Running, realm import Done)
-  [✓] 4. Model endpoint responds (200)
+  [✓] 1. Session alive (oc whoami: darkdragonel, project: golden-path-agent-demo-prod)
+  [✓] 2. Deployments ready (3/3 -- agent, mcp, approval all 1/1)
+  [✓] 3. Keycloak ready (golden-path-agent-0 Running 1/1; realm import Done=True, HasErrors=False)
+  [✓] 4. Model endpoint responds (200, model-endpoint.example.com)
   [✓] 5. Approval-service auth posture (401, as expected)
-  [✓] 6. No stale pending proposals (0)
+  [✓] 6. No stale pending proposals ([])
 
 Verdict: environment ready for owner handoff.
 ```
+(this is real captured output from a live run against
+`golden-path-agent-demo-prod` during `feature/workspace-tooling`'s
+release phase, not a hypothetical example)
+
 On any `[✗]`, stop at the first failing step and report it — don't run
 later checks whose preconditions the failure already broke (e.g. don't
 bother probing the model endpoint if step 1 shows no live session).
