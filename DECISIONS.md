@@ -5645,3 +5645,81 @@ at Checkpoint D — design for it."
 all closed, per the owner's own staged-sequence discipline maintained
 throughout Phase D. Holding here for the owner's own review and, when
 ready, their own live click-through of `GET /ui`.
+
+## DEC-074 — Owner-walkthrough OIDC browser-discovery gap resolved:
+hosts-mapped third port-forward (demo-only), PKCE flow verified end-to-end
+
+**Documents/scope:** `docs/owner-walkthrough.md` (new),
+`tools/verify_owner_walkthrough.py` (new),
+`reports/phase-d-owner-walkthrough-verification.md` (new). No application
+code, config, or manifest changes — `OIDC_ISSUER_URL`, `redirectUris`/
+`webOrigins`, and the Keycloak realm are all untouched.
+
+**Gap found while preparing the owner's own live `GET /ui` click-through**:
+`OIDC_ISSUER_URL` is pinned everywhere to the internal cluster Service DNS
+name (`http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent`),
+and `agent/static/approver_ui.html` fetches this exact value client-side
+(`GET /ui/config`) to drive the full authorization→token OIDC flow directly
+from the browser. A browser reached via the two already-documented `oc
+port-forward` sessions (`docs/phase-d-runbook.md`'s D3 section) cannot
+resolve that internal DNS name — undocumented until now, found while
+designing the owner's own walkthrough script rather than by any earlier
+verification pass. Confirmed live: a token minted by reaching Keycloak
+over a bare `localhost:8080` port-forward carries `iss=http://localhost:8080/...`
+and is rejected by `approval_service` with `401 invalid issuer` — the gap
+is real, not theoretical.
+
+**Resolution chosen**: a third `oc port-forward svc/golden-path-agent-service
+8080:8080 -n golden-path-agent-keycloak`, paired with a local hosts-file
+entry (`127.0.0.1 golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local`)
+on whichever machine runs the browser. Because the `Keycloak` CR has
+`hostname.strict: false` (`DEC-057`), Keycloak's issued tokens and
+discovery document carry whatever Host header the client used to reach it
+as the issuer — since the hosts-file entry preserves the DNS name exactly
+(only redirecting where it resolves), the issuer string the browser sees
+stays byte-identical to what `approval_service`/`agent` already validate
+server-side (`approval_service/auth.py`'s `jwt.decode(...,
+issuer=config.OIDC_ISSUER_URL)`, JWKS discovered and resolved entirely
+in-cluster, unaffected by any client-machine hosts-file change). Zero
+changes to `OIDC_ISSUER_URL`, the Keycloak realm/client config, or any
+already-promoted manifest.
+
+**Redirect-URI check, done before relying on this**: verified live (not
+just against the committed `keycloak-realm-import.yaml`) via Keycloak's
+own Admin API against the running realm — client
+`golden-path-agent-approver-ui`'s `redirectUris`/`webOrigins` are `["*"]`
+in the live cluster, matching the committed file. `http://localhost:18080/ui`
+is already covered; no client-config change was needed or made.
+
+**Rejected alternative**: a `localhost`-scoped browser-facing issuer.
+Would require either the in-cluster `approval_service`/`agent` to somehow
+resolve a `localhost` issuer for server-side JWKS fetch/`iss` validation
+(impossible — `localhost` inside a pod is the pod itself), or splitting
+"browser-facing issuer" from "backend validation issuer" — a materially
+more invasive contract change touching already-promoted, already-verified
+config, risking re-triggering the `DEC-065` `ConfigMap`-rollout gap.
+
+**Explicit demo-only scope**: a deliberate mechanism for a human
+operator's own machine during a live walkthrough — not a statement about
+production DNS/ingress, which stays out of scope this milestone (no
+working external `Ingress` exists yet, `DEC-057`). `docs/owner-
+walkthrough.md` documents the hosts-file step (add and remove) as a
+one-time, easily-reverted local edit the owner performs on their own
+machine, identical to the one used for this entry's own verification.
+
+**Verified**: the real Authorization Code + PKCE flow, scripted end-to-
+end (`tools/verify_owner_walkthrough.py`, cookie-jar-aware, drives
+Keycloak's actual login form — not the direct-grant flow D2's own
+sandboxed testing used) against real, live `golden-path-agent-demo-prod`
+— both the positive path (`demo-approver`: submit → pending → approve →
+ticket `REQ-30100`) and the negative path (`demo-user`: no
+`approval-approver` role, decision attempt refused `403` server-side, per
+`DEC-069`'s fix). `demo-prod` confirmed clean of pending debris both
+before and after this run. Full evidence:
+`reports/phase-d-owner-walkthrough-verification.md`.
+
+**Status:** the browser-discovery mechanism is proven and documented;
+`docs/owner-walkthrough.md` is ready for the owner's own live click-
+through. Checkpoint D's own formal closure entry is explicitly **not**
+this entry — it happens only after the owner completes that walkthrough
+themselves, in a future session.
