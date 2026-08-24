@@ -5,6 +5,8 @@ __pycache__/
 state/
 eval/results/*.json
 reports/trace-check.json
+*.kubeconfig
+.kube/
 # corpus/seed/*.md was gitignored while corpus/README.md said "empty by
 # design" (local-only content for whoever adopts this template). Phase
 # B3.5 populated it with this blueprint's own synthetic demo corpus,

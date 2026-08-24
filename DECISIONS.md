@@ -5988,3 +5988,93 @@ open. The next gate is the owner's own review of
 `docs/phase-e-kickoff-plan.md` (plan-approved-then-execute -- nothing in
 that plan runs until the owner explicitly authorizes it, matching every
 prior phase's gate discipline).
+
+## DEC-078 — Showcase-cluster registry portability gap: single shared
+digest pin cannot survive a second cluster; Option 2 for this session,
+three-part structural fix follow-up
+
+**The finding**: `deploy/kustomize/base/kustomization.yaml`'s single
+`images:` block pins the promoted digest against
+`image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent`
+-- an OpenShift-internal Service DNS name spelled identically on every
+OpenShift cluster but resolved, by each cluster's own CoreDNS, to that
+cluster's own registry. `DEC-042` committed this hostname specifically
+because it is "identical on every OpenShift cluster" -- true of the
+spelling, not of what it resolves to. Discovered during Phase E kickoff
+planning, before the showcase cluster was ever touched, by reasoning
+through what "run the same GitOps repo on a second, independent cluster"
+actually requires.
+
+**Why it matters, concretely**: `pipelines/tasks/open-promotion-pr.yaml`'s
+`commit-and-push-branch` step sed-patches only the `digest:` field of
+that one block (`DEC-039`'s "one-field-only promotion PR"). If the
+showcase cluster ran its own full pipeline and its promotion PR were
+ever merged, it would silently overwrite the one shared `main`-branch
+pin the SNO's already-live, Checkpoint-D-closed `demo-prod` depends on
+-- `selfHeal: true` would then actively roll the SNO's `demo-prod`
+toward a digest never pushed to the SNO's own registry. A real "break a
+working system" path, gated only by the human PR-merge review, not by
+anything structural.
+
+**Decision for this session**: showcase-cluster bootstrap proceeds
+(namespaces, RBAC, operators, Keycloak, ArgoCD app-of-apps root, one
+full `PipelineRun` through build/SBOM/gates) without granting the
+showcase promotion authority over the shared pin. Its
+`open-promotion-pr` PR, if opened, is closed unmerged with a comment
+referencing this decision -- not left as a stray artifact. **Known
+operational consequence, documented so it reads as expected rather than
+as an anomaly**: until the follow-up below lands (or via the optional
+one-off `skopeo` copy noted in the refresh log), the showcase's
+`demo-prod`-equivalent cannot pull the pinned digest -- the inherited
+base pin resolves to the showcase's own, empty internal registry -- so
+an `ImagePullBackOff`/missing-image state there is the expected,
+documented condition, not a bug to chase.
+
+**Why this is not the end state**: the SNO is a private development
+environment with no external access for colleagues (owner's own
+clarification). The showcase cluster is therefore not a visibility
+mirror of the SNO -- it is the only place colleagues can ever see this
+exercise, and it must eventually run the full pipeline -> gates ->
+promotion -> its-own-`demo-prod` cycle independently, with real
+promotion authority over its own pin.
+
+**Follow-up, three coupled changes, each its own separate reviewed
+commit** (not implemented this session):
+
+1. Hosted-registry migration -- `kustomization.yaml`'s `newName` to an
+   externally-reachable registry (e.g. `ghcr.io` under the same GitHub
+   account already used for the promotion-PR credential);
+   `pipelines/pipeline.yaml`'s `image-repo` default;
+   `pipelines/tasks/digest-capture.yaml` rewritten off `oc get
+   imagestreamtag` (OpenShift-`ImageStream`-specific, no
+   hosted-registry equivalent) onto buildah's own digest result; a new
+   registry push/pull `Secret` + `imagePullSecrets`;
+   `SyRS-AGP-001-RRT_Realization_Table.md` row 16's Notes column + a
+   new PINS.md row. A sanctioned substitution, not new architecture --
+   RRT row 16 already names any OCI-conformant registry with
+   digest-addressed SBOM attachment as Quay's alternative
+   (`SysR-P-LC-02`); the SNO's internal-registry choice was itself the
+   resource-budget shortcut, not the intended design. Verified against
+   the SNO's own live `demo-prod` first, before any showcase workload
+   depends on it.
+2. Per-cluster digest pins via overlays, not a shared base pin -- move
+   the `images:` block out of `deploy/kustomize/base/` into per-cluster
+   `demo-prod` overlays (e.g. `overlays/demo-prod-sno/`,
+   `overlays/demo-prod-showcase/`), each holding its own pin. Removes
+   the shared-pin breakage path structurally, not by discipline alone.
+3. Promotion-PR parametrized by target overlay -- `open-promotion-pr`
+   takes the target overlay as a parameter (per-cluster, via the
+   environment-injection contract), so each cluster's own pipeline
+   updates only its own pin. **After this lands, the showcase is
+   granted promotion authority over its own overlay -- that grant is
+   this follow-up's closure.**
+
+**Explicit non-goal**: one repo throughout. The blueprint stays
+single-source; clusters diverge only in which digest their own overlay
+pins. No second repo, no branch-per-cluster.
+
+**Also recorded**: the showcase sandbox is TTL-bound (Red Hat
+Workshops-provisioned, a real 5-node OCP 4.21.28 cluster, unpoisoned
+catalog -- confirmed live this session); as the colleague-facing
+system, its lifetime and renewal cadence is an owner-managed
+operational item, not blueprint scope.
