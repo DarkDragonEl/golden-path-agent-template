@@ -23,15 +23,19 @@ fixed in the instructions below, and the whole path has been re-verified
 live, end to end, against real `demo-prod`:
 
 - `tools/verify_owner_walkthrough.py` — scripted Authorization Code +
-  PKCE flow, both the `demo-approver` path (submit → pending → approve →
-  ticket) and the `demo-user` path (submit → pending → decision refused
-  `403`) — **10/10 scenarios PASS**, most recently run against the exact
-  port-forward commands below.
-- `demo-prod` confirmed clean of pending debris both before and after
-  that run (`GET /proposals` → `[]`).
-- Full transcripts, root-cause investigation, and evidence:
-  `reports/phase-d-owner-walkthrough-verification.md` (see the `DEC-075`
-  addendum at the end) and `DECISIONS.md` `DEC-075`.
+  PKCE flow (protocol-level, no browser) — **10/10 scenarios PASS**.
+- `tools/browser_verify_owner_walkthrough.py` — the actual page, driven by
+  a real headless browser: real login button, real Keycloak form, real 3s
+  poll loop, real Approve click, real rendered ticket; same again for
+  `demo-user`, asserting the decide buttons are genuinely absent from the
+  DOM and the read-only note genuinely renders — **9/9 scenarios PASS**,
+  zero console errors, zero failed network requests, a screenshot captured
+  at every step (`DEC-076`).
+- `demo-prod` confirmed clean of pending debris before and after every run
+  above (`GET /proposals` → `[]`).
+- Full transcripts, screenshots, root-cause investigations, and evidence:
+  `reports/phase-d-owner-walkthrough-verification.md` (`DEC-075`/`DEC-076`
+  addenda) and `DECISIONS.md` `DEC-075`/`DEC-076`.
 
 **If you already had port-forward terminals open from an earlier attempt,
 restart the approval-service one using the corrected command in step 2
@@ -104,8 +108,15 @@ mechanism is documented and verified in `DECISIONS.md` `DEC-074`.
 
 ## Part 2 — the read-only path (demo-user)
 
-1. Log out, then log back in as `demo-user` (same steps, different
-   password from step 1).
+1. **Open a new private/incognito browser window** and navigate to
+   <http://localhost:18080/ui> there, then log in as `demo-user` (same
+   steps, different password from step 1). This is not optional busywork:
+   the page has no in-app log-out, and Keycloak keeps you signed in via a
+   session cookie — clicking "Log in" again in the *same* window silently
+   re-authenticates as whoever you already were, without ever showing a
+   login form (confirmed live, `DEC-076`). A private window gives you a
+   clean cookie jar, which is what actually lets you sign in as a
+   different identity.
 2. Notice `demo-user` has no approver role — the UI marks this identity as
    view-only.
 3. Submit another write query the same way as Part 1.

@@ -319,3 +319,141 @@ fix — every check here was read-only (`grep`).
 | Full corrected smoke test | PASS (10/10 scenarios) |
 | `demo-prod` clean after fix | PASS (`[]`) |
 | Hosts-file entry | Present, owner-managed, not removed by this session |
+
+---
+
+# Addendum: `DEC-076` — real-browser (Playwright) drive of the approver UI
+
+## Scope
+
+Everything above proves the *protocol* works. This addendum proves the
+*page* works — a real headless Chromium browser executing
+`agent/static/approver_ui.html`'s own JavaScript: real login button, real
+Keycloak login form, real 3-second poll loop, real Approve click, real
+DOM assertions for the `demo-user` read-only state. Tooling:
+`tools/browser_verify_owner_walkthrough.py` (Playwright, installed via the
+repo's own `.venv`, no `sudo`).
+
+**Deliberate, authorized deviation from the owner's literal path**:
+Keycloak hostname resolution uses Chromium's `--host-resolver-rules` flag
+instead of a `/etc/hosts` edit — a testing-only convenience for an
+unattended run; `docs/owner-walkthrough.md` is unchanged and still
+instructs the real hosts-file edit for the owner's own browser.
+
+## First run — a second real gap found
+
+```
+FAIL - negative path (demo-user, real browser): Page.wait_for_selector: Timeout 15000ms exceeded.
+  - waiting for locator("#kc-form-login") to be visible
+```
+
+Root-caused by direct reproduction (see `DECISIONS.md` `DEC-076` for the
+full narrative): `approver_ui.html` has no logout control, and Keycloak's
+SSO session cookie means clicking "Log in" again in the same browser
+context silently re-authenticates as whoever was already signed in — the
+login form never renders. Confirmed directly: after a second `#login-btn`
+click in the same context, `#identity-line` still read `Logged in as
+demo-approver (approver)`, unchanged.
+
+This is a defect in `docs/owner-walkthrough.md`'s own Part 2 instructions
+("Log out, then log back in as `demo-user`") — that control doesn't
+exist. **Fixed**: Part 2 now instructs a private/incognito window, with
+the reasoning stated explicitly. The verification script uses a second
+Playwright browser *context* (isolated cookie jar) for the equivalent
+effect.
+
+## Second run — full pass, both browser contexts
+
+```
+$ export DEMO_APPROVER_PASSWORD=<redacted>
+$ export DEMO_USER_PASSWORD=<redacted>
+$ .venv/bin/python3 tools/browser_verify_owner_walkthrough.py
+
+PASS - approval-service origin derived from the live served /ui page (http://localhost:8082)
+PASS - demo-approver real-browser login (Logged in as demo-approver (approver))
+PASS - pre-flight debris check (clean)
+PASS - real 3s poll loop surfaced the pending proposal (proposal=2050eb99-41fb-4271-ab05-06bfb99a0b04, elapsed=0.0s)
+PASS - clicked real Approve button -> ticket rendered in DOM (REQ-30103)
+PASS - demo-user real-browser login (Logged in as demo-user (not an approver -- you can view but not decide))
+PASS - demo-user: decide buttons absent from DOM, read-only note rendered (You are not an approver for this proposal -- read only.)
+PASS - console + network diagnostics clean across the whole run (both browser contexts) (40 responses observed, 0 console errors, 0 failed requests)
+PASS - cleanup (1 leftover proposal(s) resolved, demo-prod clean)
+
+All scenarios PASSED
+EXIT CODE: 0
+```
+
+*(`elapsed=0.0s` on the poll: the proposal was already registered by the
+time the first poll fired, well within the 3s interval -- the loop itself
+is confirmed running by the request log below, which shows the real
+interval between repeated `GET /proposals` calls, not a mocked instant
+result.)*
+
+## Diagnostics: console + network, both contexts
+
+- **Console messages**: 0 errors across the entire run (both the
+  `demo-approver` and `demo-user` browser contexts). The run is configured
+  to fail outright on any `console.error` — none occurred.
+- **Network**: 40 total responses observed across both contexts; 0
+  requests failed to complete (`requestfailed`); 0 unexpected error-status
+  responses. This is the exact diagnostic class `DEC-075`'s bug would have
+  tripped immediately (a `requestfailed`/connection-refused entry for
+  every poll attempt) had this tool existed before that incident.
+
+## Screenshots (one per step, `reports/browser-walkthrough-screenshots/`)
+
+| # | File | What it shows |
+|---|---|---|
+| 1 | `01_initial_load.png` | `/ui` freshly loaded, logged out |
+| 2 | `02_keycloak_login_form_demo-approver.png` | Real Keycloak login form |
+| 3 | `03_logged_in_demo-approver.png` | Query view, identity line shows approver role |
+| 4 | `04_query_submitted.png` | DRQ-001 query filled, write checkbox checked |
+| 5 | `05_waiting_for_approval.png` | "Waiting for approval..." after submit |
+| 6 | `06_pending_proposal_review.png` | Real poll loop surfaced the proposal; Approve/Reject visible |
+| 7 | `07_result_ticket.png` | Rendered result: `Request REQ-30103 has been submitted (status: submitted).` |
+| 8 | `08_fresh_context_for_demo_user.png` | New browser context, logged-out state |
+| 9 | `09_keycloak_login_form_demo-user.png` | Real Keycloak login form (fresh context — no SSO carry-over) |
+| 10 | `10_logged_in_demo-user.png` | Identity line: "not an approver -- you can view but not decide" |
+| 11 | `11_demo_user_waiting.png` | "Waiting for approval..." for demo-user's own submission |
+| 12 | `12_demo_user_pending_review.png` | Full proposal detail rendered; **no decide buttons**; "You are not an approver for this proposal -- read only." |
+
+Screenshots 7 and 12 are the load-bearing ones for this report's own
+claims and were visually reviewed directly (not just asserted by
+selector) before being accepted as evidence.
+
+## Cleanup
+
+The `demo-user` scenario's own proposal (it can't self-resolve) was
+rejected via a direct API call using the `demo-approver` token the real
+browser login itself obtained (`page.evaluate("accessToken")`) — not a
+separately-scripted credential. Final `GET /proposals` → `[]`.
+
+## Chrome DevTools MCP
+
+Not installed. No failure occurred that screenshots + console log +
+network log couldn't fully explain — both real defects found this session
+(the `DEC-075` port mismatch, this addendum's missing-logout gap) were
+root-caused with the diagnostics already in place. Per the owner's own
+standing instruction, that tool is a candidate only if such a failure
+appears — proposed then, as its own decision, not installed pre-emptively.
+
+## Summary (this addendum)
+
+| Scenario | Result |
+|---|---|
+| Playwright + headless Chromium installed (repo `.venv`, no `sudo`) | Done |
+| First run: negative-path failure (`#kc-form-login` never appears) | Found |
+| Root cause: no in-app logout, Keycloak SSO silently re-authenticates | Confirmed, `DECISIONS.md` `DEC-076` |
+| Fix: `docs/owner-walkthrough.md` Part 2 → private/incognito window | Done |
+| Fix: script uses a second isolated browser context for `demo-user` | Done |
+| Real login (`demo-approver`) through the actual Keycloak form | PASS |
+| Real 3s poll loop surfaces the pending proposal | PASS |
+| Real Approve click → ticket rendered in DOM | PASS (`REQ-30103`) |
+| Real login (`demo-user`, fresh context) | PASS |
+| Decide buttons genuinely absent from DOM (not just hidden visually) | PASS |
+| Read-only note genuinely rendered | PASS |
+| Console errors across whole run | 0 |
+| Failed/incomplete network requests across whole run | 0 |
+| Screenshots captured | 12/12 |
+| `demo-prod` clean after run | PASS (`[]`) |
+| Chrome DevTools MCP | Not needed, not installed |

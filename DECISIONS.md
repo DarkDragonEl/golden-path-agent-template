@@ -5845,3 +5845,107 @@ diagnosis.
 so a future session doesn't hand the owner an unverified environment
 again. Checkpoint D's formal closure entry is still **not** written here
 — still pending the owner's own successful click-through.
+
+## DEC-076 — Real-browser (Playwright/headless Chromium) drive of the
+approver UI, before the owner's own click-through; found and fixed a
+second real gap (no in-app logout / Keycloak SSO re-authentication)
+
+**Document/scope:** `tools/browser_verify_owner_walkthrough.py` (new,
+committed), `requirements-dev.txt` (added `playwright>=1.62,<2.0`),
+`docs/owner-walkthrough.md` (Part 2 corrected). No application code
+changes — the finding below is fixed in the doc, not the page.
+
+**Why**: `DEC-074`/`DEC-075`'s own verification (`tools/
+verify_owner_walkthrough.py`) proves the underlying protocol works, but
+deliberately mimics it via direct HTTP calls rather than loading and
+executing `agent/static/approver_ui.html`'s own JavaScript — it cannot
+catch a bug that only exists in the page's own client-side behavior. This
+session installed Playwright (Python package + headless Chromium, both
+via the repo's own `.venv`/`pip`, no `sudo`, no system package install
+needed) and wrote a second verification tool that drives the real page: a
+real click on `#login-btn`, a real Keycloak login form (`#username`/
+`#password`/`#kc-login`, confirmed live against the actual served form,
+not assumed from a generic Keycloak theme), a real wait for the actual
+3-second `pollPending()` loop to surface the pending proposal, a real
+click on `#approve-btn`, and a real read of the rendered result out of the
+DOM — mirrored again for `demo-user`, asserting `#decision-buttons` is
+genuinely absent (the `hidden` attribute is set, not just visually
+unstyled) and `#decision-readonly-note` genuinely renders its exact text,
+rather than trusting the server-side `403` alone to imply the client
+behaves correctly.
+
+**One deliberate, authorized deviation from `docs/owner-walkthrough.md`'s
+literal path**: Keycloak hostname resolution is done via Chromium's own
+`--host-resolver-rules="MAP <host> 127.0.0.1"` launch flag, not a
+`/etc/hosts` edit — a real human's browser has no such flag, so the owner
+doc is unchanged and still instructs the real hosts-file edit; this is a
+testing-only convenience for an unattended headless run, not a claim that
+`/etc/hosts` is unnecessary for the human path. Named here explicitly per
+the standing rule against silent deviations, not left implicit in the
+script's own comments alone.
+
+**A second real, previously undiscovered gap, found on the first run of
+this new tool**: the negative-path (`demo-user`) scenario failed --
+`page.wait_for_selector("#kc-form-login")` timed out after clicking
+`#login-btn` a second time in the same browser context. Root-caused by
+direct reproduction, not guessed: `approver_ui.html` has **no logout
+mechanism at all** (`#login-btn` is the only auth-related control in the
+DOM), and Keycloak's SSO session cookie means a second visit to the
+authorization endpoint in the same cookie jar silently re-authenticates as
+whoever is already signed in -- the login form never renders, confirmed
+by inspecting `page.url`/`#identity-line` immediately after the second
+click, which showed `demo-approver` still signed in, unchanged. This is
+not a new defect in the shipped image -- it's a defect in **this
+project's own `docs/owner-walkthrough.md`**, which instructed "Log out,
+then log back in as `demo-user`" for a UI that was never given a log-out
+control (`DEC-072`'s own D3 design notes don't mention one; it was never
+in scope, and none of Checkpoint D's earlier evidence exercised a second
+identity in the same browser to notice).
+
+**Fix chosen**: correct `docs/owner-walkthrough.md` Part 2 to instruct a
+**new private/incognito browser window** for the `demo-user` pass, with
+the reasoning stated plainly (no in-app logout, SSO re-authenticates
+silently) rather than left as an unexplained "just do this." Rejected
+alternative -- adding a real logout button/OIDC end-session-endpoint call
+to `approver_ui.html` -- would be a genuine, more complete fix, but
+touches the image (full pipeline/promotion cycle) for a capability
+`SRS-APR-QUAL-01`'s own walkthrough doesn't require: a private window
+achieves the identical identity-isolation a real logout would, at zero
+image risk. Not recorded as a Phase E hardening candidate -- unlike
+`DEC-065`/`DEC-075`'s named candidates, this isn't infrastructure debt,
+it's a correctly-scoped, already-complete docs fix. The verification
+script itself uses a second Playwright browser *context* (an isolated
+cookie jar, the automated equivalent of a private window) for the same
+reason.
+
+**Diagnostics configured and enforced, not just collected**: every
+scenario captures a screenshot (`reports/browser-walkthrough-screenshots/`,
+12 files, committed), every `console` message (the run fails outright on
+any `console.error`), and the full request/response lifecycle for both
+browser contexts (any request that fails to complete at all --
+`requestfailed` -- is also a hard failure; this is deliberately the exact
+diagnostic class `DEC-075`'s bug would have tripped immediately, had this
+tool existed then).
+
+**Verified**: full corrected run, both browser contexts, against real
+`golden-path-agent-demo-prod` -- **9/9 scenarios PASS**: `demo-approver`
+real login, pre-flight debris check, real poll loop (elapsed timed, not
+assumed instant), real Approve click -> ticket `REQ-30103` rendered in the
+DOM; `demo-user` real login (fresh context), decide buttons confirmed
+absent from the DOM, read-only note confirmed rendered; 40 network
+responses observed across both contexts, zero console errors, zero failed
+requests; cleanup confirmed `demo-prod` clean afterward. Full evidence,
+screenshots, and the network/console diagnostics summary:
+`reports/phase-d-owner-walkthrough-verification.md`'s `DEC-076` addendum.
+
+**On Chrome DevTools MCP**: not installed. Per the owner's own explicit
+instruction, that tool is a candidate only if a failure appears that
+screenshots + console log + network log can't explain -- no such failure
+occurred; both real defects found this session (`DEC-075`'s port
+mismatch, this entry's missing-logout gap) were fully explained by the
+diagnostics already in place.
+
+**Status:** the approver UI itself, not just its protocol, is now proven
+working end to end by an automated real browser, immediately before the
+owner's own click-through. Checkpoint D's own formal closure entry is
+still **not** written here -- still pending the owner's own session.
