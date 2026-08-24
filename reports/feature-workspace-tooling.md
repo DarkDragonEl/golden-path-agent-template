@@ -9,15 +9,19 @@ the same time.
 
 ## What was built
 
-| File | What it is | Live-tested this mission? |
+| File | What it is | Live-tested? |
 |---|---|---|
-| `.claude/skills/pre-flight/SKILL.md` | 6-check demo-prod readiness gate | No — entirely `oc`-gated, cluster access was excluded from this mission by design |
-| `.claude/skills/run-evals/SKILL.md` | Wraps `make up` + an N-pass `eval-domain` loop (no native `--passes` flag exists) against `eval/thresholds.yaml` + `KNOWN_GAP_TOLERANCES` | **Yes** — see Verification below |
-| `.claude/skills/probe-tool/SKILL.md` | Calls the mock ITSM MCP tools directly over REST, bypassing the model | **Yes** — see Verification (a real bug was found and fixed here) |
-| `.claude/skills/post-deploy/SKILL.md` | ArgoCD sync/health + image-digest-matches-promoted-digest check | No — same reason as `pre-flight` |
-| `.claude/commands/start-step.md` | Session-bootstrap brief: `HANDOFF.md` + last 5 DEC entries + `PINS.md` + current runbook | Read-only, not separately "tested" beyond being read for sanity |
-| `.claude/commands/close-step.md` | Drafts (never commits) a DEC entry + report skeleton | Same |
-| `docs/drafts/AGENT-UI-MAP.draft.md` | Provisional approver-UI map, built from the real `agent/static/approver_ui.html` source | Not browser-tested — explicitly provisional per its own header |
+| `.claude/skills/pre-flight/SKILL.md` | 6-check demo-prod readiness gate | **Yes, release phase** — all 6 checks green live; see "Release phase" below |
+| `.claude/skills/run-evals/SKILL.md` | Wraps `make up` + an N-pass `eval-domain` loop (no native `--passes` flag exists) against `eval/thresholds.yaml` + `KNOWN_GAP_TOLERANCES` | **Yes, both phases** — see Verification below and "Release phase" |
+| `.claude/skills/probe-tool/SKILL.md` | Calls the mock ITSM MCP tools directly over REST, bypassing the model | **Yes, both phases** — a real bug was found and fixed in the build phase, reconfirmed in the release phase |
+| `.claude/skills/post-deploy/SKILL.md` | ArgoCD sync/health + image-digest-matches-promoted-digest check | **Yes, release phase** — all 4 checks green live; see "Release phase" below |
+| `.claude/commands/start-step.md` | Session-bootstrap brief: `HANDOFF.md` + last 5 DEC entries + `PINS.md` + current phase artifact | **Yes, release phase** — executed for real, found and fixed a real gap (kickoff-plan naming) |
+| `.claude/commands/close-step.md` | Drafts (never commits) a DEC entry + report skeleton | **Yes, release phase** — tail-detection confirmed correct against a live-moving `DECISIONS.md` tail |
+| `docs/drafts/AGENT-UI-MAP.draft.md` | Provisional approver-UI map, built from the real `agent/static/approver_ui.html` source | Not browser-tested — explicitly provisional per its own header, unchanged this phase |
+
+**Note on status vs. the table above**: this table described the build
+phase's own state at the time it was written; "Release phase" below is
+the authoritative current state after live-testing everything.
 
 ## Isolation mechanism (why a worktree, not a branch switch)
 
@@ -227,3 +231,155 @@ is a post-merge concern.
 5. Only then remove this worktree (`git worktree remove`), if desired —
    it was deliberately left on disk after this mission for exactly this
    continuation.
+
+## Release phase (executed)
+
+The owner authorized releasing this generation for real, without
+waiting for Checkpoint D's own formal closure — recorded as a
+deliberate call in `DEC-079`, not reframed after the fact. In practice
+`DEC-077` closed Checkpoint D concurrently (the owner's own live
+click-through completed the same day) — the two did not end up racing,
+but the authorization to proceed regardless is the operative decision.
+
+### Precondition check
+
+Git evidence alone (clean tree, up to date with `origin/main`) was
+**not** sufficient to conclude the parallel Checkpoint-D session was
+done — the same three port-forwards from the build phase were still
+bound, and a new `DEC-076` showed a Playwright-driven verification pass
+had just run. Asked the owner directly rather than guessing; confirmed
+done. (By the time cluster testing actually started, those
+port-forwards had in fact been torn down — further, independent
+confirmation.)
+
+### `main` kept moving under this session — three times
+
+`main` advanced past this branch's fork point three separate times
+during this release phase alone: once before rebase-prep even started
+(`DEC-075`, `DEC-076`, its addendum), once between the first rebase and
+the merge (`DEC-077`, then a real `DEC-078` — unrelated Phase E
+infrastructure work, unpushed to `origin` at the time, discovered via
+untracked files — `pipelines/bootstrap/gitops-operator.yaml`,
+`pipelines/bootstrap/pipelines-operator.yaml`, `scripts/bootstrap.sh` —
+sitting in the shared checkout with no tracked-file modifications
+alongside them). Each time, this branch was rebased fresh rather than
+assuming the earlier rebase still held, and the DEC number for this
+report's own entry was computed from the *real* tail immediately before
+writing it, not reused from any earlier guess — `DEC-076` was guessed in
+the build phase and collided with a real, differently-scoped `DEC-076`;
+this phase's own mid-session guess of `DEC-078` was superseded the same
+way before it was ever written down. The actual number used,
+**`DEC-079`**, was checked directly against `git log --oneline
+origin/main -1` and `DECISIONS.md`'s own tail in the same breath as
+writing it.
+
+Merging happened directly in the original checkout
+(`golden-path-agent-template/`, where `main` is checked out — a second
+worktree can't check out a branch already checked out elsewhere). Before
+doing so, confirmed via `git status` that no *tracked* file there was
+currently modified (only new *untracked* files existed, which `git
+merge` never touches, and none overlapped this branch's own files) —
+the same non-interference discipline as the build phase's worktree
+isolation, applied to the one step that genuinely couldn't be worktree-
+isolated.
+
+### `/pre-flight` — live, all 6 checks green
+
+```
+Pre-flight: golden-path-agent-demo-prod
+  [✓] 1. Session alive (oc whoami: darkdragonel, project: golden-path-agent-demo-prod)
+  [✓] 2. Deployments ready (3/3 -- agent, mcp, approval all 1/1)
+  [✓] 3. Keycloak ready (golden-path-agent-0 Running 1/1; realm import Done=True, HasErrors=False)
+  [✓] 4. Model endpoint responds (200, model-endpoint.example.com)
+  [✓] 5. Approval-service auth posture (401, as expected)
+  [✓] 6. No stale pending proposals ([])
+```
+One real bug found and fixed getting there: check 6 needs a bearer
+token whose `iss` claim matches `approval_service`'s configured
+`OIDC_ISSUER_URL` **exactly, including the port**. A first attempt
+forwarded Keycloak to local port `38080` (to stay clear of the owner's
+own port-forwards); Keycloak stamps `iss` from the request's `Host`
+header, so the token came back with `:38080` baked in and
+`approval_service` correctly rejected it with `401 invalid issuer`.
+Rebound the forward to the real port `8080` (confirmed free by then)
+and it worked. Full detail, and why the `approval-service` side has no
+equivalent constraint, is in `.claude/skills/pre-flight/SKILL.md`
+itself now.
+
+### `/post-deploy` — live, all 4 checks green
+
+```
+/post-deploy
+  [✓] 1. ArgoCD: Synced / Progressing (Ingress-only, known gap -- all
+        3 Deployments/Services/PDBs independently Healthy)
+  [✓] 2. Image digest matches promoted digest (sha256:db408a27...,
+        pinned in deploy/kustomize/base/kustomization.yaml)
+  [✓] 3. Pods ready (3/3)
+  [✓] 4. Recent logs clean (no errors in last 50 lines, all 3 deployments)
+```
+Two corrections found live: `oc get application <name>` is ambiguous on
+this cluster (resolves to the wrong `app.k8s.io` CRD — needs
+`application.argoproj.io` explicitly), and the `images:` pin lives in
+`deploy/kustomize/base/kustomization.yaml`, not the demo-prod overlay
+as originally assumed from static source. The persistent `Progressing`
+aggregate status traces entirely to two `Ingress` resources with no
+configured host — a pre-existing, already-documented gap
+(`agent/static/approver_ui.html`'s own comment: "this project has no
+working external Ingress this milestone"), not a new regression. Every
+functional resource (`Deployment`/`Service`/`PDB`) is independently
+`Healthy`. **No new environment defect was found** — this is the one
+"finding, not a bug to fix" case the mission anticipated, and it turned
+out to be a already-known one, not a fresh one.
+
+### `/run-evals` and `/probe-tool` — reconfirmed
+
+Fresh local stack (port-collision check first — clean this time, the
+owner's port-forwards had already come down). `eval-fast`: `2/2`. One
+`eval-domain` pass: `60/62`, gate `PASS`, `ITR-004`/`TSEL-004`
+tolerated — an exact match to the build phase's own numbers and the
+standing baseline. `/probe-tool`: all 4 tools `200`, schema-correct
+bodies, `POST /reset` cleanup confirmed.
+
+### `/start-step` and `/close-step` — executed for real
+
+`/start-step`'s real output correctly identified `HANDOFF.md` as
+current (rewritten at `DEC-077`'s own closure) rather than assuming
+staleness — and found a real gap of its own: the current-phase-artifact
+lookup only checked `docs/phase-<x>-runbook.md`, but Phase E — planned,
+not yet authorized — only has `docs/phase-e-kickoff-plan.md`. Fixed to
+check both naming patterns. `/close-step`'s tail-detection was proven
+correct three times over by `main`'s own repeated motion during this
+session (see above) — each computed number was provisional-labeled and
+none was ever committed without a fresh re-check.
+
+### `make lint` / `make test` — clean after two rebases
+
+Both rebases (once before cluster testing, once again before the
+merge, after `DEC-077`/`DEC-078` landed) were followed by a clean
+`make lint` and `make test` (`252 passed` both times) before proceeding.
+
+### Environment findings summary (for `/pre-flight`/`/post-deploy`'s
+own sake, not just this mission)
+
+Nothing broken. The one persistent oddity (`Ingress` `Progressing`
+health) is pre-existing and already documented elsewhere in the repo —
+worth `/post-deploy` continuing to surface it plainly (not silently
+suppress it) so a future run notices immediately if a *third* resource
+ever joins those two, which would indicate an actual new problem.
+
+### Applied to `CLAUDE.md` (outside this repo — see note)
+
+`CLAUDE.md` (`/home/darkdragonel/workspaceAgentMvp/CLAUDE.md`) turned
+out to live one directory above this repo's root, outside git entirely
+— not a file this repo's history can show a diff for. The drafted
+skills-registry section (below, same content as drafted in the build
+phase) was applied there directly, no commit involved for that specific
+edit.
+
+### Final state
+
+`feature/workspace-tooling` merged into `main`, no squash. `DEC-079`
+records the release. All `[NOT LIVE-TESTED]`/`[VERIFY ON FIRST LIVE
+RUN]` disclaimers removed from all 4 skill files — every check in every
+skill is now backed by real, captured output, not static-source
+inference.

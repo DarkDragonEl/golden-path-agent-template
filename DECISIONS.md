@@ -6078,3 +6078,102 @@ Workshops-provisioned, a real 5-node OCP 4.21.28 cluster, unpoisoned
 catalog -- confirmed live this session); as the colleague-facing
 system, its lifetime and renewal cadence is an owner-managed
 operational item, not blueprint scope.
+
+## DEC-079 — First-generation workspace tooling released: 4 skills, 2
+commands, a provisional UI map -- live-tested end to end, ahead of any
+Phase E work
+
+**Ambiguity**: the owner asked for this tooling generation
+(`feature/workspace-tooling`) tested for real and released now, without
+waiting for Checkpoint D's own formal closure -- an explicit call to
+release ahead of that gate, not something this session decided
+unilaterally. In practice `DEC-077` closed Checkpoint D concurrently
+with this work (the owner's own live click-through, same day), so the
+two did not end up racing each other -- but the owner's authorization to
+proceed regardless is the operative decision here, recorded as such
+rather than reframed after the fact as if closure had already been
+confirmed when the call was made.
+
+**Finding**: everything built during this branch's first phase held up
+under real testing, with three genuine corrections found only by
+running the real thing rather than reading source:
+
+1. `/probe-tool`'s REST payload shape was wrong (build-phase static
+   reconnaissance assumed a `{"arguments": {...}}` wrapper; the real
+   handler binds the entire body to one untyped `dict` parameter, so
+   the correct shape is the raw fields, unwrapped -- confirmed via a
+   live `500` with the wrong shape, decoded from the container's own
+   traceback, then a live `200` with the fix).
+2. `/pre-flight` check 6 (no stale pending proposals) needs a bearer
+   token whose issuer matches `approval_service`'s configured
+   `OIDC_ISSUER_URL` **including the port** -- Keycloak stamps `iss`
+   from the request's own `Host` header, so a port-forward to any port
+   other than `8080` produces a token `approval_service` correctly
+   rejects with `401 invalid issuer`. Confirmed by decoding the issued
+   token and diffing it against the ConfigMap's real value.
+3. `/post-deploy` check 1: `oc get application` is ambiguous on this
+   cluster (resolves to the wrong `app.k8s.io` CRD); needs
+   `application.argoproj.io` explicitly. Also, the Argo CD
+   Application's aggregate health sits at `Progressing` persistently --
+   traced to exactly two `Ingress` resources with no configured host,
+   which is the already-documented "no working external Ingress this
+   milestone" gap (`agent/static/approver_ui.html`'s own source
+   comment), not a new problem. Every `Deployment`/`Service`/`PDB`
+   reports `Healthy` independently. `/post-deploy`'s verdict logic now
+   checks per-resource health rather than trusting the aggregate alone.
+
+No environment defect was found by either cluster-facing check beyond
+the already-known Ingress gap above -- `golden-path-agent-demo-prod`
+is healthy: 3/3 deployments ready, image digest matches the promoted
+pin (`sha256:db408a271673f0d6ce5c6945d9dd531ce97a2ef8348a0c3640a23483e12ed25e`,
+confirmed live against `deploy/kustomize/base/kustomization.yaml`, not
+the demo-prod overlay as originally assumed), `demo-prod` clean of
+stale pending proposals, recent logs clean across all three
+deployments, and the write-approval boundary's `401`-on-unauthenticated
+property (`DEC-069`) still holds.
+
+**Decision**: release the full generation now. Remove every
+`[NOT LIVE-TESTED]`/`[VERIFY ON FIRST LIVE RUN]` disclaimer whose check
+is now confirmed real and green (all of them); apply the drafted
+`CLAUDE.md` skills-registry section; merge `feature/workspace-tooling`
+into `main`, no squash.
+
+**Evidence**:
+- `/pre-flight`: all 6 checks green live against
+  `golden-path-agent-demo-prod`/`golden-path-agent-keycloak` (session
+  alive; 3/3 deployments ready; Keycloak pod `Running` 1/1, realm
+  import `Done=True`/`HasErrors=False`; model endpoint `200`;
+  unauthenticated `GET /proposals` `401`; `GET /proposals?state=pending`
+  `[]`).
+- `/post-deploy`: all 4 checks green (`Synced`/`Progressing`-Ingress-
+  only-explained; digest match; 3/3 pods ready; logs clean).
+- `/run-evals` and `/probe-tool` re-confirmed against a fresh local
+  stack: `eval-fast` `2/2`, one `eval-domain` pass `60/62` (gate
+  `PASS`, `ITR-004`/`TSEL-004` tolerated, zero new failures, matching
+  the standing baseline exactly); all 4 MCP tools `200` with
+  schema-correct bodies.
+- `/start-step` and `/close-step` executed for real: `start-step`
+  correctly surfaced `HANDOFF.md` as current (rewritten at `DEC-077`'s
+  own closure) and found a real gap of its own -- the current-phase
+  artifact lookup needs to check both `docs/phase-<x>-runbook.md` and
+  `docs/phase-<x>-kickoff-plan.md`, confirmed live against Phase E's
+  own not-yet-authorized state; `close-step`'s tail-detection correctly
+  computed each successive real number as `main` moved underneath this
+  session three separate times (`DEC-076`, `DEC-077`, `DEC-078` all
+  landed mid-mission, unpushed to `origin` at various points) -- this
+  entry's own number was re-checked immediately before writing it, not
+  reused from any earlier guess.
+- `make lint` clean, `make test` `252 passed`, both after two separate
+  rebases onto `main`'s moving tip.
+- Full evidence, live-test transcripts, and the environment findings
+  above: `reports/feature-workspace-tooling.md`.
+
+**Status**: Released. `feature/workspace-tooling` merged into `main`.
+`docs/drafts/AGENT-UI-MAP.draft.md` stays provisional (marked as such in
+its own header) -- it was built from real page source, not screenshots,
+but has not been exercised against a live browser and is not blocking
+on anything here. `/pre-flight`'s check 4 (model endpoint) and check 6
+(stale-proposal scan) both require live credentials/port-forwards each
+run -- not a gap, just means they're not the kind of check that stays
+green from a single confirmation; every future invocation re-verifies
+for real, by design.
