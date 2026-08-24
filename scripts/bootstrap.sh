@@ -20,11 +20,20 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'USAGE'
-usage: bootstrap.sh <kubeconfig-path>
+usage: bootstrap.sh <kubeconfig-path> [--reenable-sync]
 
 Bootstraps the golden-path-agent blueprint onto a fresh OpenShift cluster
 from Git alone. The kubeconfig must already be authenticated (this script
 never runs `oc login`). Re-runnable: picks up where a prior run stopped.
+
+DEC-083 WARNING: if the target cluster's own golden-path-agent-root
+Application has had its auto-sync deliberately disabled (a single-
+active-cluster deprotection, e.g. the SNO after DEC-083), a plain re-run
+of this script will detect that live-only freeze and SKIP re-applying
+deploy/argocd/application-root.yaml, rather than silently re-enabling
+auto-sync and resurrecting DEC-078's original cross-cluster-promotion
+hazard via a routine maintenance command. Pass --reenable-sync only if
+you deliberately intend to reverse that specific cluster's freeze.
 USAGE
   exit 1
 }
@@ -32,6 +41,8 @@ USAGE
 [ $# -ge 1 ] || usage
 [ -r "$1" ] || { echo "[bootstrap.sh] kubeconfig not readable: $1" >&2; exit 1; }
 export KUBECONFIG="$1"
+REENABLE_SYNC=false
+[ "${2:-}" = "--reenable-sync" ] && REENABLE_SYNC=true
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -249,7 +260,31 @@ oc apply -f pipelines/tasks/ -n golden-path-agent-ci
 
 log "=== step 8/9: argocd app-of-apps root ==="
 oc apply -f deploy/argocd/project.yaml
-oc apply -f deploy/argocd/application-root.yaml
+
+# DEC-083 guard: deploy/argocd/application-root.yaml and
+# deploy/argocd/apps/demo-prod.yaml are single files every cluster
+# bootstraps identically from the same Git history -- a cluster-local
+# "deprotect this cluster's demo-prod" decision (DEC-083's SNO freeze)
+# is therefore necessarily a live-only patch, never a commit to those
+# shared files. That makes it silently reversible by a routine re-run of
+# this exact step, on this exact cluster, unless guarded here: detect an
+# existing golden-path-agent-root Application whose own auto-sync is
+# already disabled live, and refuse to re-apply application-root.yaml
+# (which would restore spec.syncPolicy.automated to the committed
+# {prune:true, selfHeal:true}) without an explicit, deliberate flag.
+ROOT_EXISTS=false
+oc get applications.argoproj.io golden-path-agent-root -n openshift-gitops >/dev/null 2>&1 && ROOT_EXISTS=true
+if [ "$ROOT_EXISTS" = "true" ]; then
+  ROOT_AUTOMATED=$(oc get applications.argoproj.io golden-path-agent-root -n openshift-gitops \
+    -o jsonpath='{.spec.syncPolicy.automated}' 2>/dev/null || echo "")
+  if [ -z "$ROOT_AUTOMATED" ] && [ "$REENABLE_SYNC" != "true" ]; then
+    log "  golden-path-agent-root: auto-sync already disabled live on this cluster (DEC-083-style freeze) -- NOT re-applying deploy/argocd/application-root.yaml, which would silently restore automated:{prune:true,selfHeal:true} and resurrect DEC-078's cross-cluster-promotion hazard. Re-run with --reenable-sync if you deliberately intend to reverse this cluster's freeze."
+  else
+    oc apply -f deploy/argocd/application-root.yaml
+  fi
+else
+  oc apply -f deploy/argocd/application-root.yaml
+fi
 
 log "=== step 9/9: verification ==="
 sleep 5

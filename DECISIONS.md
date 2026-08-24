@@ -6350,3 +6350,84 @@ this is the sweep procedure catching a real violation on first serious
 contact, from a peer session's own live-tested, otherwise-solid work —
 the exact scenario `docs/phase-e-kickoff-plan.md` §5.2 names as "a
 repeat, not a one-time gate," now with a concrete instance to point to.
+
+## DEC-083 — Amendment to DEC-078: single-active-cluster model adopted,
+three-part follow-up superseded
+
+**Decision**: `DEC-078`'s three-part follow-up (hosted-registry
+migration, per-cluster overlay pins, parametrized promotion) is
+**superseded, not implemented**. The two-active-clusters scenario it was
+designed for no longer exists — the owner has decided the showcase
+cluster is now the active system. Simplest path wins for a demo
+milestone.
+
+**The single-pin, single-active-cluster model**: `deploy/kustomize/base/kustomization.yaml`'s
+single `images:` block now belongs to the showcase cluster. Its pipeline
+promotes normally — `open-promotion-pr` PRs get reviewed and merged as
+originally designed, no restriction. `DEC-078`'s hazard (a second
+cluster's pipeline silently overwriting the SNO's live pin) is resolved
+by removing the second contender for that pin, not by structural change.
+
+**SNO `demo-prod` deprotected, live-only, never committed**:
+`deploy/argocd/apps/demo-prod.yaml` and `deploy/argocd/application-root.yaml`
+are single files every cluster bootstraps identically from the same Git
+history — editing either would disable auto-sync on the showcase too,
+the opposite of what's wanted. The durable, cluster-local fix instead:
+live-patch the SNO's own `golden-path-agent-root` Application object
+(`spec.syncPolicy.automated` → `null`), which stops that cluster's root
+from reconciling `deploy/argocd/apps/` at all — and, as a direct
+consequence, stops it from drift-correcting `golden-path-agent-demo-prod`'s
+own Application object back to the committed `{prune:true,
+selfHeal:true}`. `demo-prod`'s own `automated` flag is patched to `null`
+too, for a clean, self-documenting live state matching the existing
+`application-pilot-prod.yaml` convention (`automated: null # manual sync
+= the deployment-promotion gate`). Both patches are cluster-local,
+live-only, never committed to Git — the showcase cluster's own
+already-applied Application objects are on a separate cluster and
+completely unaffected by this. The SNO remains the full development
+environment (inner loop, pipeline, ephemeral tests); its `demo-prod` is
+frozen at its current digest, documented as intentionally inactive, not
+decommissioned.
+
+**Freeze width, stated plainly, not left implied**: patching the SNO's
+root stops reconciliation of **everything** under `deploy/argocd/apps/`
+on that cluster, not just `demo-prod` — every GitOps-managed component
+listed there stops receiving Git updates on the SNO, not only the one
+this decision cares about. Today that directory holds only
+`demo-prod.yaml`, so the practical effect is demo-prod-only, but the
+mechanism itself is directory-wide, not object-scoped, and must be
+understood that way if a second file is ever added there. Accepted
+consequence, not an oversight: the SNO remains the dev environment via
+its Podman inner loop and its own pipeline, neither of which the root
+app-of-apps manages or touches — only GitOps-synced components on that
+cluster stop updating from Git.
+
+**A real silent-failure mode, found and guarded before it could bite**:
+a live-only, never-committed freeze is, by construction, invisible to
+`git diff` — a routine `make bootstrap` re-run against the SNO would
+re-apply `deploy/argocd/application-root.yaml` unconditionally and
+silently restore `automated:{prune:true,selfHeal:true}`, resurrecting
+`DEC-078`'s original cross-cluster-promotion hazard via ordinary
+maintenance, not a mistake anyone would notice making. Guarded in
+`scripts/bootstrap.sh`: before applying `application-root.yaml`, it now
+checks whether the target cluster's own `golden-path-agent-root`
+Application already has its auto-sync disabled live, and skips
+re-applying that file (rather than silently reversing the freeze) unless
+an explicit `--reenable-sync` flag is passed (`make bootstrap
+REENABLE_SYNC=true CLUSTER=...`). The usage text also names this DEC
+directly, so the warning is visible without having to already know to
+look for it.
+
+**Symmetric caveat, stated plainly**: with one shared pin, only one
+cluster's `demo-prod` can be current at a time. Today that's the
+showcase, by owner decision. If the SNO's `demo-prod` is ever needed
+live again, this decision reverses the same way it was made — a
+live-only patch restoring `automated:{prune:true,selfHeal:true}` on the
+SNO's root (or `scripts/bootstrap.sh --reenable-sync`), no Git change
+required either way.
+
+**Nothing foreclosed**: per-cluster overlays and the RRT row 16 registry
+substitution remain documented (`DEC-078`) as the evolution path if two
+live clusters are ever genuinely needed again — this amendment doesn't
+delete that option, it just declines to build it now for a scenario that
+isn't the current one.

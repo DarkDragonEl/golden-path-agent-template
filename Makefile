@@ -66,5 +66,8 @@ lint:
 # kubeconfig is already authenticated -- CLUSTER=<path>. See
 # scripts/bootstrap.sh for the full step list and docs/phase-c-runbook.md
 # for the manual secret-provisioning commands it pauses for.
+# DEC-083: pass REENABLE_SYNC=true only to deliberately reverse a
+# cluster's own single-active-cluster auto-sync freeze -- see
+# scripts/bootstrap.sh's own usage text for what this actually guards.
 bootstrap:
-	./scripts/bootstrap.sh $(CLUSTER)
+	./scripts/bootstrap.sh $(CLUSTER) $(if $(filter true,$(REENABLE_SYNC)),--reenable-sync,)
