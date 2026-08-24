@@ -1,19 +1,23 @@
 # Session handoff
 
-**This file was fully rewritten at Phase D's close** (previously last
-updated at Checkpoint B2, mid-Phase-B — everything through all of Phase
-C and all of Phase D had drifted out of it entirely). `DECISIONS.md`
-(currently through `DEC-073`) is the authoritative, complete,
-chronological record of every decision this project has made — this
-file is a *pickup* summary, not a substitute for it. When in doubt,
-`DECISIONS.md` wins.
+**This file was rewritten at Checkpoint D's formal closure**
+(previously rewritten at Phase D's close, `DEC-073`; everything through
+`DEC-077` had drifted out of it since). `DECISIONS.md` (currently
+through `DEC-077`) is the authoritative, complete, chronological record
+of every decision this project has made — this file is a *pickup*
+summary, not a substitute for it. When in doubt, `DECISIONS.md` wins.
 
 ## Where this is
 
-**Phase D is complete.** D1 (approval service) → D2 (Keycloak/OIDC
-identity) → D3 (minimal approver UI) → D4 (trace continuity) →
-Checkpoint D have all been executed and live-verified against the real
-`golden-path-agent-demo-prod` deployment. Full evidence:
+**Phase D is complete and Checkpoint D is formally closed.** D1
+(approval service) → D2 (Keycloak/OIDC identity) → D3 (minimal approver
+UI) → D4 (trace continuity) → Checkpoint D have all been executed,
+live-verified against the real `golden-path-agent-demo-prod` deployment,
+and — the last open piece — the owner personally completed the live
+`GET /ui` browser click-through on 2026-08-23 (`DEC-077`): both the
+`demo-approver` approve→ticket path and the `demo-user` read-only path
+passed, `demo-prod` left clean. **No further Phase D work is open.**
+Full evidence:
 
 - `reports/phase-d-d1-verification.md` — D1's five named tests (approve/
   reject/expiry/pod-restart-survives-pending/live-concurrency-race).
@@ -27,19 +31,19 @@ Checkpoint D have all been executed and live-verified against the real
   approve → ticket exists, reject → nothing written, expiry → nothing
   written, and one full trace spanning the async approval gap
   (`tools/query_traces.py`), stitched by `session.id`/`proposal.id`.
+- `reports/phase-d-owner-walkthrough-verification.md` — the
+  owner-walkthrough closure prep: the `DEC-074` OIDC browser-discovery
+  fix, the `DEC-075` port-forward bug found live and fixed, and the
+  `DEC-076` real-browser (Playwright) drive of the approver UI that
+  found and fixed a second real gap (no in-app logout) — all with full
+  transcripts.
+- `reports/browser-walkthrough-screenshots/` — 12 screenshots, one per
+  step, from `DEC-076`'s real-browser run of the identical path the
+  owner then also ran themselves.
 
-**One item is deliberately still open, not a gap**: `SRS-APR-QUAL-01`'s
-own non-developer-walkthrough verification method needs a real human
-clicking through `GET /ui` in a real browser (the Authorization Code +
-PKCE login flow cannot be driven from a sandboxed environment with no
-browser). The owner's own plan approval already anticipated this
-explicitly ("I'll be that walkthrough at Checkpoint D — design for
-it") — this is not blocking, it is the one piece that was always
-going to need the owner's own session.
-
-**`DECISIONS.md` `DEC-053` through `DEC-073`** cover all of Phase D in
-full detail, including several real live findings worth knowing before
-touching this cluster again:
+**`DECISIONS.md` `DEC-053` through `DEC-077`** cover all of Phase D and
+Checkpoint D's closure in full detail, including several real live
+findings worth knowing before touching this cluster again:
 
 - `DEC-055`/`DEC-056` — `rhbk-operator`'s OLM install is blocked
   cluster-wide by a *different tenant's* broken `CatalogSource`
@@ -84,41 +88,45 @@ touching this cluster again:
   verification pass. Worth remembering as a reminder to test the
   *absence* of a check on every route when a new `AUTH_MODE` gate goes
   in, not just the routes that were the original design's obvious focus.
+- `DEC-074` — the browser-facing OIDC issuer is an internal cluster
+  Service DNS name; a browser outside the cluster needs a third
+  `oc port-forward` (Keycloak) **plus** a local hosts-file entry mapping
+  that exact DNS name to `127.0.0.1` — documented in
+  `docs/owner-walkthrough.md`, zero app/config changes.
+  Redirect-URI on `golden-path-agent-approver-ui` is `["*"]` live,
+  confirmed via the Admin API, not just the committed YAML.
+- `DEC-075` — a real live bug the owner's own first attempt hit:
+  `docs/phase-d-runbook.md` instructed forwarding approval-service to
+  local port `18082`; `agent/static/approver_ui.html`'s own hardcoded
+  default only looks at `localhost:8082`. The poll loop's own error
+  handling treats a connection failure the same as a transient hiccup,
+  so it hung silently forever with zero visible error. Fixed in the
+  port-forward instructions (not the page). If touching this UI's
+  port-forward docs again, keep the local port at `8082` unless
+  `window.APPROVAL_SERVICE_ORIGIN` is also set to match.
+- `DEC-076` — `approver_ui.html` has **no logout control**, and
+  Keycloak's SSO session cookie means a second "Log in" click in the
+  same browser silently re-authenticates as whoever's already signed in
+  — the login form never renders. `docs/owner-walkthrough.md` now
+  instructs a private/incognito window for the `demo-user` pass, not
+  "log out." A real logout control is a named, not-yet-implemented
+  Phase E hardening candidate (touches the image).
+- `DEC-077` — Checkpoint D formally closed on the owner's own live
+  browser click-through, 2026-08-23. See "Where this is" above.
 
-## Next session's mission (in order)
+## Next session's mission
 
-1. **`docs/owner-walkthrough.md`** — the scripted procedure for the
-   owner's own live `/ui` click-through: the two `oc port-forward`
-   commands (`docs/phase-d-runbook.md`'s existing "D3: reaching the
-   approver UI locally" section already has these, reuse them
-   verbatim), how to retrieve the demo credentials
-   (`oc get secret golden-path-agent-demo-users -n golden-path-agent-keycloak
-   -o jsonpath='{.data.demo-approver-password}' | base64 -d`, same
-   for `demo-user-password` — documented once already in
-   `pipelines/bootstrap/provision-identity-secrets.sh`'s own trailing
-   echo line, pull the exact command from there rather than
-   re-deriving it), and a short staged run script (open `/ui`, log in
-   as `demo-approver`, submit a write query, approve it, show the
-   ticket; optionally a second pass logged in as `demo-user` to show
-   the read-only/no-decide-buttons state). This closes the one open
-   item above — once it exists and the owner completes their own
-   walkthrough against it, Checkpoint D can be formally closed (a
-   short `DECISIONS.md` entry recording that closure).
-2. **Draft the Phase E kickoff plan for owner review — plan only, no
-   execution.** `docs/environments.md`/the accepted delivery plan's own
-   phase list is the starting point for what Phase E (the shared
-   showcase cluster) is meant to cover; this project's own scope guard
-   (`CLAUDE.md`) applies with full force to this plan the same as every
-   prior one — flag anything that looks like scope creep rather than
-   including it by default. Do not start implementing anything from it
-   without the owner's own explicit authorization, matching every prior
-   phase's own gate discipline.
-
-Both of these are documentation/planning tasks — neither requires
-touching the live cluster. If cluster state needs re-verifying before
-either (e.g. confirming `demo-prod` is still healthy), do that
-read-only, matching the "verify, don't assume" discipline this whole
-project has followed throughout.
+**Owner review of `docs/phase-e-kickoff-plan.md` — plan-approved-then-
+execute.** The plan is written, drafted for review, and holds its own
+internal STOPs (owner authorizes the first showcase environment request,
+reviews the refresh cadence, reviews the sharing schedule, reviews the
+20-minute walkthrough script) — nothing in it has been executed, no
+environment has been requested, no cluster has been touched. **Do not
+begin any Phase E work — infrastructure, environment requests, or
+otherwise — without the owner's own explicit authorization of that
+plan first**, matching every prior phase's gate discipline. If the
+owner's review changes the plan, update `docs/phase-e-kickoff-plan.md`
+and get re-confirmation before executing anything in it.
 
 ## Invariants that must survive any future session
 
@@ -197,25 +205,43 @@ changed something.)
 ## Pointers
 
 - `DECISIONS.md` — the complete, authoritative decision history,
-  `DEC-001` through `DEC-073`. Always read the tail before starting new
+  `DEC-001` through `DEC-077`. Always read the tail before starting new
   work in a fresh session.
 - `PINS.md` — every pinned component version, with the live-verification
   date and source. Phase D added the Keycloak/Postgres/OTel-Collector
   rows.
 - `docs/phase-d-runbook.md` — the manual bootstrap steps for D2/D3
   (Keycloak operator/Postgres/Keycloak CR, port-forward procedure for
-  `/ui`).
+  `/ui` — corrected port at `DEC-075`).
+- `docs/owner-walkthrough.md` — the closed-out owner click-through
+  script: pre-flight verification summary, credential retrieval, the
+  three port-forwards + hosts-file mapping (`DEC-074`), both parts
+  (approver/read-only), now the reference doc for re-running this
+  walkthrough in any future session, not just a one-time closure
+  artifact.
+- `docs/phase-e-kickoff-plan.md` — the next gate. Owner-review-only;
+  nothing in it executes without explicit authorization.
 - `pipelines/bootstrap/provision-identity-secrets.sh` — the committed,
   idempotent script that materializes all Keycloak-issued
   credentials (workload client secrets, demo user passwords) into K8s
   `Secret`s — re-run it any time those need rotating, or for a fresh
   environment.
 - `tools/query_traces.py` — the scripted trace-query view (D4).
+- `tools/verify_owner_walkthrough.py` — protocol-level (no browser)
+  Authorization Code + PKCE verification of the approval flow.
+- `tools/browser_verify_owner_walkthrough.py` — real headless-Chromium
+  (Playwright) drive of the actual `/ui` page; re-run this first if the
+  page, the Keycloak client, or the port-forward convention ever change
+  — it would have caught both `DEC-075` and `DEC-076` immediately.
 - `reports/phase-c-c1c-run.md`, `reports/phase-c-sharing-run.md` — Phase
   C's own evidence (pipeline gates, promotion, negative proofs).
 - `reports/phase-d-d1-verification.md`, `reports/phase-d-d2-verification.md`,
   `reports/checkpoint-d-run.md` — Phase D's live evidence, described
   above.
+- `reports/phase-d-owner-walkthrough-verification.md` — Checkpoint D
+  closure prep, all three addenda (`DEC-074`/`DEC-075`/`DEC-076`).
+- `reports/browser-walkthrough-screenshots/` — the 12 screenshots
+  backing `DEC-076`'s real-browser run.
 - `~/.claude/plans/read-claude-md-handoff-md-decisions-md-vast-hare.md` —
   the living Phase D design/plan document (D1–D4 architecture, updated
   at each major decision point through the whole phase).

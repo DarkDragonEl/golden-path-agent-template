@@ -5953,3 +5953,38 @@ diagnostics already in place.
 working end to end by an automated real browser, immediately before the
 owner's own click-through. Checkpoint D's own formal closure entry is
 still **not** written here -- still pending the owner's own session.
+
+## DEC-077 — Checkpoint D formally closed: owner's own live click-through
+of `docs/owner-walkthrough.md` passed, both parts
+
+**The one item Checkpoint D was left open on** (`SRS-APR-QUAL-01`'s
+non-developer walkthrough -- a real human clicking through `GET /ui` in a
+real browser, Authorization Code + PKCE) **is done.** The owner personally
+ran `docs/owner-walkthrough.md` end to end, live, on 2026-08-23:
+
+- **Part 1 (`demo-approver`)**: logged in via the real Keycloak login
+  page, submitted the write-drafting query, watched the pending proposal
+  appear, clicked Approve, confirmed the ticket was created.
+- **Part 2 (`demo-user`, private/incognito window per `DEC-076`'s own
+  corrected instructions)**: logged in, confirmed the decide controls are
+  absent/refused for a non-approver identity.
+- `demo-prod` left clean of pending debris afterward; port-forwards
+  stopped.
+
+**Supporting evidence, all already committed and pushed**: `DEC-076`'s
+real-browser (Playwright/headless Chromium) drive of the identical path,
+proving the mechanism live immediately before the owner's own session --
+`reports/phase-d-owner-walkthrough-verification.md` (full transcripts,
+both the `DEC-075` and `DEC-076` addenda) and
+`reports/browser-walkthrough-screenshots/` (12 screenshots, one per step,
+including the exact ticket-rendered and read-only-note states the owner's
+own run also reached).
+
+**Status: Checkpoint D is formally closed, by the owner, on the owner's
+own click-through result.** D1 (approval service) -> D2 (Keycloak/OIDC
+identity) -> D3 (minimal approver UI) -> D4 (trace continuity) ->
+Checkpoint D are all complete and closed. No further Phase D work is
+open. The next gate is the owner's own review of
+`docs/phase-e-kickoff-plan.md` (plan-approved-then-execute -- nothing in
+that plan runs until the owner explicitly authorizes it, matching every
+prior phase's gate discipline).
