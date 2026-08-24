@@ -38,6 +38,23 @@ metadata:
   name: golden-path-agent-demo-prod
   labels:
     app.kubernetes.io/part-of: golden-path-agent
+    # Real gap found live on the showcase cluster (Phase E, DEC-078
+    # onward): OpenShift GitOps's default ClusterRole for the ArgoCD
+    # application controller only grants get/list/watch on core
+    # resources cluster-wide -- write access to a target namespace
+    # requires opting it in via this label, which triggers the GitOps
+    # operator's own controller to create a namespace-scoped RoleBinding
+    # automatically. The SNO's GitOps operator was pre-installed by
+    # prior, unrelated work before this project ever touched it
+    # (docs/environments.md) and evidently carried a broader default (an
+    # older operator version's blanket admin ClusterRoleBinding, most
+    # likely) -- this label was never needed there and so was never
+    # written down anywhere in this project until the first genuine
+    # from-scratch GitOps install actually exercised the gap.
+    # golden-path-agent-ephemeral-test deliberately does NOT get this
+    # label -- it is pipeline-managed (direct oc apply), never
+    # ArgoCD-synced, per docs/environments.md's ownership model.
+    argocd.argoproj.io/managed-by: openshift-gitops
 ---
 # Phase D, D2 entry gate (DECISIONS.md DEC-053). A fifth, separate
 # namespace for Keycloak + its own Postgres -- not folded into

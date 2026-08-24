@@ -1,6 +1,6 @@
 CONTAINER_ENGINE ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo docker)
 
-.PHONY: build up up-offline down logs eval eval-fast eval-domain validate-eval-set trace test lint
+.PHONY: build up up-offline down logs eval eval-fast eval-domain validate-eval-set trace test lint bootstrap
 
 build:
 	$(CONTAINER_ENGINE) build -t golden-path-agent:dev .
@@ -59,3 +59,12 @@ test:
 
 lint:
 	python -m py_compile $$(find agent mcp_server eval -name '*.py')
+
+# Phase E, E1 (DECISIONS.md DEC-078 onward). Replays the from-scratch
+# bootstrap sequence (operators, namespaces, RBAC, Keycloak, cluster-tier
+# OTel, ArgoCD app-of-apps root) against any OpenShift cluster whose
+# kubeconfig is already authenticated -- CLUSTER=<path>. See
+# scripts/bootstrap.sh for the full step list and docs/phase-c-runbook.md
+# for the manual secret-provisioning commands it pauses for.
+bootstrap:
+	./scripts/bootstrap.sh $(CLUSTER)

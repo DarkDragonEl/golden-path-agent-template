@@ -6177,3 +6177,89 @@ on anything here. `/pre-flight`'s check 4 (model endpoint) and check 6
 run -- not a gap, just means they're not the kind of check that stays
 green from a single confirmation; every future invocation re-verifies
 for real, by design.
+
+## DEC-080 — Showcase-cluster refresh #1: from-scratch bootstrap proven
+live, six real gaps found and fixed, `make bootstrap` now exists
+
+`make bootstrap CLUSTER=<kubeconfig>` (`scripts/bootstrap.sh`,
+`pipelines/bootstrap/pipelines-operator.yaml`,
+`pipelines/bootstrap/gitops-operator.yaml`, new this session) replayed
+`docs/phase-e-kickoff-plan.md` §2.3's sequence, extended with the
+operator-install leg the SNO never had to exercise (Pipelines/GitOps
+were pre-installed there by prior work, `docs/environments.md`), against
+the real showcase cluster. This is the first time in this project's
+history the *entire* blueprint -- operators included -- has bootstrapped
+from Git alone. Six real, previously-undiscovered gaps surfaced live and
+are now fixed in the committed scripts/manifests, not just worked around
+by hand:
+
+1. **OLM `installPlanApproval: Manual` requires explicit InstallPlan
+   approval even for the pinned `startingCSV` on a first install** --
+   never exercised before, since Keycloak's own OLM path was always
+   blocked earlier by `DEC-055`'s poisoned catalog on the SNO before it
+   ever reached this point. `scripts/bootstrap.sh`'s `wait_for_csv` now
+   approves the InstallPlan on every poll, but only ever the one whose
+   `clusterServiceVersionNames` matches the exact pinned CSV -- never a
+   drift-permitting blanket approval.
+2. **`golden-path-agent-keycloak-db-secret`/`golden-path-agent-keycloak-admin`
+   were referenced by `keycloak-cr.yaml`'s own header comment as
+   "manually provisioned out-of-band" but the admin secret's actual
+   creation command was never written down anywhere in this project's
+   docs** (`docs/phase-d-runbook.md` only ever documented the db-secret).
+   `scripts/bootstrap.sh` now creates both, generated via `openssl rand`,
+   with **create-once** semantics (unlike `provision-identity-secrets.sh`'s
+   own deliberate regenerate-every-run design, `DEC-059` -- regenerating
+   either of these after Postgres/Keycloak already trust the existing
+   value would break a live instance, not rotate a credential).
+3. **The `Keycloak` CR's own `Ready` condition and `KeycloakRealmImport`'s
+   `Done` condition are independent and race** -- `provision-identity-secrets.sh`
+   queries the admin API for clients that only exist once the import Job
+   finishes, and can 404 moments after Keycloak itself goes Ready.
+   `scripts/bootstrap.sh` now waits on both conditions separately before
+   running that script.
+4. **A latent, pre-existing bug found in `provision-identity-secrets.sh`
+   itself, not fixed this session**: its `read -r VAR1 VAR2 <<EOF
+   $(oc exec ... ) EOF` pattern does not propagate a failing subprocess's
+   exit code through `set -e` -- a 404 inside the exec'd Python script
+   was silently swallowed, leaving `golden-path-agent-secrets` written
+   with empty/garbage values in two namespaces before gap #3 above was
+   found and fixed. Not touched here because eliminating the race (#3)
+   removes the only known trigger, and this is an already-verified Phase
+   D artifact (`DEC-059`) -- named as a real robustness gap for whoever
+   next touches that script, not silently patched around.
+5. **`scripts/bootstrap.sh`'s own manual-secret gate (step 6) originally
+   checked only for `golden-path-agent-secrets`' existence in
+   `demo-prod`** -- `provision-identity-secrets.sh` (step 5) already
+   creates a stub version of that same Secret (just
+   `APPROVAL_OIDC_CLIENT_SECRET`/`MCP_AUTH_TOKEN`) if it doesn't yet
+   exist, which made the existence check pass without `MODEL_API_KEY`
+   (no `ConfigMap` fallback, `docs/environments.md`) ever being present.
+   Fixed same session: the check now looks for that specific key.
+6. **Real, structural difference between the SNO's pre-installed
+   OpenShift GitOps and this cluster's fresh install**: the current
+   default `ClusterRole` for the ArgoCD application controller only
+   grants `get`/`list`/`watch` on core resources cluster-wide -- write
+   access to a target namespace requires opting it in via the
+   `argocd.argoproj.io/managed-by: openshift-gitops` label, which
+   triggers the GitOps operator's own controller to create a
+   namespace-scoped `RoleBinding` automatically. The SNO's operator,
+   installed there by prior, unrelated work, evidently carried a broader
+   default (most likely an older version's blanket admin
+   `ClusterRoleBinding`) -- this label was never needed there, so never
+   written down anywhere in this project until this session's genuine
+   from-scratch install hit it. Added to `pipelines/bootstrap/namespaces.yaml`,
+   on `golden-path-agent-demo-prod` only (`golden-path-agent-ephemeral-test`
+   stays pipeline-managed, never ArgoCD-synced, per `docs/environments.md`'s
+   ownership model). Confirmed live: the `RoleBinding` appeared within
+   ~20s of the label landing, no operator restart needed.
+
+**Result, matching `DEC-078`'s own documented prediction exactly**:
+`golden-path-agent-demo-prod`'s `Application` reached `Synced`; its three
+`Deployment`s are `ImagePullBackOff` on the inherited base digest
+(`image-registry.openshift-image-registry.svc:5000/...`, resolving to
+this cluster's own, empty internal registry) -- the expected,
+already-documented condition, not a new bug. No `PipelineRun` executed
+yet this session; no promotion-PR authority granted (`DEC-078` Option 2
+unchanged).
+
+Full timing and the refresh-target evaluation: `reports/phase-e-refresh-log.md`.
