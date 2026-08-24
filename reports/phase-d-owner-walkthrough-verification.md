@@ -188,3 +188,134 @@ entries and comments.
 
 No fallback/deviation from the planned hosts-mapped mechanism was needed
 at any point in this run.
+
+---
+
+# Addendum: `DEC-075` incident — owner's first attempt broke, root cause, fix, re-verification
+
+## Symptom (reported by the owner)
+
+Login worked (real `demo-approver` identity, role shown), submit
+appeared to work, but the pending-proposal card never appeared — stuck on
+"Waiting for approval..." for several minutes. A diagnostic curl to
+`/proposals/pending` returned `{"detail": "missing bearer token"}`, which
+at the time looked like confirmation auth was enforcing correctly.
+
+## Root-cause investigation
+
+- **The diagnostic curl was a red herring**: `/proposals/pending` is not a
+  real endpoint. It matches `GET /proposals/{proposal_id}` with
+  `proposal_id="pending"`, which also requires auth and returns the same
+  error shape regardless of whether the real pending-list endpoint
+  (`GET /proposals?originating_session_id=...`) works at all.
+- **Live logs, both services, `--since=2h`, `--timestamps`**, container
+  uptime confirmed continuous since well before the owner's attempt (no
+  restart could have hidden anything): the owner's browser never sent a
+  single `POST /invoke` in the entire window — only `GET /ui` and
+  `GET /ui/config`.
+- **Direct reproduction**: `curl -X POST http://localhost:18080/invoke`
+  (same-origin, no auth needed, identical body to what the UI sends)
+  succeeded immediately — `200`, `pending_approval: true` — and
+  `approval_service` logged a real `POST /proposals 201 Created`. This
+  proved the backend graph, the agent's own workload-token acquisition,
+  and proposal creation were all healthy the entire time.
+- **Confirmed clean elsewhere too**: `AUTO_APPROVE_IN_DEV=false`,
+  `AGENT_OIDC_MODE=oidc`, `MCP_AUTH_MODE=oidc` in `demo-prod`'s live
+  ConfigMap; `mcp` logs show zero unexpected activity (correct — a write
+  action must never reach the tool before approval, `DEC-008`).
+- **The actual defect**: `agent/static/approver_ui.html:208` hardcodes
+  `APPROVAL_SERVICE_ORIGIN`'s default to `http://localhost:8082`.
+  `docs/phase-d-runbook.md`'s port-forward instructions (copied verbatim
+  into `docs/owner-walkthrough.md`) said to forward approval-service to
+  local port **`18082`**. Confirmed live: nothing was listening on local
+  `8082` at all. `pollPending()`'s own error handling treats a connection
+  failure the same as a transient server hiccup (`// Network hiccup --
+  keep polling`), so the UI retried silently forever with zero visible
+  error — exactly matching the reported symptom. `/invoke` itself is
+  same-origin (`AGENT_ORIGIN = window.location.origin`) and was never
+  affected, which is why login and submit both appeared to work.
+
+## A gap in this report's own earlier verification, named plainly
+
+`tools/verify_owner_walkthrough.py`'s first version hardcoded
+`APPROVAL_ORIGIN = "http://localhost:18082"` — the *correct* port, but a
+second, independently-maintained copy of a value the real page already
+defines. That let the run recorded above pass cleanly without ever
+exercising the actual default a real browser uses. Fixed properly, not by
+swapping in the other hardcoded number: the script now parses
+`APPROVAL_SERVICE_ORIGIN`'s default straight out of the live-served
+`GET /ui` HTML (`fetch_approval_origin()`), so it always tracks whatever
+the real page actually has. Full reasoning and the named `/ui/config`
+hardening candidate (not implemented — touches the image) are in
+`DECISIONS.md` `DEC-075`.
+
+## Fix shipped
+
+Docs-only, no image rebuild: `docs/phase-d-runbook.md` and
+`docs/owner-walkthrough.md` now instruct forwarding approval-service to
+local port `8082` (matching the page's real default), with an explicit
+warning against silently picking a different port.
+`tools/verify_owner_walkthrough.py` derives the port from the live page
+instead of hardcoding it.
+
+## Re-verification, full run, corrected script
+
+```
+$ export DEMO_APPROVER_PASSWORD=<redacted>
+$ export DEMO_USER_PASSWORD=<redacted>
+$ python3 tools/verify_owner_walkthrough.py
+
+PASS - approval-service origin derived from the live served /ui page (http://localhost:8082)
+PASS - GET /ui/config returns the expected internal-DNS issuer (http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent)
+PASS - demo-approver PKCE login (sub=fb790f55-51b6-42ef-addc-7480ce2ccd23, roles=['approval-approver'])
+PASS - submit write query -> pending (session=4e373706-cd85-47c3-9b05-d9d8e766fcad, proposal=5666e99c-bfc3-4329-a89e-2b9f21d4aec9, polls=1)
+PASS - approve (decided_by=fb790f55-51b6-42ef-addc-7480ce2ccd23)
+PASS - resume -> ticket created (REQ-30101)
+PASS - demo-user PKCE login (sub=b759ffee-f69e-4173-8f12-cbd29911dba1, roles=None)
+PASS - demo-user submit write query -> pending (session=0b304479-a597-4d6a-8e46-03dead025202, proposal=8839d1e7-2149-4c72-a6bc-183f0fd07b2f)
+PASS - demo-user decision attempt refused server-side (403) (matches DEC-069's fix)
+PASS - cleanup (2 leftover proposal(s) resolved, demo-prod clean)
+
+All scenarios PASSED
+EXIT CODE: 0
+```
+
+The "2 leftover proposal(s)" resolved during cleanup were: the proposal
+created by this incident's own live `/invoke` reproduction (ticket
+`REQ-30100`, already resolved as approved during diagnosis — the leftover
+was a second, unrelated stray) and this run's own demo-user negative-path
+proposal. `REQ-30101` (this run's positive-path ticket) reflects the
+in-memory record-id counter having advanced by one from the diagnostic
+reproduction earlier in this same session — expected, not a duplicate,
+same mechanism documented above for `REQ-30100`.
+
+**Final clean-state check**, independent of the script's own cleanup step:
+```
+$ curl -H "Authorization: Bearer <demo-approver token>" http://localhost:8082/proposals
+[]
+```
+`demo-prod` confirmed clean.
+
+## Hosts-file entry — ownership note
+
+Unlike the run recorded earlier in this report (where this session added
+and removed the entry itself), **this entry is owner-managed for the
+remainder of the walkthrough**: the owner added it directly (confirmed via
+`grep`, present as of this addendum) and will remove it themselves as the
+final step of their own click-through, not this session. This session did
+not touch `/etc/hosts` at any point during this incident's diagnosis or
+fix — every check here was read-only (`grep`).
+
+## Summary (this addendum)
+
+| Scenario | Result |
+|---|---|
+| Reported symptom reproduced via log analysis (zero `/invoke` in owner's window) | Confirmed |
+| Backend health check (`/invoke` direct reproduction) | PASS — proved backend was never the problem |
+| `AUTO_APPROVE_IN_DEV`/OIDC-mode config sanity | PASS (all correct) |
+| Root cause isolated (port-forward instructions vs. page's hardcoded default) | Confirmed, `agent/static/approver_ui.html:208` |
+| Fix applied (docs-only, no image rebuild) | Done |
+| Verification-script gap fixed (derive from live page, not a parallel constant) | Done |
+| Full corrected smoke test | PASS (10/10 scenarios) |
+| `demo-prod` clean after fix | PASS (`[]`) |
+| Hosts-file entry | Present, owner-managed, not removed by this session |

@@ -67,11 +67,20 @@ oc port-forward svc/golden-path-agent 18080:8080 -n <ns>
 # then open http://localhost:18080/ui
 
 # Terminal 2 -- the approval-service (the UI's polling/decision calls):
-oc port-forward svc/golden-path-agent-approval 18082:8082 -n <ns>
+oc port-forward svc/golden-path-agent-approval 8082:8082 -n <ns>
 ```
 
-The page's default `APPROVAL_SERVICE_ORIGIN` (`http://localhost:8082`)
-already matches Terminal 2's conventional port above, so no per-page
-edit is needed for that default layout; if a different local port is
-forwarded instead, set `window.APPROVAL_SERVICE_ORIGIN` before the
-page's own script runs (see the comment in `approver_ui.html` itself).
+**The local port for Terminal 2 must be `8082`, not `18082`** — the
+page's hardcoded default `APPROVAL_SERVICE_ORIGIN` is
+`http://localhost:8082`, and there is no proxy or rewrite between the
+browser and that origin, so the *local* port must be exactly `8082` for
+the default to resolve (`DEC-075`: an earlier version of this runbook
+instructed `18082:8082` here, which silently broke the polling step —
+found live during the owner's first walkthrough attempt, `pending_approval`
+would show but the proposal card would never appear, because
+`pollPending()`'s own network-error handling treats a connection refusal
+the same as a transient hiccup and just keeps retrying). If a different
+local port must be used for some reason, set
+`window.APPROVAL_SERVICE_ORIGIN` before the page's own script runs (see
+the comment in `approver_ui.html` itself) — do not silently forward to a
+different port and assume the default still applies.

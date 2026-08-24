@@ -11,6 +11,33 @@ through, scripted end-to-end against real `demo-prod`, `DEC-074`). This is
 your own click-through of that same flow in a real browser — completing
 it is what formally closes Checkpoint D.
 
+## Pre-flight verification (already done — read this before you start)
+
+The first attempt at this walkthrough broke: login and submit worked, but
+the pending-proposal card never appeared. Root cause, found and fixed
+(`DEC-075`): the port-forward instructions below used to say local port
+`18082` for the approval-service; the page's own code only ever looks for
+it at `localhost:8082`. Nothing was listening on `8082`, so the page's
+poll loop retried silently forever with no visible error. This is now
+fixed in the instructions below, and the whole path has been re-verified
+live, end to end, against real `demo-prod`:
+
+- `tools/verify_owner_walkthrough.py` — scripted Authorization Code +
+  PKCE flow, both the `demo-approver` path (submit → pending → approve →
+  ticket) and the `demo-user` path (submit → pending → decision refused
+  `403`) — **10/10 scenarios PASS**, most recently run against the exact
+  port-forward commands below.
+- `demo-prod` confirmed clean of pending debris both before and after
+  that run (`GET /proposals` → `[]`).
+- Full transcripts, root-cause investigation, and evidence:
+  `reports/phase-d-owner-walkthrough-verification.md` (see the `DEC-075`
+  addendum at the end) and `DECISIONS.md` `DEC-075`.
+
+**If you already had port-forward terminals open from an earlier attempt,
+restart the approval-service one using the corrected command in step 2
+below** (local port `8082`, not `18082`) — an old terminal still forwarding
+to `18082` will reproduce the exact same silent-hang symptom.
+
 ## Before you start (one-time local setup)
 
 ### 1. Retrieve your demo credentials
@@ -31,8 +58,10 @@ Usernames are literally `demo-approver` and `demo-user`.
 oc port-forward svc/golden-path-agent 18080:8080 -n golden-path-agent-demo-prod
 # then open http://localhost:18080/ui
 
-# Terminal 2 — the approval-service (the UI's polling/decision calls):
-oc port-forward svc/golden-path-agent-approval 18082:8082 -n golden-path-agent-demo-prod
+# Terminal 2 — the approval-service (the UI's polling/decision calls).
+# The local port here MUST be 8082, not 18082 -- the page's own default
+# only looks for the approval service at localhost:8082 (DEC-075):
+oc port-forward svc/golden-path-agent-approval 8082:8082 -n golden-path-agent-demo-prod
 
 # Terminal 3 — Keycloak (needed for the login redirect itself):
 oc port-forward svc/golden-path-agent-service 8080:8080 -n golden-path-agent-keycloak
@@ -114,9 +143,12 @@ Completing this closes Checkpoint D.
 - **"state mismatch" or login seems to loop**: usually stale browser
   session state from a previous attempt — clear the page's session storage
   (or use a private/incognito window) and log in again.
-- **Port already in use**: another process is holding `18080`, `18082`, or
-  `8080` locally — stop it, or forward to a different local port and
-  adjust the URLs above accordingly.
+- **Port already in use**: another process is holding `18080`, `8082`, or
+  `8080` locally — stop it, or forward to a different local port; if you
+  change the approval-service port from `8082`, you must also set
+  `window.APPROVAL_SERVICE_ORIGIN` before the page loads (see the
+  pre-flight section above and the comment in `approver_ui.html`) or
+  polling will silently fail forever with no visible error.
 - **Hosts-file entry typo**: double-check the line matches exactly
   `127.0.0.1 golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local`
   — a typo here surfaces as the login redirect failing to resolve at all.

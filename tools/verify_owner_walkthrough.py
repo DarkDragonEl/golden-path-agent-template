@@ -11,14 +11,23 @@ same submission -> pending -> a decision attempt refused 403 server-side,
 DEC-069's fix), then leaves the target environment's pending-proposal list
 empty.
 
-Requires three port-forwards already running (see docs/owner-walkthrough.md
+Requires two port-forwards already running (see docs/owner-walkthrough.md
 for the exact commands and the accompanying hosts-file mapping this script
-also depends on for OIDC issuer resolution):
+also depends on for OIDC issuer resolution) plus a third matching whatever
+local port the served page's own APPROVAL_SERVICE_ORIGIN default names
+(this script discovers that port itself -- see fetch_approval_origin()):
   agent            -> http://localhost:18080  (AGENT_ORIGIN)
-  approval-service -> http://localhost:18082  (APPROVAL_ORIGIN)
   Keycloak         -> http://localhost:8080, reached via the internal
                        Service DNS name mapped to 127.0.0.1 in /etc/hosts
                        (DEC-074) -- not a bare localhost URL.
+
+DEC-075: this script used to hardcode APPROVAL_ORIGIN as a second copy of
+agent/static/approver_ui.html's own APPROVAL_SERVICE_ORIGIN default --
+exactly the kind of parallel constant that let the real docs/config
+mismatch (18082 in the runbook vs. 8082 in the page) pass verification
+undetected. It now parses the value out of the live served /ui HTML
+instead, so a future drift between the page's default and this script
+fails loudly rather than silently agreeing with itself.
 
 Credentials are never hardcoded or logged -- set DEMO_APPROVER_PASSWORD and
 DEMO_USER_PASSWORD from the DEC-059 retrieval command immediately before
@@ -39,8 +48,21 @@ from urllib.parse import parse_qs, urlparse
 import requests
 
 AGENT_ORIGIN = os.environ.get("AGENT_ORIGIN", "http://localhost:18080")
-APPROVAL_ORIGIN = os.environ.get("APPROVAL_ORIGIN", "http://localhost:18082")
 CLIENT_ID = "golden-path-agent-approver-ui"
+
+# Set once, at the top of main(), by fetch_approval_origin() -- never
+# hardcoded here (DEC-075). Every function below reads this module global
+# rather than taking it as a parameter, to avoid threading it through the
+# whole call chain for a value that's fixed for the life of one run.
+APPROVAL_ORIGIN = None
+
+# agent/static/approver_ui.html:208 -- the exact line this pattern parses:
+#   const APPROVAL_SERVICE_ORIGIN = window.APPROVAL_SERVICE_ORIGIN || "http://localhost:8082";
+_APPROVAL_ORIGIN_PATTERN = re.compile(
+    r'const\s+APPROVAL_SERVICE_ORIGIN\s*=\s*window\.APPROVAL_SERVICE_ORIGIN\s*\|\|\s*"([^"]+)"'
+)
+
+
 REDIRECT_URI = f"{AGENT_ORIGIN}/ui"
 EXPECTED_ISSUER_HOST = "golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local"
 
@@ -54,6 +76,27 @@ DRQ_001_QUERY = (
 
 class ScenarioFailure(Exception):
     pass
+
+
+def fetch_approval_origin() -> str:
+    """Derives the approval-service origin from the same source of truth
+    a real browser uses: the live served /ui page's own hardcoded default,
+    not a second copy of that value maintained here (DEC-075). An
+    APPROVAL_ORIGIN env var, if set, is an explicit operator override for
+    a non-default port-forward -- documented, not a silent fallback."""
+    override = os.environ.get("APPROVAL_ORIGIN")
+    if override:
+        return override
+    resp = requests.get(f"{AGENT_ORIGIN}/ui", timeout=10)
+    resp.raise_for_status()
+    match = _APPROVAL_ORIGIN_PATTERN.search(resp.text)
+    if not match:
+        raise ScenarioFailure(
+            "could not find APPROVAL_SERVICE_ORIGIN's default in the served /ui HTML -- "
+            "the page's own source changed shape; update _APPROVAL_ORIGIN_PATTERN, don't "
+            "guess a value"
+        )
+    return match.group(1)
 
 
 def ok(name: str, detail: str = "") -> None:
@@ -221,6 +264,8 @@ def list_pending(token: str) -> list:
 
 
 def main() -> int:
+    global APPROVAL_ORIGIN
+
     approver_password = os.environ.get("DEMO_APPROVER_PASSWORD")
     user_password = os.environ.get("DEMO_USER_PASSWORD")
     if not approver_password or not user_password:
@@ -228,6 +273,13 @@ def main() -> int:
         return 1
 
     failures = 0
+
+    try:
+        APPROVAL_ORIGIN = fetch_approval_origin()
+        ok("approval-service origin derived from the live served /ui page", APPROVAL_ORIGIN)
+    except Exception as exc:  # noqa: BLE001
+        bad("derive approval-service origin from /ui", str(exc))
+        return 1  # nothing else can run without knowing where to poll
 
     try:
         issuer = fetch_oidc_issuer()

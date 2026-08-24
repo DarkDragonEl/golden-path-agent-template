@@ -5723,3 +5723,125 @@ before and after this run. Full evidence:
 through. Checkpoint D's own formal closure entry is explicitly **not**
 this entry — it happens only after the owner completes that walkthrough
 themselves, in a future session.
+
+## DEC-075 — Owner's first walkthrough attempt broke on a wrong
+port-forward instruction; fixed in docs, `DEC-074`'s own verification
+gap named
+
+**Document/scope:** `docs/phase-d-runbook.md`, `docs/owner-walkthrough.md`,
+`tools/verify_owner_walkthrough.py`. No application code, config, or
+manifest changes.
+
+**Symptom, reported by the owner**: login and submit both worked (a real
+`demo-approver` identity, role shown), but the pending-proposal card never
+appeared — stuck on "Waiting for approval..." for several minutes. The
+owner's own diagnostic curl to `/proposals/pending` returned `{"detail":
+"missing bearer token"}`, read at the time as confirming auth was working
+correctly — actually a red herring: `/proposals/pending` is not a real
+endpoint; it matches `GET /proposals/{proposal_id}` with `proposal_id=
+"pending"`, which also requires auth and returns the same error regardless
+of whether the real pending-list endpoint (`GET /proposals?
+originating_session_id=...`) works at all.
+
+**Root cause, found by direct reproduction, not guessed**: live logs
+(`oc logs deployment/golden-path-agent[-approval] --since=2h`, both
+services' containers running continuously since well before the owner's
+attempt, so no rotation/restart could have hidden anything) showed the
+owner's browser never sent a single `/invoke` request in the entire
+window — only `GET /ui` and `GET /ui/config`. A direct reproduction
+(`curl -X POST http://localhost:18080/invoke ...`, same-origin, no auth
+needed) succeeded immediately (`200`, `pending_approval: true`) and
+`approval_service` logged a real `POST /proposals 201 Created` — proving
+the backend graph, the agent's own workload-token acquisition, and
+proposal creation are all healthy. The actual defect: `agent/static/
+approver_ui.html`'s hardcoded `APPROVAL_SERVICE_ORIGIN` default is
+`http://localhost:8082`, but `docs/phase-d-runbook.md`'s "D3: reaching the
+approver UI locally" section (and this milestone's `docs/owner-
+walkthrough.md`, which copied it verbatim) instructed forwarding the
+approval-service to local port **`18082`**, not `8082` — confirmed live,
+nothing was listening on local `8082` at all. The runbook's own comment
+claimed these "already match"; they never did. `pollPending()`'s own
+error handling (`agent/static/approver_ui.html`) treats a connection
+failure identically to a transient server hiccup — `// Network hiccup --
+keep polling` — so the UI retried silently forever with no visible error,
+exactly matching the reported symptom. `/invoke` itself is same-origin
+(`AGENT_ORIGIN = window.location.origin`) and was never affected — this
+is why login and submit both appeared to work.
+
+**A verification gap in `DEC-074`, named plainly rather than glossed
+over**: `tools/verify_owner_walkthrough.py`'s first version hardcoded
+`APPROVAL_ORIGIN = "http://localhost:18082"` directly — the *correct*
+port for the actual approval-service, but not the page's own real
+default. That let the earlier verification pass cleanly while never
+exercising the exact value a real browser would actually use, because the
+script never loaded or executed `approver_ui.html`'s own JavaScript. The
+exact line the bug lived in: `agent/static/approver_ui.html:208` —
+```js
+const APPROVAL_SERVICE_ORIGIN = window.APPROVAL_SERVICE_ORIGIN || "http://localhost:8082";
+```
+Simply swapping the script's hardcoded value from `18082` to `8082` would
+have repeated the same defect class one level down — a second constant
+that happens to agree with the page today but has no structural reason to
+keep agreeing tomorrow. Fixed properly instead: the script now fetches the
+live `GET /ui` HTML and parses `APPROVAL_SERVICE_ORIGIN`'s default out of
+it directly (`fetch_approval_origin()`), so it always exercises whatever
+value the actually-served page actually has, and a future edit to that
+line changes the script's behavior automatically instead of silently
+diverging from it again. An `APPROVAL_ORIGIN` env var remains as an
+explicit, documented operator override for a non-default port-forward —
+never a silent fallback value.
+
+**Named hardening candidate, not implemented now (parallel to `DEC-065`'s
+checksum-annotation pattern)**: could `GET /ui/config` carry the
+approval-service base URL itself, the same way it already carries
+`oidc_issuer_url`, removing the hardcoded JS default (and this script's
+parsing workaround) entirely? Checked directly, not assumed: the agent's
+own server-side value is `agent/config.py`'s `APPROVAL_SERVICE_ENDPOINT`
+(`_env("APPROVAL_SERVICE_ENDPOINT", "http://localhost:8082")`), live in
+`demo-prod` as `http://golden-path-agent-approval:8082` — an
+**unqualified** in-cluster Service DNS name. That's a real obstacle,
+not just a wiring exercise: unlike `OIDC_ISSUER_URL` (already
+fully-qualified, `DEC-074`'s hosts-mapping trick works on it directly),
+a bare short name like `golden-path-agent-approval` cannot be resolved by
+a browser's OS at all, hosts-file mapping included — Kubernetes' short-
+name resolution depends on an in-cluster DNS search path no external
+machine has. So this hardening candidate is really two changes bundled:
+(1) normalize `APPROVAL_SERVICE_ENDPOINT` to its fully-qualified form
+(`golden-path-agent-approval.<namespace>.svc.cluster.local:8082`,
+matching how `OIDC_ISSUER_URL` is already qualified), and (2) extend
+`GET /ui/config` to also return it, with `approver_ui.html` reading
+`APPROVAL_SERVICE_ORIGIN` from that response instead of a hardcoded
+constant — at which point a fourth port-forward + hosts-file entry
+(identical in shape to `DEC-074`'s Keycloak mechanism) replaces the
+current "local port must exactly match a number baked into a static
+file" fragility for good. **Not implemented now**: both changes touch
+`agent/api.py` and `agent/static/approver_ui.html`, both baked into the
+image, requiring a full pipeline/promotion cycle — real, additional work
+beyond this incident's own scope, and arguably a Phase-two/showcase-
+cluster hardening item rather than an urgent demo-milestone fix, since
+the docs-only fix below closes the actual reported break. Recorded here
+as a named, open backlog item for whoever picks up Phase E, same as
+`DEC-065`'s own entry.
+
+**Fix chosen (what actually shipped now)**: correct the port-forward instruction to local port
+`8082` (matching the page's existing default) rather than change the
+page's own hardcoded default to `18082` — docs-only, no image rebuild or
+promotion cycle needed, and consistent with the original design intent
+(the removed comment explicitly assumed the default already matched the
+instructed port). Confirmed `scripts/dev.sh` never runs `approval_service`
+locally at all (only `agent`/`mcp`, ports `18080`/`18081`), so `8082` has
+no local-dev collision risk.
+
+**Verified**: re-ran the full scripted Authorization Code + PKCE flow
+(`tools/verify_owner_walkthrough.py`, corrected default) against real
+`golden-path-agent-demo-prod` through the corrected port-forward — see
+`reports/phase-d-owner-walkthrough-verification.md`'s update for the full
+transcript. `demo-prod` confirmed clean of pending debris afterward,
+including the one live-reproduction proposal created during this
+diagnosis.
+
+**Status:** the walkthrough path is fixed and re-verified.
+`docs/owner-walkthrough.md` now carries a pre-flight verification section
+so a future session doesn't hand the owner an unverified environment
+again. Checkpoint D's formal closure entry is still **not** written here
+— still pending the owner's own successful click-through.
