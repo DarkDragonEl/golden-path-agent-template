@@ -6480,3 +6480,69 @@ end-to-end for real, and the SNO's own `demo-prod` can no longer be
 silently dragged toward a digest it can't pull. First sharing moment and
 refresh #2 are the next milestones (`HANDOFF.md`, rewritten alongside
 this entry).
+
+## DEC-085 — Phase F0 kickoff research: RHDH confirmed live on both
+clusters, install-mode/database/resource findings recorded, decision
+sheet presented to the owner (no choices made yet)
+
+Findings only, per the owner's own mission instruction for this entry —
+none of the seven open decisions the kickoff doc (`docs/phase-f-kickoff-
+plan.md` §4.2) names are resolved here.
+
+**Scope deviation, stated up front**: the kickoff doc's §4.1 asked for
+OperatorHub checks on both the SNO and the showcase cluster. Per
+`HANDOFF.md`'s invariant 9 (`DEC-083`/`DEC-084`), the showcase is the
+single active cluster and the SNO is deliberately frozen for new work, so
+this pass scoped live checks to the showcase cluster. One SNO data point
+was gathered incidentally — the shared kubeconfig's ambient
+current-context briefly pointed at the SNO (another concurrent session's
+own `oc login`, not this project's action) while a catalog check ran —
+and is recorded below since it happened to land, but the SNO was not
+otherwise investigated (no resource-headroom check performed there).
+
+**Findings**:
+
+1. **RHDH is present in OperatorHub on both clusters, identical CSV.**
+   `rhdh-operator.v1.10.3`, channel `fast`/`fast-1.10`, source
+   `redhat-operators` — confirmed live on the showcase, and incidentally
+   on the SNO too (same CSV). Matches the RRT's informative "1.10 (GA
+   2026-06)" pin exactly — not a stale/prospective guess.
+2. **Install mode is `AllNamespaces` only** — same class as
+   `openshift-pipelines-operator-rh`/`openshift-gitops-operator`
+   (independently re-confirmed for comparison), unlike `rhbk-operator`
+   (Keycloak, namespace-scoped). This means RHDH's `Subscription` goes
+   into `openshift-operators`, the exact pattern `DEC-080` already
+   established for the Pipelines/GitOps operators — no new
+   `OperatorGroup`, and `scripts/bootstrap.sh`'s existing `wait_for_csv`/
+   `approve_pending_installplan` mechanism already handles this class.
+   The provided CRD (`backstages.rhdh.redhat.com`) is itself
+   namespace-scoped, though — an individual `Backstage` instance can
+   still live in one project-owned namespace even though the operator
+   Subscription itself is cluster-wide.
+3. **External Postgres is genuinely supported, not just bundled-only** —
+   resolves the kickoff doc's F4 "contingent on F0" question. Default is
+   `spec.database.enableLocalDb: true` (operator provisions its own
+   `<cr-name>-psql-<instance>-0`); external DB is
+   `enableLocalDb: false` + `authSecretName: <secret>`. Source: the
+   Red Hat docs site returned a 403 on direct fetch, worked around via
+   the upstream operator's own public
+   `github.com/redhat-developer/rhdh-operator` docs instead — exact
+   Secret key names for the external-DB path aren't confirmed yet (the
+   CRD isn't registered pre-install, so `oc explain` can't help either);
+   that detail needs either a live post-install check or
+   `docs/external-db.md` before F4 writes the actual Secret.
+4. **No resource-budget risk identified on the showcase cluster.** 5
+   nodes, workers at 7.5 CPU/~14.5Gi allocatable each, current
+   utilization 3–4% CPU/16–17% memory on those workers. This project's
+   entire current footprint across every namespace totals under 30
+   millicores and ~1.2Gi. RHDH's documented footprint fits comfortably.
+
+**Evidence**: `PINS.md`'s new "Phase F — Internal Developer Portal
+(RHDH)" section (this entry's companion) has the full command-by-command
+detail. No Subscription, manifest, namespace, or cluster resource was
+created or modified — every command was a `get`/`describe`-class read.
+
+**Status**: Findings recorded, decision sheet presented to the owner
+(separately, in-conversation) for the seven open items in
+`docs/phase-f-kickoff-plan.md` §4.2. Held at kickoff plan STOP 1 — no
+phase past F0 is authorized by this entry.
