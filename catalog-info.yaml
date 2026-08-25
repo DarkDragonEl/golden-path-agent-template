@@ -1,0 +1,39 @@
+# Phase F1 (DECISIONS.md DEC-087, kickoff plan docs/phase-f-kickoff-plan.md
+# SS5). Registers this repo as a Backstage/RHDH catalog Component -- valid
+# and committable independent of whether RHDH is installed (F4); it sits
+# inert in Git until F4 stands up a live catalog to import it into.
+#
+# Deliberately one Component for the whole repo, not one each for
+# agent/mcp_server/approval_service under a System grouping -- F1's own
+# scope is the smallest, earliest, RHDH-independent deliverable; further
+# catalog decomposition is a natural future refinement, not required here.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: golden-path-agent
+  description: >-
+    Golden-path blueprint for an enterprise Agentic AI Platform pilot agent --
+    a LangGraph agent, a mock ITSM MCP tool server, and a human-approval
+    service, deployed as one immutable OCI artifact with OpenTelemetry on
+    every run and human approval gating every write.
+  annotations:
+    github.com/project-slug: DarkDragonEl/golden-path-agent-template
+  links:
+    - url: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/docs/architecture.md
+      title: Architecture
+      icon: docs
+    - url: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/docs/environments.md
+      title: Environments
+      icon: docs
+    - url: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/agent/static/approver_ui.html
+      title: Approver UI (source)
+      icon: web
+  tags:
+    - agentic-ai
+    - langgraph
+    - mcp
+    - golden-path
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/golden-path-agent-team
