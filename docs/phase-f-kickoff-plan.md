@@ -49,7 +49,8 @@ satisfies the demo in that case. **Full portal exposure remains required
 for full MVP acceptance (`OBJ-01`) regardless** — the trigger demotes the
 milestone presentation, never the acceptance criterion. This is a
 pre-approved, already-documented escape hatch; invoking it needs a status
-note, not new sign-off (see §10).
+note, not new sign-off (see §10) — the trigger *threshold* itself is
+owner-set (§4.2 item 5).
 
 **Explicitly out of scope, and separate from the above**:
 `StRS_Agentic_AI_Platform_EN.md` §2 puts exposing RHDH's own capabilities
@@ -73,14 +74,17 @@ governed by its own distinct requirement/assumption pair (`SysR-P-F-01` /
 `OI-04`) instead — it is not that pattern, and this plan does not treat it
 as one.
 
-## 2. The critical path is F1→F2→F3 — state this up front
+## 2. The critical path is F2→F3 — state this up front
 
-**F1 (catalog registration) → F2 (templating engine) → F3 (CLI parity)
-fully satisfy `SysR-P-F-01`'s (b) half with zero RHDH dependency**, and F2
-is a prerequisite for F5 regardless (F5's Scaffolder Template wraps F2's
-same skeleton — there is no version of F5 that doesn't need F2 to exist
-first). This makes F1–F3 the critical path independent of anything that
-happens with RHDH itself.
+**F2 (templating engine) → F3 (CLI parity) alone fully satisfy
+`SysR-P-F-01`'s (b) half with zero RHDH dependency.** F1 (catalog
+registration) contributes nothing to the (b) path — it's RHDH-facing
+metadata, inert until F4 — it's sequenced first only because it's small,
+independent, and committable on its own, not because the CLI path needs
+it. F2 is also a prerequisite for F5 regardless (F5's Scaffolder Template
+wraps F2's same skeleton — there is no version of F5 that doesn't need F2
+to exist first). This makes F2–F3 the critical path independent of
+anything that happens with RHDH itself.
 
 **F4 (RHDH platform stand-up) and F5 (Template/Scaffolder authoring) are
 the optional-*timing* layer, not optional *scope*.** Per §1's Annex A
@@ -200,8 +204,9 @@ generic "golden-path-agent" placeholder branding (never a real
 organization name, per `CLAUDE.md`'s anonymity rule), links to `docs/
 architecture.md`, `docs/environments.md`, the approver UI. Valid and
 committable independent of whether RHDH is installed yet (F4) — it simply
-sits inert until F4 lands, at which point it becomes real. Part of the
-critical path (§2).
+sits inert until F4 lands, at which point it becomes real. The earliest
+independent deliverable, not a critical-path item for `SysR-P-F-01`(b)
+(§2) — sequenced first for its own sake, not because F2/F3 depend on it.
 
 **STOP 2** — owner reviews the drafted `catalog-info.yaml` (component
 metadata, owner field, linked docs) before it's committed.
@@ -245,14 +250,27 @@ verify_owner_walkthrough.py` pattern) that consumes F2's **same** skeleton
 and parameter schema, prompts for/accepts values, and renders a fully
 parameterized new project locally in one operation — literally satisfying
 `SysR-P-F-01`'s "produces in one operation" language for the (b) path,
-with zero RHDH dependency. Closes the critical path from §2: once F1–F3
+with zero RHDH dependency. Closes the critical path from §2: once F2–F3
 exist, `SysR-P-F-01`(b) is fully, independently satisfiable, which is what
 makes §10's fallback a real, ready option rather than something
 scrambled together under pressure.
 
-**STOP 4** — owner reviews a real rendered-project output from this script
-(diffed against the source repo) before it's treated as satisfying
-`SysR-P-F-01`(b).
+**Definition of Done — rendered means running, not well-formed.** A clean
+diff against the source repo proves the output is well-formed; it does not
+prove it works. This project's own track record is explicit that
+well-formed and working diverge in practice (`DEC-060`: a code path that
+existed for two phases without ever being executed). So F3's DoD is: the
+rendered project, **executed untouched after rendering** — its own offline
+test suite green, and its own `make eval` (fake-mode/local) green, both
+under the new identifiers, not the source repo's originals. Record the
+exact commands and their real output. `SysR-P-F-13`/`OS-09` (a second team
+running the same operation unassisted) is the acceptance-level echo of
+this same check — this phase cannot self-certify that one, only this
+execution-based DoD.
+
+**STOP 4** — owner reviews the rendered project's execution evidence (test
+suite + eval run output, not just a diff) before `SysR-P-F-01`(b) is
+treated as satisfied.
 
 ## 8. Phase F4 — RHDH platform stand-up
 
