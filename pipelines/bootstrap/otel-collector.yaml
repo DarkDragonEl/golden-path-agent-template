@@ -96,22 +96,36 @@ spec:
         # can use to read the file exporter's own output. This sidecar
         # shares the same `traces` emptyDir and serves it over plain HTTP --
         # what tools/query_traces.py (the "scripted query view") actually
-        # fetches. Reuses this project's own already-pushed image (already
-        # has python3, already known-good in this cluster) rather than
-        # pulling in a third external image just for this -- overrides its
-        # default entrypoint directly, no new entrypoint.sh role needed for
-        # something this generic.
+        # fetches. This sidecar only ever runs a generic
+        # `python3 -m http.server` -- any image with python3 works equally
+        # well here.
         - name: traces-http
-          # Pinned to a specific digest, not `:latest` -- this project's own
-          # ImageStream never carries a `latest` tag at all (every reference
-          # elsewhere in this repo is digest-pinned, the "one immutable
-          # artifact" rule). Confirmed live (ImagePullBackOff/"manifest
-          # unknown" without a tag/digest) before pinning. This sidecar only
-          # ever runs a generic `python3 -m http.server` -- any image with
-          # python3 works equally well here, so this digest does not need
-          # to track future promotions the way the agent/mcp/approval
-          # Deployments' own digests do.
-          image: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent@sha256:d61497ead8455f537e458763ae3399fc2ae2a8564eb722399070099670a9b2a6
+          # DEC-085: DEC-068's original pin reused this project's own
+          # already-pushed image (golden-path-agent-ci/golden-path-agent),
+          # reasoning "already has python3, already known-good in this
+          # cluster" -- and pinned a specific digest, not `:latest`, since
+          # that ImageStream never carries a `latest` tag (confirmed live
+          # then: ImagePullBackOff/"manifest unknown" without one). But
+          # that ImageStream's whole purpose is CI churn -- it prunes old
+          # build digests over time by design -- so any digest borrowed
+          # from it needs to keep tracking future promotions to stay
+          # resolvable, contradicting DEC-068's own stated intent ("this
+          # digest does not need to track future promotions"). Confirmed
+          # live: the originally-pinned digest was pruned, leaving this
+          # sidecar in ImagePullBackOff for 12h+, which starved the whole
+          # collector Service of ready endpoints (both containers must be
+          # Ready for the pod to be Ready) -- every OTLP export from
+          # agent/approval/mcp silently failed to connect as a result.
+          # Repinned to a Red Hat UBI image instead (PINS.md, verified
+          # date below), independently maintained on
+          # registry.access.redhat.com -- no relationship to this
+          # project's own CI/promotion lifecycle (so this exact failure
+          # class cannot recur), no auth required, and no anonymous-pull
+          # rate limits (unlike Docker Hub). Has python3 on PATH; the
+          # image's default non-root/S2I-oriented setup is irrelevant here
+          # since `command:` below overrides it directly, confirmed live
+          # with the exact command before pinning.
+          image: registry.access.redhat.com/ubi9/python-312-minimal@sha256:813ff135a87941ab1417b50c8db68a84ee40a8fc484c87f8a80458d3cafe74b1
           # Port 19999, not 8888 -- confirmed live (DECISIONS.md DEC-068)
           # that something in this cluster's own networking layer already
           # occupies 8888 in every pod's network namespace (bind fails

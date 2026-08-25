@@ -22,6 +22,15 @@ spec:
           ports:
             - name: http
               containerPort: 8081
+          # Deliberate exception to sharing golden-path-agent-config
+          # wholesale below: a container-level env entry takes precedence
+          # over the same key sourced via envFrom, so mcp reports its own
+          # OTEL_SERVICE_NAME instead of inheriting the agent's
+          # ("golden-path-agent") -- otherwise mcp spans are indistinguishable
+          # from agent spans by service name once traces flow.
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: golden-path-agent-mcp
           envFrom:
             - configMapRef:
                 name: golden-path-agent-config
