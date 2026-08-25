@@ -6481,9 +6481,20 @@ silently dragged toward a digest it can't pull. First sharing moment and
 refresh #2 are the next milestones (`HANDOFF.md`, rewritten alongside
 this entry).
 
-## DEC-085 — Phase F0 kickoff research: RHDH confirmed live on both
-clusters, install-mode/database/resource findings recorded, decision
-sheet presented to the owner (no choices made yet)
+## DEC-085 — Phase F0 kickoff research: RHDH confirmed live on the
+showcase cluster, install-mode/database/resource findings recorded,
+decision sheet presented to the owner (no choices made yet)
+
+**Amended 2026-08-25** (same-day owner review, before any downstream
+phase acted on it): the original text of this entry treated an
+incidental SNO observation, made under a mis-switched kubeconfig
+context, as a live finding. It did not meet this project's verification
+standard (a command run under a confirmed, correct context) and has
+been reworded below — corrected in place rather than superseded by a
+new entry, since the correction is a narrow accuracy fix to a same-day,
+not-yet-acted-upon finding, not a substantive decision reversal in the
+`DEC-078`/`DEC-083` sense. See `DEC-086` for the kubeconfig-hygiene rule
+adopted as a direct result.
 
 Findings only, per the owner's own mission instruction for this entry —
 none of the seven open decisions the kickoff doc (`docs/phase-f-kickoff-
@@ -6493,20 +6504,23 @@ plan.md` §4.2) names are resolved here.
 OperatorHub checks on both the SNO and the showcase cluster. Per
 `HANDOFF.md`'s invariant 9 (`DEC-083`/`DEC-084`), the showcase is the
 single active cluster and the SNO is deliberately frozen for new work, so
-this pass scoped live checks to the showcase cluster. One SNO data point
-was gathered incidentally — the shared kubeconfig's ambient
-current-context briefly pointed at the SNO (another concurrent session's
-own `oc login`, not this project's action) while a catalog check ran —
-and is recorded below since it happened to land, but the SNO was not
-otherwise investigated (no resource-headroom check performed there).
+this pass scoped live checks to the showcase cluster. The SNO was not
+otherwise investigated. An incidental observation occurred — the shared
+kubeconfig's ambient current-context briefly pointed at the SNO (another
+concurrent session's own `oc login`, not this project's action) while a
+catalog check ran — but it is **not treated as a verified finding**: it
+did not meet this project's standard of a command run under a confirmed,
+correct context. Recorded, and explicitly disclaimed, in `PINS.md`'s SNO
+row rather than cited as evidence anywhere.
 
 **Findings**:
 
-1. **RHDH is present in OperatorHub on both clusters, identical CSV.**
+1. **RHDH is present in OperatorHub on the showcase cluster.**
    `rhdh-operator.v1.10.3`, channel `fast`/`fast-1.10`, source
-   `redhat-operators` — confirmed live on the showcase, and incidentally
-   on the SNO too (same CSV). Matches the RRT's informative "1.10 (GA
-   2026-06)" pin exactly — not a stale/prospective guess.
+   `redhat-operators` — confirmed live under a verified context. Matches
+   the RRT's informative "1.10 (GA 2026-06)" pin exactly — not a
+   stale/prospective guess. (The SNO's own catalog state is not verified
+   — see the amendment above and `PINS.md`'s SNO row.)
 2. **Install mode is `AllNamespaces` only** — same class as
    `openshift-pipelines-operator-rh`/`openshift-gitops-operator`
    (independently re-confirmed for comparison), unlike `rhbk-operator`
@@ -6546,3 +6560,80 @@ created or modified — every command was a `get`/`describe`-class read.
 (separately, in-conversation) for the seven open items in
 `docs/phase-f-kickoff-plan.md` §4.2. Held at kickoff plan STOP 1 — no
 phase past F0 is authorized by this entry.
+
+## DEC-086 — kubeconfig hygiene rule for the remainder of Phase F: pin an
+explicit context or a dedicated KUBECONFIG, never the ambient shared one
+
+**Finding**: during F0, the shared kubeconfig's ambient current-context
+silently switched away from the showcase cluster mid-session — another
+concurrent session's own `oc login` targeting an unrelated project on the
+SNO overwrote it. F0's own live checks caught this before trusting the
+result (cross-checked `oc whoami --show-server`, found `api.sno.lab.
+local` instead of the expected showcase host, redid the affected checks
+under an explicit `--context`). Survivable this time because every F0
+command was read-only.
+
+**Decision**: for the remainder of Phase F (F1 onward, including F4's
+mutating operations against the actual target cluster), every `oc`
+invocation must pin either an explicit `--context=<name>` flag or use a
+dedicated `KUBECONFIG` file copy scoped to the showcase cluster only —
+never rely on the ambient shared current-context. During F0's read-only
+checks a caught mistake costs a re-run; during F4's `Subscription`/
+namespace/manifest writes, the same class of mistake risks silently
+mutating the wrong cluster (plausibly one this project doesn't even own
+resources on). The cost of pinning the context explicitly on every
+invocation is negligible; the cost of not doing so, applied to a write
+instead of a read, is not.
+
+**Evidence**: this session's own F0 work — the context-switch was caught
+live via `oc config get-contexts`/`oc whoami --show-server` comparison
+before any finding was trusted; all F0 results in `PINS.md`/`DEC-085`
+were re-verified under the correct, explicit context after the catch.
+
+**Status**: Adopted, in force for the remainder of Phase F. Not yet
+generalized into a repo-wide rule or tooling change (e.g. a wrapper
+script) — that would be new scope beyond this narrow, Phase-F-scoped
+adoption; revisit only if the same class of mistake recurs outside this
+phase.
+
+## DEC-087 — Kickoff plan STOP 1 cleared: the seven Phase F open
+decisions resolved by the owner
+
+Per `docs/phase-f-kickoff-plan.md` §4.2, informed by `DEC-085`'s live
+findings. Recorded here as the authoritative answer set; the kickoff doc
+itself is annotated to point here rather than duplicating the reasoning.
+
+1. **Templating-engine approach**: Backstage-native `${{ values.x }}`/
+   nunjucks syntax as the single source of truth. Custom code lands in
+   F3's CLI renderer (a small Python nunjucks-compatible renderer,
+   offline-testable, covered by F3's own execution-based Definition of
+   Done). F5 consumes the stock `fetch:template` Scaffolder action — zero
+   custom RHDH plugin code anywhere.
+2. **Auth wiring**: reuse the existing `golden-path-agent-keycloak`
+   realm; register a new OIDC client for RHDH. No second realm.
+3. **Ingress vs. Route**: attempt to hold this project's Ingress-only
+   precedent first. If the `Backstage` CR doesn't allow cleanly disabling
+   its own Route generation within ~1 hour of effort at F4, take the
+   Route as a documented one-off exception, with its own DEC entry citing
+   this pre-approval — not a silent deviation.
+4. **`publish:` action scope**: local-render-only is F5's Definition of
+   Done. A PR against one clearly-named demo-scratch repo is an explicit
+   stretch goal, attempted only after that DoD is green, and requires
+   separate owner sign-off for the credentials it needs. No fleet
+   rollout, full stop.
+5. **`OI-04` trigger threshold**: invoke the fallback if F5 has not
+   produced a stable, live Template run by demo-date minus 5 working
+   days. **Demo date itself is pending owner input** — tracked here as an
+   open value, not invented: this trigger cannot be operationalized until
+   a demo date exists. Whoever next touches Phase F should re-ask rather
+   than assume one.
+6. **RHDH namespace**: `golden-path-agent-rhdh`.
+7. **Catalog-absence fallback**: moot, per `DEC-085`'s amended finding —
+   moot because the SNO is frozen (`HANDOFF.md` invariant 9), not because
+   its catalog was verified either way. The showcase cluster's own
+   catalog (the only one that matters for new work) has RHDH present, so
+   this decision has no live case to resolve regardless.
+
+**Status**: STOP 1 cleared. F1 and F2 authorized for this pass, gated by
+their own STOP 2/STOP 3. F4/F5 remain gated on a real demo date (item 5)
+and the Ingress/Route attempt outcome (item 3) before proceeding.

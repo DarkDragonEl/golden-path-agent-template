@@ -1,11 +1,13 @@
 # Phase F kickoff plan — the Internal Developer Portal (RHDH)
 
-**STATUS: DRAFT — awaiting owner authorization. Nothing in this document
-has been executed. No cluster has been touched, no operator installed, no
-code changed to produce this plan — it is entirely a read of the existing
+**STATUS: F0 complete, STOP 1 cleared (`DEC-085`/`DEC-086`/`DEC-087`).
+F1/F2 authorized and in progress, gated by their own STOP 2/STOP 3. F4/F5
+remain gated on a real demo date and the Ingress/Route attempt outcome —
+see §4.2 below, each item now annotated with its resolution.** Originally
+drafted before any of this was executed, entirely from a read of the
 governing requirements docs (`SyRS-AGP-001_EN.md`, `StRS_Agentic_AI_
 Platform_EN.md`, `SyRS-AGP-001-RRT_Realization_Table.md`,
-`Annex_A_Open_Items_EN.md`) and this repo's current state.**
+`Annex_A_Open_Items_EN.md`) and this repo's current state at the time.
 
 ## 0. How to read this document
 
@@ -141,60 +143,49 @@ either cluster's outcome from the other's history:
 
 ### 4.2 Seven open decisions — human calls, not defaults
 
-1. **Templating-engine approach** — the real tradeoff is *where the custom
-   code lives, not whether it exists*:
-   - Backstage-native `${{ values.x }}`/nunjucks syntax as the **one**
-     source of truth, consumed on the RHDH side by the stock, always-
-     supported `fetch:template` Scaffolder action (no custom plugin
-     needed) — but then F3's CLI path needs a small standalone renderer
-     for that syntax, since no clean off-the-shelf CLI tool consumes it.
-     The custom code sits in F3.
-   - A separate general-purpose tool (copier or cookiecutter) as the one
-     source of truth — copier in particular also gets a project-update-
-     in-place mechanism cookiecutter lacks, and both are a natural fit for
-     this already Python-heavy repo — but RHDH's Scaffolder then needs a
-     **custom Action** to invoke it, since RHDH's curated/supported
-     dynamic-plugin catalog doesn't include this out of the box. F3 gets a
-     clean CLI; the custom code shifts to F5 instead.
+**All seven resolved by the owner, `DEC-087`.** Full reasoning lives in
+that entry; only the resolutions are restated here so this doc stays
+readable standalone.
 
-   Neither option is a free lunch — this is presented as an honest either-
-   way tradeoff, not a default to assume.
-2. **Auth wiring** — reuse the existing `golden-path-agent-keycloak` realm
-   (register a new OIDC client inside it) vs. a second realm/client
-   boundary, given RHDH is a genuinely distinct trust surface (dev-tooling
-   sign-in) from the agent/approval-service's own end-user auth.
-3. **Ingress vs. Route for RHDH's own UI** — this repo's established,
-   project-wide precedent (`deploy/kustomize/base/ingress.yaml`)
-   deliberately uses a plain Kubernetes `Ingress`, never an OpenShift
-   `Route` — but RHDH/Backstage reference deployments commonly default to
-   `Route` on OpenShift. Decide whether to hold the existing line or make
-   a documented, one-off exception.
-4. **`publish:` action scope** in F5's eventual Scaffolder Template — none/
-   local-render-only vs. a PR against one clearly-named demo-scratch repo
-   vs. a real multi-repo fleet rollout. This plan recommends against the
-   fleet option given "no staging, no production, test system only"
-   demo-scope, but the exact stopping point is a human call — a live-repo-
-   creating action means new GitHub App/token credentials and a real
-   external side effect outliving the demo.
-5. **`OI-04` trigger threshold** — Annex A's own text ("if portal-
-   integration effort demonstrably endangers the demonstration milestone")
-   is qualitative. This plan does not invent a numeric/date threshold
-   unilaterally — needs an explicit human-set trigger (a date relative to
-   the demo, an effort-hours ceiling, or a named blocking-failure class,
-   e.g. "F5 doesn't reach a stable live Template run after N attempts").
-6. **RHDH namespace naming** (e.g. `golden-path-agent-rhdh`) — small, but
-   should be settled before F4's manifests are authored, matching this
-   project's naming discipline everywhere else.
-7. **Fallback if RHDH is absent from either cluster's catalog** — replay
-   Keycloak's own `DEC-056` precedent (upstream, OLM-free kustomize
-   install) for that cluster specifically, or treat that cluster's
-   catalog-absence as an immediate, cluster-scoped `OI-04` trigger. Not
-   generalized across clusters, per §4.1.
+1. **Templating-engine approach** — **RESOLVED (`DEC-087`)**:
+   Backstage-native `${{ values.x }}`/nunjucks syntax as the single
+   source of truth. Custom code lands in F3's CLI renderer (a small
+   Python nunjucks-compatible renderer); F5 uses the stock
+   `fetch:template` action with zero custom RHDH plugin code.
+2. **Auth wiring** — **RESOLVED (`DEC-087`)**: reuse the existing
+   `golden-path-agent-keycloak` realm, register a new OIDC client for
+   RHDH. No second realm.
+3. **Ingress vs. Route for RHDH's own UI** — **RESOLVED (`DEC-087`)**:
+   attempt to hold the Ingress-only precedent first; if the `Backstage`
+   CR doesn't allow cleanly disabling its own Route generation within
+   ~1 hour of effort at F4, take the Route as a documented one-off
+   exception with its own DEC entry citing this pre-approval.
+4. **`publish:` action scope** — **RESOLVED (`DEC-087`)**: local-render
+   only is F5's Definition of Done. A PR against one named demo-scratch
+   repo is an explicit stretch goal, attempted only after that DoD is
+   green and only with separate owner sign-off for the credentials it
+   needs. No fleet rollout.
+5. **`OI-04` trigger threshold** — **RESOLVED IN SHAPE, VALUE STILL
+   PENDING (`DEC-087`)**: invoke the fallback if F5 has not produced a
+   stable, live Template run by demo-date minus 5 working days. The demo
+   date itself is not yet set — this trigger cannot be operationalized
+   until it is. Whoever next touches F4/F5 should re-ask for a real date
+   rather than assume one.
+6. **RHDH namespace naming** — **RESOLVED (`DEC-087`)**:
+   `golden-path-agent-rhdh`.
+7. **Fallback if RHDH is absent from either cluster's catalog** —
+   **MOOT (`DEC-085` amended, `DEC-087`)**: moot because the SNO is
+   frozen for new work (`HANDOFF.md` invariant 9), not because its
+   catalog was verified either way — the original F0 pass's SNO
+   observation was made under a mis-switched kubeconfig context and is
+   explicitly not treated as verified (see `PINS.md`'s SNO row). The
+   showcase cluster's own catalog, the only one that matters for new
+   work, has RHDH present — no live case to resolve regardless.
 
-**STOP 1** — owner reviews the live F0 findings (both clusters) and
-answers all seven decisions above before any F4/F5 manifest is authored.
-F1–F3 do not require this STOP to be cleared first (see §2) and may
-proceed independently once separately authorized.
+**STOP 1 — cleared.** F1 and F2 are authorized for this pass (F1 needed
+none of the seven; F2 needed only item 1, now resolved), each still
+gated by its own STOP 2/STOP 3 below. F4/F5 remain blocked on item 5's
+still-pending demo date and item 3's Ingress/Route attempt outcome.
 
 ## 5. Phase F1 — catalog registration
 
