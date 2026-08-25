@@ -1,11 +1,17 @@
 # Phase F kickoff plan — the Internal Developer Portal (RHDH)
 
-**STATUS: F0/F2 complete (`DEC-085`–`DEC-088`), STOP 1 cleared. F1 drafted,
-held at STOP 2 pending owner review before commit. F2's skeleton,
-schema, mapping, and verification are done and presented at STOP 3 —
-F3 remains gated on that review. F4/F5 remain gated on a real demo date
-and the Ingress/Route attempt outcome — see §4.2 below, each item
-annotated with its resolution.** Originally
+**STATUS: F0–F3 complete (`DEC-085`–`DEC-090`). F1 committed (STOP 2
+cleared). F2's skeleton/schema/mapping verified with executed evidence,
+including a live image-digest comparison and CI-equivalent local runs
+(STOP 3 conditionally cleared, evidence in `reports/phase-f-f2-
+verification.md`). F3's CLI instantiation is built and proven by
+execution under a distinct parameter set — a real defect (a stray `srs/`
+dependency in `tests/test_trace_check.py`) was found and fixed along the
+way, not just diffed — full evidence in `reports/phase-f-f3-
+verification.md`. `SysR-P-F-01`(b) is satisfied. Held at STOP 4 for
+owner review. F4/F5 remain gated on a real demo date and the
+Ingress/Route attempt outcome — see §4.2 below, each item annotated
+with its resolution.** Originally
 drafted before any of this was executed, entirely from a read of the
 governing requirements docs (`SyRS-AGP-001_EN.md`, `StRS_Agentic_AI_
 Platform_EN.md`, `SyRS-AGP-001-RRT_Realization_Table.md`,
@@ -272,6 +278,17 @@ exact commands and their real output. `SysR-P-F-13`/`OS-09` (a second team
 running the same operation unassisted) is the acceptance-level echo of
 this same check — this phase cannot self-certify that one, only this
 execution-based DoD.
+
+**Done (`DEC-090`)**: `tools/instantiate_agent_project.py` built
+(`tools/skeleton_renderer.py` shared with F2's own verification tool).
+First render surfaced a real defect (`tests/test_trace_check.py`'s one
+real-`srs/`-file-dependent test) that a diff alone would not have caught
+— fixed by removing `tools/trace-check/`/`tests/test_trace_check.py`/the
+dead `Makefile` `trace` target from `skeleton/`. Second render, fresh
+distinct parameters (`name=acme-hr-helper`): literal/placeholder sweeps
+clean, rendered project's own `pytest -q` → 210 passed, own `make
+eval-fast` → 2/2 passed, both via the real Makefile, both untouched
+after rendering. Full evidence in `reports/phase-f-f3-verification.md`.
 
 **STOP 4** — owner reviews the rendered project's execution evidence (test
 suite + eval run output, not just a diff) before `SysR-P-F-01`(b) is

@@ -34,3 +34,16 @@ footnote — there are none as of this pass.
   into the skeleton unchanged, exactly as they exist in the source repo,
   since a new implementer edits them directly per `TODO_DOMAIN.md`'s
   existing instructions.
+- **`tools/trace-check/`, `tests/test_trace_check.py`, the Makefile's
+  `trace` target** — found by F3's own execution-based verification
+  (`DEC-090`), not by static review: `tests/test_trace_check.py::
+  test_real_srs_documents_parse_without_error_and_match_known_counts`
+  reads real files under `srs/`, which was already excluded above. This
+  tool validates *this project's own* SyRS→StRS→SRS traceability
+  methodology, not the running agent's behavior — a scaffolded child
+  project isn't assumed to adopt that same formal-requirements discipline,
+  so the whole directory (not just the one failing test) is excluded,
+  consistent with `srs/`'s own exclusion. A handful of prose mentions of
+  `trace-check` survive in `eval/THRESHOLDS.md`/`eval/README.md` — cosmetic
+  documentation references only, not a functional dependency, left as a
+  known minor rough edge rather than scrubbed.

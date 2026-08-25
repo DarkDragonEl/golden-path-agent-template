@@ -6762,3 +6762,66 @@ identical).
 
 **Status**: STOP 3 conditions satisfied with executed evidence. F3
 authorized per owner's message; proceeding.
+
+## DEC-090 — Phase F3 complete: CLI instantiation built, a real defect
+found and fixed by execution-based verification, `SysR-P-F-01`(b)
+satisfied under a distinct parameter set
+
+Per `docs/phase-f-kickoff-plan.md` §7. DoD was execution, not diff — a
+diff would not have caught what this pass actually found.
+
+**Built**: `tools/instantiate_agent_project.py` (F3's real CLI, argparse
++ interactive prompt fallback, validates against `template-schema.json`)
+and `tools/skeleton_renderer.py` (the rendering engine extracted out of
+`tools/verify_skeleton.py` so F2's verification and F3's CLI share one
+implementation — refactored specifically to avoid a `DEC-075`-shaped
+split before one could ever form, not after).
+
+**A real defect found on the first render, not a hypothetical**:
+rendered a test project (`name=acme-hr-helper`, deliberately distinct
+from F2's own `widget-support-agent` test values) — literal/placeholder
+sweeps passed clean, but the rendered project's own `pytest -q`, run
+untouched, failed one real test:
+`tests/test_trace_check.py::test_real_srs_documents_parse_without_error_
+and_match_known_counts`, which reads real files under `srs/` — a
+directory F2 had already excluded from the skeleton. The other 41 tests
+in that file are self-contained unit tests against synthetic fixtures
+and were never at risk; only this one test's real-file dependency was
+missed when F2 scoped the skeleton. A diff against the source repo would
+show nothing wrong here (the test file is byte-identical in both) —
+only execution surfaced it.
+
+**Fix**: removed `tools/trace-check/`, `tests/test_trace_check.py`, and
+the now-dead `Makefile` `trace` target from `skeleton/` entirely — not
+just the one failing test — since the whole tool validates this
+project's own SyRS→StRS→SRS traceability methodology, which a scaffolded
+child project isn't assumed to adopt, consistent with (not a new
+exception to) `srs/`'s own already-decided exclusion.
+`docs/template-nine-output-mapping.md` updated accordingly, including an
+honest note that a few cosmetic prose mentions of `trace-check` survive
+in `eval/THRESHOLDS.md`/`eval/README.md` — documentation text, not a
+functional dependency, named rather than silently left.
+
+**Re-verified clean after the fix**: `tools/verify_skeleton.py` (207
+files, down from 210). Second render, fresh output directory, same
+distinct parameters: literal/placeholder sweeps clean, rendered project's
+own `pytest -q` → **210 passed** (252 − 42 removed = 210, reconciling
+exactly), rendered project's own `make eval-fast` (the real Makefile
+target, not just the underlying command) → **2/2 passed**, `make test`
+re-confirmed via the Makefile too. Diff against `skeleton/` (supporting
+evidence only, per the DoD's own framing) — 82 files differ, matching
+`DEC-088`'s own inventory count exactly; the only other output-directory
+content is two real `eval/results/*.json` run records and transient
+`.pytest_cache`/`state/` — artifacts of actually running the rendered
+project, not just rendering it.
+
+**Evidence**: `reports/phase-f-f3-verification.md` — full commands and
+output for both the failing first attempt and the passing second one,
+not paraphrased.
+
+**Status**: F3 complete, `SysR-P-F-01`(b) satisfied. Held at kickoff plan
+STOP 4 for owner review before F3 is treated as demo-ready. `SysR-P-F-13`/
+`OS-09` (a second team running the same operation unassisted) remains the
+acceptance-level echo of this check per the kickoff doc's own framing —
+this entry proves execution succeeded once, in this session, not that
+independently.

@@ -1,6 +1,6 @@
 CONTAINER_ENGINE ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo docker)
 
-.PHONY: build up up-offline down logs eval eval-fast eval-domain validate-eval-set trace test lint bootstrap
+.PHONY: build up up-offline down logs eval eval-fast eval-domain validate-eval-set test lint bootstrap
 
 build:
 	$(CONTAINER_ENGINE) build -t ${{ values.name }}:dev .
@@ -50,9 +50,6 @@ eval-domain:
 
 validate-eval-set:
 	python eval/validate.py
-
-trace:
-	python tools/trace-check/trace_check.py --docs-only
 
 test:
 	pytest -q

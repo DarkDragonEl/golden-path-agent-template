@@ -1,39 +1,36 @@
 #!/usr/bin/env python3
 """Phase F2 (DECISIONS.md DEC-087 item 1; docs/phase-f-kickoff-plan.md SS6,
 item 6). This is F2's OWN internal verification tool -- NOT F3's CLI
-renderer. F3 (the real instantiate-a-new-project CLI, with argument
-parsing/prompts/a proper UX) is a separate, not-yet-authorized deliverable
-(kickoff plan STOP 3 gates it). This script exists only to prove the
-skeleton itself is correct before F3/F5 are built against it: render once
-with test parameters into a scratch directory, then sweep the result for
-(a) zero surviving source-repo literals and (b) zero unresolved template
-placeholders. Both checks matter -- (a) proves nothing project-specific
-leaked through, (b) proves every placeholder in the skeleton has a
-matching parameter in template-schema.json, catching typos/drift between
-the two before F3/F5 ever get built on top of a broken pairing.
+renderer (that's tools/instantiate_agent_project.py). This script exists
+only to prove the skeleton itself is correct before F3/F5 are built
+against it: render once with test parameters into a scratch directory,
+then sweep the result for (a) zero surviving source-repo literals and
+(b) zero unresolved template placeholders. Both checks matter -- (a)
+proves nothing project-specific leaked through, (b) proves every
+placeholder in the skeleton has a matching parameter in
+template-schema.json, catching typos/drift between the two before F3/F5
+ever get built on top of a broken pairing.
 
-Substitution engine: a small regex-based renderer for exactly the
-'${{ values.x }}' subset the skeleton actually uses today (plain value
-substitution, no loops/conditionals/filters) -- deliberately not a Jinja2
-dependency, since nothing in the skeleton needs more than this yet.
-Decision 1 (DEC-087) chose Backstage-native nunjucks syntax as the single
-source of truth precisely so this stays swappable for a fuller nunjucks-
-compatible engine later without touching skeleton/ itself, if a future
-skeleton addition ever needs loops/conditionals this regex can't express.
+Rendering logic lives in tools/skeleton_renderer.py, shared with F3's CLI
+-- DEC-090's own reasoning for why this file no longer defines its own
+copy (it used to; DEC-075's precedent is exactly the failure this refactor
+avoids repeating).
 
 Usage:
     python3 tools/verify_skeleton.py
 """
 
-import re
-import shutil
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-SKELETON_DIR = REPO_ROOT / "skeleton"
-
-PLACEHOLDER_RE = re.compile(r"\$\{\{\s*values\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from skeleton_renderer import (  # noqa: E402
+    REPO_ROOT,
+    SKELETON_DIR,
+    render_skeleton,
+    sweep_for_literal,
+    sweep_for_unresolved_placeholders,
+)
 
 # Deliberately distinct from any real value this project's own identity
 # ever used, so a false-pass (test values that happen to collide with a
@@ -49,75 +46,12 @@ TEST_VALUES = {
 SOURCE_LITERAL = "golden-path-agent"
 
 
-def render_text(text: str, values: dict) -> str:
-    def _sub(match: re.Match) -> str:
-        key = match.group(1)
-        if key not in values:
-            raise KeyError(
-                f"skeleton references '${{{{ values.{key} }}}}' but no such key "
-                f"exists in template-schema.json / TEST_VALUES -- schema and "
-                f"skeleton have drifted apart"
-            )
-        return values[key]
-
-    return PLACEHOLDER_RE.sub(_sub, text)
-
-
-def render_skeleton(dest: Path, values: dict) -> None:
-    if dest.exists():
-        shutil.rmtree(dest)
-    for src_path in SKELETON_DIR.rglob("*"):
-        rel = src_path.relative_to(SKELETON_DIR)
-        dest_path = dest / rel
-        if src_path.is_dir():
-            dest_path.mkdir(parents=True, exist_ok=True)
-            continue
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            text = src_path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            # No binary files are expected in the skeleton today -- fail
-            # loudly rather than silently byte-copying something a real
-            # render would also need to handle specially.
-            raise RuntimeError(f"unexpected binary file in skeleton/: {rel}")
-        dest_path.write_text(render_text(text, values), encoding="utf-8")
-        shutil.copymode(src_path, dest_path)
-
-
-def sweep_for_source_literal(root: Path) -> list[str]:
-    hits = []
-    for path in root.rglob("*"):
-        if path.is_dir():
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
-        if SOURCE_LITERAL in text:
-            hits.append(str(path.relative_to(root)))
-    return hits
-
-
-def sweep_for_unresolved_placeholders(root: Path) -> list[str]:
-    hits = []
-    for path in root.rglob("*"):
-        if path.is_dir():
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
-        if PLACEHOLDER_RE.search(text):
-            hits.append(str(path.relative_to(root)))
-    return hits
-
-
 def main() -> int:
     rendered_dir = REPO_ROOT / ".skeleton-verify-scratch"
     print(f"Rendering skeleton/ with test values into {rendered_dir} ...")
     render_skeleton(rendered_dir, TEST_VALUES)
 
-    literal_hits = sweep_for_source_literal(rendered_dir)
+    literal_hits = sweep_for_literal(rendered_dir, SOURCE_LITERAL)
     placeholder_hits = sweep_for_unresolved_placeholders(rendered_dir)
 
     ok = True
@@ -139,12 +73,13 @@ def main() -> int:
     else:
         print("PASS: zero unresolved template placeholders in the rendered output")
 
+    file_count = sum(1 for _ in SKELETON_DIR.rglob("*") if _.is_file())
+    import shutil
     shutil.rmtree(rendered_dir, ignore_errors=True)
 
     if not ok:
         return 1
-    print(f"\nAll checks passed. ({sum(1 for _ in SKELETON_DIR.rglob('*') if _.is_file())} "
-          f"skeleton files rendered and swept.)")
+    print(f"\nAll checks passed. ({file_count} skeleton files rendered and swept.)")
     return 0
 
 
