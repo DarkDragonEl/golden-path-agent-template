@@ -1,0 +1,27 @@
+id: EXAMPLE-002
+description: >
+  Placeholder case exercising the human-approval (HITL) gate specifically: a
+  write-classified placeholder action must pause the graph after `invoke`
+  and only complete after an explicit `resume` with an approval decision.
+  This is the single most demo-critical path in the golden path, so it gets
+  its own dedicated case rather than only incidental coverage in
+  EXAMPLE-001.
+mode: offline
+input:
+  query: "example placeholder request that maps to a write-classified action"
+  write: true
+steps:
+  - action: invoke
+    assertions:
+      - type: state_equals
+        field: pending_approval
+        value: true
+      - type: no_final_output
+  - action: resume
+    decision: approve
+    assertions:
+      - type: contains
+        field: final_output
+        value: "PLACEHOLDER_TOOL_RESPONSE_MARKER"
+      - type: no_unapproved_write
+        value: true

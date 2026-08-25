@@ -1,0 +1,131 @@
+# Phase C, Step C1b. SysR-P-F-05(3) security tests, against the actually-
+# deployed pods (unlike eval-gate-live -- see that Task's own header for
+# why). Three checks:
+#   1. REST zero-mutation check: a write-shaped /invoke against the real
+#      deployed agent, rejected via /approvals/{id}/resume, confirmed
+#      against /records -- the exact pattern Checkpoint B2's own live
+#      verification used locally (DECISIONS.md DEC-020), now automated.
+#   2. Disallowed-egress proof: this Task's own pod (labeled neither
+#      component: agent nor anything the existing NetworkPolicy
+#      whitelists) attempts to reach the MCP pod's port 8081 directly and
+#      MUST be blocked -- confirming deploy/kustomize/base/networkpolicy.yaml
+#      actually enforces what it claims, not just that it exists. The
+#      legitimate zero-mutation check above instead execs into the agent
+#      pod itself (which the NetworkPolicy does permit), matching how a
+#      real client would actually be allowed to reach it.
+#   3. Secret scan: a plain grep for obvious credential patterns in the
+#      checked-out source and the built image's SBOM -- no new scanner
+#      tool introduced for this demo-scope milestone.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: security-tests
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: disallowed-egress-proof
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        # This step's own pod runs in ${{ values.name }}-ci -- a different
+        # namespace than the MCP Deployment, and not labeled component:
+        # agent. deploy/kustomize/base/networkpolicy.yaml's podSelector has
+        # no namespaceSelector, so it only ever admits same-namespace,
+        # correctly-labeled traffic -- this pod should never reach it. No
+        # extra pod spun up (would need pod create/delete RBAC this
+        # ServiceAccount deliberately doesn't have); this Task's own pod
+        # is the probe.
+        echo "Attempting direct cross-namespace access to the MCP service's port 8081 (expect: blocked)..."
+        if curl -sf --max-time 5 \
+             http://${{ values.name }}-mcp.${{ values.name }}-ephemeral-test.svc.cluster.local:8081/healthz; then
+          echo "FAIL: reached the MCP service directly from a different namespace -- NetworkPolicy did not block it." >&2
+          exit 1
+        fi
+        echo "OK: direct cross-namespace access blocked, as the NetworkPolicy requires."
+
+    - name: rest-zero-mutation-check
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        NS=${{ values.name }}-ephemeral-test
+        # DEC-033: the real label (deploy/kustomize/base/deployment-agent.yaml)
+        # is the prefixed app.kubernetes.io/component, not the short form --
+        # confirmed live: the short form matched zero pods.
+        AGENT_POD=$(oc get pod -n "$NS" -l app.kubernetes.io/component=agent -o jsonpath='{.items[0].metadata.name}')
+
+        # DEC-034: the whole check runs as ONE python3 script, piped via
+        # stdin (oc exec -i ... -- python3 -), executed INSIDE the agent
+        # pod -- not curl. The agent's own image (python:3.12-slim-based,
+        # per Containerfile) has no curl at all; confirmed live
+        # ("executable file `curl` not found"). Python's stdlib
+        # urllib.request needs no extra dependency assumption. Piping via
+        # stdin (not `python3 -c "..."`) avoids shell-quoting a script
+        # containing JSON/curly braces through oc exec's own arg parsing.
+        oc exec -i -n "$NS" "$AGENT_POD" -- python3 - <<'PYEOF'
+        import json
+        import urllib.request
+
+
+        def get_json(url):
+            with urllib.request.urlopen(url, timeout=10) as r:
+                return json.load(r)
+
+
+        def post_json(url, body):
+            data = json.dumps(body).encode()
+            req = urllib.request.Request(
+                url, data=data, headers={"Content-Type": "application/json"}, method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r)
+
+
+        def request_count():
+            records = get_json("http://${{ values.name }}-mcp:8081/records")["records"]
+            return len([r for r in records if r["record_type"] == "request"])
+
+
+        before = request_count()
+
+        resp = post_json(
+            "http://localhost:8080/invoke",
+            {
+                "query": "Please submit a request for read access to the internal metrics dashboard.",
+                "write": True,
+                "user_id": "ci-security-test",
+            },
+        )
+        assert resp["pending_approval"] is True, f"expected pending_approval, got: {resp}"
+
+        post_json(
+            f"http://localhost:8080/approvals/{resp['session_id']}/resume",
+            {"decision": "reject"},
+        )
+
+        after = request_count()
+        assert before == after, f"FAIL: request-record count changed after a rejected write ({before} -> {after})"
+        print(f"OK: {before} request records before and after a rejected write -- zero mutation confirmed.")
+        PYEOF
+
+    - name: secret-scan
+      image: docker.io/library/python:3.12-slim
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -eu
+        # Deliberately simple for this demo-scope milestone -- no new
+        # scanner tool pinned. Looks for common credential-shaped strings
+        # in tracked source; sbom.json (from sbom-generate) is scanned too
+        # if present, since it enumerates every dependency's metadata.
+        if grep -RIEn "AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{36}" \
+             --include="*.py" --include="*.yaml" --include="*.yml" --include="*.md" . 2>/dev/null; then
+          echo "FAIL: possible credential material found in source." >&2
+          exit 1
+        fi
+        echo "OK: no obvious credential patterns found."

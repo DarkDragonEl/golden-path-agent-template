@@ -1,0 +1,171 @@
+# Phase D, D2 (DECISIONS.md DEC-058). The realm content the owner's
+# design-STOP review approved: one realm, one approval-approver role,
+# three clients, two test users. Schema confirmed against the live CRD
+# (`oc explain keycloakrealmimport.spec.realm[...]`) before writing.
+#
+# Deliberately secret-free: no client `secret` field, no user
+# `credentials` block, anywhere in this file. Client secrets are
+# provisioned entirely post-apply by
+# pipelines/bootstrap/provision-identity-secrets.sh, via Keycloak's own
+# admin-API "regenerate client secret" endpoint -- chosen over this
+# CRD's `spec.placeholders` import-time substitution mechanism
+# specifically because it gives ONE code path for both a fresh
+# environment (client just created, no secret yet) and rotation (client
+# already exists) -- see that script's own header for the full
+# reasoning. Test-user passwords are set the same way, via the admin
+# API's reset-password endpoint, after this import completes -- a
+# realm-import has no clean way to embed a real Keycloak-format password
+# hash without either committing a plaintext value or hand-replicating
+# Keycloak's own PBKDF2 hash format, neither of which this project will
+# do.
+apiVersion: k8s.keycloak.org/v2beta1
+kind: KeycloakRealmImport
+metadata:
+  name: ${{ values.name }}
+  namespace: ${{ values.name }}-keycloak
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  keycloakCRName: ${{ values.name }}
+  realm:
+    realm: ${{ values.name }}
+    enabled: true
+    roles:
+      realm:
+        - name: approval-approver
+          description: "Authorized to decide (approve/reject) pending write proposals -- SRS-APR-SEC-02."
+    clients:
+      # Agent workload -> approval-service (submit proposal, IF-05 query).
+      # Never assigned approval-approver -- this is what makes the named
+      # negative test possible: correct by omission, nothing to
+      # misconfigure to "block" it (DECISIONS.md DEC-054's design note).
+      - clientId: ${{ values.name }}-approval-workload
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        standardFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: audience-approval-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: ${{ values.name }}-approval
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: realm-roles-flat-claim
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+            config:
+              claim.name: roles
+              jsonType.label: String
+              multivalued: "true"
+              access.token.claim: "true"
+              id.token.claim: "false"
+              userinfo.token.claim: "false"
+      # Agent workload -> MCP tool server (the "mock-ITSM credential",
+      # DECISIONS.md D2 design-STOP shape) -- a separate credential from
+      # the approval-workload client above, deliberately, so a compromise
+      # of one never also grants the other (this project's own
+      # established "independent security boundaries even when sharing
+      # was technically possible" pattern).
+      - clientId: ${{ values.name }}-mcp-workload
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        standardFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: audience-mcp-server
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: ${{ values.name }}-mcp
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: realm-roles-flat-claim
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+            config:
+              claim.name: roles
+              jsonType.label: String
+              multivalued: "true"
+              access.token.claim: "true"
+              id.token.claim: "false"
+              userinfo.token.claim: "false"
+      # Human-facing -- D2's own verification test AND D3's real UI,
+      # public client, Authorization Code + PKCE (the standard shape for
+      # a browser client with no safely-embeddable secret). Audience
+      # matches the approval-workload client's -- both legitimately talk
+      # to the same approval-service, just as different callers with
+      # different roles.
+      - clientId: ${{ values.name }}-approver-ui
+        protocol: openid-connect
+        publicClient: true
+        standardFlowEnabled: true
+        # DEC-058: also enabling Resource Owner Password (direct grant)
+        # on this SAME client -- deliberately, for D2's own verification
+        # test only (no browser available to drive real Authorization
+        # Code + PKCE from this environment). Still a real login (the
+        # demo-approver's actual username+password against Keycloak,
+        # reflecting their real identity/role), not an admin-tooling
+        # shortcut -- but D3's real UI will use Authorization Code+PKCE
+        # exclusively, never this grant. Flagged explicitly, not a silent
+        # scope addition.
+        directAccessGrantsEnabled: true
+        redirectUris:
+          - "*" # TODO(D3): tighten to the real UI's callback URL once it exists -- wildcard only acceptable at this demo/verification stage
+        webOrigins:
+          - "*" # TODO(D3): same deferral as redirectUris above
+        attributes:
+          pkce.code.challenge.method: S256
+        protocolMappers:
+          - name: audience-approval-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: ${{ values.name }}-approval
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: realm-roles-flat-claim
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+            config:
+              claim.name: roles
+              jsonType.label: String
+              multivalued: "true"
+              access.token.claim: "true"
+              id.token.claim: "false"
+              userinfo.token.claim: "false"
+    users:
+      # DEC-058 (owner requirement): at minimum one user with the
+      # approver role, one without -- the wrong-role 403 negative test
+      # needs a real, authenticated-but-unauthorized human token, not
+      # just the agent's own workload token.
+      #
+      # email/firstName/lastName/emailVerified are NOT cosmetic here --
+      # found live, the hard way: without them, Keycloak's declarative
+      # User Profile feature refuses the direct-grant (Resource Owner
+      # Password) login this realm's own verification path uses
+      # (`${{ values.name }}-approver-ui`'s directAccessGrantsEnabled),
+      # with "Account is not fully set up" -- confirmed by reproducing it
+      # live, then fixing it live via the admin API before writing the
+      # fix back here, per this project's own verify-before-trust
+      # discipline. Synthetic values only (CLAUDE.md).
+      - username: demo-approver
+        enabled: true
+        email: demo-approver@example.invalid
+        firstName: Demo
+        lastName: Approver
+        emailVerified: true
+        realmRoles:
+          - approval-approver
+      - username: demo-user
+        enabled: true
+        email: demo-user@example.invalid
+        firstName: Demo
+        lastName: User
+        emailVerified: true
+        realmRoles: []

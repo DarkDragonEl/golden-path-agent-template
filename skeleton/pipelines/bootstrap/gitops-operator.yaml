@@ -1,0 +1,25 @@
+# Phase E, E1 entry gate (DECISIONS.md DEC-078 and onward). Same story as
+# pipelines-operator.yaml in this directory: OpenShift GitOps was already
+# installed on the SNO by prior, unrelated work; the showcase cluster has
+# it genuinely absent (verified live, PINS.md's Phase E section), so this
+# Subscription is a real, new bootstrap-from-Git action, not a formality.
+#
+# openshift-gitops-operator also only supports AllNamespaces install mode
+# (PINS.md, verified live) -- same openshift-operators / global-operators
+# pattern as pipelines-operator.yaml, no new OperatorGroup created here.
+# Cluster-scoped action, applied manually, never by the CI pipeline's own
+# ServiceAccount.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-gitops-operator
+  namespace: openshift-operators
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  channel: gitops-1.20
+  name: openshift-gitops-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Manual
+  startingCSV: openshift-gitops-operator.v1.20.6

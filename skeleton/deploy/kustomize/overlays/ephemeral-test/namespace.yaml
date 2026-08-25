@@ -1,0 +1,25 @@
+# Phase C, DEC-024: semantics changed from the original plan. This
+# Namespace is bootstrapped once (pipelines/bootstrap/namespaces.yaml,
+# applied manually, not by the pipeline) and stays standing — it is NOT
+# created or deleted per PipelineRun, and nothing deletes it on a TTL.
+# That deviates from this file's original design (a platform-level TTL
+# garbage-collector consuming lifecycle/ttl to delete the whole namespace),
+# which assumed the pipeline's own ServiceAccount could manage Namespace
+# objects. It deliberately cannot: creating/deleting a Namespace is a
+# cluster-scoped action a namespace-scoped Role/RoleBinding cannot grant,
+# and the owner's explicit constraint is no ClusterRoleBinding, no
+# cluster-admin, for this project's pipeline identity, ever (see
+# pipelines/bootstrap/rbac.yaml's own header). "Ephemeral" now means
+# ephemeral *resources* inside a stable namespace: deploy-ephemeral and
+# destroy-ephemeral cycle the Deployments/Services/ConfigMaps on every
+# PipelineRun; the Namespace object itself persists across runs.
+# No lifecycle/* annotation here deliberately: this file is re-applied by
+# deploy-ephemeral on every PipelineRun (kubectl apply -k, not a one-time
+# action), so a static "bootstrapped-at" value here would just get stomped
+# back to itself every run rather than ever reflecting the real one-time
+# bootstrap event. That event's timestamp is recorded in DECISIONS.md
+# DEC-024 and the Phase C runbook instead, where "once" actually means once.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${{ values.name }}-ephemeral-test

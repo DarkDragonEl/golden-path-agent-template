@@ -1,0 +1,66 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# DECISIONS.md DEC-031: externalsecret.yaml (an ExternalSecret stub) is no
+# longer a managed resource here -- the Phase C plan's secret-handling
+# decision (DEC-024) uses a plain Secret, manually provisioned out-of-band
+# (docs/phase-c-runbook.md §2), never applied by Kustomize/the pipeline.
+# A stub Secret object here (unlike the old ExternalSecret, which only
+# ever *referenced* material, never contained it) would risk `oc apply`
+# overwriting the real, manually-created secret's data with placeholder
+# content -- the safe fix is not declaring it as a managed resource at
+# all. deployment-agent.yaml's envFrom.secretRef still references
+# ${{ values.name }}-secrets by name; nothing here needs to create it.
+resources:
+  - deployment-agent.yaml
+  - deployment-mcp.yaml
+  - service-agent.yaml
+  - service-mcp.yaml
+  - ingress.yaml
+  - serviceaccount.yaml
+  - serviceaccount-mcp.yaml
+  - configmap.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+  # Phase D2 cutover (DECISIONS.md DEC-063): the approval-service
+  # manifests, promoted from the ephemeral-test-only nested kustomization
+  # (deploy/kustomize/base/approval/, DEC-050) into base/ directly, per
+  # DEC-046's own sequencing rule -- this is the one commit that also
+  # flips AUTH_MODE=oidc (demo-prod overlay) and adds the mechanical
+  # demo-prod assertion, all together, atomically. Flattened rather than
+  # kept as a nested kustomization: DEC-050's whole reason for the
+  # nesting was working around kustomize's file-reference restriction
+  # from ephemeral-test's overlay -- base/kustomization.yaml is these
+  # files' own directory, so no such restriction applies here, and
+  # flattening also means deployment-approval.yaml is now visible to
+  # this file's own images: transform below, retiring DEC-050's separate
+  # base/approval/kustomization.yaml images: stanza entirely.
+  - serviceaccount-approval.yaml
+  - configmap-approval.yaml
+  - pvc-approval.yaml
+  - deployment-approval.yaml
+  - service-approval.yaml
+  - networkpolicy-approval.yaml
+  - ingress-approval.yaml
+  - pdb-approval.yaml
+
+commonLabels:
+  app.kubernetes.io/name: ${{ values.name }}
+  app.kubernetes.io/part-of: ${{ values.name }}
+
+# CI/CD promotion updates only this digest field — the identical image is
+# promoted unmodified across ephemeral-test -> demo-prod (see
+# docs/environments.md). `newName` resolved to the real value at Step C4
+# (DECISIONS.md DEC-042) -- not a placeholder needing anonymization: this
+# is OpenShift's own standard, predictable internal registry service DNS
+# name (present on every OpenShift cluster) plus this project's own
+# namespace, already public throughout this repo's committed RBAC/pipeline
+# manifests. Unlike the model endpoint (a real external hostname, never
+# committed), this value discloses nothing beyond what's already committed
+# elsewhere. `ephemeral-test`'s own pipeline-injected digest overrides this
+# `newName` too via `kustomize edit set image` (DEC-031) -- unaffected by
+# this change, since it always fully replaces both fields at apply-time.
+images:
+  - name: ${{ values.name }}
+    newName: image-registry.openshift-image-registry.svc:5000/${{ values.name }}-ci/${{ values.name }}
+    digest: sha256:ba1c42282c52a831cfea7804543d1c4e07d36ddc62f6e30c1fd383f123c7eba9

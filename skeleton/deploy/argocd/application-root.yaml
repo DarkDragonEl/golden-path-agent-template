@@ -1,0 +1,40 @@
+# Phase C, Step C4 (DECISIONS.md DEC-021/DEC-040). The Git-bootstrapped
+# app-of-apps root: syncs deploy/argocd/apps/ as a plain directory of
+# Application manifests (not Kustomize/Helm) -- applying this one object
+# instantiates every GitOps-managed environment from Git alone.
+#
+# Deliberately scoped to only demo-prod. ephemeral-test is pipeline-
+# managed, not GitOps-managed (deploy-ephemeral applies a specific
+# unpromoted digest per PipelineRun; an auto- or even manually-syncable
+# Application would fight that -- see
+# deploy/argocd/application-ephemeral-test.yaml's own header and
+# docs/environments.md's ownership-model line), so its Application
+# manifest deliberately stays outside this directory. staging/pilot-prod's
+# existing stub Applications stay outside it too, un-synced, per DEC-021's
+# "no staging, no pilot" decision for the demo (see docs/environments.md).
+#
+# Requires this AppProject to permit managing Application objects in
+# openshift-gitops as a destination -- see deploy/argocd/project.yaml's
+# own DEC-021 update and the STOP presentation for why that widening is
+# scoped the way it is (this project's own Application objects only,
+# never another tenant's).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${{ values.name }}-root
+  namespace: openshift-gitops
+spec:
+  project: ${{ values.name }}
+  source:
+    repoURL: https://github.com/${{ values.repoOwner }}/${{ values.repoName }}.git
+    targetRevision: main
+    path: deploy/argocd/apps
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-gitops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

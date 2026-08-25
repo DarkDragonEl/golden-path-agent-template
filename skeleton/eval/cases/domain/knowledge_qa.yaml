@@ -1,0 +1,244 @@
+# Checkpoint 1 exemplars (3 of ~15 target). See eval/README.md for case
+# format and eval/corpus-manifest.yaml for the doc_ids cited below.
+
+- id: KQA-001
+  category: knowledge_qa
+  input:
+    query: "What are the stages of the CI pipeline reference architecture?"
+  expected:
+    must_contain_facts:
+      - "the pipeline has a build stage"
+      - "the pipeline has a test stage"
+      - "the pipeline has a scan stage"
+      - "the pipeline has a promote stage"
+    source_doc_ids: ["PLAT-003"]
+    citation_required: true
+    groundedness: full
+  threshold_notes: "counts toward knowledge_qa gate"
+  tags: ["knowledge_qa", "read-only"]
+  version: "0.1.0"
+
+# R2 remedy (DEC-014, KQA-002 recalibration): removed "requests are
+# reviewed against the quarterly capacity-planning cycle" from
+# must_contain_facts. Rationale: the question asks only "who approves" --
+# the review-cadence fact answers a different question (when/how often
+# requests are reviewed) that this question never asks. DEC-013's R1
+# forensic triage found the model consistently gives a correct, fully-cited
+# answer to the question actually asked, without volunteering this
+# tangential detail -- the fact was responsive to a question this case
+# doesn't pose, not a gap in the model's grounding. Recalibrated to what the
+# question asks for, not removed to raise the pass rate.
+- id: KQA-002
+  category: knowledge_qa
+  input:
+    query: "Under the Namespace Request and Quota Policy, who approves a namespace quota increase above the default limit?"
+  expected:
+    must_contain_facts:
+      - "the Namespace Governance Owner approves quota increases above the default limit"
+    source_doc_ids: ["PLAT-002"]
+    citation_required: true
+    groundedness: full
+    forbidden_claims:
+      - "quota increases above the default limit are automatically approved without review"
+  threshold_notes: "counts toward knowledge_qa gate; forbidden_claims guards against a plausible-sounding but wrong shortcut answer. must_contain_facts recalibrated at DEC-014 (R2) to question-responsiveness"
+  tags: ["knowledge_qa", "read-only"]
+  version: "0.2.0"
+
+- id: KQA-003
+  category: knowledge_qa
+  input:
+    query: "What is the guaranteed maximum CI pipeline execution time under the CI Pipeline Reference Architecture?"
+  expected:
+    must_contain_facts:
+      - "no documented maximum execution time is specified in the CI Pipeline Reference Architecture"
+    source_doc_ids: ["PLAT-003"]
+    citation_required: false
+    groundedness: must_refuse_if_absent
+  threshold_notes: "tests refusal-to-fabricate when the corpus doesn't contain the asked-for figure; counts toward knowledge_qa gate"
+  tags: ["knowledge_qa", "read-only", "refusal"]
+  version: "0.1.0"
+
+- id: KQA-004
+  category: knowledge_qa
+  input:
+    query: "According to the Container Platform Cluster Topology Standard, what is the relationship between clusters and namespaces?"
+  expected:
+    must_contain_facts:
+      - "each cluster is subdivided into namespaces"
+      - "namespaces are the unit of workload isolation within a cluster"
+    source_doc_ids: ["PLAT-001"]
+    citation_required: true
+    groundedness: full
+  threshold_notes: "counts toward knowledge_qa gate"
+  tags: ["knowledge_qa", "read-only"]
+  version: "0.1.0"
+
+- id: KQA-005
+  category: knowledge_qa
+  input:
+    query: "What must a team do before publishing a new entry to the service catalog, per the Service Catalog Publishing Standard?"
+  expected:
+    must_contain_facts:
+      - "the entry must be reviewed by the Service Catalog Curator"
+      - "the entry must follow the standard's required metadata fields"
+    source_doc_ids: ["PLAT-004"]
+    citation_required: true
+    groundedness: full
+  threshold_notes: "counts toward knowledge_qa gate"
+  tags: ["knowledge_qa", "read-only"]
+  version: "0.1.0"
+
+- id: KQA-006
+  category: knowledge_qa
+  input:
+    query: "What does the Network Segmentation and Ingress Standard say about namespace-to-namespace traffic by default?"
+  expected:
+    must_contain_facts:
+      - "namespace-to-namespace traffic is denied by default"
+      - "explicit network policies are required to allow cross-namespace traffic"
+    source_doc_ids: ["PLAT-005"]
+    citation_required: true
+    groundedness: full
+  threshold_notes: "counts toward knowledge_qa gate"
+  tags: ["knowledge_qa", "read-only"]
+  version: "0.1.0"
+
+- id: KQA-007
+  category: knowledge_qa
+  input:
+    query: "What is the Golden Path Container Image Baseline's stance on base image provenance?"
+  expected:
+    must_contain_facts:
+      - "images must be built from the approved baseline image"
+      - "the baseline image is reviewed on every rebuild"
+    source_doc_ids: ["PLAT-006"]
+    citation_required: true
+    groundedness: full
+  threshold_notes: "counts toward knowledge_qa gate"
+  tags: ["knowledge_qa", "read-only"]
+  version: "0.1.0"
+
+- id: KQA-008
+  category: knowledge_qa
+  input:
+    query: "What are the first two steps of the Namespace Onboarding Procedure?"
+  expected:
+    must_contain_facts:
+      - "submit a namespace request referencing the Namespace Request and Quota Policy"
+      - "await approval from the Namespace Governance Owner"
+    source_doc_ids: ["PROC-001", "PLAT-002"]
+    citation_required: true
+    groundedness: full
+  threshold_notes: "counts toward knowledge_qa gate; multi-document citation"
+  tags: ["knowledge_qa", "read-only"]
+  version: "0.1.0"
+
+- id: KQA-009
+  category: knowledge_qa
+  input:
+    query: "Who is responsible for reviewing production access requests, per the Production Access Request Procedure?"
+  expected:
+    must_contain_facts:
+      - "the Identity and Access Team Lead reviews production access requests"
+    source_doc_ids: ["PROC-004"]
+    citation_required: true
+    groundedness: full
+    forbidden_claims:
+      - "production access requests are auto-approved for pilot users"
+  threshold_notes: "counts toward knowledge_qa gate"
+  tags: ["knowledge_qa", "read-only"]
+  version: "0.1.0"
+
+# R2 remedy (DEC-014, KQA-010 recalibration): removed "escalation follows
+# the on-call responder chain" from must_contain_facts. Rationale: the
+# question asks "when" an incident should be escalated -- the
+# responder-chain fact answers "how"/"who" escalation proceeds to, a
+# different question this case's own query never poses. DEC-013's R1
+# forensic triage found the model consistently gives a correct, fully-cited
+# answer to the "when" question asked without volunteering this tangential
+# mechanism detail. Recalibrated to what the question asks for.
+- id: KQA-010
+  category: knowledge_qa
+  input:
+    query: "When should an incident be escalated per the Incident Escalation Procedure?"
+  expected:
+    must_contain_facts:
+      - "an incident is escalated when it is not resolved within the defined severity time window"
+    source_doc_ids: ["PROC-006"]
+    citation_required: true
+    groundedness: partial_ok
+  threshold_notes: "counts toward knowledge_qa gate. must_contain_facts recalibrated at DEC-014 (R2) to question-responsiveness"
+  tags: ["knowledge_qa", "read-only"]
+  version: "0.2.0"
+
+- id: KQA-011
+  category: knowledge_qa
+  input:
+    query: "Is there a documented workaround for the ingress certificate renewal race condition?"
+  expected:
+    must_contain_facts:
+      - "a documented workaround exists for the ingress certificate renewal race condition"
+    source_doc_ids: ["KI-003"]
+    citation_required: true
+    groundedness: partial_ok
+  threshold_notes: "counts toward knowledge_qa gate"
+  tags: ["knowledge_qa", "read-only", "known-error"]
+  version: "0.1.0"
+
+- id: KQA-012
+  category: knowledge_qa
+  input:
+    query: "What known error explains why a newly published service catalog entry might not appear immediately?"
+  expected:
+    must_contain_facts:
+      - "a known sync delay can cause a newly published service catalog entry to not appear immediately"
+    source_doc_ids: ["KI-004"]
+    citation_required: true
+    groundedness: partial_ok
+  threshold_notes: "counts toward knowledge_qa gate"
+  tags: ["knowledge_qa", "read-only", "known-error"]
+  version: "0.1.0"
+
+- id: KQA-013
+  category: knowledge_qa
+  input:
+    query: "What does the Standard Namespace Template service catalog entry provision?"
+  expected:
+    must_contain_facts:
+      - "a namespace provisioned with default quotas"
+      - "network policies aligned with the Network Segmentation and Ingress Standard"
+    source_doc_ids: ["SVC-001", "PLAT-005"]
+    citation_required: true
+    groundedness: full
+  threshold_notes: "counts toward knowledge_qa gate; multi-document citation"
+  tags: ["knowledge_qa", "read-only"]
+  version: "0.1.0"
+
+- id: KQA-014
+  category: knowledge_qa
+  input:
+    query: "What does the CI Pipeline Template service catalog entry set up, and which reference architecture does it follow?"
+  expected:
+    must_contain_facts:
+      - "a build-test-scan-promote pipeline"
+      - "it follows the CI Pipeline Reference Architecture"
+    source_doc_ids: ["SVC-002", "PLAT-003"]
+    citation_required: true
+    groundedness: full
+  threshold_notes: "counts toward knowledge_qa gate; multi-document citation"
+  tags: ["knowledge_qa", "read-only"]
+  version: "0.1.0"
+
+- id: KQA-015
+  category: knowledge_qa
+  input:
+    query: "What is the guaranteed backup frequency for the Managed Database Namespace Add-on?"
+  expected:
+    must_contain_facts:
+      - "no documented backup frequency is specified for the Managed Database Namespace Add-on"
+    source_doc_ids: ["SVC-003"]
+    citation_required: false
+    groundedness: must_refuse_if_absent
+  threshold_notes: "tests refusal-to-fabricate; counts toward knowledge_qa gate"
+  tags: ["knowledge_qa", "read-only", "refusal"]
+  version: "0.1.0"

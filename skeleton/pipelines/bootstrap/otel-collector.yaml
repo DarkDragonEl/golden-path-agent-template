@@ -1,0 +1,184 @@
+# Phase D4 (DECISIONS.md DEC-068). Cluster-tier OTel Collector -- closes
+# the post-Checkpoint-C backlog item deferred at Phase C (PINS.md: "Red
+# Hat build of OpenTelemetry (cluster tier)... Not yet installed"). A
+# plain Deployment running the SAME already-pinned, re-verified image
+# (PINS.md, otel/opentelemetry-collector core distribution, 0.159.0) the
+# local-dev collector already uses -- deliberately NOT the
+# opentelemetry-operator route: a collector is a stateless forwarder, it
+# doesn't need CRD-based lifecycle management the way Keycloak (a
+# stateful server) genuinely did, and a plain Deployment avoids
+# introducing a second operator install with its own risk of hitting the
+# same kind of shared-catalog blocker DEC-055/DEC-056 already spent real
+# effort working around once.
+#
+# Exporters: `debug` (live `oc logs` visibility during a demo) AND
+# `file` (JSON Lines to an emptyDir volume) together -- `file` is what
+# makes D4's own trace-continuity verification possible without a full
+# Jaeger/Tempo install (the owner's own explicitly-offered lighter
+# option: "a collector-with-file/OTLP-export plus a scripted query view
+# is an acceptable honest realization"). `tools/query_traces.py` is that
+# scripted query view -- filters this file by session.id/proposal.id,
+# the attribute-correlation mechanism D1's own plan doc already settled
+# on for stitching the async approval gap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${{ values.name }}-otel-collector-config
+  namespace: ${{ values.name }}-otel
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+    exporters:
+      debug:
+        verbosity: basic
+      file:
+        path: /var/otel/traces.jsonl
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          exporters: [debug, file]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${{ values.name }}-otel-collector
+  namespace: ${{ values.name }}-otel
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ${{ values.name }}-otel-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ${{ values.name }}-otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: docker.io/otel/opentelemetry-collector:0.159.0
+          args: ["--config=/etc/otel/config.yaml"]
+          ports:
+            - name: otlp-http
+              containerPort: 4318
+          readinessProbe:
+            tcpSocket:
+              port: otlp-http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: otlp-http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+            - name: traces
+              mountPath: /var/otel
+        # Found live (DECISIONS.md DEC-068): the upstream collector image is
+        # fully distroless -- no shell, no `tar`, nothing `oc exec`/`oc cp`
+        # can use to read the file exporter's own output. This sidecar
+        # shares the same `traces` emptyDir and serves it over plain HTTP --
+        # what tools/query_traces.py (the "scripted query view") actually
+        # fetches. This sidecar only ever runs a generic
+        # `python3 -m http.server` -- any image with python3 works equally
+        # well here.
+        - name: traces-http
+          # DEC-085: DEC-068's original pin reused this project's own
+          # already-pushed image (${{ values.name }}-ci/${{ values.name }}),
+          # reasoning "already has python3, already known-good in this
+          # cluster" -- and pinned a specific digest, not `:latest`, since
+          # that ImageStream never carries a `latest` tag (confirmed live
+          # then: ImagePullBackOff/"manifest unknown" without one). But
+          # that ImageStream's whole purpose is CI churn -- it prunes old
+          # build digests over time by design -- so any digest borrowed
+          # from it needs to keep tracking future promotions to stay
+          # resolvable, contradicting DEC-068's own stated intent ("this
+          # digest does not need to track future promotions"). Confirmed
+          # live: the originally-pinned digest was pruned, leaving this
+          # sidecar in ImagePullBackOff for 12h+, which starved the whole
+          # collector Service of ready endpoints (both containers must be
+          # Ready for the pod to be Ready) -- every OTLP export from
+          # agent/approval/mcp silently failed to connect as a result.
+          # Repinned to a Red Hat UBI image instead (PINS.md, verified
+          # date below), independently maintained on
+          # registry.access.redhat.com -- no relationship to this
+          # project's own CI/promotion lifecycle (so this exact failure
+          # class cannot recur), no auth required, and no anonymous-pull
+          # rate limits (unlike Docker Hub). Has python3 on PATH; the
+          # image's default non-root/S2I-oriented setup is irrelevant here
+          # since `command:` below overrides it directly, confirmed live
+          # with the exact command before pinning.
+          image: registry.access.redhat.com/ubi9/python-312-minimal@sha256:813ff135a87941ab1417b50c8db68a84ee40a8fc484c87f8a80458d3cafe74b1
+          # Port 19999, not 8888 -- confirmed live (DECISIONS.md DEC-068)
+          # that something in this cluster's own networking layer already
+          # occupies 8888 in every pod's network namespace (bind fails
+          # immediately, before any request ever arrives; SO_REUSEADDR
+          # made no difference, ruling out a lingering-socket explanation;
+          # an unrelated high port bound cleanly on the first try). Not
+          # investigated further -- a cluster-networking quirk to route
+          # around, same posture as DEC-034's podman/IPv6-localhost finding
+          # and DEC-051's imagestreams/layers can-i quirk this session
+          # already accepted rather than chased to full root cause.
+          command: ["python3", "-m", "http.server", "19999", "--bind", "0.0.0.0", "--directory", "/var/otel"]
+          ports:
+            - name: traces-http
+              containerPort: 19999
+          readinessProbe:
+            tcpSocket:
+              port: traces-http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: traces
+              mountPath: /var/otel
+      volumes:
+        - name: config
+          configMap:
+            name: ${{ values.name }}-otel-collector-config
+        - name: traces
+          emptyDir: {} # demo-scope: survives the pod's own lifetime, not a PVC --
+          # a human-latency-scale approval wait (minutes, not the pod's own
+          # restart cycle) is well within this, and losing trace history on a
+          # pod restart is an acceptable tradeoff at this milestone's scope.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${{ values.name }}-otel-collector
+  namespace: ${{ values.name }}-otel
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  selector:
+    app.kubernetes.io/name: ${{ values.name }}-otel-collector
+  ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+    - name: traces-http
+      port: 8888
+      targetPort: traces-http

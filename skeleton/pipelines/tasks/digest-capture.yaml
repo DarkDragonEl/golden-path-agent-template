@@ -1,0 +1,26 @@
+# Phase C, Step C1b. SysR-P-IF-07 -- reads the digest back from the
+# registry's own ImageStreamTag, the authoritative source, rather than
+# trusting buildah's own local computation of what it pushed.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: digest-capture
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  params:
+    - name: imagestream-tag
+      type: string
+      description: "namespace/imagestream:tag, e.g. ${{ values.name }}-ci/${{ values.name }}:pr-<sha>"
+  results:
+    - name: digest
+      description: The resolved sha256 digest, e.g. sha256:...
+  steps:
+    - name: read-digest
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        oc get imagestreamtag "$(params.imagestream-tag)" \
+          -o jsonpath='{.image.metadata.name}' | tr -d '\n' > "$(results.digest.path)"

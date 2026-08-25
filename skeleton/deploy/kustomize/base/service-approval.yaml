@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${{ values.name }}-approval
+spec:
+  selector:
+    app.kubernetes.io/name: ${{ values.name }}
+    app.kubernetes.io/component: approval
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http

@@ -1,0 +1,19 @@
+# Generic Ingress, deliberately not a Route — keeps the checked-in base
+# free of a platform-specific resource name. If the target platform needs
+# a Route instead, add it via an overlay patch, not here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${{ values.name }}
+  annotations: {}   # TODO(platform): ingress-class/TLS annotations are platform-specific — add per environment overlay
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ${{ values.name }}
+                port:
+                  name: http

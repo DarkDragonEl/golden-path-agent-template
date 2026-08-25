@@ -1,0 +1,30 @@
+# Tool-name classification taxonomy, loaded by agent/config.py and
+# consumed by agent/policy.py::classify_action() (Phase B2 — replaces the
+# arguments.get("write") flag this file's earlier placeholder text
+# described). See srs/SRS-AGT.md's SRS-AGT-SEC-03 for the fail-closed
+# rationale behind default_classification.
+rules:
+  - tool_name: itsm_search_records
+    classification: read
+  - tool_name: itsm_create_request
+    classification: write
+  - tool_name: placeholder_lookup
+    classification: read  # eval/cases/EXAMPLE-001.yaml harness fixture, not
+    # domain content (see eval/README.md, DECISIONS.md DEC-005) — explicit
+    # here so SEC-03's fail-closed default doesn't route its read call to
+    # approval. Unconditional now — Phase C retired the legacy write:true
+    # argument carve-out that used to override this entry for EXAMPLE-002
+    # (DECISIONS.md DEC-023); that fixture calls placeholder_write_action
+    # instead, below.
+  - tool_name: placeholder_write_action
+    classification: write  # eval/cases/EXAMPLE-002.yaml's write-classified
+    # fixture, migrated off placeholder_lookup's retired write:true
+    # argument flag onto this dedicated tool name (DEC-023) — write is
+    # signaled by which tool is called, never by an argument, same as
+    # every real domain tool.
+
+# SRS-AGT-SEC-03 — fail closed: an action whose tool name is not listed
+# above (ambiguous or unrecognized against this policy's classification
+# rules) is always treated as write-capable and routed to approval, never
+# executed directly or treated as read-only.
+default_classification: write

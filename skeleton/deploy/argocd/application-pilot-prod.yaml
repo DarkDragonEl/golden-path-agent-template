@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${{ values.name }}-pilot-prod
+  namespace: openshift-gitops
+spec:
+  project: ${{ values.name }}
+  source:
+    repoURL: https://github.com/${{ values.repoOwner }}/${{ values.repoName }}.git
+    targetRevision: main
+    path: deploy/kustomize/overlays/pilot-prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${{ values.name }}-pilot-prod
+  syncPolicy:
+    automated: null # manual sync = the deployment-promotion gate for pilot-prod
+    syncOptions:
+      - CreateNamespace=false # pilot-prod namespace is provisioned deliberately, not auto-created

@@ -6637,3 +6637,83 @@ itself is annotated to point here rather than duplicating the reasoning.
 **Status**: STOP 1 cleared. F1 and F2 authorized for this pass, gated by
 their own STOP 2/STOP 3. F4/F5 remain gated on a real demo date (item 5)
 and the Ingress/Route attempt outcome (item 3) before proceeding.
+
+## DEC-088 — Phase F2 complete: 210-file parameterized skeleton built,
+verified by execution (zero literal/placeholder survivors, full
+Python/YAML/JSON validity on both raw and rendered output)
+
+Per `docs/phase-f-kickoff-plan.md` §6, item 1's own "inventory first,
+render second" discipline, and `DEC-087` item 1's engine choice.
+
+**Inventory**: a full-repo grep across the identity-bearing scope named
+in the kickoff doc (`Containerfile`, `deploy/`, `pipelines/`, `ci/`,
+`mcp_server/`, `agent/config.py`, `docs/`) plus every directory
+`SysR-P-F-01`'s nine outputs require (`agent/`, `approval_service/`,
+`policy/`, `eval/`, `tools/`, `tests/`, `scripts/`, `corpus/`) found 82
+of ~210 candidate files actually contain the source identifier. Sampling
+confirmed every hit is a genuine identity-parameterization point (env-var
+defaults, OIDC audiences, DNS names derived from the project name, image
+registry paths) — not spurious matches. Critically, every derived
+identifier (`golden-path-agent-ci`, `golden-path-agent-otel`, ...) turned
+out to be the single base string plus a *fixed* suffix, collapsing what
+looked like a large surface into one consistent substitution rule rather
+than dozens of bespoke ones.
+
+**Parameter schema** (`template-schema.json`, `$id` for both F3 and F5):
+two required fields (`name`, `owner`), three optional
+(`description`, `repoOwner`, `repoName` — the latter two load-bearing
+only for F5's explicit stretch goal, not F2/F3's local-render scope).
+`name`'s `maxLength: 40` is derived, not arbitrary — the longest observed
+namespace suffix (`-ephemeral-test`, 15 chars) stays safely under
+Kubernetes' 63-char namespace-name limit.
+
+**Skeleton built** (`skeleton/`, 210 files): source directories copied
+verbatim (`cp -rp`, preserving executable bits — confirmed live on
+`entrypoint.sh`/`scripts/*.sh`), then a three-pass, longest-match-first
+`sed` substitution (full repo slug → most specific repo-name-only match →
+general base-name match) applied across the whole tree. Deliberately
+excluded from the skeleton: this project's own decision/session history
+(`DECISIONS.md`, `HANDOFF.md`, `PINS.md`, `reports/`, `srs/`,
+`docs/phase-*-*.md`, `docs/showcase-*.md`) — not generic template
+content. `TODO_DOMAIN.md` carries over unchanged, since it already is,
+in effect, a hand-written "what a new implementer fills in" guide
+predating this phase's own identity-parameterization work — confirming
+this repo's domain-content axis and this phase's identity axis were
+always meant to be separate concerns.
+
+**Nine-output mapping** (`docs/template-nine-output-mapping.md`): each
+`SysR-P-F-01` output traced to its concrete skeleton location; none
+unmapped.
+
+**Boundary DoD, confirmed by count, not assumed**: `skeleton/mcp_server/
+server.py` has exactly 5 `@mcp.tool()` registrations, identical to the
+source repo's own count — no scaffold-invoking sixth tool exists.
+
+**Verification by execution** (`tools/verify_skeleton.py`, committed —
+becomes F3's own regression check per the kickoff doc's own instruction):
+rendered the full skeleton with distinct, structurally-impossible-to-
+collide test values (`widget-support-agent`, deliberately unlike any
+real identifier this project has ever used) into a scratch directory,
+then swept for (a) zero surviving source-repo literals and (b) zero
+unresolved placeholders — both passed clean. Separately, both the raw
+skeleton (template syntax intact) and the rendered output (real
+substituted values) were checked for full Python (`py_compile`), YAML
+(`yaml.safe_load_all`), and JSON (`json.load`) validity — all 210 files
+pass in both states. Substitution engine is a small stdlib regex
+renderer, not a new Jinja2 dependency — nothing in the skeleton today
+uses more than plain value substitution, so a heavier engine would be
+unused capability, not a need.
+
+**What this does not yet prove, named explicitly, not silently
+skipped**: this is F2's own scope-limited verification (syntax validity +
+zero literal/placeholder survivors), not F3's Definition of Done (the
+rendered project's own test suite and `make eval` actually passing under
+the new identifiers). That proof is F3's job, gated behind STOP 3.
+
+**Evidence**: commands and output captured in this session; not
+paraphrased.
+
+**Status**: F2 complete. STOP 3 presented to the owner alongside this
+entry — skeleton structure, parameter schema, nine-output mapping, and
+the literal-sweep result, per `docs/phase-f-kickoff-plan.md` §6. F3
+remains gated on the owner's STOP 3 review.

@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "template-schema.json",
+  "title": "golden-path-agent template parameters",
+  "description": "Phase F2 (DECISIONS.md DEC-087 item 1; docs/phase-f-kickoff-plan.md SS6). The single source of truth for every value substituted into skeleton/ -- consumed identically by F3's CLI renderer and F5's RHDH Scaffolder Template (via the stock fetch:template action), so the two paths can never drift the way DEC-075's parallel-constant bug did. Every '${{ values.x }}' placeholder in skeleton/ corresponds to exactly one property below; there are no undocumented placeholders and no properties without a placeholder.",
+  "type": "object",
+  "required": ["name", "owner"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Project name",
+      "description": "The base identifier for the scaffolded project. Every namespace, resource name, OIDC client ID, and OTEL service name in the rendered output is derived from this by fixed-suffix concatenation (e.g. '<name>-ci', '<name>-otel', '<name>-keycloak', '<name>-approval-workload') -- this is the ONLY identity parameter most of the skeleton actually needs. maxLength is set to keep every derived namespace name (the longest observed suffix is '-ephemeral-test', 15 chars) safely under Kubernetes' 63-char namespace-name limit, not because 40 chars is otherwise meaningful.",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+      "minLength": 2,
+      "maxLength": 40
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owning team",
+      "description": "Backstage catalog owner reference for the scaffolded project (e.g. 'group:default/team-name'). Documentation/attribution only -- never used in any infra manifest, only in developer-facing docs/README content."
+    },
+    "description": {
+      "type": "string",
+      "title": "Project description",
+      "description": "One-sentence description of the scaffolded agent's purpose, used in README.md. Optional -- a generic placeholder sentence is used if omitted.",
+      "default": "An agentic AI pilot agent scaffolded from the golden-path-agent blueprint."
+    },
+    "repoOwner": {
+      "type": "string",
+      "title": "Git repository owner/org",
+      "description": "GitHub org or user that will own the scaffolded project's own repository. Only load-bearing for F5's explicit stretch goal (opening a PR against a real scratch repo, decision 4 / DEC-087) -- F2's own verification render and F3's local-only CLI path both work correctly with a placeholder value, since neither pushes anywhere. Known rough edge, not fully resolved this phase: a handful of doc-prose references (e.g. tools/trace-check's own README) still read a little awkwardly post-substitution since they were written assuming this repo IS the template, not a scaffolded instance of one -- cosmetic, not functional, and left for refinement whenever F5's stretch goal is actually attempted.",
+      "default": "REPLACE_ME_repoOwner"
+    },
+    "repoName": {
+      "type": "string",
+      "title": "Git repository name",
+      "description": "Name of the scaffolded project's own repository. Defaults to the same value as 'name' -- a real instance's repo is not itself a template, so it does not get a '-template' suffix the way this blueprint repo's own name has one. Only load-bearing for F5's publish stretch goal, same as repoOwner.",
+      "default": "REPLACE_ME_repoName"
+    }
+  }
+}

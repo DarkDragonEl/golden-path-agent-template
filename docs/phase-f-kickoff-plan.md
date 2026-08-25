@@ -1,9 +1,11 @@
 # Phase F kickoff plan — the Internal Developer Portal (RHDH)
 
-**STATUS: F0 complete, STOP 1 cleared (`DEC-085`/`DEC-086`/`DEC-087`).
-F1/F2 authorized and in progress, gated by their own STOP 2/STOP 3. F4/F5
-remain gated on a real demo date and the Ingress/Route attempt outcome —
-see §4.2 below, each item now annotated with its resolution.** Originally
+**STATUS: F0/F2 complete (`DEC-085`–`DEC-088`), STOP 1 cleared. F1 drafted,
+held at STOP 2 pending owner review before commit. F2's skeleton,
+schema, mapping, and verification are done and presented at STOP 3 —
+F3 remains gated on that review. F4/F5 remain gated on a real demo date
+and the Ingress/Route attempt outcome — see §4.2 below, each item
+annotated with its resolution.** Originally
 drafted before any of this was executed, entirely from a read of the
 governing requirements docs (`SyRS-AGP-001_EN.md`, `StRS_Agentic_AI_
 Platform_EN.md`, `SyRS-AGP-001-RRT_Realization_Table.md`,
@@ -230,6 +232,18 @@ this phase, not just F5's.
 
 The largest phase in this plan by raw file count, though it introduces no
 new infrastructure or operator.
+
+**Done (`DEC-088`)**: 210-file skeleton at `skeleton/`, parameter schema
+at `template-schema.json`, nine-output mapping at `docs/template-nine-
+output-mapping.md`, verification script at `tools/verify_skeleton.py`
+(committed — doubles as F3's own regression check). Inventory found 82
+of ~210 candidate files needed substitution, all resolving to one
+consistent base-name-plus-fixed-suffix pattern. Boundary DoD confirmed
+by count (5 `@mcp.tool()` registrations in the skeleton, matching the
+source repo exactly — no scaffold-invoking sixth). Both the raw skeleton
+and a real rendered-with-test-values output pass full Python/YAML/JSON
+validity, and the rendered output has zero surviving source literals and
+zero unresolved placeholders.
 
 **STOP 3** — owner reviews the skeleton structure, parameter schema, and
 the nine-output mapping before F3/F5 are built against it.

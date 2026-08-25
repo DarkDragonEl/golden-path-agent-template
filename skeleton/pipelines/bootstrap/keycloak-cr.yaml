@@ -1,0 +1,74 @@
+# Phase D, D2 (DECISIONS.md DEC-057). The Keycloak instance itself --
+# implementation, gated behind the D2 design STOP the owner already
+# reviewed and approved. Schema fields confirmed against the live CRD
+# (`oc explain keycloak.spec[...]`, DEC-056's operator) before writing
+# this, not guessed from memory or upstream docs alone.
+#
+# Deliberately no TLS/Route at this layer -- matches every other Ingress
+# in this project (deploy/kustomize/base/ingress.yaml/ingress-approval.yaml's
+# own "deliberately not a Route" reasoning): http.httpEnabled: true,
+# ingress.enabled: false (a hand-written Ingress below instead, same
+# host-less/path-based convention the other two already use, so no real
+# external hostname needs to be known or committed -- hostname.strict:
+# false lets Keycloak resolve its own issuer URL dynamically from
+# whatever host actually reached it, the same way the other two
+# Ingresses never hardcode a host).
+#
+# Credentials: ${{ values.name }}-keycloak-db-secret (DEC-054, Postgres)
+# and ${{ values.name }}-keycloak-admin (this step) are both plain
+# Secrets, manually provisioned out-of-band, never committed -- the
+# established pattern, not a new mechanism.
+apiVersion: k8s.keycloak.org/v2beta1
+kind: Keycloak
+metadata:
+  name: ${{ values.name }}
+  namespace: ${{ values.name }}-keycloak
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  instances: 1
+  db:
+    vendor: postgres
+    host: ${{ values.name }}-keycloak-db
+    port: 5432
+    database: keycloak
+    usernameSecret:
+      name: ${{ values.name }}-keycloak-db-secret
+      key: POSTGRESQL_USER
+    passwordSecret:
+      name: ${{ values.name }}-keycloak-db-secret
+      key: POSTGRESQL_PASSWORD
+  http:
+    httpEnabled: true
+  hostname:
+    strict: false
+  ingress:
+    enabled: false
+  bootstrapAdmin:
+    user:
+      secret: ${{ values.name }}-keycloak-admin
+---
+# Mirrors deploy/kustomize/base/ingress-approval.yaml's own shape exactly
+# -- generic Ingress, no host, path-based, targeting the Service the
+# Keycloak CR generates (<cr-name>-service, per http.serviceName's own
+# documented default -- confirmed live once the CR reconciles, not
+# assumed).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${{ values.name }}-keycloak
+  namespace: ${{ values.name }}-keycloak
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+  annotations: {} # TODO(platform): ingress-class/TLS annotations are platform-specific -- add per environment, same deferral as the other two Ingresses in this project
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ${{ values.name }}-service
+                port:
+                  name: http

@@ -1,0 +1,92 @@
+# Single small AppProject scoped to this one repo and its four destination
+# namespaces (three environment namespaces plus the shared GitOps
+# controller's own namespace, for this project's own Application objects
+# only -- see the openshift-gitops destination entry below) — not a
+# multi-service, multi-repo platform project.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ${{ values.name }}
+  namespace: openshift-gitops # Phase C, DEC-024: the shared cluster's existing
+  # GitOps controller instance -- this AppProject is the only object this
+  # project touches in it; no other tenant's AppProject/Application is ever
+  # read, listed, or referenced.
+spec:
+  description: Golden-path agent MVP — one repo, four promoted environments.
+  sourceRepos:
+    - https://github.com/${{ values.repoOwner }}/${{ values.repoName }}.git
+    # Public repo, HTTPS -- deliberate: the shared Argo CD instance needs no
+    # read credential to sync it, so this project makes zero writes to
+    # openshift-gitops beyond this one AppProject/its own Applications
+    # (DEC-024). A private repo would require injecting a read credential
+    # into the *shared* GitOps controller's own repo-credentials Secret --
+    # exactly the kind of blast-radius increase this plan avoids elsewhere.
+  destinations:
+    - namespace: ${{ values.name }}-ephemeral-test
+      server: https://kubernetes.default.svc
+    - namespace: ${{ values.name }}-demo-prod
+      server: https://kubernetes.default.svc
+    - namespace: ${{ values.name }}-staging
+      server: https://kubernetes.default.svc
+    - namespace: ${{ values.name }}-pilot-prod
+      server: https://kubernetes.default.svc
+    - namespace: openshift-gitops
+      server: https://kubernetes.default.svc
+      # Step C4 (DEC-021/DEC-041): required for the root app-of-apps
+      # Application (deploy/argocd/application-root.yaml) to manage this
+      # project's own child Application objects (deploy/argocd/apps/*.yaml),
+      # which live in this namespace by ArgoCD's own convention -- the same
+      # "zero writes to openshift-gitops beyond this one AppProject/its own
+      # Applications" boundary already established for the AppProject
+      # object itself (DEC-024) and the original Application stubs, just
+      # made reachable via app-of-apps instead of only direct `oc apply`.
+      #
+      # IMPORTANT, investigated not assumed (DEC-041): ArgoCD does NOT
+      # structurally enforce that an Application created here must share
+      # this AppProject's own `spec.project` value. Per ArgoCD's own docs
+      # ("Applications in any namespace"): Applications in the control-
+      # plane namespace (openshift-gitops, same role as the default
+      # `argocd` namespace) "are allowed to set their .spec.project field
+      # to reference any AppProject, regardless of the restrictions placed
+      # by the AppProject's .spec.sourceNamespaces field" -- a documented
+      # backwards-compatibility exemption. The real protection here is
+      # `sourceRepos` scoping above (the root can only ever sync manifests
+      # from this one repo) plus this repo's own commit discipline (every
+      # child manifest actually committed under deploy/argocd/apps/
+      # declares `spec.project: ${{ values.name }}`) -- not an
+      # automatically-enforced binding between a root Application and its
+      # children's own declared project.
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: Deployment
+    - group: ""
+      kind: Service
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: ServiceAccount
+    - group: policy
+      kind: PodDisruptionBudget
+    - group: ""
+      kind: PersistentVolumeClaim # Phase D2 (DECISIONS.md DEC-064): the
+      # approval service's SQLite persistence (pvc-approval.yaml,
+      # SRS-APR-DATA-01) is the first PVC this Application's own
+      # namespaceResourceWhitelist needed -- flagged as a D2 item back at
+      # DEC-050/DEC-051, missed at the D2 cutover commit (DEC-063), found
+      # live within minutes (every -approval resource stuck OutOfSync)
+      # and fixed here rather than left unresolved.
+    - group: ""
+      kind: Secret # Phase C, DEC-024: plain Secret, not ExternalSecret --
+      # see the Phase C plan's secret-handling decision (ESO deferred as a
+      # clean phase-two integration point).
+    - group: argoproj.io
+      kind: Application # Step C4 (DEC-021): the app-of-apps pattern --
+      # required for the root Application to create/manage the
+      # ephemeral-test and demo-prod child Application objects. Every
+      # Application this permits still only ever takes effect via this
+      # SAME AppProject's own `destinations`/`namespaceResourceWhitelist`
+      # boundaries -- it cannot be used to reach outside them.

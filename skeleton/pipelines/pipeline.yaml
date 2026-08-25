@@ -1,0 +1,136 @@
+# Phase C, Step C1b (DECISIONS.md DEC-025). Realizes the accepted plan's
+# C1 stage sequence as a real Tekton Pipeline. Fan-out where stages are
+# independent (unit-tests/eval-gate-offline/policy-validate all only need
+# the checkout; eval-gate-live/security-tests/operational-tests all only
+# need the ephemeral deployment) -- Tekton's default DAG semantics already
+# mean open-promotion-pr only runs if every upstream task succeeded, and
+# destroy-ephemeral (finally:) always runs regardless.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: ${{ values.name }}-ci
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  params:
+    - name: repo-url
+      type: string
+      default: https://github.com/${{ values.repoOwner }}/${{ values.repoName }}.git
+    - name: revision
+      type: string
+      default: main
+    - name: image-repo
+      type: string
+      default: image-registry.openshift-image-registry.svc:5000/${{ values.name }}-ci/${{ values.name }}
+
+  workspaces:
+    - name: source
+
+  tasks:
+    - name: fetch-source
+      taskRef: { name: fetch-source }
+      workspaces: [{ name: source, workspace: source }]
+      params:
+        - { name: repo-url, value: $(params.repo-url) }
+        - { name: revision, value: $(params.revision) }
+
+    - name: unit-tests
+      taskRef: { name: unit-tests }
+      runAfter: [fetch-source]
+      workspaces: [{ name: source, workspace: source }]
+
+    - name: eval-gate-offline
+      taskRef: { name: eval-gate-offline }
+      runAfter: [fetch-source]
+      workspaces: [{ name: source, workspace: source }]
+
+    - name: policy-validate
+      taskRef: { name: policy-validate }
+      runAfter: [fetch-source]
+      workspaces: [{ name: source, workspace: source }]
+
+    - name: container-build
+      # DEC-030: references the OpenShift Pipelines operator's own
+      # pre-built buildah Task (openshift-pipelines namespace) via the
+      # cluster resolver, in place of the custom Task this Pipeline
+      # originally defined -- see pipelines/bootstrap/rbac.yaml's
+      # pipelines-scc RoleBinding for why, and DEC-030 for the full
+      # investigation. Not an external Tekton Hub bundle fetch: `cluster`
+      # resolves a Task object already installed on this cluster by the
+      # operator, no network fetch, no version-pin-chasing.
+      taskRef:
+        resolver: cluster
+        params:
+          - { name: kind, value: task }
+          - { name: name, value: buildah }
+          - { name: namespace, value: openshift-pipelines }
+      runAfter: [unit-tests, eval-gate-offline, policy-validate]
+      workspaces: [{ name: source, workspace: source }]
+      params:
+        - name: IMAGE
+          value: "$(params.image-repo):pr-$(tasks.fetch-source.results.commit-sha)"
+        - name: DOCKERFILE
+          value: ./Containerfile
+
+    - name: digest-capture
+      taskRef: { name: digest-capture }
+      runAfter: [container-build]
+      params:
+        # DEC-031: no namespace prefix -- digest-capture's own TaskRun
+        # already executes in ${{ values.name }}-ci (where the ImageStream
+        # lives); `oc get imagestreamtag "ns/name:tag"` was live-confirmed
+        # NOT equivalent to `-n ns imagestreamtag name:tag` -- it triggers
+        # "there is no need to specify a resource type as a separate
+        # argument..." instead of resolving cross-namespace.
+        - name: imagestream-tag
+          value: "${{ values.name }}:pr-$(tasks.fetch-source.results.commit-sha)"
+
+    - name: sbom-generate
+      taskRef: { name: sbom-generate }
+      runAfter: [digest-capture]
+      workspaces: [{ name: source, workspace: source }]
+      params:
+        - name: image
+          value: "$(params.image-repo)@$(tasks.digest-capture.results.digest)"
+
+    - name: deploy-ephemeral
+      taskRef: { name: deploy-ephemeral }
+      runAfter: [digest-capture]
+      workspaces: [{ name: source, workspace: source }]
+      params:
+        - name: image-ref
+          value: "$(params.image-repo)@$(tasks.digest-capture.results.digest)"
+
+    - name: eval-gate-live
+      taskRef: { name: eval-gate-live }
+      runAfter: [deploy-ephemeral]
+      workspaces: [{ name: source, workspace: source }]
+
+    - name: security-tests
+      taskRef: { name: security-tests }
+      runAfter: [deploy-ephemeral]
+      workspaces: [{ name: source, workspace: source }]
+
+    - name: operational-tests
+      taskRef: { name: operational-tests }
+      runAfter: [deploy-ephemeral]
+      workspaces: [{ name: source, workspace: source }]
+      params:
+        - name: image-ref
+          value: "$(params.image-repo)@$(tasks.digest-capture.results.digest)"
+
+    - name: open-promotion-pr
+      taskRef: { name: open-promotion-pr }
+      runAfter: [eval-gate-live, security-tests, operational-tests, sbom-generate]
+      workspaces: [{ name: source, workspace: source }]
+      params:
+        - name: image-ref
+          value: "$(params.image-repo)@$(tasks.digest-capture.results.digest)"
+        - name: commit-sha
+          value: "$(tasks.fetch-source.results.commit-sha)"
+
+  finally:
+    - name: destroy-ephemeral
+      taskRef: { name: destroy-ephemeral }
+      workspaces: [{ name: source, workspace: source }]

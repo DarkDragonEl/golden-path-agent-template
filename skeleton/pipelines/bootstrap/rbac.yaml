@@ -1,0 +1,259 @@
+# Phase C, Step C1a (DECISIONS.md DEC-023/DEC-024). Least-privilege RBAC
+# for the CI pipeline's ServiceAccount, per the owner's explicit binding
+# constraint: strictly within the ${{ values.name }}-* namespace prefix,
+# create/delete only on workload resources this project owns, image push
+# only to this project's own ImageStream, no ClusterRole, no
+# ClusterRoleBinding, no cluster-admin -- regardless of what the operator's
+# own session credentials would permit. See namespaces.yaml's header for
+# why namespace lifecycle itself is deliberately NOT one of this
+# ServiceAccount's grants.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ${{ values.name }}-ci-pipeline
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+---
+# Everything the pipeline's own Task steps need to do inside their own
+# namespace: read (never write) the manually-provisioned credentials by
+# name, read the ImageStream this project's own buildah step pushes to,
+# and read pod/log state for step diagnostics. No Tekton CRD permissions
+# here -- the Tekton controller reconciles PipelineRun/TaskRun using its
+# own operator-granted permissions, not this ServiceAccount.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ${{ values.name }}-ci-pipeline-role
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: ["image.openshift.io"]
+    resources: ["imagestreams", "imagestreamtags"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${{ values.name }}-ci-pipeline-rolebinding
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+subjects:
+  - kind: ServiceAccount
+    name: ${{ values.name }}-ci-pipeline
+    namespace: ${{ values.name }}-ci
+roleRef:
+  kind: Role
+  name: ${{ values.name }}-ci-pipeline-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# system:image-builder is a built-in OpenShift ClusterRole (the same one
+# BuildConfigs use to push their own output) -- referencing it in a
+# namespace-scoped RoleBinding grants imagestreams/imagestreams-layers
+# push rights ONLY within ${{ values.name }}-ci, not cluster-wide. This is
+# a RoleBinding, not a ClusterRoleBinding: its effect is confined to this
+# one namespace regardless of which ClusterRole it references.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${{ values.name }}-ci-pipeline-image-builder
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+subjects:
+  - kind: ServiceAccount
+    name: ${{ values.name }}-ci-pipeline
+    namespace: ${{ values.name }}-ci
+roleRef:
+  kind: ClusterRole
+  name: system:image-builder
+  apiGroup: rbac.authorization.k8s.io
+---
+# DECISIONS.md DEC-030: pipelines-scc, granted narrowly the same way as
+# system:image-builder above (a namespace-scoped RoleBinding to a
+# ClusterRole that itself only grants `use` on this one, specifically-
+# named SCC -- pipelines-scc-clusterrole's own rule is
+# resourceNames:[pipelines-scc], not a blanket SCC grant). Needed
+# specifically because the container-build stage now references the
+# OpenShift Pipelines operator's own pre-built `buildah` Task
+# (openshift-pipelines namespace, referenced via the cluster resolver),
+# which itself requires SETFCAP -- confirmed this is genuinely required,
+# not a repeat of the speculative grant DEC-029 correctly removed: an
+# extensive investigation (DEC-030) found that plain restricted-v2 (no
+# subuid/subgid ranges, no added capabilities) cannot run a real rootless
+# buildah build at all, cascading through five distinct failures: this is
+# Red Hat's own purpose-built SCC for exactly this scenario ("a close
+# replica of anyuid... for pipeline builds"), narrowly scoped to SETFCAP
+# only, not privileged or a blanket anyuid grant.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${{ values.name }}-ci-pipeline-scc
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+subjects:
+  - kind: ServiceAccount
+    name: ${{ values.name }}-ci-pipeline
+    namespace: ${{ values.name }}-ci
+roleRef:
+  kind: ClusterRole
+  name: pipelines-scc-clusterrole
+  apiGroup: rbac.authorization.k8s.io
+---
+# Everything deploy-ephemeral/destroy-ephemeral need inside
+# ${{ values.name }}-ephemeral-test: full CRUD on exactly the resource
+# kinds deploy/kustomize/base actually produces (matching
+# deploy/argocd/project.yaml's own namespaceResourceWhitelist), read-only
+# on secrets (referenced by name, never created/mutated by the pipeline --
+# see the Phase C plan's secret-material handling constraint), and
+# pod/log read for smoke checks.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ${{ values.name }}-ci-deploy-role
+  namespace: ${{ values.name }}-ephemeral-test
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+rules:
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "serviceaccounts"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+    # DEC-031: deploy/kustomize/base/ingress.yaml is a real managed
+    # resource in the rendered overlay -- missed in the original grant,
+    # confirmed live (deploy-ephemeral/destroy-ephemeral both hit
+    # "cannot get/delete resource ingresses").
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # watch, specifically: `oc rollout status` (deploy-ephemeral.yaml) polls
+    # rollout progress via a watch, not just point-in-time get/list.
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+    # oc rollout status inspects the Deployment's own ReplicaSet to
+    # determine progress -- read-only, this project never manages
+    # ReplicaSets directly (that's the Deployment controller's job).
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+    # DEC-033: security-tests.yaml/operational-tests.yaml both oc exec
+    # into the deployed agent pod to drive its real HTTP surface from
+    # inside the pod network -- confirmed live: missing this returned
+    # Forbidden on both Tasks. This is exec into this project's own
+    # deployed pods only, scoped to this one namespace.
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+    # Phase D, D1 contracts STOP (DEC-045): new resource kind for this
+    # project -- approval-service's SQLite persistence
+    # (pvc-approval.yaml, SRS-APR-DATA-01) is the first PVC
+    # deploy-ephemeral/destroy-ephemeral need to manage.
+---
+# Cross-namespace RoleBinding: lives in ${{ values.name }}-ephemeral-test,
+# grants only within this namespace, to a ServiceAccount whose home
+# namespace is ${{ values.name }}-ci. This is the standard, safe pattern
+# for "one pipeline identity, permissions in several of this project's own
+# namespaces" without ever granting anything cluster-wide.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${{ values.name }}-ci-deploy-rolebinding
+  namespace: ${{ values.name }}-ephemeral-test
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+subjects:
+  - kind: ServiceAccount
+    name: ${{ values.name }}-ci-pipeline
+    namespace: ${{ values.name }}-ci
+roleRef:
+  kind: Role
+  name: ${{ values.name }}-ci-deploy-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# DECISIONS.md DEC-032. Cross-namespace image *pull*, the other direction
+# from system:image-builder above (which grants the pipeline's own
+# ServiceAccount push rights) -- the deployed agent pod runs as its OWN
+# ServiceAccount (${{ values.name }}, deploy/kustomize/base/serviceaccount.yaml),
+# in ${{ values.name }}-ephemeral-test, pulling an image that lives in
+# ${{ values.name }}-ci's ImageStream. OpenShift does not allow
+# cross-namespace image pulls by default; confirmed live:
+# "authentication required" / ImagePullBackOff on the deployed pod.
+# system:image-puller is the standard, narrowly-scoped built-in role for
+# exactly this ("Grants the right to pull images from within a project").
+# This RoleBinding lives in ${{ values.name }}-ci (the source namespace,
+# where read access is being granted), not ${{ values.name }}-ephemeral-test.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${{ values.name }}-image-puller
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+subjects:
+  - kind: ServiceAccount
+    name: ${{ values.name }}
+    namespace: ${{ values.name }}-ephemeral-test
+  - kind: ServiceAccount
+    name: ${{ values.name }}
+    namespace: ${{ values.name }}-demo-prod
+    # Step C4 (DEC-042): demo-prod's own pods hit the identical
+    # cross-namespace image-pull gap ephemeral-test's own pods did
+    # (DEC-032) -- a RoleBinding's subject list is scoped per (SA,
+    # namespace) pair, so demo-prod needed its own entry added here, not
+    # inherited from ephemeral-test's.
+  - kind: ServiceAccount
+    name: ${{ values.name }}-approval
+    namespace: ${{ values.name }}-ephemeral-test
+    # Phase D, D1 contracts STOP (DEC-045): approval-service runs the
+    # identical image, hits the identical cross-namespace pull gap, in
+    # both namespaces it's deployed to -- added now, alongside the
+    # rest of D1's RBAC diff, not discovered live later.
+  - kind: ServiceAccount
+    name: ${{ values.name }}-approval
+    namespace: ${{ values.name }}-demo-prod
+  - kind: ServiceAccount
+    name: ${{ values.name }}-mcp
+    namespace: ${{ values.name }}-ephemeral-test
+    # Phase D2 (DEC-061): the agent/mcp ServiceAccount split -- mcp now
+    # runs under its own identity, hitting the identical cross-namespace
+    # pull gap every other role here already needed a subject entry for.
+  - kind: ServiceAccount
+    name: ${{ values.name }}-mcp
+    namespace: ${{ values.name }}-demo-prod
+  - kind: ServiceAccount
+    name: default
+    namespace: ${{ values.name }}-otel
+    # Phase D4 (DEC-068): the OTel Collector's own traces-http sidecar
+    # reuses this project's own image (no new entrypoint.sh role needed
+    # for a generic `python3 -m http.server`) -- runs as the namespace's
+    # default ServiceAccount (no dedicated one created for a single,
+    # generic sidecar container), hits the identical cross-namespace
+    # pull gap every other role here already needed a subject entry for.
+roleRef:
+  kind: ClusterRole
+  name: system:image-puller
+  apiGroup: rbac.authorization.k8s.io

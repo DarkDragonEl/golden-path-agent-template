@@ -1,0 +1,219 @@
+# eval/corpus-manifest.yaml
+#
+# Identity-only manifest for Phase A (Delivery Step 1). Fixes doc_id, title,
+# and metadata for the ~20 synthetic corpus documents the knowledge_qa cases
+# assume, so case<->document references are stable before any document
+# content exists. Document CONTENT (chunking, embedding, actual body text)
+# is Phase B (corpus/ingest.py + corpus/seed/) — see TODO_DOMAIN.md.
+#
+# All documents, roles, and figures below are synthetic (CLAUDE.md: no real
+# product names, hostnames, or figures from any real company). classification
+# uses a plain three-tier scheme: internal-public, internal-restricted,
+# internal-confidential.
+#
+# Field set is the union of this mission's required list (title, owner_role,
+# classification, version, effective_date, access_policy, refresh_process)
+# and corpus/README.md's existing six-field commitment (adds `source`),
+# plus `doc_id` as the lookup key knowledge_qa cases cite in
+# expected.source_doc_ids.
+
+documents:
+  - doc_id: PLAT-001
+    title: "Container Platform Cluster Topology Standard"
+    owner_role: "Platform Engineering Lead"
+    classification: internal-public
+    version: "1.2"
+    effective_date: "2026-03-01"
+    access_policy: "all authenticated employees"
+    source: "Platform Engineering standards wiki export"
+    refresh_process: "Reviewed quarterly by Platform Engineering; superseded versions archived, not deleted"
+
+  - doc_id: PLAT-002
+    title: "Namespace Request and Quota Policy"
+    owner_role: "Namespace Governance Owner"
+    classification: internal-public
+    version: "2.1"
+    effective_date: "2026-01-15"
+    access_policy: "all authenticated employees"
+    source: "Platform Engineering standards wiki export"
+    refresh_process: "Reviewed at each quarterly capacity-planning cycle"
+
+  - doc_id: PLAT-003
+    title: "CI Pipeline Reference Architecture"
+    owner_role: "CI Platform Team Lead"
+    classification: internal-public
+    version: "1.0"
+    effective_date: "2025-11-10"
+    access_policy: "all authenticated employees"
+    source: "Platform Engineering standards wiki export"
+    refresh_process: "Reviewed on every major CI platform version upgrade"
+
+  - doc_id: PLAT-004
+    title: "Service Catalog Publishing Standard"
+    owner_role: "Service Catalog Curator"
+    classification: internal-public
+    version: "1.3"
+    effective_date: "2026-02-20"
+    access_policy: "all authenticated employees"
+    source: "Platform Engineering standards wiki export"
+    refresh_process: "Reviewed semi-annually by the Service Catalog Curator"
+
+  - doc_id: PLAT-005
+    title: "Network Segmentation and Ingress Standard"
+    owner_role: "Network Security Engineer"
+    classification: internal-restricted
+    version: "1.1"
+    effective_date: "2025-09-05"
+    access_policy: "platform engineering + security engineering"
+    source: "Security Engineering standards export"
+    refresh_process: "Reviewed annually or immediately on a confirmed segmentation incident"
+
+  - doc_id: PLAT-006
+    title: "Golden Path Container Image Baseline"
+    owner_role: "Platform Engineering Lead"
+    classification: internal-public
+    version: "3.0"
+    effective_date: "2026-05-01"
+    access_policy: "all authenticated employees"
+    source: "Platform Engineering standards wiki export"
+    refresh_process: "Reviewed on every baseline image rebuild"
+
+  - doc_id: PROC-001
+    title: "Namespace Onboarding Procedure"
+    owner_role: "Namespace Governance Owner"
+    classification: internal-public
+    version: "1.4"
+    effective_date: "2026-01-15"
+    access_policy: "all authenticated employees"
+    source: "Platform Engineering operating-procedures export"
+    refresh_process: "Reviewed whenever PLAT-002 changes"
+
+  - doc_id: PROC-002
+    title: "CI Pipeline Failure Triage Procedure"
+    owner_role: "CI Platform Team Lead"
+    classification: internal-public
+    version: "1.1"
+    effective_date: "2026-04-10"
+    access_policy: "all authenticated employees"
+    source: "Platform Engineering operating-procedures export"
+    refresh_process: "Reviewed at each incident postmortem referencing a CI failure"
+
+  - doc_id: PROC-003
+    title: "Service Catalog Entry Update Procedure"
+    owner_role: "Service Catalog Curator"
+    classification: internal-public
+    version: "1.0"
+    effective_date: "2025-12-01"
+    access_policy: "all authenticated employees"
+    source: "Platform Engineering operating-procedures export"
+    refresh_process: "Reviewed semi-annually alongside PLAT-004"
+
+  - doc_id: PROC-004
+    title: "Production Access Request Procedure"
+    owner_role: "Identity and Access Team Lead"
+    classification: internal-confidential
+    version: "2.2"
+    effective_date: "2026-02-01"
+    access_policy: "platform engineering + identity and access team"
+    source: "Identity and Access Management runbook export"
+    refresh_process: "Reviewed annually or on any access-policy change"
+
+  - doc_id: PROC-005
+    title: "Certificate Rotation Procedure"
+    owner_role: "Network Security Engineer"
+    classification: internal-restricted
+    version: "1.2"
+    effective_date: "2025-10-20"
+    access_policy: "platform engineering + security engineering"
+    source: "Security Engineering runbook export"
+    refresh_process: "Reviewed on every certificate-authority change"
+
+  - doc_id: PROC-006
+    title: "Incident Escalation Procedure"
+    owner_role: "Incident Management Lead"
+    classification: internal-restricted
+    version: "1.5"
+    effective_date: "2026-03-20"
+    access_policy: "platform engineering + on-call responders"
+    source: "Incident Management playbook export"
+    refresh_process: "Reviewed after every severity-1 incident postmortem"
+
+  - doc_id: KI-001
+    title: "Known Error: CI Runner Cache Corruption on Concurrent Builds"
+    owner_role: "CI Platform Team Lead"
+    classification: internal-restricted
+    version: "1.0"
+    effective_date: "2026-05-12"
+    access_policy: "platform engineering + pilot users"
+    source: "ITSM knowledge base export"
+    refresh_process: "Updated on every confirmed workaround change; reviewed at each related incident postmortem"
+
+  - doc_id: KI-002
+    title: "Known Error: Namespace Quota Exhaustion After Bulk Deploy"
+    owner_role: "Namespace Governance Owner"
+    classification: internal-restricted
+    version: "1.1"
+    effective_date: "2026-04-02"
+    access_policy: "platform engineering + pilot users"
+    source: "ITSM knowledge base export"
+    refresh_process: "Updated on every confirmed workaround change; reviewed at each related incident postmortem"
+
+  - doc_id: KI-003
+    title: "Known Error: Ingress Certificate Renewal Race Condition"
+    owner_role: "Network Security Engineer"
+    classification: internal-restricted
+    version: "1.0"
+    effective_date: "2026-06-01"
+    access_policy: "platform engineering + pilot users"
+    source: "ITSM knowledge base export"
+    refresh_process: "Updated on every confirmed workaround change; reviewed at each related incident postmortem"
+
+  - doc_id: KI-004
+    title: "Known Error: Service Catalog Entry Sync Delay"
+    owner_role: "Service Catalog Curator"
+    classification: internal-restricted
+    version: "1.0"
+    effective_date: "2026-02-18"
+    access_policy: "platform engineering + pilot users"
+    source: "ITSM knowledge base export"
+    refresh_process: "Updated on every confirmed workaround change; reviewed at each related incident postmortem"
+
+  - doc_id: KI-005
+    title: "Known Error: CI Pipeline Timeout on Large Image Builds"
+    owner_role: "CI Platform Team Lead"
+    classification: internal-restricted
+    version: "2.0"
+    effective_date: "2026-06-15"
+    access_policy: "platform engineering + pilot users"
+    source: "ITSM knowledge base export"
+    refresh_process: "Updated on every confirmed workaround change; reviewed at each related incident postmortem"
+
+  - doc_id: SVC-001
+    title: "Service Catalog Entry: Standard Namespace Template"
+    owner_role: "Service Catalog Curator"
+    classification: internal-public
+    version: "1.3"
+    effective_date: "2026-01-20"
+    access_policy: "all authenticated employees"
+    source: "Service Catalog registry export"
+    refresh_process: "Updated whenever the underlying namespace template changes"
+
+  - doc_id: SVC-002
+    title: "Service Catalog Entry: CI Pipeline Template (Build-Test-Scan-Promote)"
+    owner_role: "Service Catalog Curator"
+    classification: internal-public
+    version: "1.1"
+    effective_date: "2026-03-15"
+    access_policy: "all authenticated employees"
+    source: "Service Catalog registry export"
+    refresh_process: "Updated whenever the underlying pipeline template changes"
+
+  - doc_id: SVC-003
+    title: "Service Catalog Entry: Managed Database Namespace Add-on"
+    owner_role: "Service Catalog Curator"
+    classification: internal-public
+    version: "1.0"
+    effective_date: "2026-05-28"
+    access_policy: "all authenticated employees"
+    source: "Service Catalog registry export"
+    refresh_process: "Updated whenever the underlying add-on template changes"

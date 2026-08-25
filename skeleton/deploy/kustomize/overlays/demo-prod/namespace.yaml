@@ -1,0 +1,20 @@
+# Phase C, Step C4 (DECISIONS.md DEC-021/DEC-024). Documentation only, same
+# convention as overlays/ephemeral-test/namespace.yaml -- not referenced
+# from this overlay's own kustomization.yaml `resources:`. The Namespace
+# object is bootstrapped once, out-of-band (pipelines/bootstrap/namespaces.yaml,
+# applied manually), never created/deleted by ArgoCD or this project's own
+# pipeline ServiceAccount (which has no cluster-scoped permissions at all,
+# per pipelines/bootstrap/rbac.yaml's own header). demo-prod is
+# ArgoCD-synced (syncPolicy.automated with selfHeal) rather than
+# pipeline-applied like ephemeral-test -- if this file were a managed
+# resource, ArgoCD's own selfHeal would fight over an object its
+# destination-scoped sync has no cluster-scoped permission to actually
+# reconcile either way (Application.spec.syncPolicy.syncOptions
+# CreateNamespace=true only works when the ArgoCD instance's own
+# ServiceAccount has cluster-scoped Namespace permissions -- deliberately
+# not relied on here, same reasoning as DEC-024's original ephemeral-test
+# decision).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${{ values.name }}-demo-prod

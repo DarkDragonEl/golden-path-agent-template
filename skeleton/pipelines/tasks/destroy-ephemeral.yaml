@@ -1,0 +1,30 @@
+# Phase C, Step C1b. Cycles the ephemeral resources deploy-ephemeral
+# created -- the Namespace itself is never touched (DEC-024). Runs in the
+# Pipeline's finally block, always, regardless of whether earlier stages
+# passed or failed.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: destroy-ephemeral
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: delete
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        RENDERED=$(workspaces.source.path)/rendered-ephemeral.yaml
+        if [ -f "$RENDERED" ]; then
+          oc delete -n ${{ values.name }}-ephemeral-test -f "$RENDERED" --ignore-not-found=true
+        else
+          echo "No rendered-ephemeral.yaml on the workspace (deploy-ephemeral likely never ran) -- nothing to delete."
+        fi
+        # Also clean up the operational-tests throwaway Deployment, in
+        # case that Task failed before its own delete ran.
+        oc delete deployment ${{ values.name }}-fallback-demo \
+          -n ${{ values.name }}-ephemeral-test --ignore-not-found=true

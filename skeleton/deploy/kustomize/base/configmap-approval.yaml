@@ -1,0 +1,32 @@
+# Dedicated ConfigMap, not folded into ${{ values.name }}-config -- the
+# approval service's own config surface (DB path, timeout, OIDC
+# issuer/audience/role-claim, AUTH_MODE) barely overlaps the agent/MCP
+# config; a shared ConfigMap with keys most components ignore gets
+# confusing fast. Mirrors the per-overlay configMapGenerator pattern
+# already used elsewhere in this repo.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${{ values.name }}-approval-config
+data:
+  APPROVAL_DB_PATH: "./state/approval/approvals.db"
+  APPROVAL_TIMEOUT_SECONDS: "3600"
+  AUTH_MODE: "none"   # DEC-045: owner-binding requirement -- demo-prod's
+  # rendered config must assert AUTH_MODE=oidc once D2 lands, checked
+  # mechanically (tools/check_config_contract.py or an equivalent
+  # manifest check), never left to convention.
+  APPROVER_ROLE_CLAIM: "roles"
+  APPROVER_ROLE_VALUE: "approval-approver"
+  OIDC_ISSUER_URL: "http://${{ values.name }}-service.${{ values.name }}-keycloak.svc.cluster.local:8080/realms/${{ values.name }}" # DEC-063:
+  # found live while wiring the D2 cutover -- approval_service/auth.py
+  # reads this with NO default (DEC-045), and it was never declared here
+  # at all (AUTH_MODE stayed "none" through all of D1, so the gap never
+  # surfaced). Same internal Service DNS every other OIDC_ISSUER_URL in
+  # this repo uses -- safe to commit, unused while AUTH_MODE=none.
+  OIDC_AUDIENCE: "${{ values.name }}-approval" # DEC-063: matches the
+  # realm's own audience mapper on ${{ values.name }}-approval-workload/
+  # ${{ values.name }}-approver-ui (DEC-058) -- same reasoning as above.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "" # DEC-071: empty = telemetry disabled,
+  # matching ${{ values.name }}-config's own base default exactly --
+  # ephemeral-test/demo-prod override it to the real cluster collector.
+  OTEL_SERVICE_NAME: "${{ values.name }}-approval"

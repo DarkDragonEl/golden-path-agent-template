@@ -1,0 +1,114 @@
+# Phase C, Step C1b/C1c (DECISIONS.md DEC-031). Applies
+# deploy/kustomize/overlays/ephemeral-test with a pipeline-scoped digest
+# override -- kustomize edit set image runs against BASE's own
+# kustomization.yaml, in this scratch, uncommitted workspace checkout
+# only, never the committed repo (per the accepted plan's C1: "never
+# committed to base/" -- "never committed" describes the *repo*, not
+# which kustomization.yaml file gets edited transiently). Deliberately
+# NOT run against the overlay's own kustomization.yaml: confirmed live,
+# reproduced locally, and independently confirmed as a documented
+# upstream limitation (kubernetes-sigs/kustomize#1040/#4581) -- when both
+# base and an overlay declare an `images:` transformer for the same image
+# name, the overlay's override does not reliably take effect; base's own
+# value silently wins instead. Editing base's own file directly in this
+# scratch copy avoids the conflict entirely. Phase D2 cutover (DEC-063):
+# deployment-approval.yaml is now a plain base/ resource (promoted from
+# the DEC-050 nested kustomization at the cutover) -- this Task's single
+# `kustomize edit set image` against base/kustomization.yaml now covers
+# it too, same as deployment-agent.yaml/deployment-mcp.yaml; the second,
+# separate edit this Task used to need for base/approval/kustomization.yaml
+# is retired along with that directory. Namespace lifecycle:
+# ${{ values.name }}-ephemeral-test is
+# pre-created (pipelines/bootstrap/namespaces.yaml) -- this Task manages
+# only the workload resources inside it, per DEC-024's RBAC redesign;
+# nothing here creates or deletes the Namespace object itself.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: deploy-ephemeral
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  params:
+    - name: image-ref
+      type: string
+      description: Full pushed image reference including digest, e.g. <registry>/<repo>@sha256:...
+  workspaces:
+    - name: source
+  steps:
+    - name: render-with-digest-override
+      image: registry.k8s.io/kustomize/kustomize:v5.8.1
+      workingDir: $(workspaces.source.path)/deploy/kustomize/overlays/ephemeral-test
+      env:
+        # DEC-031: security-tests/operational-tests hit the deployed
+        # agent's real /invoke HTTP endpoint, which needs a real model
+        # call -- the overlay's own committed configMapGenerator literal
+        # (MODEL_API_BASE_URL=http://dev-model-endpoint.example.com/v1)
+        # is a deliberate placeholder (this repo is public; the real
+        # endpoint is never committed). Overridden the same way the image
+        # digest is: at apply-time, in a scratch copy, never in Git --
+        # sourced from ${{ values.name }}-ci-config (C1a bootstrap, the
+        # same ConfigMap eval-gate-live already reads).
+        - name: MODEL_API_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ${{ values.name }}-ci-config
+              key: MODEL_API_BASE_URL
+        - name: MODEL_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: ${{ values.name }}-ci-config
+              key: MODEL_NAME
+        # DEC-035: operational-tests' kill-primary-fallback-check needs a
+        # real, working fallback route on the deployed pod -- the overlay's
+        # own committed placeholder is never a real endpoint, same reason
+        # as MODEL_API_BASE_URL above. Mirrors the fallback pair already
+        # used for local dev (.env, gitignored) -- same MaaS host as the
+        # primary route, a different model name, per that established,
+        # already-approved demo pattern (DECISIONS.md DEC-020).
+        - name: MODEL_FALLBACK_API_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ${{ values.name }}-ci-config
+              key: MODEL_FALLBACK_API_BASE_URL
+        - name: MODEL_FALLBACK_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: ${{ values.name }}-ci-config
+              key: MODEL_FALLBACK_NAME
+      script: |
+        #!/bin/sh
+        set -eu
+        (cd $(workspaces.source.path)/deploy/kustomize/base && \
+          kustomize edit set image ${{ values.name }}="$(params.image-ref)")
+        kustomize edit set configmap ${{ values.name }}-config \
+          --from-literal=MODEL_API_BASE_URL="${MODEL_API_BASE_URL}" \
+          --from-literal=MODEL_NAME="${MODEL_NAME}" \
+          --from-literal=MODEL_FALLBACK_API_BASE_URL="${MODEL_FALLBACK_API_BASE_URL}" \
+          --from-literal=MODEL_FALLBACK_NAME="${MODEL_FALLBACK_NAME}"
+        kustomize build . > $(workspaces.source.path)/rendered-ephemeral.yaml
+        # DEC-037: `kustomize edit set image` above rewrites
+        # base/kustomization.yaml's entire content in place (not just the
+        # touched field -- confirmed live: whole-file reformatting plus
+        # the wrong newName, the CI-internal ephemeral registry host
+        # instead of the committed placeholder). This workspace is the
+        # same PVC every later Task in this PipelineRun shares --
+        # including open-promotion-pr, which must sed-patch the digest
+        # field onto the ORIGINAL, unmodified committed file. Revert the
+        # mutation now that the render is already captured above; nothing
+        # downstream in this Task needs the mutated file on disk, only
+        # rendered-ephemeral.yaml.
+        git -C $(workspaces.source.path) checkout -- deploy/kustomize/base/kustomization.yaml
+    - name: apply
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        oc apply -n ${{ values.name }}-ephemeral-test -f $(workspaces.source.path)/rendered-ephemeral.yaml
+        oc rollout status deployment/${{ values.name }} -n ${{ values.name }}-ephemeral-test --timeout=180s
+        oc rollout status deployment/${{ values.name }}-mcp -n ${{ values.name }}-ephemeral-test --timeout=180s
+        # DEC-050: approval-service is now part of this same rendered
+        # manifest set (ephemeral-test only, per DEC-046) -- gate on its
+        # rollout the same way, not just applied-and-hoped.
+        oc rollout status deployment/${{ values.name }}-approval -n ${{ values.name }}-ephemeral-test --timeout=180s

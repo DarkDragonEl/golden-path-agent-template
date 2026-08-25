@@ -1,0 +1,42 @@
+# Defense-in-depth on a shared, multi-tenant cluster -- the app-layer
+# check (agent's OIDC token can never carry the approver role, D2) is
+# what actually keeps the agent off the decision endpoint; NetworkPolicy
+# can't express that path-level distinction (it only sees pod-to-pod
+# reachability, not which HTTP path a request is for). This policy's own
+# job is narrower and still real: keep pods OUTSIDE this project's own
+# namespace (e.g. another tenant's workload on this shared cluster) from
+# reaching approval-service directly at all, before any app-layer check
+# even runs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ${{ values.name }}-approval-restrict
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ${{ values.name }}
+      app.kubernetes.io/component: approval
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}   # any pod in this project's own namespace (the
+          # agent pod submits/queries; D3, if deployed in-namespace, would
+          # reach the decision endpoint the same way)
+      ports:
+        - port: 8082
+          protocol: TCP
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              policy-group.network.openshift.io/ingress: ""   # TODO(D1
+              # implementation): this is the standard OpenShift SDN/OVN
+              # convention for "traffic from the router" -- VERIFY against
+              # this specific cluster live (oc get namespace
+              # openshift-ingress --show-labels or equivalent) before
+              # relying on it, per this project's own "verify, don't
+              # assume" discipline (DEC-023's pattern) -- do not trust this
+              # label is correct on this cluster without checking.
+      ports:
+        - port: 8082
+          protocol: TCP

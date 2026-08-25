@@ -1,0 +1,32 @@
+# Phase E, E1 entry gate (DECISIONS.md DEC-078 and onward). First time
+# this project has ever authored an OpenShift Pipelines Subscription --
+# on the SNO (Phase C), this operator was already installed cluster-wide
+# by prior, unrelated work before this project ever touched it
+# (docs/environments.md's own "shared, multi-tenant lab" note). The
+# showcase cluster is a dedicated environment with no such pre-install
+# (verified live via `oc get csv -A` before this file was authored,
+# PINS.md's Phase E section), so this is the actual from-scratch
+# operator-bootstrap leg Phase E exists to prove.
+#
+# Structurally different from keycloak-operator.yaml's pattern:
+# openshift-pipelines-operator-rh only supports AllNamespaces install mode
+# (PINS.md, verified live via packagemanifest), so this goes into
+# openshift-operators, the cluster's own pre-existing AllNamespaces
+# OperatorGroup (global-operators) -- no new OperatorGroup object needed
+# or created here. This is a cluster-scoped action (like namespaces.yaml),
+# applied manually by a human with cluster-admin-adjacent access, never
+# by the CI pipeline's own ServiceAccount.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-pipelines-operator-rh
+  namespace: openshift-operators
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  channel: pipelines-1.22
+  name: openshift-pipelines-operator-rh
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Manual
+  startingCSV: openshift-pipelines-operator-rh.v1.22.5

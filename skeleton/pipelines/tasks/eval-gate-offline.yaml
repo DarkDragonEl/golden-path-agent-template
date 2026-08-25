@@ -1,0 +1,32 @@
+# Phase C, Step C1b. SysR-P-F-05(1) continued -- the existing
+# ci/pr-checks.yaml eval-gate stage, realized as a Tekton Task, unchanged
+# in substance: fully offline (fake model client, mock MCP tool), no
+# network access or external credentials.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: eval-gate-offline
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: eval-offline
+      image: docker.io/library/python:3.12-slim
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: AGENT_MODEL_MODE
+          value: fake
+        - name: MCP_MODE
+          value: mock
+        # DEC-027: pip install needs a writable $HOME under this project's
+        # restricted-v2-SCC identity -- see unit-tests.yaml's fuller note.
+        - name: HOME
+          value: /tmp
+      script: |
+        #!/bin/sh
+        set -eu
+        pip install --no-cache-dir -q -r requirements.txt -r requirements-dev.txt
+        python -m eval.cli run --all

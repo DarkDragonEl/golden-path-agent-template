@@ -1,0 +1,91 @@
+# Phase C, Step C1b. SysR-P-F-05(4) operational tests: a live kill-primary
+# fallback trigger, mirroring the demo DEC-020 already ran manually and
+# locally (this session's own Checkpoint B2 exit verification) -- now
+# automated against the real cluster.
+#
+# Scope note: this checks fallback *behavior* (the call still succeeds
+# despite a broken primary route) functionally, not via an exported OTel
+# trace -- the cluster-tier OTel Collector Operator (PINS.md: pinned,
+# available in-cluster, not yet installed) isn't wired into this
+# ephemeral deployment yet. That's a real, separately-tracked gap, not a
+# silent scope cut -- see the Phase C report/DEC-025 for the explicit
+# note on what's deferred and why.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: operational-tests
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  params:
+    - name: image-ref
+      type: string
+      description: Full pushed image reference including digest.
+  workspaces:
+    - name: source
+  steps:
+    - name: kill-primary-fallback-check
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        NS=${{ values.name }}-ephemeral-test
+        NAME=${{ values.name }}-fallback-demo
+
+        # Throwaway Deployment, separate from the standing ephemeral-test
+        # Deployment other stages depend on -- deliberately broken primary,
+        # correct fallback (from the same real secret/config the standing
+        # deployment uses).
+        oc get deployment ${{ values.name }} -n "$NS" -o json \
+          | python3 -c "
+        import json, sys
+        d = json.load(sys.stdin)
+        d['metadata'] = {'name': '$NAME', 'namespace': '$NS', 'labels': {'component': 'agent-fallback-demo'}}
+        spec = d['spec']
+        spec['selector'] = {'matchLabels': {'app.kubernetes.io/instance': '$NAME'}}
+        spec['template']['metadata']['labels'] = {'app.kubernetes.io/instance': '$NAME', 'component': 'agent-fallback-demo'}
+        for c in spec['template']['spec']['containers']:
+            c['env'] = (c.get('env') or []) + [{'name': 'MODEL_API_BASE_URL', 'value': 'https://model-endpoint.invalid/v1'}]
+        json.dump(d, sys.stdout)
+        " | oc apply -n "$NS" -f -
+
+        oc rollout status deployment/"$NAME" -n "$NS" --timeout=180s
+        POD=$(oc get pod -n "$NS" -l app.kubernetes.io/instance="$NAME" -o jsonpath='{.items[0].metadata.name}')
+
+        # DEC-034: python3/urllib inside the pod via stdin, not curl --
+        # same reason as security-tests.yaml's own fix (the agent's own
+        # image has no curl at all, confirmed live).
+        oc exec -i -n "$NS" "$POD" -- python3 - <<'PYEOF' > /tmp/resp.json
+        import json
+        import sys
+        import urllib.request
+
+        data = json.dumps(
+            {
+                "query": "What is the status of incident INC-10240?",
+                "write": False,
+                "user_id": "ci-operational-test",
+            }
+        ).encode()
+        req = urllib.request.Request(
+            "http://localhost:8080/invoke",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            resp = json.load(r)
+        json.dump(resp, sys.stdout)
+        PYEOF
+        cat /tmp/resp.json
+
+        oc delete deployment "$NAME" -n "$NS" --wait=false
+
+        final_output=$(python3 -c "import json; print(json.load(open('/tmp/resp.json')).get('final_output') or '')")
+        [ -n "$final_output" ] || { echo "FAIL: no final_output -- fallback did not recover the request." >&2; exit 1; }
+        echo "$final_output" | grep -qi "could not be completed safely" && {
+          echo "FAIL: request escalated to human review instead of falling back -- fallback route may not be configured." >&2
+          exit 1
+        }
+        echo "OK: call succeeded with primary deliberately broken -- fallback route absorbed the failure."

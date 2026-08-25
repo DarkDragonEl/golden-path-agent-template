@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${{ values.name }}-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ${{ values.name }}
+      app.kubernetes.io/component: mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ${{ values.name }}
+        app.kubernetes.io/component: mcp
+    spec:
+      serviceAccountName: ${{ values.name }}-mcp
+      containers:
+        - name: mcp
+          image: ${{ values.name }}
+          args: ["mcp"]
+          ports:
+            - name: http
+              containerPort: 8081
+          # Deliberate exception to sharing ${{ values.name }}-config
+          # wholesale below: a container-level env entry takes precedence
+          # over the same key sourced via envFrom, so mcp reports its own
+          # OTEL_SERVICE_NAME instead of inheriting the agent's
+          # ("${{ values.name }}") -- otherwise mcp spans are indistinguishable
+          # from agent spans by service name once traces flow.
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: ${{ values.name }}-mcp
+          envFrom:
+            - configMapRef:
+                name: ${{ values.name }}-config
+          # FastMCP's streamable-HTTP transport speaks the MCP protocol on
+          # this port, not a plain REST /healthz route — probe the socket
+          # rather than assuming an HTTP path that doesn't exist here.
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

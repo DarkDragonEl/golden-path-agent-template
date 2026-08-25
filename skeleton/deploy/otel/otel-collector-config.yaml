@@ -1,0 +1,23 @@
+# Local-dev OTel Collector config (R4/DEC-020, plan-B6 closure). Minimal by
+# design, matching this milestone's scope (CLAUDE.md scope guard;
+# E2E_DEMO_PLAN.md's own risk-mitigation note: "OTel collector exporting to
+# a lightweight backend is enough for the demo trace") -- an OTLP HTTP
+# receiver and a debug exporter that writes received spans to this
+# container's own stdout (`podman logs golden-path-otel-collector-dev`).
+# No trace-visualization UI at this phase; the SNO/Phase-C observability
+# stack is a separate, later concern (see PINS.md).
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [debug]
