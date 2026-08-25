@@ -6717,3 +6717,48 @@ paraphrased.
 entry — skeleton structure, parameter schema, nine-output mapping, and
 the literal-sweep result, per `docs/phase-f-kickoff-plan.md` §6. F3
 remains gated on the owner's STOP 3 review.
+
+## DEC-089 — STOP 3 conditionally cleared: three evidence checks executed
+and recorded (`reports/phase-f-f2-verification.md`)
+
+Owner's STOP 3 clearance was conditional on evidenced proof, not
+assertion, for three checks. All three executed this session; full
+commands/output in the companion report.
+
+1. **`skeleton/`'s effect on the built image**: `Containerfile`'s `COPY`
+   list confirmed to have zero `skeleton` references (grep). Built the
+   image from the commit immediately before any Phase F file existed
+   (`ff4102e`) and from current HEAD (`ccd6b81`, `skeleton/` + everything
+   else present) in separate worktrees — **identical image ID and digest**
+   (`sha256:826786ccf5b26d92cee00c6f3174a6e2c97203f74d8ba520b8fd05e310cd6e96`)
+   on both builds. Not "should be unaffected" — empirically identical.
+2. **CI-equivalent checks, run locally against repo root with `skeleton/`
+   present**: `pytest -q` (252 collected — matches the pre-existing
+   baseline exactly, confirming `pyproject.toml`'s `testpaths = ["tests"]`
+   keeps `skeleton/tests/`'s duplicate files out of collection; 251
+   passed, 1 skipped), the `Makefile`'s exact `lint` command (scoped to
+   `agent mcp_server eval`, sibling dirs to `skeleton/`, pass), and
+   `ci/pr-checks.yaml`'s exact eval-gate command (`AGENT_MODEL_MODE=fake
+   python -m eval.cli run --all`, 2/2 — not 4/4, confirming
+   `skeleton/eval/cases/`'s duplicates aren't picked up either). No other
+   repo-wide linter config exists that could glob-match `skeleton/` some
+   other way (checked: `.flake8`/`ruff.toml`/`setup.cfg`/`.pylintrc` all
+   absent).
+3. **Substitution-order guarantee**: a real source line
+   (`pipelines/bootstrap/otel-collector.yaml:104`) containing both a
+   suffixed identifier and the bare base identifier side by side resolved
+   both correctly with no cross-contamination. The repo-slug case
+   (`pyproject.toml`) resolved to `${{ values.repoName }}`, not a
+   shadowed `${{ values.name }}-template` — confirmed load-bearing, not
+   coincidental, via a negative control: the same three rules applied in
+   reversed (shortest-first) order on the same input produce the wrong
+   result (`${{ values.name }}-template`), proving the actual
+   longest-to-shortest ordering used is what makes this correct.
+
+Also recorded on the record, not just summarized in chat: the actual
+`tools/verify_skeleton.py` run (exit 0, both checks pass) and the
+boundary-count check (5 `@mcp.tool()` registrations, source and skeleton
+identical).
+
+**Status**: STOP 3 conditions satisfied with executed evidence. F3
+authorized per owner's message; proceeding.
