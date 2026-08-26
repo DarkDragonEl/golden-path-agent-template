@@ -60,4 +60,4 @@ data:
         - type: url
           target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/catalog-info.yaml
         - type: url
-          target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/template.yaml
+          target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/template.yaml
