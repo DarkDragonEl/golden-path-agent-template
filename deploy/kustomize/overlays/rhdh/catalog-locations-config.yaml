@@ -35,12 +35,26 @@ metadata:
 # entity kind (Template, not Component) from a distinct file, kept as
 # its own locations entry rather than merged into catalog-info.yaml's
 # own content.
+#
+# Real gap found live (F5): backend.reading.allow (above) is enough for
+# a generic exact-URL fetch, but fetch:template's own *relative* URL
+# resolution (this Template's own `url: ./skeleton` step, resolved
+# against the Template entity's own GitHub-hosted location) needs a
+# matching integrations.github entry -- without it, the scaffolder task
+# fails outright with "InputError: No integration found for location
+# ...", confirmed by actually running the Template (not assumed).
+# No token: this is a public repo and only unauthenticated reads are
+# needed here; GitHub's own unauthenticated API rate limit is more than
+# sufficient for this sandbox's own render volume.
 data:
   app-config.catalog.yaml: |
     backend:
       reading:
         allow:
           - host: raw.githubusercontent.com
+    integrations:
+      github:
+        - host: github.com
     catalog:
       locations:
         - type: url
