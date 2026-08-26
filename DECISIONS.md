@@ -6825,3 +6825,71 @@ STOP 4 for owner review before F3 is treated as demo-ready. `SysR-P-F-13`/
 acceptance-level echo of this check per the kickoff doc's own framing —
 this entry proves execution succeeded once, in this session, not that
 independently.
+
+**Addendum 2026-08-26** (owner review, STOP 4 clearance): the
+trace-check removal above is a **conscious product decision, not merely
+a bugfix side effect** — recorded explicitly so a future session doesn't
+mistake it for an oversight to "restore." Rendered projects are born
+without requirements-traceability tooling because their own `srs/`
+corpus does not exist at render time — there is nothing for `trace-check`
+to check against. This is acceptable because `tools/trace-check` is not
+among `SysR-P-F-01`'s nine required outputs (`docs/template-nine-output-
+mapping.md`'s own table lists none of them as "traceability tooling").
+The re-entry point, if a future instantiated project adopts its own
+formal SyRS→StRS→SRS derivation discipline the way this blueprint repo
+did, is either a new optional `template-schema.json` parameter (e.g.
+`includeTraceCheck: bool`, gating whether F2's skeleton-build step
+carries the tool + a fresh, empty `srs/` scaffold instead of omitting
+both) or a post-render step a team runs manually once their own `srs/`
+exists — not something F2/F3 need to solve now, since no instantiated
+project has needed it yet. `docs/template-nine-output-mapping.md` was
+checked and needs no further update beyond what this pass already made —
+its exclusion table already names `tools/trace-check/`/
+`tests/test_trace_check.py` and the reasoning above is additive
+context, not a correction to that mapping.
+
+## DEC-091 — Milestone state change: `SysR-P-F-01`(b) satisfied and
+live-verified; the `OI-04` fallback is now a real, ready option, not a
+contingency plan
+
+Owner-directed, closing out Phase F0–F3. This entry exists specifically
+to record the state change itself, separate from `DEC-090`'s own
+build-and-verify record, because it changes what F4/F5 can and cannot
+put at risk going forward.
+
+**What changed**: as of `DEC-090` (2026-08-25/26), `SysR-P-F-01`(b) —
+direct CLI instantiation, producing a complete parameterized agent
+project in one operation — is satisfied and proven by execution, not
+assumed. This means Annex A `OI-04`'s fallback ("if portal-integration
+effort demonstrably endangers the demonstration milestone... direct CLI
+instantiation alone satisfies the demo") is no longer a contingency this
+project would have to scramble to stand up under pressure — it is a
+real, already-built, already-verified option sitting ready today.
+
+**Consequence for F4/F5**: per the kickoff doc's own §2 framing
+(restated here as the direct payoff of that framing, not a new
+argument), F4 (RHDH platform stand-up) and F5 (Scaffolder authoring) can
+now only ever put at risk **when** portal exposure is demonstrated for
+the demo milestone — never **whether** `SysR-P-F-01` is satisfiable at
+all, and never the demonstration milestone's own success, since (b)
+alone already carries it. This is the practical meaning of "the
+optional-timing layer, not optional scope."
+
+**What remains genuinely open, at acceptance level, named explicitly so
+this milestone-satisfied state isn't mistaken for full closure**:
+1. **Full portal exposure, for `OBJ-01` (full MVP acceptance)** — the
+   (a) half of `SysR-P-F-01` remains unbuilt. F4/F5 still need to
+   happen eventually; today's state change only removes the *pressure*
+   to rush them, not the requirement itself.
+2. **`SysR-P-F-13`/`OS-09`** (a second team running the same
+   instantiation operation, unassisted) — the acceptance-level echo of
+   F3's own DoD. This project cannot self-certify that check; `DEC-090`
+   proves execution succeeded once, in this session, under parameters
+   this session itself chose. An independent run by someone else,
+   without this session's own hands on the keyboard, is a distinct,
+   still-open verification.
+
+**Status**: Milestone state recorded. F4/F5 remain gated per `DEC-087`
+on a real demo date (arms the `OI-04` trigger threshold, kickoff doc
+§4.2 item 5) and owner authorization to begin — no cluster work starts
+from this entry alone.
