@@ -46,18 +46,52 @@ metadata:
 # No token: this is a public repo and only unauthenticated reads are
 # needed here; GitHub's own unauthenticated API rate limit is more than
 # sufficient for this sandbox's own render volume.
+#
+# Phase G, Stage 1 (DEC-098/DEC-099/DEC-100). Third location entry:
+# the same Template, additionally registered from the internal Gitea
+# mirror (golden-path-agent-admin/golden-path-agent-template, stood up
+# in G1) -- proves the Platform Foundation's own Git hosting can serve
+# as a template source, ahead of any future decision to make it primary.
+# GitHub-hosted locations above are untouched; this is additive, not a
+# replacement.
+#
+# First attempt at this (this same G1 session) tried mimicking Gitea via
+# a second `integrations.github` entry with an explicit `apiBaseUrl` --
+# wrong integration key entirely. Backstage has a genuine, first-class
+# Gitea integration in `@backstage/integration` core (`GiteaIntegration`,
+# not a dynamic plugin -- so the missing scaffolder-backend-module-gitea
+# dynamic plugin this session found live in `dynamic-plugins-root` is
+# irrelevant here). Confirmed by reading `packages/integration/src/
+# gitea/core.ts`'s own `parseGiteaUrl` before writing this: it expects
+# exactly `https://<host>/<owner>/<repo>/src/branch/<ref>/<path>` --
+# which is the same URL shape this session's own live probe already
+# used, so that guess was right; only the integration key (`github`
+# instead of `gitea`) was wrong. Same two-gate pattern F5 already
+# documented for GitHub applies here too: `integrations.gitea` for
+# fetch:template's relative-URL resolution, `backend.reading.allow` for
+# the catalog's own generic UrlReader guard -- both needed, neither
+# alone is sufficient (confirmed by F5's own history, not re-derived).
+# No `password` (token) field: this Gitea repo is public and only
+# unauthenticated reads are needed for template *loading* -- same
+# posture as the GitHub entries above. Add one (referencing a Secret,
+# never a literal value here) only if a live read genuinely fails auth.
 data:
   app-config.catalog.yaml: |
     backend:
       reading:
         allow:
           - host: raw.githubusercontent.com
+          - host: golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io
     integrations:
       github:
         - host: github.com
+      gitea:
+        - host: golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io
     catalog:
       locations:
         - type: url
           target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/catalog-info.yaml
         - type: url
           target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/template.yaml
+        - type: url
+          target: https://golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io/golden-path-agent-admin/golden-path-agent-template/src/branch/main/template.yaml
