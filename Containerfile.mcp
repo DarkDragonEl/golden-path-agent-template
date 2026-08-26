@@ -1,0 +1,36 @@
+# ARG, not a hardcoded pin: the enterprise-approved base image is supplied
+# at build time per engagement/platform. This default is a plain, generic
+# image so the scaffold builds and runs anywhere out of the box.
+ARG BASE_IMAGE=python:3.12-slim
+FROM ${BASE_IMAGE}
+
+WORKDIR /opt/app-root/src
+
+# Dependencies first (cache layer). MCP-only: the `mcp` SDK and pyjwt
+# never load in the agent or approval images (DEC-098/DEC-099 artifact
+# split). server.py never imports client.py, so httpx here is for
+# auth.py's JWKS fetch, not for the agent-facing client module (excluded
+# below — this image never needs it).
+COPY requirements-mcp.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Code only. client.py is deliberately excluded: it's the agent-side
+# calling surface (agent/nodes/*.py import it), not something server.py
+# itself uses — copying it here would also pull in its `from agent.
+# oidc_client import get_service_token` reference for no reason, since
+# that branch never executes server-side.
+COPY mcp_server/__init__.py ./mcp_server/__init__.py
+COPY mcp_server/server.py ./mcp_server/server.py
+COPY mcp_server/auth.py ./mcp_server/auth.py
+COPY mcp_server/schemas.py ./mcp_server/schemas.py
+COPY mcp_server/itsm_store.py ./mcp_server/itsm_store.py
+COPY --chmod=0755 entrypoint-mcp.sh ./entrypoint.sh
+
+ENV MCP_PORT=8081
+
+# Restricted-SCC-compatible: arbitrary non-root UID, group-writable, GID 0.
+RUN chmod -R g=u /opt/app-root/src
+
+USER 1001
+EXPOSE 8081
+ENTRYPOINT ["./entrypoint.sh"]

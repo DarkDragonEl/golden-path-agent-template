@@ -1,0 +1,27 @@
+# Phase G, G2 (DECISIONS.md DEC-098/DEC-099). Triggers
+# golden-path-agent-ci-approval (pipeline-approval.yaml).
+#   oc create -f pipelines/pipelinerun-template-approval.yaml -n golden-path-agent-ci
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: golden-path-agent-ci-approval-
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+    app.kubernetes.io/component: approval
+spec:
+  pipelineRef:
+    name: golden-path-agent-ci-approval
+  taskRunTemplate:
+    serviceAccountName: golden-path-agent-ci-pipeline
+  params:
+    - name: revision
+      value: main
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi

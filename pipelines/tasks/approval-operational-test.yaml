@@ -1,0 +1,52 @@
+# Phase G, G2 (DECISIONS.md DEC-098/DEC-099). Lean, approval-specific
+# operational gate for the independently-built/promoted approval-service
+# image. Two checks only -- a full SRS-APR-IF-01/IF-02 propose-then-decide
+# round trip against ephemeral-test would need OIDC credentials minted for
+# this Task, which this session did not wire up (a real gap, named here
+# rather than silently assumed covered, not fixed in this pass): this Task
+# proves the freshly-deployed pod is reachable and healthy and that its
+# NetworkPolicy binding took effect, not full contract behavior.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: approval-operational-test
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  steps:
+    - name: disallowed-egress-proof
+      # Same pattern as security-tests.yaml/mcp-operational-test.yaml's
+      # own step of this name, scoped to the approval Service instead.
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        echo "Attempting direct cross-namespace access to the approval service's port 8082 (expect: blocked)..."
+        if curl -sf --max-time 5 \
+             http://golden-path-agent-approval.golden-path-agent-ephemeral-test.svc.cluster.local:8082/healthz; then
+          echo "FAIL: reached the approval service directly from a different namespace -- NetworkPolicy did not block it." >&2
+          exit 1
+        fi
+        echo "OK: direct cross-namespace access blocked, as the NetworkPolicy requires."
+
+    - name: healthz-via-allowed-caller
+      # Confirms the freshly-deployed approval pod is actually up and
+      # answering, called from the agent pod (an allowed caller under the
+      # same NetworkPolicy pattern the other operational tests already
+      # use) rather than assuming a green rollout means a working process.
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        NS=golden-path-agent-ephemeral-test
+        AGENT_POD=$(oc get pod -n "$NS" -l app.kubernetes.io/component=agent -o jsonpath='{.items[0].metadata.name}')
+        oc exec -i -n "$NS" "$AGENT_POD" -- python3 - <<'PYEOF'
+        import urllib.request
+
+        with urllib.request.urlopen(
+            "http://golden-path-agent-approval:8082/healthz", timeout=10
+        ) as r:
+            assert r.status == 200, f"FAIL: approval /healthz returned {r.status}"
+        print("OK: freshly-deployed approval pod answered /healthz via an allowed caller.")
+        PYEOF

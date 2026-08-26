@@ -1,0 +1,29 @@
+# Phase G, G2 (DECISIONS.md DEC-098/DEC-099). Triggers
+# golden-path-agent-ci-agent (pipeline-agent.yaml) -- see
+# pipelinerun-template.yaml's original header (DEC-026) for the
+# taskRunTemplate/workspace-PVC design notes, unchanged here.
+#   oc create -f pipelines/pipelinerun-template-agent.yaml -n golden-path-agent-ci
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: golden-path-agent-ci-agent-
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+    app.kubernetes.io/component: agent
+spec:
+  pipelineRef:
+    name: golden-path-agent-ci-agent
+  taskRunTemplate:
+    serviceAccountName: golden-path-agent-ci-pipeline
+  params:
+    - name: revision
+      value: main
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi

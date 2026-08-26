@@ -61,14 +61,21 @@ returned any topically-plausible context, even for tool-oriented queries
 | Tool / MCP | `mcp_server/schemas.py`, `mcp_server/server.py`, `mcp_server/client.py` | FastMCP streamable-HTTP server with one placeholder tool. Contract (input/output schema) is meant to survive the domain tool's implementation; only the tool body changes. |
 | Policy | `agent/policy.py`, `policy/*.yaml` | Step/timeout/retry guardrails + read-vs-write classification. `POLICY_BUNDLE_REF` points at a versioned YAML file that supplies defaults; env vars override per environment. |
 
-## One image, two runtime roles
+## Three images, one component each
 
-A single `Containerfile` builds one image; `entrypoint.sh` dispatches on
-its first argument (`agent` vs `mcp`) to run either
-`uvicorn agent.api:app` or `python -m mcp_server.server`. This is what
-makes the artifact "one immutable OCI application artifact" while still
-giving the MCP server its own Kubernetes Deployment/Service/NetworkPolicy
-boundary (see `deploy/kustomize/base/`).
+`DECISIONS.md` DEC-098/DEC-099 (Phase G, G2): this section previously
+described a single `Containerfile` building one image, with
+`entrypoint.sh` dispatching on its first argument (`agent`/`mcp`/
+`approval`) to run one of three services. That "one immutable OCI
+application artifact" reading of `CLAUDE.md`'s rule is superseded —
+`agent`, `mcp`, and `approval` are now three independently built,
+independently promoted images (`Containerfile.agent`, `Containerfile.mcp`,
+`Containerfile.approval`, each with its own single-purpose entrypoint
+script, no positional-arg dispatch), each with its own Kubernetes
+Deployment/Service/NetworkPolicy boundary (see
+`deploy/kustomize/base/`) and its own Tekton pipeline
+(`pipelines/pipeline-agent.yaml`, `-mcp.yaml`, `-approval.yaml`). "One
+immutable artifact" now reads as one immutable artifact *per component*.
 
 ## Why the MCP package is named `mcp_server`, not `mcp`
 

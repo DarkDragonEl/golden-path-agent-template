@@ -48,19 +48,46 @@ commonLabels:
   app.kubernetes.io/name: golden-path-agent
   app.kubernetes.io/part-of: golden-path-agent
 
-# CI/CD promotion updates only this digest field — the identical image is
-# promoted unmodified across ephemeral-test -> demo-prod (see
-# docs/environments.md). `newName` resolved to the real value at Step C4
-# (DECISIONS.md DEC-042) -- not a placeholder needing anonymization: this
-# is OpenShift's own standard, predictable internal registry service DNS
-# name (present on every OpenShift cluster) plus this project's own
-# namespace, already public throughout this repo's committed RBAC/pipeline
-# manifests. Unlike the model endpoint (a real external hostname, never
-# committed), this value discloses nothing beyond what's already committed
-# elsewhere. `ephemeral-test`'s own pipeline-injected digest overrides this
-# `newName` too via `kustomize edit set image` (DEC-031) -- unaffected by
-# this change, since it always fully replaces both fields at apply-time.
+# CI/CD promotion updates only the matching entry's digest field — each
+# of the three components below is now an independently built, promoted,
+# and digest-pinned artifact (DEC-098/DEC-099, G2 three-image split),
+# superseding the prior single shared-image design. `newName` resolved
+# to the real value at Step C4 (DECISIONS.md DEC-042) -- not a
+# placeholder needing anonymization: this is OpenShift's own standard,
+# predictable internal registry service DNS name (present on every
+# OpenShift cluster) plus this project's own namespace, already public
+# throughout this repo's committed RBAC/pipeline manifests. Unlike the
+# model endpoint (a real external hostname, never committed), this value
+# discloses nothing beyond what's already committed elsewhere.
+# `ephemeral-test`'s own pipeline-injected digest overrides these
+# `newName`s too via `kustomize edit set image` (DEC-031, extended by G2
+# to update only the one entry under test per run) -- unaffected by this
+# change, since it always fully replaces both fields at apply-time for
+# whichever image name it targets. open-promotion-pr.yaml's promotion
+# edit is now range-scoped per image name (G2) so promoting one
+# component never touches the other two's committed digest here.
 images:
+  # One-time manual bootstrap (G2 post-merge, real gap found live): the
+  # placeholder digest above pre-dates the split and only ever existed in
+  # the old shared golden-path-agent repo. golden-path-agent-mcp and
+  # golden-path-agent-approval are NEW repo paths introduced by this same
+  # split -- nothing had ever been pushed to them, so their first
+  # deploy-ephemeral runs (golden-path-agent-ci-mcp-b8jkz,
+  # golden-path-agent-ci-approval-tdrgw) correctly ImagePullBackOff'd on
+  # it. Each component's own pipeline cannot self-promote past this,
+  # since deploy-ephemeral always renders and rolls out all three
+  # Deployments together and fails before open-promotion-pr ever runs.
+  # Digests below are real, captured live from each pipeline's own
+  # digest-capture Task against the same merged commit (05e16ae), not
+  # invented -- this is the one-time exception to the normal
+  # pipeline-gated promotion path, needed only because the repo names
+  # themselves are new.
   - name: golden-path-agent
     newName: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent
-    digest: sha256:ba1c42282c52a831cfea7804543d1c4e07d36ddc62f6e30c1fd383f123c7eba9
+    digest: sha256:335293a62ef8ab943e287ca6cc57e08c0b1fd5a9d9d30bde43aaf455c363dfc7
+  - name: golden-path-agent-mcp
+    newName: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent-mcp
+    digest: sha256:d9932b1c1f80642c74880362b838e2dc1163c0654b68050d555f9c2a0b435247
+  - name: golden-path-agent-approval
+    newName: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent-approval
+    digest: sha256:8f23fc7bd7e6357142e2cc2e23005e47dd21e4da1d3c9d6362490c65bc85e1b6

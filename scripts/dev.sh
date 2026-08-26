@@ -21,7 +21,12 @@ if [ -z "$ENGINE" ]; then
 fi
 
 NETWORK=golden-path-agent-dev
-IMAGE=golden-path-agent:dev
+# DEC-098/DEC-099 (G2, three-image split): three images, one per
+# component, built from their own Containerfiles -- no more single
+# shared image dispatched by a positional entrypoint arg.
+AGENT_IMAGE=golden-path-agent:dev
+MCP_IMAGE=golden-path-agent-mcp:dev
+APPROVAL_IMAGE=golden-path-agent-approval:dev
 AGENT_NAME=golden-path-agent-dev
 MCP_NAME=golden-path-agent-mcp-dev
 APPROVAL_NAME=golden-path-agent-approval-dev
@@ -57,20 +62,30 @@ down() {
 up() {
   if [ "$OFFLINE" = "true" ]; then
     AGENT_MODEL_MODE=fake
-    MCP_MODE=mock
-    echo "[dev.sh] offline mode: fake model client, mock MCP tool, no network required"
+    echo "[dev.sh] offline mode: fake model client, no network required for the model call"
   else
     echo "[dev.sh] live mode: reads MODEL_API_BASE_URL/MODEL_NAME from .env"
     [ -f .env ] && . ./.env
   fi
+  # DEC-098/DEC-099 (G2): MCP_MODE is always live now, offline or not --
+  # a real mcp container is started either way (below), and the split
+  # agent image (Containerfile.agent) deliberately excludes
+  # mcp_server/server.py, so MCP_MODE=mock's in-process fallback
+  # (`from . import server`) would ImportError. This closes the exact
+  # gap DEC-096 found: the default here used to silently route tool
+  # calls in-process, so `make up`/`make up-offline` were never actually
+  # exercising the separately-running mcp container at all.
+  MCP_MODE=live
 
-  "$ENGINE" build -t "$IMAGE" .
+  "$ENGINE" build -t "$AGENT_IMAGE" -f Containerfile.agent .
+  "$ENGINE" build -t "$MCP_IMAGE" -f Containerfile.mcp .
+  "$ENGINE" build -t "$APPROVAL_IMAGE" -f Containerfile.approval .
   down
   "$ENGINE" network create "$NETWORK" >/dev/null 2>&1 || true
 
   "$ENGINE" run -d --name "$MCP_NAME" --network "$NETWORK" -p "${MCP_HOST_PORT}:8081" \
-    -e MCP_MODE="${MCP_MODE:-mock}" -e MCP_HOST=0.0.0.0 -e MCP_PORT=8081 \
-    "$IMAGE" mcp >/dev/null
+    -e MCP_HOST=0.0.0.0 -e MCP_PORT=8081 \
+    "$MCP_IMAGE" >/dev/null
 
   # R4/DEC-020 (plan-B6 closure): a real local OTel Collector so telemetry
   # actually fires on every run instead of silently no-op'ing -- started
@@ -87,11 +102,11 @@ up() {
   # container network namespace.
   "$ENGINE" run -d --name "$APPROVAL_NAME" --network "$NETWORK" -p "${APPROVAL_HOST_PORT}:8082" \
     -e OTEL_EXPORTER_OTLP_ENDPOINT="http://${OTEL_NAME}:4318" \
-    "$IMAGE" approval >/dev/null
+    "$APPROVAL_IMAGE" >/dev/null
 
   "$ENGINE" run -d --name "$AGENT_NAME" --network "$NETWORK" -p "${AGENT_HOST_PORT}:8080" \
     -e AGENT_MODEL_MODE="${AGENT_MODEL_MODE:-live}" \
-    -e MCP_MODE="${MCP_MODE:-mock}" \
+    -e MCP_MODE="$MCP_MODE" \
     -e MODEL_API_BASE_URL="${MODEL_API_BASE_URL:-http://localhost:11434/v1}" \
     -e MODEL_NAME="${MODEL_NAME:-placeholder-model}" \
     -e MODEL_API_KEY="${MODEL_API_KEY:-not-needed}" \
@@ -116,7 +131,7 @@ up() {
     -e MCP_AUTH_TOKEN="${MCP_AUTH_TOKEN:-not-needed}" \
     -e OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-http://${OTEL_NAME}:4318}" \
     -v "$(pwd)/corpus/seed:/mnt/corpus:ro" \
-    "$IMAGE" agent >/dev/null
+    "$AGENT_IMAGE" >/dev/null
 
   echo "[dev.sh] agent: http://localhost:${AGENT_HOST_PORT}  mcp: http://localhost:${MCP_HOST_PORT}  approval: http://localhost:${APPROVAL_HOST_PORT}  otel: podman logs -f ${OTEL_NAME}  (Ctrl-C to stop)"
   trap down INT TERM
