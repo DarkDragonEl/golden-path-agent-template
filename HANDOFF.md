@@ -2,7 +2,7 @@
 
 **Rewritten again, this time closing out Phase F in full** (F0 through
 F5, on top of the OTel fix + F0–F3 the prior rewrite already covered).
-`DECISIONS.md` (currently through `DEC-101`; `DEC-096` belongs to a
+`DECISIONS.md` (currently through `DEC-103`; `DEC-096` belongs to a
 concurrent parallel-workspace thread, `feature/phase-e-live-chat-
 verification`, not this one) is the authoritative, complete,
 chronological record of every decision this project has made — this
@@ -139,7 +139,9 @@ Template wired to F2/F3's own `skeleton/`.
   real, first-class Backstage `GiteaIntegration` exists in core, not the
   GitHub-mimicking workaround first tried); see the merge/push history
   around `858e961` for the actual fix, folded into G1's live-verification
-  work rather than its own separate DEC entry.
+  work rather than its own separate DEC entry. **Superseded by `DEC-103`**
+  — see below; G1's Gitea-load blocker and held tail both fully closed
+  since this entry landed.
 - **`DEC-101` (G2/Stage-1, STOP 4 closed).** Monolithic image split into
   three independently-built, independently-promoted artifacts (agent/
   mcp/approval); four real live-only bugs found and fixed (a digest-
@@ -154,6 +156,32 @@ Template wired to F2/F3's own `skeleton/`.
   the full account, disclosed there in full rather than edited out. Per
   `DEC-099`'s merge-order rule, G1's held tail is now unblocked —
   Stage 2 begins next.
+- **`DEC-102` (G5/Stage-2, catalog model designed locally).** Three new
+  files under `platform/catalog/`: a `System` for the Platform
+  Foundation; the approval service as a `Component`+`API` sourced from
+  the real `SRS-APR` contract and cross-checked against
+  `approval_service/api.py`'s actual routes; model routes as a shared
+  `API` plus primary/fallback `Resource`s sourced from
+  `agent/model_client.py`'s real reason-code set (which differs from
+  `SRS-AGT-IF-02`'s own illustrative example list — noted). Deliberately
+  not yet registered live in RHDH — deferred to a coordinated edit once
+  G1's tail and G3+G4 both report their own catalog-relevant output, to
+  avoid three Stage-2 streams racing the same shared config file.
+- **`DEC-103` (G1/Stage-1, fully complete, supersedes `DEC-100`).** Both
+  of `DEC-100`'s open items closed with real, live, end-to-end evidence:
+  (1) RHDH genuinely reads content from Gitea via Backstage's real core
+  `GiteaIntegration` (not the earlier GitHub-mimicking guess) — proven at
+  the catalog level, with an honestly-scoped limitation that
+  task-level `fetch:template` still resolves against GitHub due to
+  Backstage's own entity-merging behavior when both sources are
+  byte-identical (named as a future item, not a remaining defect); (2)
+  the approval service is fully extracted to its own Platform Foundation
+  namespace and **actually cut over** — old `demo-prod` approval
+  resources genuinely pruned, a real write query through the live agent
+  reached the new shared service, was approved by a real `demo-approver`
+  identity, and executed (`REQ-30100`), nothing simulated or isolated.
+  Stage 1 is now fully done; Stage 2 (G3/G4/G5) is already running in
+  parallel per pre-authorization.
 
 **Open items, deferred (owner-reviewed, low priority, no dedicated work
 until named):**
@@ -470,7 +498,7 @@ changed something.)
 ## Pointers
 
 - `DECISIONS.md` — the complete, authoritative decision history,
-  `DEC-001` through `DEC-101`. Always read the tail before starting new
+  `DEC-001` through `DEC-103`. Always read the tail before starting new
   work in a fresh session.
 - `PINS.md` — every pinned component version, with the live-verification
   date and source. Has a "Phase E — Shared showcase cluster" section and

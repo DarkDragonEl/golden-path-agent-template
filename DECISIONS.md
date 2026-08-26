@@ -7900,3 +7900,116 @@ which is part of the deferred registration step above.
 coordinating session sequences the shared RHDH catalog-config edit once
 G1's tail and the G3+G4 stream both report their own catalog-relevant
 output.
+
+## DEC-103 — G1 (Stage 1) complete: Gitea + Platform Foundation stood up,
+approval service extracted and fully cut over, live end-to-end
+write-approve-execute proven through the real agent in its new topology
+
+**Context**: `DEC-099` authorized G1 as a parallel worktree stream.
+`DEC-101` closed G2's STOP 4, unblocking G1's held tail per `DEC-099`'s
+merge-order rule; the owner pre-authorized proceeding straight through
+without a check-in. This entry closes out G1's full STOP-3 DoD plus the
+tail in one record, superseding `DEC-100`'s earlier, partial status.
+
+**Gitea stood up via upstream kustomize, not OLM** (`platform/bootstrap/
+gitea-operator-upstream/`, pinned `v2.3.2` by digest) after the OLM path
+hit a stuck cluster-wide resolver cache this project's own precedent
+(`DEC-055`/`DEC-056`) ruled out fixing unilaterally. RBAC narrowed from
+upstream's cluster-wide `ClusterRoleBinding` to a namespace-scoped
+`RoleBinding` (confirmed via the pod's own "Watching namespaces" log
+line). Org, a non-admin machine account on a narrowly-scoped team (not
+`Owners`), and its API token were all proven live, including a token
+tested to actual destruction (an under-scoped token failed org-repo
+creation with a real, informative error; the corrected token created a
+repo and then correctly *failed* to delete it — proof of minimum
+scoping, not an assumed property). Blueprint mirrored and proven via a
+real CSI-snapshot backup/restore against real data (the mirror's own
+`.git` directory, found intact after a full snapshot-restore-mount
+cycle).
+
+**RHDH loads real content from Gitea, with one honestly-scoped
+limitation.** Backstage's genuine, first-class `GiteaIntegration`
+(`@backstage/integration` core, not a dynamic plugin) was the actual fix
+— an earlier attempt mimicking Gitea via a second `integrations.github`
+entry registered nothing at all; this project's own live probe had
+already guessed the correct URL shape
+(`/<owner>/<repo>/src/branch/<ref>/<path>`), it just needed the right
+integration key. Once live: the Gitea-hosted `template.yaml` was
+successfully read and registered as a real `Location` entity —
+proof the read/parse path works. Because the mirrored file is
+byte-identical to the GitHub-hosted copy, both resolve to the same
+`Template` entity, and that entity's `source-location` stayed pinned to
+GitHub (registered first) — a live scaffolder task run
+(`8808c3f3-...`, completed, no regression) confirmed `fetch:template`
+resolved against GitHub, not Gitea, in this specific run. Catalog-level
+proof: real and positive. Task-level fetch-from-Gitea specifically: not
+exercised, due to Backstage's own entity-merging behavior, not a
+remaining config defect — named as a specific, scoped future item (a
+Gitea-only template, or a discovered precedence mechanism), not glossed
+over.
+
+**Approval service extracted to its own Platform Foundation namespace,
+fully cut over, and proven end-to-end through the live agent — not just
+in isolation.** New namespace, `AppProject` destination, `Application`,
+and a standalone overlay (`deploy/kustomize/overlays/approval-
+platform/`) with the service's own independently-promoted image digest,
+`AUTH_MODE=oidc` baked in directly, and a `NetworkPolicy` widened from
+same-namespace-only to a `namespaceSelector` on this project's own
+`part-of` label (flagged for G7's future multi-tenant work to revisit).
+`demo-prod`'s own approval resources excluded via `$patch: delete`
+(`ephemeral-test` keeps its own throwaway instance, confirmed via
+render, untouched). Two real gaps found and fixed along the way:
+`tools/check_config_contract.py`'s hardcoded demo-prod `AUTH_MODE`
+assertion (relocated to a direct-read check against the new overlay's
+own plain-resource ConfigMap) and a cross-namespace image-pull RBAC gap
+(`pipelines/bootstrap/rbac.yaml`, the project's own established pattern,
+stale demo-prod subject entry removed, not left dangling).
+
+First verification pass (pre-merge) proved the new service correct in
+*isolation*, with real OIDC tokens: approve end-to-end, restart-
+persistence (`SRS-APR-DATA-01`), and expiry (`SRS-APR-F-03`, timeout
+temporarily lowered to 5s and restored to 3600 after) all confirmed
+directly against it. A real issuer mismatch (external Route vs. internal
+Service DNS the service actually trusts) was found and fixed en route.
+
+The *full* cutover — old demo-prod approval resources actually gone,
+the live agent's own traffic actually flowing to the new endpoint —
+could not be forced pre-merge: `demo-prod`'s `Application` has
+`selfHeal: true` and recreated the old Deployment within moments of
+every live delete attempt, since the change wasn't on `main` yet. Not
+fought further, reported instead (the same class of finding as the
+earlier Gitea-integration fix, now confirmed to be a standing fact about
+this project's GitOps posture, not a one-off surprise). **After the
+merge** (`55011cd`), re-verified for real: `demo-prod` settled to exactly
+two Deployments (agent, mcp); the previously-stuck `Terminating` PVC
+finished deleting on its own once `selfHeal` stopped recreating a
+mounting pod; a real write query through the live agent initially failed
+with `approval_service_failure:ConnectError` (the running agent pod
+still had the old endpoint value cached from before the merge — ConfigMaps
+aren't hot-reloaded, the same lesson this session already hit twice
+elsewhere), fixed with one `oc rollout restart`; the retried query
+reached the new service, created a real proposal, was approved by a real
+`demo-approver` identity, and executed on resume — a real mock-ITSM
+record (`REQ-30100`) created through the complete golden path in its new
+topology, nothing simulated or isolated. All three components
+(`golden-path-agent`, `golden-path-agent-mcp`,
+`golden-path-agent-approval`) confirmed healthy together. Both
+Applications report `Progressing` rather than `Healthy` — traced to a
+generic-Ingress ArgoCD health-check quirk shared by the *original*
+agent's own long-working Ingress, confirmed pre-existing and benign, not
+introduced by this work.
+
+**What this entry does NOT decide**: the `OI-04` fallback trigger stays
+unarmed (still no demo date, unchanged). G7's future multi-tenant work
+inherits two named, not-yet-actioned items from this entry: the
+`NetworkPolicy`'s `part-of`-label-based ingress rule (fine for
+single-tenant, needs real scoping once more than one agent project
+exists) and the Gitea/GitHub entity-merging precedence question for
+template loading. Neither blocks Checkpoint G or any later phase.
+
+**Status**: G1's full STOP-3 DoD, plus its held tail, both complete with
+live, end-to-end execution evidence — not partial, not isolated, not
+assumed. Per `DEC-099`'s stage table, Stage 1 is done; Stage 2 (G3/G4/G5)
+was already authorized to proceed the moment this stage's dependency
+chain cleared, and per `DECISIONS.md`'s own tail (`DEC-102`, landed
+during this same session's work) has already begun in parallel.
