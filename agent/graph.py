@@ -1,3 +1,21 @@
+"""Builds the golden path's compiled LangGraph state graph.
+
+Node topology (see `build_graph`'s own docstring for the ASCII diagram):
+`decide` is the sole tool-vs-no-tool decision point (DEC-012/DEC-013's
+decide-then-retrieve reordering), branching to `tool_invoke` (a tool was
+selected), `retrieve` -> `generate` (answer from corpus context), or
+`fallback` (total model failure or step-limit exceeded). `tool_invoke`
+may pause at `human_approval` for a write-classified call -- the graph is
+compiled with `interrupt_before=["human_approval"]` so that pause is
+structural, not a comment-only convention (the approval flow's Layer 1,
+DEC-008/DEC-049).
+
+State contract: every node receives and returns (partial updates to)
+`agent/state.py::AgentState`. Routing between nodes is delegated to the
+predicate functions in `agent/routers.py`. Uses an in-memory
+`MemorySaver` checkpointer -- no cross-process/restart resume (DEC-096).
+"""
+
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 

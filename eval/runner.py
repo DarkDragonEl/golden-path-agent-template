@@ -1,3 +1,14 @@
+"""Runs one loaded `eval/loader.py::EvalCase` end to end and scores it.
+
+Contract: `run_case` drives `eval/executor.py::execute_case` to produce a
+full trace, then scores each step's (or, for a case with no `steps`, the
+final recorded state's) assertions via `eval/scorer.py::score_assertion`.
+Returns `{case_id, passed, results}` -- `results` is a list of per-
+assertion `{assertion, passed, detail}` dicts (plus `step` when the case
+has explicit steps), the shape `eval/reporter.py::write_report` embeds
+verbatim as one entry of its own `cases` list.
+"""
+
 from .executor import execute_case
 from .scorer import score_assertion
 

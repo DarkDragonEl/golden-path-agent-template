@@ -1,3 +1,17 @@
+"""Writes the promotion gate's run report and prints its console summary.
+
+`write_report` produces `eval/results/run-<timestamp>.json`: the
+pre-existing `{timestamp, total, passed, failed, cases[]}` harness-
+mechanics shape, extended per the resolved SRS-EVH-IF-02 with
+`eval_set_version`/`build_reference`/`build_reference_type`/
+`config_reference`/`thresholds_applied`/`gate_verdict` and, per
+DEC-016/DEC-017, `tolerated_known_gaps` (cases scored but explicitly
+excluded from the gate's failure count). `build_reference` self-describes
+via `build_reference_type` (`git_commit` vs. `local_dev_uncommitted`) so
+a downstream consumer can never mistake a commit hash for a real image
+digest -- see `_default_build_reference`'s own docstring.
+"""
+
 import json
 import subprocess
 import time

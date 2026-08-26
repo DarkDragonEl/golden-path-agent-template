@@ -1,3 +1,19 @@
+"""Loads the pre-existing harness-mechanics eval case file format
+(`eval/cases/*.yaml`, e.g. `EXAMPLE-001.yaml`/`EXAMPLE-002.yaml`) into
+pydantic models.
+
+File format: an `EvalCase` is `{id, description, mode, input, assertions,
+steps}` -- deliberately no `category`/`expected`/`tags`/`version`/
+`threshold_notes` field (that richer shape belongs to the separate
+`eval/cases/domain/*.yaml` set and `eval/domain_loader.py`, not this
+module). A case with no `steps` is scored as a single implicit
+`invoke`, against its top-level `assertions`; a case with `steps` is a
+multi-step invoke/resume sequence (`EvalStep.action`), each step
+carrying its own `assertions` and, for a `resume` step, the approver
+`decision` (SRS-APR-IF-02's `"approve"|"reject"` verb) to apply.
+`load_all_cases` reads every `*.yaml` file in a directory, sorted by name.
+"""
+
 from pathlib import Path
 from typing import Literal, Optional
 

@@ -1,3 +1,23 @@
+"""The agent's HTTP surface (FastAPI): the golden path's only externally
+callable entry points.
+
+Endpoints: `GET /healthz`; `GET /ui` and `GET /ui/config` (the static
+approver UI page plus its one real runtime config value, the OIDC issuer
+URL); `POST /invoke` (drives the compiled LangGraph graph from
+`agent/graph.py` for a fresh or continuing session, per-session state
+keyed by `session_id` via the graph's own checkpointer); `POST
+/approvals/{session_id}/resume` (the Layer 2 trigger for the approval
+flow's Layer 1 resume step -- carries no decision payload itself, see
+`ResumeRequest`'s own docstring, and delegates to
+`agent/approval_client.py::resolve_and_resume` for the actual
+IF-05 terminal-state query, DEC-008/DEC-045/DEC-049).
+
+Every `/invoke` and `/resume` call is wrapped in an OTel span and recorded
+via `agent/telemetry.py::record_invocation_span` (DEC-020's request/session
+id split: a fresh `request_id` per call, `session_id` spanning the whole
+invoke-then-resume exchange).
+"""
+
 import uuid
 from pathlib import Path
 

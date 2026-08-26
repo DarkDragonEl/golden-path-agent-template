@@ -1,3 +1,19 @@
+"""The golden path's shared LangGraph state schema: every node in
+`agent/graph.py` reads and returns (partial updates to) `AgentState`.
+
+`ToolCallRecord` and `ModelCallRecord` are the per-call telemetry records
+(SRS-AGT-IF-08) that `agent/telemetry.py::record_invocation_span` fans
+out into span events -- `model_calls`/`tool_calls` are lists (not
+last-write-wins scalars) so a turn with more than one model or tool call
+stays independently verifiable (DEC-009's compensating control,
+`eval/domain_scorer.py::check_dec009_route_assertion`). `drafted_action`
+vs. `approved_action` is the structural enforcement of DEC-008's approval
+flow invariant: only `approved_action`, sourced solely from
+`agent/approval_client.py::resolve_and_resume`'s IF-05 query, may ever be
+executed. `proposal_id`/`request_id` are the approval service's and this
+run's own correlation keys (DEC-049/DEC-020).
+"""
+
 from typing import Any, Literal, Optional, TypedDict
 
 

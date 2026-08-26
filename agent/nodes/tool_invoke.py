@@ -1,3 +1,20 @@
+"""The `tool_invoke` LangGraph node: executes `state["selected_tool"]`,
+which `decide_node` alone is responsible for setting (DEC-013's
+decide-then-retrieve reordering means this is never reached with
+`selected_tool` unset).
+
+Contract, per `agent/policy.py::classify_action`'s read/write taxonomy
+(SRS-AGT-SEC-03): a read-classified call executes eagerly via
+`mcp_server/client.py::call_tool` and owns `final_output` on success. A
+write-classified call is drafted only -- this node never invokes it --
+and submitted as a proposal to the standalone approval service
+(`agent/approval_client.py::submit_proposal`, DEC-008/DEC-049's approval
+flow), returning `pending_approval: True` and `proposal_id` so the graph
+pauses at `human_approval` (the sole invoker of an approved write,
+`agent/graph.py`'s `interrupt_before`). Tool errors and approval-service
+failures both route to `fallback` via distinct `fallback_reason` prefixes.
+"""
+
 from .. import approval_client, config, policy
 from ..tool_result_format import format_tool_result
 from mcp_server.client import call_tool

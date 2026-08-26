@@ -1,3 +1,16 @@
+"""Conditional-edge predicates for `agent/graph.py`'s `StateGraph`.
+
+Contract: each function takes the current `agent/state.py::AgentState`
+and returns the name of the next node to run (a string matching one of
+the branch keys `graph.add_conditional_edges` registers for that source
+node in `agent/graph.py::build_graph`) -- never a state mutation. All
+five together implement the golden path's routing: total model failure
+or an exceeded `MAX_REASONING_STEPS` (`agent/policy.py::check_step_limit`)
+routes to `fallback` from `decide`/`generate`; a failed tool call or a
+pending write-approval routes from `tool_invoke`; every other case
+routes to `respond` (graph `END`).
+"""
+
 from . import policy
 
 

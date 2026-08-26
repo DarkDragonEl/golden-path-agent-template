@@ -1,3 +1,18 @@
+"""The `generate` LangGraph node: the golden path's grounded-answer model
+call, reached only via `decide_node`'s "no tool needed" branch after
+`retrieve_node` (DEC-013's decide-then-retrieve reordering).
+
+Contract: reads `state["input_query"]`/`state["retrieved_docs"]`/
+`state["reasoning_steps"]`/`state["model_calls"]`; makes one model call
+with a capped context (`config.REASONING_CONTEXT_TOP_K`/
+`REASONING_EXCERPT_CHARS` -- see `agent/config.py`'s own comment for the
+Phase B4 finding this caps) and no tool schemas at all; returns an update
+owning `final_output` for this branch, or `fallback_reason` on total
+model failure (SysR-A-F-05/SysR-P-F-12). SRS-AGT-F-01: every
+corpus-derived claim in the response must be citable to a `doc_id`/
+`version` from the injected context.
+"""
+
 from pathlib import Path
 
 from .. import config

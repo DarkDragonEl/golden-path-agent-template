@@ -1,3 +1,17 @@
+"""Pydantic input/output schemas for the mock ITSM MCP tool contract --
+the golden path's one tool (`CLAUDE.md`'s scope guard).
+
+`ItsmSearchRecordsInput`/`Output` and `ItsmCreateRequestInput`/`Output`
+are field-for-field per `srs/SRS-MIT.md`'s SRS-MIT-IF-02 (read) and
+SRS-MIT-IF-03 (write, approval-gated per SRS-MIT-SEC-01 -- enforced by
+the agent's write-gating in `agent/nodes/tool_invoke.py`, not by these
+schemas or `mcp_server/server.py`). `PlaceholderLookupInput`/`Output`
+and `PlaceholderWriteActionInput` are the pre-existing harness-mechanics
+placeholder tools `eval/cases/EXAMPLE-*.yaml` still depend on
+(read/write split onto separate tool names per DEC-023 -- read vs. write
+is signaled by which tool is called, never by an argument flag).
+"""
+
 from pydantic import BaseModel, Field
 
 from .itsm_store import RECORD_TYPES, REQUEST_CATEGORIES

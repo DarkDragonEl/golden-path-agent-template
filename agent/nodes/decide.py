@@ -1,3 +1,20 @@
+"""The `decide` LangGraph node: the golden path's sole tool-vs-no-tool
+decision point (DEC-012/DEC-013's decide-then-retrieve reordering).
+
+Contract: reads `state["input_query"]`/`state["user_id"]`/
+`state["reasoning_steps"]`/`state["model_calls"]`; makes one model call
+(no retrieved context, `TOOL_SCHEMAS` only) via
+`agent/model_client.py::get_model_client`; returns an update setting
+`selected_tool` (a tool call was chosen -> routes to `tool_invoke`),
+`selected_tool: None` (no tool needed -> routes to `retrieve`/`generate`),
+or `fallback_reason` on total model failure (both routes exhausted or
+none configured, SysR-A-F-05/SysR-P-F-12) -- see `agent/routers.py`'s
+`decide_after_decide` for the actual routing. Under
+`config.AGENT_MODEL_MODE == "fake"`, reproduces the pre-Phase-B3 legacy
+dispatch deterministically so `eval/cases/EXAMPLE-*.yaml`'s frozen
+harness-mechanics fixtures keep passing.
+"""
+
 from pathlib import Path
 
 from .. import config
