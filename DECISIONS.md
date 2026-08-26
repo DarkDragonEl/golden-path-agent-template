@@ -7284,3 +7284,100 @@ exact flow, including an Observability section on the OTel spans
 follow-up (new scope, not addressed here): no regression guard asserts
 `make up` starts all four roles and wires `APPROVAL_SERVICE_ENDPOINT`, so
 this class of defect could recur silently.
+
+## DEC-097 — Amendment to DEC-093/DEC-095: the owner's own real external
+browser found a deeper login gap this session's own verification could
+never have caught; fixed, and F5's last open item (the wizard's own
+click-through) is now genuinely closed
+
+Immediately after `DEC-095` (F5 complete, STOP 6 cleared), the owner
+attempted the walkthrough that entry itself documented — and hit a real,
+blocking login failure that every prior verification in this phase had
+missed, for a structural reason worth stating plainly: **every login
+test this phase ran, including the ones `DEC-093`/`DEC-094` cited as
+proof, was driven via `oc exec` into a pod already running inside the
+cluster.** A script running inside the cluster network and a real
+external browser are not equivalent evidence for "the owner can open
+the portal and log in" — `DEC-094` already named this exact class of
+gap for the sign-in-page bug, but this one is sharper, because it took
+the actual owner's own hands on an actual external browser to surface
+it at all; nothing this session could have scripted from inside the
+cluster would have seen it.
+
+**The chain, in the order the owner hit it, each a distinct real bug**:
+
+1. RHDH's OIDC popup redirected to
+   `golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local`
+   — internal-cluster-only DNS, `ERR_CONNECTION_REFUSED` from a real
+   external browser. Root cause: `OIDC_METADATA_URL` pointed at
+   Keycloak's internal Service DNS, and Keycloak's own discovery
+   document reports its `authorization_endpoint` using whatever
+   hostname the discovery *request* itself used — the browser's own
+   redirect target inherits that same internal hostname. This project
+   already has an accepted answer for this exact class of problem (the
+   approver-ui's hosts-file + port-forward workaround, `DEC-074`) — the
+   owner explicitly chose a different path here, since RHDH is the
+   first genuinely owner-facing entry point in this project (not an
+   internal testing tool the way approver-ui is), and a hosts-file hack
+   isn't "the owner can just open the URL." **Fix**: a native `Route`
+   for `golden-path-agent-service` in the `golden-path-agent-keycloak`
+   namespace — same edge-termination/no-cert-fields pattern as RHDH's
+   own Route (`DEC-094`), inheriting the same cluster-trusted wildcard
+   cert. `OIDC_METADATA_URL` updated to the new external host.
+2. Login then failed with `Error: Authentication rejected, expected 200
+   OK, got: 302 Found`. Root cause: Keycloak's own `hostname.strict:
+   false` also derives the *scheme* it reports from the raw connection
+   it sees — since the Route edge-terminates TLS and forwards plain
+   HTTP internally (normal, expected behavior), Keycloak reported
+   `http://` for `issuer`/`token_endpoint` even when queried over
+   `https://`. The Route's own `insecureEdgeTerminationPolicy: Redirect`
+   then bounced RHDH's backend's direct `http://` token-exchange POST
+   to `https://` — a redirect a browser follows transparently but an
+   OIDC client correctly refuses to follow on a token endpoint. **Fix**:
+   `spec.proxy.headers: xforwarded` on the `Keycloak` CR (field
+   confirmed via `oc explain` before applying, not guessed), so
+   Keycloak trusts the router's own `X-Forwarded-Proto` header.
+3. Login then failed a third time with `Error: Authentication rejected,
+   iss mismatch, expected http://... got: https://...`. Root cause:
+   RHDH's own backend caches the OIDC discovery document for its
+   process lifetime — the pod that was running had cached the *old*
+   `http://` issuer from before fix 2 landed. **Fix**: one more
+   `oc rollout restart` of RHDH's backend.
+
+All three recorded in full in `PINS.md`. Neither the `golden-path-agent`
+Keycloak Route nor its host is committed to git — same anonymity
+reasoning as RHDH's own Route (`DEC-094`); both are out-of-band,
+host-bound, non-portable objects, not GitOps-managed, and not reverted
+by any `selfHeal` (`golden-path-agent-keycloak`'s own `Keycloak` CR and
+Route are not ArgoCD-managed, confirmed live before patching).
+
+**Once all three landed, the owner completed a real login and then, at
+this session's own request, drove the Create-page wizard's actual
+click-through themselves — through this session's own browser
+automation, filling in only project-identity form fields, never a
+credential** — selecting the Golden Path Agent template, filling
+`Project name`/`Owning team`, reviewing, and clicking Create. The task
+completed with both steps green and the full rendered file list visible
+in the task's own log. **This closes the one honestly-stated gap in
+`reports/phase-f-f5-verification.md` section 7** — the wizard's own
+form rendering and click-through, previously verified only via the
+equivalent backend API call, is now independently exercised and
+confirmed working, by the actual owner, through the actual UI.
+
+One additional non-blocking observation from the owner's own real
+session, already a known and accepted gap, not new: the portal warns
+"This entity has relations to other entities, which can't be found in
+the catalog. Entities not found are: group:default/golden-path-agent-
+team" — both `catalog-info.yaml` (F1) and `template.yaml` (F5) reference
+that Group as `owner`, and this catalog has zero `User`/`Group` entities
+by deliberate sandbox-scope decision (the same reality
+`dangerouslyAllowSignInWithoutUserInCatalog`, `DEC-092`, already
+documents). Cosmetic, not blocking — confirmed live that it did not
+prevent the Create flow from completing.
+
+**Status**: STOP 5 and STOP 6 both now stand on genuinely complete
+evidence — a real external login, and a real external wizard
+click-through — not just this session's own scripted proxies for them.
+`reports/phase-f-f4-verification.md` and `reports/phase-f-f5-
+verification.md` should be read alongside this entry; a follow-up pass
+should fold this entry's evidence into both reports directly.
