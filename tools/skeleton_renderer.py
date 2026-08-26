@@ -22,11 +22,38 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SKELETON_DIR = REPO_ROOT / "skeleton"
 SCHEMA_PATH = REPO_ROOT / "template-schema.json"
 
+# Phase G, Stage 3 (DEC-098/DEC-099/DEC-110, G6 Path B). The two
+# instantiable templates this project ships, by --template flag value --
+# the one place this pairing is declared, so tools/instantiate_agent_project.py
+# and tools/verify_skeleton.py (already extended at Stage 2 to check both)
+# can't drift the way DEC-075's own duplicated constant did.
+TEMPLATES = {
+    "agent": SKELETON_DIR,
+    "tools": REPO_ROOT / "skeleton-tools",
+}
+
 PLACEHOLDER_RE = re.compile(r"\$\{\{\s*values\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
 
 
-def load_schema() -> dict:
-    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+def schema_path_for(skeleton_dir: Path) -> Path:
+    """Derives the matching template-schema*.json for a given skeleton
+    directory."""
+    return skeleton_dir.parent / (
+        "template-schema.json" if skeleton_dir.name == "skeleton" else "template-schema-tools.json"
+    )
+
+
+def resolve_template(template: str) -> tuple[Path, Path]:
+    """Resolves a --template flag value ('agent' or 'tools') to its
+    (skeleton_dir, schema_path) pair."""
+    if template not in TEMPLATES:
+        raise ValueError(f"unknown template {template!r}; choose from {sorted(TEMPLATES)}")
+    skeleton_dir = TEMPLATES[template]
+    return skeleton_dir, schema_path_for(skeleton_dir)
+
+
+def load_schema(schema_path: Path = SCHEMA_PATH) -> dict:
+    return json.loads(schema_path.read_text(encoding="utf-8"))
 
 
 def resolve_values(provided: dict, schema: dict | None = None) -> dict:

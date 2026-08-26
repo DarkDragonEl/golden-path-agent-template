@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from skeleton_renderer import (  # noqa: E402
     REPO_ROOT,
     render_skeleton,
+    schema_path_for,
     sweep_for_literal,
     sweep_for_unresolved_placeholders,
 )
@@ -81,9 +82,7 @@ def verify_one(target: dict) -> bool:
     label = target["label"]
     scratch_dir = target["scratch_dir"]
     skeleton_dir = target["skeleton_dir"]
-    schema_path = skeleton_dir.parent / (
-        "template-schema.json" if skeleton_dir.name == "skeleton" else "template-schema-tools.json"
-    )
+    schema_path = schema_path_for(skeleton_dir)
 
     print(f"--- {label} ({skeleton_dir.relative_to(REPO_ROOT)}) ---")
     print(f"Rendering into {scratch_dir} ...")
