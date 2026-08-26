@@ -1,7 +1,9 @@
-# Generic PR-check pipeline definition — adapt to the actual CI Pipeline
-# Executor (see ../../Agentic_AI_Platform_MVP_Agnostic.md) once one is
-# chosen for this engagement. Every stage must run identically on a laptop
-# and in CI — none of them assume a specific CI product's environment.
+# Generic PR-check pipeline definition, predating this project's real
+# Tekton pipelines (pipelines/pipeline-agent.yaml and friends, Phase C
+# onward) -- kept as a CI-product-agnostic reference shape, not the
+# executing pipeline itself. Every stage must run identically on a
+# laptop and in CI -- none of them assume a specific CI product's
+# environment.
 
 name: pr-checks
 
@@ -25,6 +27,16 @@ stages:
   - name: sbom
     description: Software bill of materials for the built image.
     run: syft golden-path-agent:pr-${GIT_SHA:-local} -o spdx-json=sbom.json
+
+  - name: link-check
+    description: >
+      Phase H3b (DECISIONS.md DEC-114 onward). Non-blocking/informational
+      only -- a broken doc link fails this stage's own report, not the
+      pipeline. The mission proposes flipping this to a policy gate once
+      a few PR cycles have run clean; that's an owner decision, not made
+      here.
+    blocking: false
+    run: lychee --no-progress '**/*.md'
 
 policy_gates:
   - eval-gate must pass before container-build may be promoted

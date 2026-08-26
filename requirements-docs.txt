@@ -1,0 +1,10 @@
+# Phase H3b (DECISIONS.md DEC-114 onward). Pinned to exactly match RHDH
+# 1.10.3's own bundled TechDocs generator venv (PINS.md's Phase H
+# section, verified live via `oc exec` -- not the latest PyPI releases)
+# so a local `mkdocs build --strict` reflects what RHDH actually renders.
+# mkdocstrings/mkdocstrings-python are NOT in RHDH's venv and are not
+# pinned here -- see requirements-docs-local.txt for the local-only
+# fuller-preview addition (docs/techdocs-preview.md).
+mkdocs==1.6.0
+mkdocs-techdocs-core==1.6.1
+mkdocs-material==9.7.1

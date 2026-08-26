@@ -1,0 +1,8 @@
+# Phase H3b. Local-only addition on top of requirements-docs.txt for the
+# fuller preview (docs/techdocs-preview.md) -- not usable by RHDH's live
+# generator (PINS.md's Phase H section: its bundled venv has no
+# mkdocstrings). Latest published versions at verification time; not
+# constrained to match anything live, since nothing live consumes these.
+-r requirements-docs.txt
+mkdocstrings==1.0.6
+mkdocstrings-python==2.0.7

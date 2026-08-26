@@ -48,6 +48,10 @@ Accomplish one task against a real environment.
   six distinct verification mechanisms this project relies on (unit
   tests, offline eval, live-model eval, direct HTTP chat, operational
   tests, trace-check) and when to reach for each one.
+- **[Previewing this documentation site](techdocs-preview.md)** — how to
+  run this same `docs/` tree through `mkdocs serve` locally, including the
+  fuller mkdocstrings-generated API reference that RHDH's own live
+  TechDocs page can't render.
 
 ## Reference
 
@@ -65,7 +69,7 @@ Look up a fact.
   pipeline/task names, branch conventions, eval case IDs, and
   `DEC-NNN`/`OI-NN`/requirement IDs, with real examples and known
   deviations.
-- **[Pinned versions and sources (`PINS.md`)](../PINS.md)** — every
+- **[Pinned versions and sources (`PINS.md`)](https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/PINS.md)** — every
   pinned component version, commit, and the date it was last verified
   live.
 - **[Template nine-output mapping](template-nine-output-mapping.md)** —
@@ -82,7 +86,7 @@ Understand why the system is shaped this way.
 - **[Security & identity](security-identity.md)** — workload identity,
   secrets, the network boundary between components, and the human-
   approval gate's actual control flow.
-- **[Decision log (`DECISIONS.md`)](../DECISIONS.md)** — the append-only
+- **[Decision log (`DECISIONS.md`)](https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/DECISIONS.md)** — the append-only
   record of every `DEC-NNN` ambiguity → finding → decision → evidence →
   status entry this project has made.
 

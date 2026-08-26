@@ -63,7 +63,7 @@ users (added to this repo, and anonymity-checked, by the coordinating
 session — see the note below on why they didn't reach this doc's first
 draft):
 
-- **[`tools/provision-demo-credentials.sh`](../tools/provision-demo-credentials.sh)**
+- **[`tools/provision-demo-credentials.sh`](https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/tools/provision-demo-credentials.sh)**
   — provisions independent, per-person credentials instead of everyone
   sharing `demo-approver`/`demo-user`: N cluster-admin identities in the
   `sso` realm (OpenShift OIDC login, each bound individually to the
@@ -73,7 +73,7 @@ draft):
   accounts are left untouched. Writes generated passwords to a local,
   gitignored, mode-600 file (`provisioned-credentials.<timestamp>.txt`)
   — distribute rows individually, then delete the file.
-- **[`tools/get-test-user-credential.sh`](../tools/get-test-user-credential.sh)**
+- **[`tools/get-test-user-credential.sh`](https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/tools/get-test-user-credential.sh)**
   — self-service reset flow for holders of an individual cluster-admin
   login: requires only `oc` access (no separate Keycloak admin secret
   handed out), resets one named app-realm user's password to a fresh

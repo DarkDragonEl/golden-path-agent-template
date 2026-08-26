@@ -9,6 +9,7 @@ reports/trace-check.json
 .kube/
 provisioned-credentials.*
 provisioned-approvers.*
+site/
 # corpus/seed/*.md was gitignored while corpus/README.md said "empty by
 # design" (local-only content for whoever adopts this template). Phase
 # B3.5 populated it with this blueprint's own synthetic demo corpus,

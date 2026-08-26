@@ -1,0 +1,68 @@
+# Phase H3b (DECISIONS.md DEC-114 onward). Serves two audiences from one
+# source tree: RHDH's own live TechDocs generator (`builder: local`, see
+# deploy/kustomize/overlays/rhdh/techdocs-app-config.yaml) and a plain
+# `mkdocs serve` on a laptop.
+#
+# Plugin list is deliberately narrow -- confirmed live (`oc exec` into the
+# running backstage-golden-path-agent pod, PINS.md's Phase H section) that
+# RHDH 1.10.3's own bundled generator venv (/opt/techdocs-venv) ships
+# mkdocs==1.6.0, mkdocs-techdocs-core==1.6.1, and mkdocs-material==9.7.1,
+# and NOTHING else -- no mkdocstrings. Any plugin listed here that isn't
+# in that venv makes RHDH's own live doc generation fail outright (mkdocs
+# raises on an unresolvable plugin entry point, it doesn't skip it). The
+# fuller local-only preview (mkdocstrings-rendered API reference) lives in
+# mkdocs.local.yml instead -- see docs/techdocs-preview.md.
+site_name: Golden-Path Agent Template
+site_description: >-
+  The golden path for a deliberately constrained agentic-AI pattern: one
+  LangGraph agent, one MCP tool contract, a human-approval gate, and an
+  evaluation harness wired in as a CI promotion gate.
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+
+plugins:
+  - techdocs-core
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+
+# Mirrors docs/README.md's own Diátaxis-style hub exactly -- if that file's
+# section structure changes, update this nav to match (H2 owns
+# docs/README.md's prose; this list is Wave gamma's own responsibility to
+# keep in sync with it).
+nav:
+  - Home: README.md
+  - Tutorials:
+      - Owner walkthrough: owner-walkthrough.md
+      - Showcase walkthrough script: showcase-walkthrough-script.md
+      - Direct-chat walkthrough: direct-chat-walkthrough.md
+  - How-to / runbooks:
+      - Phase C runbook: phase-c-runbook.md
+      - Phase D runbook: phase-d-runbook.md
+      - Access and credentials: access-and-credentials.md
+      - Local dev: local-dev.md
+      - Showcase access: showcase-access.md
+      - Testing perspectives guide: testing-perspectives-guide.md
+      - TechDocs preview (this site): techdocs-preview.md
+  - Reference:
+      - Environments: environments.md
+      - Evaluation: evaluation.md
+      - Glossary: glossary.md
+      - Naming conventions: naming-conventions.md
+      - Template nine-output mapping: template-nine-output-mapping.md
+  - Explanation:
+      - Architecture: architecture.md
+      - Security & identity: security-identity.md
+      - Provenance: provenance.md
+  - Historical & draft records:
+      - Phase E kickoff plan: phase-e-kickoff-plan.md
+      - Phase F kickoff plan: phase-f-kickoff-plan.md
+      - Approver UI map (draft): drafts/AGENT-UI-MAP.draft.md

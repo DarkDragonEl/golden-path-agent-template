@@ -1,0 +1,48 @@
+# Local-only preview config: everything mkdocs.yml has, plus mkdocstrings'
+# Python API reference -- not usable by RHDH's live generator (its bundled
+# venv doesn't have mkdocstrings installed, PINS.md's Phase H section), so
+# this file is never referenced by anything RHDH-side. Explicit full `nav`
+# rather than relying on mkdocs' INHERIT to merge list-valued keys, since
+# that merge behavior isn't something this project verified rather than
+# assumed. Run with: mkdocs serve -f mkdocs.local.yml
+INHERIT: mkdocs.yml
+
+plugins:
+  - techdocs-core
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+
+nav:
+  - Home: README.md
+  - Tutorials:
+      - Owner walkthrough: owner-walkthrough.md
+      - Showcase walkthrough script: showcase-walkthrough-script.md
+      - Direct-chat walkthrough: direct-chat-walkthrough.md
+  - How-to / runbooks:
+      - Phase C runbook: phase-c-runbook.md
+      - Phase D runbook: phase-d-runbook.md
+      - Access and credentials: access-and-credentials.md
+      - Local dev: local-dev.md
+      - Showcase access: showcase-access.md
+      - Testing perspectives guide: testing-perspectives-guide.md
+      - TechDocs preview (this site): techdocs-preview.md
+  - Reference:
+      - Environments: environments.md
+      - Evaluation: evaluation.md
+      - Glossary: glossary.md
+      - Naming conventions: naming-conventions.md
+      - Template nine-output mapping: template-nine-output-mapping.md
+      - API reference (local preview only): reference/api.md
+  - Explanation:
+      - Architecture: architecture.md
+      - Security & identity: security-identity.md
+      - Provenance: provenance.md
+  - Historical & draft records:
+      - Phase E kickoff plan: phase-e-kickoff-plan.md
+      - Phase F kickoff plan: phase-f-kickoff-plan.md
+      - Approver UI map (draft): drafts/AGENT-UI-MAP.draft.md
