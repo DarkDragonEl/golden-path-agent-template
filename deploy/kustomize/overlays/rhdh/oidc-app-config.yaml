@@ -24,6 +24,17 @@ data:
   app-config.oidc.yaml: |
     auth:
       environment: development
+      session:
+        # Real gap found live (F4, DEC-092): omitting this produces
+        # "Authentication failed, authentication requires session
+        # support" on the very first /api/auth/oidc/start request --
+        # Backstage's OIDC strategy needs a session secret configured
+        # even though it otherwise uses cookie-based state, not a full
+        # express-session store. Value lives in
+        # golden-path-agent-rhdh-oidc-secret's own SESSION_SECRET key,
+        # generated the same way as every other secret in this project
+        # (openssl rand, never committed).
+        secret: ${SESSION_SECRET}
       providers:
         oidc:
           development:

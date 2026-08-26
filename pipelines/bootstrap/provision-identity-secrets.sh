@@ -276,10 +276,19 @@ if oc get secret golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" >/dev/null 2>&
   oc patch secret golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" --type merge \
     -p "{\"data\":{\"OIDC_CLIENT_SECRET\":\"$(printf '%s' "$RHDH_OIDC_SECRET" | base64 -w0)\"}}" >/dev/null
 else
+  # SESSION_SECRET is generated only here, at first creation -- unlike
+  # OIDC_CLIENT_SECRET (safe to rotate every run), regenerating it on an
+  # existing environment would invalidate every active user session. Real
+  # gap found live (F4, DEC-092): omitting it entirely produces
+  # "Authentication failed, authentication requires session support" on
+  # the very first login attempt -- Backstage's OIDC strategy needs this
+  # even though it otherwise uses cookie-based state, not a full
+  # express-session store.
   oc create secret generic golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" \
     --from-literal=OIDC_CLIENT_ID=golden-path-agent-rhdh \
     --from-literal=OIDC_CLIENT_SECRET="$RHDH_OIDC_SECRET" \
-    --from-literal=OIDC_METADATA_URL="http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/${REALM}/.well-known/openid-configuration" >/dev/null
+    --from-literal=OIDC_METADATA_URL="http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/${REALM}/.well-known/openid-configuration" \
+    --from-literal=SESSION_SECRET="$(openssl rand -base64 32)" >/dev/null
 fi
 unset RHDH_OIDC_SECRET
 echo "provisioned RHDH OIDC client secret in ${NS_RHDH}/golden-path-agent-rhdh-oidc-secret"
