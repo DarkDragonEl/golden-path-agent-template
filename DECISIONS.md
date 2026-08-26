@@ -8863,3 +8863,96 @@ install.sh` clean after the fix.
 Wave γ (TechDocs) remains gated on a live-RHDH + tail-conflict check;
 H4a (comment-census migration) continues in parallel; H4b remains gated
 on H4a's completion.
+
+## DEC-118 — G6 Path A spike succeeds end-to-end: a real Gitea scaffolder
+dynamic plugin, built with RHDH's own first-party tooling, publishes a
+real repo through a real, authenticated Scaffolder task — STOP 8 is
+restorable once the wiring is committed to Git
+
+**Note for Phase H (`DEC-114` onward), running concurrently**: this
+entry does not yet modify `template.yaml`/`catalog-info.yaml` — the
+proof ran against a throwaway test-copy template. The real
+`template.yaml` change (item 3 below) is a separate, upcoming G6 step;
+Wave γ should re-check this log's tail again before starting, per
+`DEC-114`'s own stated gate.
+
+**Context**: `DEC-110` chose Path B (CLI-first publish) as G6's first
+slice and named Path A (a custom Gitea Scaffolder dynamic plugin) as a
+real, non-blocking follow-up. The owner directed a time-boxed spike on
+Path A before settling for Path B alone, since a working plugin would
+restore the original design's `STOP 8` (owner runs the wizard through a
+real browser). A first pass hit a cluster-session expiry mid-spike and
+stopped cleanly per this project's re-auth policy; once cluster access
+was restored, the remaining work was completed in full.
+
+**Pinned**: `quay.io/rhdh-community/dynamic-plugins-factory:1.10`
+(digest `sha256:ab3ab5eb73ba2f2080697f334478b9987c68468ce878d18802a4baeb90dac96c`)
+— the RHDH-1.10-targeted build tool, bakes in `RHDH_CLI_VERSION=1.10.7`,
+confirmed live by exec'ing into the image. Backstage source pinned to
+`backstage/backstage@v1.49.0`, confirmed to match this RHDH instance's
+own live `@backstage/backend-defaults@0.16.0`.
+
+**Result: full success, independently verified.** The plugin was built,
+pushed to this cluster's own internal registry (digest
+`sha256:e335af032bc97a1e46c4099e7ae4657c7eea38e94902066484278f5557ad3cb8`),
+loaded by RHDH via a new `dynamic-plugins.yaml` ConfigMap referencing it
+(the `Backstage` CR's `dynamicPluginsConfigMapName` field, previously
+unset, now points at it), and confirmed present in the scaffolder
+backend's own registered-actions list. A real Scaffolder task
+(`fd3f6f49-e55f-4c91-9827-2b49d45b4d50`), submitted through RHDH's actual
+`POST /api/scaffolder/v2/tasks` endpoint using a real user session
+obtained via a simulated browser OIDC login (not a shortcut — the
+target OIDC client has `directAccessGrantsEnabled: false` by design),
+ran `publish:gitea` to completion. Verified independently against
+Gitea's own API afterward: the target repo existed, non-empty, holding
+the expected file at the expected byte size. Test artifacts (both
+throwaway Gitea repos, the test-copy template) were deleted after
+verification.
+
+**Real problems found and fixed along the way, beyond the two recorded
+in the build-only pass**: a registry TLS SAN mismatch and an unknown-CA
+error on the push side; a second, independent unknown-CA error plus a
+missing-registry-credentials error on RHDH's own plugin-loading init
+container (fixed via the `Backstage` CR's `extraFiles` field, including
+discovering that a `subPath` secret mount fails with "Not a directory"
+against a non-existent parent path and must be a whole-volume mount
+instead); a fourth confirmed instance of the ArgoCD `selfHeal`-reverts-
+live-edits pattern already documented in `DEC-100`/`DEC-103`, worked
+around for testing purposes via a novel exploit of `subPath` mounts'
+point-in-time snapshot semantics (not a real fix — see below); a
+malformed test-template envelope (`tags:` misplaced at the document
+root); and a real, live instance of the `DEC-097`-documented Keycloak
+password-drift bug, found in the `demo-approver` test user and fixed
+forward via the Admin REST API, then reverted back to its prior state
+during cleanup. The `dynamic-plugins-factory` tool's own success/failure
+reporting was also found to be unreliable (false negative) when multiple
+image tags are exported in one run — noted as a tooling finding, not
+fixed, since it's upstream behavior.
+
+**Not yet done: landing the wiring in Git.** Every change proven live
+this spike (`dynamic-plugins.yaml`, `integrations.gitea` write
+credentials, the test-template's `publish:gitea` step shape) was applied
+as **direct cluster edits**, several of which ArgoCD's `selfHeal` will
+revert once its sync loop next runs undisturbed — they are proof, not
+persistent state. Landing this for real requires: committing the
+`dynamic-plugins.yaml` ConfigMap change and the `Backstage` CR's
+`dynamicPluginsConfigMapName` field to their Git sources; committing
+`integrations.gitea` write credentials (via Secret reference, not a
+literal) to the committed `catalog-config` manifest; adding a real
+`repoUrl` parameter and `publish:gitea` step to the actual
+`template.yaml`; and resolving one open design question this spike's
+single-repo test template did not need to answer — whether the real
+template needs two `publish:gitea` steps or one plus a separate
+mechanism, given this project's existing two-repo-per-project pattern
+(source+pipeline repo vs. GitOps repo). `PINS.md` rows for both pins
+above need drafting, and the RRT's scaffolder-publish realization
+mapping needs updating to reflect Path A as the now-proven design,
+superseding `DEC-110`'s Path-B-only framing.
+
+**Status**: Spike succeeded against the exact success criterion given —
+a template run creating a real Gitea repo with real pushed content,
+through the real API surface a browser wizard would use. The
+coordinating session will author the Git changes listed above (resolving
+the two-repo question first) and route them through this project's
+normal review/merge process, after which `STOP 8` (owner runs the real
+browser wizard) is restorable to G6's plan as originally designed.
