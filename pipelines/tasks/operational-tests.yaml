@@ -40,15 +40,19 @@ spec:
         # DEC-098/DEC-099 (G2): real gap found live, fixed here -- flipping
         # ephemeral-test's MCP_MODE to live (required by the split agent
         # image) turned this clone's tool call into a genuine network
-        # request for the first time ever. It then hung until timeout:
-        # this clone's labels used to fully replace app.kubernetes.io/name
-        # and app.kubernetes.io/component (dropping both), so it never
-        # matched golden-path-agent-mcp-restrict's required ingress
-        # selector -- silently irrelevant under MCP_MODE=mock (no network
-        # call ever made), a real, blocking bug now that one is. Fix: keep
-        # app.kubernetes.io/name=golden-path-agent for consistency and
-        # give this Deployment its own distinct component value
-        # (agent-fallback-demo, unchanged) -- deliberately NOT
+        # request for the first time ever. It then hung until timeout, in
+        # two rounds: (1) this clone's labels used to fully replace
+        # app.kubernetes.io/name and app.kubernetes.io/component (dropping
+        # both) -- silently irrelevant under MCP_MODE=mock (no network call
+        # ever made), a real, blocking bug now that one is; (2) the first
+        # fix's own hardcoded label set still didn't merge, so it also
+        # dropped app.kubernetes.io/part-of -- injected into every rendered
+        # resource, including this NetworkPolicy's own ingress selector, by
+        # kustomize's commonLabels transformer, not visible in the raw
+        # source file. Fix (both rounds, now merge-based so it stays
+        # correct if commonLabels gains more keys later): keep the source
+        # Deployment's own rendered labels and only override component to a
+        # distinct value (agent-fallback-demo) -- deliberately NOT
         # component=agent, which would make this pod a subset-match for
         # the standing agent Deployment's own selector and risk its
         # ReplicaSet adopting this throwaway pod as one of its own.
@@ -59,10 +63,21 @@ spec:
           | python3 -c "
         import json, sys
         d = json.load(sys.stdin)
-        d['metadata'] = {'name': '$NAME', 'namespace': '$NS', 'labels': {'app.kubernetes.io/name': 'golden-path-agent', 'app.kubernetes.io/component': 'agent-fallback-demo'}}
+        # Merge into the existing (already commonLabels-rendered) label
+        # dicts rather than replacing them wholesale -- a full replacement
+        # silently drops whatever else kustomize's commonLabels injected
+        # (e.g. app.kubernetes.io/part-of), which the rendered NetworkPolicy
+        # selector also requires. Merging stays correct even if commonLabels
+        # gains more keys later.
+        labels = dict(d['metadata'].get('labels') or {})
+        labels['app.kubernetes.io/component'] = 'agent-fallback-demo'
+        d['metadata'] = {'name': '$NAME', 'namespace': '$NS', 'labels': labels}
         spec = d['spec']
         spec['selector'] = {'matchLabels': {'app.kubernetes.io/instance': '$NAME'}}
-        spec['template']['metadata']['labels'] = {'app.kubernetes.io/name': 'golden-path-agent', 'app.kubernetes.io/component': 'agent-fallback-demo', 'app.kubernetes.io/instance': '$NAME'}
+        tmpl_labels = dict(spec['template']['metadata'].get('labels') or {})
+        tmpl_labels['app.kubernetes.io/component'] = 'agent-fallback-demo'
+        tmpl_labels['app.kubernetes.io/instance'] = '$NAME'
+        spec['template']['metadata']['labels'] = tmpl_labels
         for c in spec['template']['spec']['containers']:
             c['env'] = (c.get('env') or []) + [{'name': 'MODEL_API_BASE_URL', 'value': 'https://model-endpoint.invalid/v1'}]
         json.dump(d, sys.stdout)
