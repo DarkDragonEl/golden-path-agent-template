@@ -1,0 +1,23 @@
+# Phase F4 (DECISIONS.md DEC-087/DEC-092). Registers F1's own
+# catalog-info.yaml (repo root, DEC-087) into RHDH's live catalog --
+# without this, F1's Component sits committed but never actually
+# ingested. A public GitHub raw URL, same anonymity posture already
+# established for every other reference to this repo's own public slug
+# throughout this project (DEC-082's sweep already covers it).
+#
+# Separate ConfigMap from golden-path-agent-rhdh-oidc-config -- one data
+# entry per ConfigMap (the operator's own documented constraint),
+# referenced as a second entry in the Backstage CR's own
+# appConfig.configMaps list, not merged into the OIDC one.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: golden-path-agent-rhdh-catalog-config
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+data:
+  app-config.catalog.yaml: |
+    catalog:
+      locations:
+        - type: url
+          target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/catalog-info.yaml

@@ -9,4 +9,5 @@ namespace: golden-path-agent-rhdh
 resources:
   - postgres.yaml
   - oidc-app-config.yaml
+  - catalog-locations-config.yaml
   - backstage.yaml
