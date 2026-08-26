@@ -9,6 +9,20 @@
 # entry per ConfigMap (the operator's own documented constraint),
 # referenced as a second entry in the Backstage CR's own
 # appConfig.configMaps list, not merged into the OIDC one.
+#
+# Real gap found live (F4, DEC-092): the location registered and
+# processed fine (confirmed via pod-network curl to the same URL
+# succeeding, and the location entity itself being created), but every
+# read attempt failed with "NotAllowedError: Reading from '...' is not
+# allowed. You may need to configure an integration for the target host,
+# or add it to the configured list of allowed hosts at
+# 'backend.reading.allow'" -- this is Backstage's own UrlReader security
+# guard, unrelated to network reachability or DNS, and it rejects any
+# host not explicitly allow-listed regardless of the URL being public.
+# backend.reading.allow merges with the oidc ConfigMap's own backend.*
+# keys (baseUrl, cors.origin) -- confirmed live, Backstage's config
+# merge is per-key-path, not whole-object-replace, so both survive in
+# the same running config.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -17,6 +31,10 @@ metadata:
     app.kubernetes.io/part-of: golden-path-agent
 data:
   app-config.catalog.yaml: |
+    backend:
+      reading:
+        allow:
+          - host: raw.githubusercontent.com
     catalog:
       locations:
         - type: url
