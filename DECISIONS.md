@@ -8825,3 +8825,41 @@ component segment (pre-existing debris, unrelated to Phase H).
 **Status:** Merged to `main`. Both credential scripts now tracked and
 linked from `docs/access-and-credentials.md`. Phase H Wave β continues
 with H1's held tail pending.
+
+## DEC-117 — Phase H1 merged: README rewrite, provenance split,
+install.sh (held tail closed)
+
+**Ambiguity:** The mission brief specified `scripts/install.sh` as a
+sequencer calling both `scripts/bootstrap.sh` and `platform/bootstrap/
+provision-identity-secrets.sh`, based on an outdated read of the manual
+two-command sequence — it did not account for `bootstrap.sh`'s own
+step 5/9 already invoking `provision-identity-secrets.sh` internally.
+
+**Finding:** H1's stream implemented the brief literally and correctly
+flagged the result: `install.sh` would rotate identity secrets twice per
+run — once silently inside `bootstrap.sh` (no prompt), once again via
+its own explicit second call (gated behind the confirmation). This is
+worse than merely wasteful: the confirmation prompt would appear *after*
+the consequential rotation already happened inside `bootstrap.sh`, not
+before it — on a re-run against a live cluster, sessions would be
+invalidated before the operator ever saw the warning.
+
+**Decision:** The coordinating session fixed this directly before merge:
+`install.sh` now calls `bootstrap.sh` exactly once, with the
+confirmation gating that single call (since `bootstrap.sh`'s internal
+step is the one that actually rotates credentials). Updated the
+corresponding README paragraph to match. Also closed H1's held tail:
+the README's Docs index now points at H2's real merged `docs/README.md`
+hub instead of placeholder links, now that `DEC-116` landed first.
+
+**Evidence:** `reports/feature-h1-readme-rewrite.md` — full verification
+transcript (`make test` 253/1, `make eval-fast` 2/2, a full `make
+up-offline` run proving the approval gate pauses correctly, `install.sh`
+tested against stub scripts for every path, a fresh-subagent reader test
+answering all four required questions correctly). `bash -n scripts/
+install.sh` clean after the fix.
+
+**Status:** Merged to `main`. Wave β (H1/H2/H3a) is now fully landed.
+Wave γ (TechDocs) remains gated on a live-RHDH + tail-conflict check;
+H4a (comment-census migration) continues in parallel; H4b remains gated
+on H4a's completion.
