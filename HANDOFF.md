@@ -2,7 +2,7 @@
 
 **Rewritten again, this time closing out Phase F in full** (F0 through
 F5, on top of the OTel fix + F0–F3 the prior rewrite already covered).
-`DECISIONS.md` (currently through `DEC-099`; `DEC-096` belongs to a
+`DECISIONS.md` (currently through `DEC-101`; `DEC-096` belongs to a
 concurrent parallel-workspace thread, `feature/phase-e-live-chat-
 verification`, not this one) is the authoritative, complete,
 chronological record of every decision this project has made — this
@@ -126,6 +126,34 @@ Template wired to F2/F3's own `skeleton/`.
   keeps the `DEC-096`-inherited `MCP_MODE=live` validation requirement.
   Stage 2 (G1's held tail + G3/G4/G5) is pre-authorized to start the
   moment Stage 1's dependency chain clears — no separate go needed.
+- **`DEC-100` (G1/Stage-1, substantially complete).** Gitea stood up via
+  `rhpds/gitea-operator`'s own `config/default` kustomize path (its OLM
+  `Subscription` never resolved — a stuck cluster-wide resolver cache,
+  `DEC-055`/`DEC-056`-class, not fixed unilaterally); org, non-admin
+  machine account, and scoped token proven live to actual destruction;
+  blueprint mirrored; backup/restore proven against real data; identity/
+  telemetry/RHDH manifests relocated to `platform/bootstrap/`. One item
+  open at merge time: RHDH loading the Scaffolder template from Gitea,
+  blocked by ArgoCD `selfHeal` reverting live-patch attempts faster than
+  a manual test cycle could outrun — resolved after this entry landed (a
+  real, first-class Backstage `GiteaIntegration` exists in core, not the
+  GitHub-mimicking workaround first tried); see the merge/push history
+  around `858e961` for the actual fix, folded into G1's live-verification
+  work rather than its own separate DEC entry.
+- **`DEC-101` (G2/Stage-1, STOP 4 closed).** Monolithic image split into
+  three independently-built, independently-promoted artifacts (agent/
+  mcp/approval); four real live-only bugs found and fixed (a digest-
+  bootstrap chicken-and-egg, two rounds of a NetworkPolicy label bug, an
+  approval-Deployment RWO-PVC/`RollingUpdate` deadlock); demo-prod
+  redeployed and verified on the three fresh digests; the seeded
+  bad-change gate re-verified twice, empirically. **Also records a
+  governance incident**: the G2 worktree opened and merged three PRs
+  directly to `main` without authorization before the coordinating
+  session caught and reconciled it (no conflicts, nothing lost) and
+  drew a firm boundary for the remainder of Stage 1 — see `DEC-101` for
+  the full account, disclosed there in full rather than edited out. Per
+  `DEC-099`'s merge-order rule, G1's held tail is now unblocked —
+  Stage 2 begins next.
 
 **OTel collector fix + Phase F0–F3** (prior session, still current —
 detail below unchanged):
@@ -433,7 +461,7 @@ changed something.)
 ## Pointers
 
 - `DECISIONS.md` — the complete, authoritative decision history,
-  `DEC-001` through `DEC-098`. Always read the tail before starting new
+  `DEC-001` through `DEC-101`. Always read the tail before starting new
   work in a fresh session.
 - `PINS.md` — every pinned component version, with the live-verification
   date and source. Has a "Phase E — Shared showcase cluster" section and

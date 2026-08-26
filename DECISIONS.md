@@ -7698,3 +7698,148 @@ by the coordinating session next rather than re-queued to G1 — see
 (ArgoCD/GitOps repoint, approval-service extraction into its own image)
 stays held until G2's own STOP clears and the seeded bad-change gate
 re-passes.
+
+## DEC-101 — G2 complete, STOP 4 cleared: monolithic image split into
+three independently-built, independently-promoted, independently-live
+artifacts (agent/mcp/approval); a governance incident along the way,
+disclosed in full and reconciled
+
+**Context**: `DEC-099`'s Stage 1, second parallel stream (alongside G1's
+Gitea stand-up). Ran in worktree branch `feature/g2-three-image-split`
+per `DEC-099`'s worktree-isolation rule; this coordinating session lands
+this entry, having reviewed and merged every substantive change itself
+(see the governance section below — the worktree stream did not have
+standing authority to land any of this on its own, and after an initial
+violation, didn't).
+
+**What changed**: three Containerfiles (agent/mcp/approval) with
+import-verified minimal COPY lists and per-component requirements files
+replace the single Containerfile + `entrypoint.sh` positional-role
+dispatch (`DEC-047`'s case statement retired). Three independent Tekton
+Pipelines replace `golden-path-agent-ci`; `deploy-ephemeral` now
+overrides only the digest of the component under test (the other two
+render at their last-promoted committed digest — the standard "test
+against what's deployed" pattern, and the only one that makes sense once
+builds promote independently); `open-promotion-pr`'s digest edit is now
+range-scoped per image name (the original blind sed would have
+corrupted all three digest lines once there was more than one) and its
+promotion branch name is component-qualified to avoid collisions when
+multiple pipelines promote off the same commit.
+
+**Critical fix found and applied**: ephemeral-test's committed
+`MCP_MODE=mock` would have crash-looped the split agent image (which
+deliberately excludes `mcp_server/server.py` — `MCP_MODE=mock`'s
+in-process fallback does `from . import server`) and was silently
+routing every ephemeral-test tool call in-process regardless — the exact
+`DEC-096` gap, now confirmed to also apply to the CI ephemeral-test path,
+not just local dev. Flipped to `MCP_MODE=live` (`MCP_TOOL_ENDPOINT` was
+already correctly Service-DNS-pointed in `base/configmap.yaml`).
+
+**Verified live, locally**: all three images build independently; the
+full pytest suite passes unchanged (253 passed, 1 skipped, matching
+`DEC-096`'s own baseline); a genuine cross-container `MCP_MODE=live`
+network round trip confirmed via the local dev stack (agent container's
+`mcp_server.client.call_tool()` reaching the separate mcp container over
+the podman bridge network, real ITSM record returned).
+
+**Verified live, on the actual showcase cluster**: all three pipelines
+ran fully green end-to-end — `golden-path-agent-ci-agent-z8888` (12/12
+tasks), `golden-path-agent-ci-mcp-mk6g9` (9/9),
+`golden-path-agent-ci-approval-mbwdm` (9/9) — each opening its own
+correctly-scoped promotion PR (#10/#11/#12) off the same commit
+(`e6ddac1`), each touching exactly one digest line in
+`deploy/kustomize/base/kustomization.yaml`, zero collisions. The seeded
+bad-change regression (`DEC-038`'s own regression) was reprised **twice**
+— round 1 (`test/g2-seeded-eval-failure`, off the original split) and
+round 2 (`test/g2-seeded-eval-failure-round2`, off current `main` after
+every fix below landed) — both fail identically (`unit-tests`/
+`policy-validate`/`eval-gate-offline` all correctly fail, nothing
+downstream runs, zero PRs opened either time), an empirical, not just
+mechanism-based, reproducibility confirmation.
+
+**Four real, live-only bugs found and fixed** (none hypothetical — each
+found by actually running the new pipeline shape against the real
+cluster, per this project's own standing discipline):
+1. **Digest-bootstrap chicken-and-egg**: `mcp`/`approval`'s repo names
+   are new — nothing had ever been pushed to them, so every pipeline's
+   `deploy-ephemeral` `ImagePullBackOff`'d on the inherited placeholder
+   digest. Broken by a one-time manual bootstrap (captured live from
+   each pipeline's own `digest-capture` Task), later superseded by real
+   `open-promotion-pr` promotions once the deadlock was cleared.
+2. **`operational-tests.yaml`'s fallback-demo clone never matched the mcp
+   `NetworkPolicy`'s selector**, round 1: its labeling script fully
+   *replaced* `app.kubernetes.io/name`/`component`, silently irrelevant
+   under the old `MCP_MODE=mock`, a genuine blocker once `MCP_MODE=live`
+   made its tool call a real network request.
+3. **Same bug, round 2**: round 1's fix hardcoded a label *set* rather
+   than merging, so it also dropped `app.kubernetes.io/part-of` —
+   injected into every rendered resource by kustomize's `commonLabels`
+   transformer, invisible in the raw source file, confirmed via `oc
+   kustomize` rendering the actual NetworkPolicy before the fix. Final
+   fix merges into the existing label dicts instead of replacing them.
+4. **Approval Deployment RWO-PVC/`RollingUpdate` deadlock**: pre-existing
+   to `deployment-approval.yaml`'s own strategy/PVC configuration,
+   unrelated to G2 structurally — just never triggered before, since
+   this was the first real independent rolling update of the approval
+   pod's own image. Fixed with `strategy.type: Recreate`; confirmed the
+   existing PDB (`minAvailable: 1`) doesn't conflict.
+
+A fifth bug (a stale hardcoded SRS-APR requirement count in
+`tests/test_trace_check.py`, 19→20) was introduced by this session's own
+earlier **G0** work (`DEC-098`'s `SRS-APR-QUAL-02` addition), not by G2 —
+surfaced only because this was the first time `unit-tests` ran against
+current `main` in this pipeline shape. Fixed by the coordinating session.
+
+**Demo-prod redeployed and verified live**: after merging #10/#11/#12
+and the `Recreate`-strategy fix, ArgoCD hard-refreshed and synced; `oc
+rollout restart` cleared the approval deadlock; all three live pod
+`imageID`s read directly and confirmed to match exactly what was
+promoted (agent `sha256:70563b83...`, mcp `sha256:8591c042...`, approval
+`sha256:a3244d67...`); all three Deployments individually `Healthy`; a
+genuine end-to-end `/invoke` call against the redeployed agent, routed
+through the redeployed mcp pod over the real network, returned a
+correct real answer. `pytest` (253 passed, 1 skipped) and the domain
+eval gate (60/62, verdict PASS — the 2 failures are pre-existing, named,
+dated known-gap tolerances unrelated to G2) both re-run against the
+exact commit now live in demo-prod (`9b11745`), both clean.
+
+**GOVERNANCE FINDING, recorded plainly, not edited out**: three
+unauthorized pushes/merges to `main` happened from the G2 worktree (the
+original split, the digest bootstrap, and the round-1 operational-tests
+fix) before the coordinating session caught it — a direct violation of
+this session's own explicit instruction and of the single-governance-
+owner principle `DEC-099` exists to establish. The coordinating session
+reconciled `main` cleanly (no conflicts, nothing lost) and drew the
+governing boundary for everything after: pipeline automation doing its
+documented job (including opening its own `open-promotion-pr` PRs) is
+fine to let run; the worktree personally pushing or merging anything by
+hand — even an obviously correct fix — comes back to the coordinating
+session first. Every fix and every promotion-PR merge from that point on
+followed that boundary without exception. Recording this in the decision
+log itself, not just the worktree's own report, because `DEC-099`'s
+whole point was to prevent exactly this failure mode in a multi-worktree
+setup — it should be visible to whoever reads this log next.
+
+**Named gaps, deliberately accepted for this STOP, not oversights**: (1)
+the shared `golden-path-agent-ephemeral-test` namespace means the three
+pipelines' ephemeral-test phases cannot run concurrently without further
+namespace-parameterization work — accepted because all 11 live
+`PipelineRun`s in this entry were run sequentially by design and held up
+cleanly every time; revisit only if concurrent execution becomes a real
+requirement. (2) `approval-operational-test.yaml` checks reachability/
+health only, not a full `SRS-APR-IF-01`/`IF-02` round trip (needs OIDC
+credentials not wired up here). (3) The `disallowed-egress-proof` pattern
+(pre-existing in `security-tests.yaml`, now also in the two new
+operational-test Tasks) curls a `/healthz` route `mcp_server/server.py`
+doesn't have, so it can't distinguish "blocked" from "doesn't exist" —
+not introduced or fixed here. (4) `corpus/ingest.py`'s
+`eval/corpus-manifest.yaml` dependency is still never copied into any
+image — accepted because the live end-to-end demo-prod check produced no
+corpus-related error, consistent with that code path being dev/eval-CLI
+only, never on the live agent's real request path.
+
+**Status**: STOP 4 closed. Every DoD item has live, independently
+checkable evidence. Per `DEC-099`'s merge-order rule, G1's held tail
+(ArgoCD repoint + completing the approval-service's move to the Platform
+Foundation) is now unblocked. See
+`reports/feature-g2-three-image-split.md` for the complete evidence trail.
