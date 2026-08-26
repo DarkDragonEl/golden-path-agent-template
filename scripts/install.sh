@@ -3,26 +3,28 @@
 #
 # One-button fresh-OpenShift-cluster install path for the golden-path-agent
 # blueprint. This is a PURE SEQUENCER: it adds no bootstrap logic of its
-# own beyond ordering these two existing scripts and the interactive
-# confirmation below. All real work happens inside:
+# own beyond the interactive confirmation below and a single call to:
 #
-#   1. scripts/bootstrap.sh <kubeconfig-path>
-#      -- operators, namespaces, RBAC, Keycloak, cluster-tier OTel,
-#         pipeline/task definitions, the ArgoCD app-of-apps root.
-#   2. platform/bootstrap/provision-identity-secrets.sh
-#      -- OIDC client secrets + demo-user passwords (DECISIONS.md
-#         DEC-059: idempotent BY REGENERATION -- every run rotates fresh
-#         values, there is no "only if missing" branch).
+#   scripts/bootstrap.sh <kubeconfig-path>
+#     -- operators, namespaces, RBAC, Keycloak, cluster-tier OTel,
+#        pipeline/task definitions, the ArgoCD app-of-apps root, AND
+#        (its own internal step 5/9) platform/bootstrap/provision-
+#        identity-secrets.sh -- OIDC client secrets + demo-user
+#        passwords (DECISIONS.md DEC-059: idempotent BY REGENERATION --
+#        every run rotates fresh values, there is no "only if missing"
+#        branch).
 #
-# NOTE ON THE TWO-CALL SHAPE: scripts/bootstrap.sh's own step 5/9 already
-# calls platform/bootstrap/provision-identity-secrets.sh once,
-# non-interactively, as part of its own unattended sequence (bootstrap.sh
-# is designed to run end to end with no prompts). This wrapper calls the
-# same script again, explicitly, afterward -- gated behind the
-# confirmation below -- so a human operator running this one-button path
-# always sees and confirms the credential-rotation warning at least once.
-# Re-running it is safe by design (DEC-059); the cost is one extra
-# rotation, not a correctness problem.
+# ONLY ONE CALL, DELIBERATELY: bootstrap.sh's own step 5/9 already invokes
+# provision-identity-secrets.sh once, non-interactively, as an inseparable
+# part of its own sequence -- that is the run that actually rotates
+# credentials and invalidates any live session. Calling
+# provision-identity-secrets.sh a second time afterward would not add
+# safety (the rotation already happened, unconditionally, inside
+# bootstrap.sh) -- it would only rotate an already-fresh value again,
+# and worse, it would put this wrapper's confirmation prompt AFTER the
+# consequential rotation instead of before it. This wrapper's
+# confirmation therefore gates the single call to bootstrap.sh itself,
+# not a second script.
 #
 # This script NEVER passes --reenable-sync to bootstrap.sh, by default or
 # via any flag defined here. That flag reverses a cluster-local auto-sync
@@ -36,20 +38,21 @@ usage() {
   cat >&2 <<'USAGE'
 usage: install.sh <kubeconfig-path> [--yes]
 
-Runs the fresh-OpenShift-cluster install path end to end, in order:
-  1. scripts/bootstrap.sh <kubeconfig-path>
-  2. platform/bootstrap/provision-identity-secrets.sh
+Runs the fresh-OpenShift-cluster install path: scripts/bootstrap.sh
+<kubeconfig-path>, which itself provisions identity secrets as one of
+its own steps (DECISIONS.md DEC-059) -- rotating them every run, with no
+"only if missing" branch.
 
 <kubeconfig-path> is forwarded to scripts/bootstrap.sh exactly as that
 script expects it: an already-authenticated kubeconfig. Like
 scripts/bootstrap.sh, this wrapper never runs `oc login` -- authenticate
 before running this script.
 
---yes   Skip the interactive confirmation before step 2 (the
-        credential-rotating script). Both scripts still run, in order,
-        either way -- this flag removes only the prompt, never a step.
+--yes   Skip the interactive confirmation before running bootstrap.sh.
+        bootstrap.sh still runs either way -- this flag removes only the
+        prompt, never the step.
 
-This wrapper adds no logic beyond this sequencing: it never passes
+This wrapper adds no logic beyond that confirmation: it never passes
 --reenable-sync or --with-rhdh to scripts/bootstrap.sh. For either of
 those, run scripts/bootstrap.sh directly instead of this script.
 USAGE
@@ -86,43 +89,29 @@ cd "$REPO_ROOT"
 
 log() { echo "[install.sh] $*"; }
 
-# provision-identity-secrets.sh (step 2) takes no kubeconfig argument of
-# its own -- it expects KUBECONFIG already set in its environment, the
-# same way scripts/bootstrap.sh's own internal call to it relies on that
-# script's `export KUBECONFIG="$1"`. Exporting it here is wiring, not new
-# decision logic: without it, step 2's own `oc` calls would silently fall
-# back to the ambient default kubeconfig instead of the cluster this
-# script was told to target.
-export KUBECONFIG="$KUBECONFIG_PATH"
-
-log "step 1/2: scripts/bootstrap.sh $KUBECONFIG_PATH"
-if ! ./scripts/bootstrap.sh "$KUBECONFIG_PATH"; then
-  echo "[install.sh] FAILED: scripts/bootstrap.sh exited non-zero -- stopping, not continuing to identity-secret provisioning." >&2
-  exit 1
-fi
-
 if [ "$SKIP_CONFIRM" != "true" ]; then
   cat >&2 <<'WARNING'
 
-[install.sh] WARNING (DECISIONS.md DEC-059): about to run
-platform/bootstrap/provision-identity-secrets.sh. This ROTATES the OIDC
-client secrets and demo-user passwords every time it runs -- there is no
-"only if missing" branch. Any live session using the current credentials
-will be invalidated. Safe on a fresh install; on an already-live cluster,
-anyone currently signed in will be signed out.
+[install.sh] WARNING (DECISIONS.md DEC-059): scripts/bootstrap.sh's own
+step 5/9 runs platform/bootstrap/provision-identity-secrets.sh
+unconditionally. That script ROTATES the OIDC client secrets and
+demo-user passwords every time it runs -- there is no "only if missing"
+branch. Any live session using the current credentials will be
+invalidated. Safe on a fresh install; on an already-live cluster, anyone
+currently signed in will be signed out.
 
 WARNING
   printf '[install.sh] Type "yes" to continue: ' >&2
   read -r CONFIRM
   if [ "$CONFIRM" != "yes" ]; then
-    echo "[install.sh] aborted before identity-secret provisioning (no confirmation given)." >&2
+    echo "[install.sh] aborted before running scripts/bootstrap.sh (no confirmation given)." >&2
     exit 1
   fi
 fi
 
-log "step 2/2: platform/bootstrap/provision-identity-secrets.sh"
-if ! ./platform/bootstrap/provision-identity-secrets.sh; then
-  echo "[install.sh] FAILED: platform/bootstrap/provision-identity-secrets.sh exited non-zero." >&2
+log "running scripts/bootstrap.sh $KUBECONFIG_PATH"
+if ! ./scripts/bootstrap.sh "$KUBECONFIG_PATH"; then
+  echo "[install.sh] FAILED: scripts/bootstrap.sh exited non-zero." >&2
   exit 1
 fi
 

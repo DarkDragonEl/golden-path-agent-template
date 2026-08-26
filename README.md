@@ -172,13 +172,16 @@ on the target cluster.
 ./scripts/install.sh <kubeconfig-path>
 ```
 
-This runs `scripts/bootstrap.sh` (operators, namespaces, RBAC, identity,
-telemetry, pipelines, the ArgoCD app-of-apps root) and then
-`platform/bootstrap/provision-identity-secrets.sh` (OIDC client secrets
-and demo-user passwords), in that order, stopping immediately and naming
-the failing script if either exits non-zero. Pass `--yes` to skip the
-interactive confirmation described in the warning box below (both
-scripts still run either way — `--yes` only removes the prompt).
+This runs `scripts/bootstrap.sh` — operators, namespaces, RBAC, identity,
+telemetry, pipelines, the ArgoCD app-of-apps root, and (as one of its own
+internal steps) `platform/bootstrap/provision-identity-secrets.sh`
+(OIDC client secrets and demo-user passwords) — stopping immediately if
+it exits non-zero. Pass `--yes` to skip the interactive confirmation
+described in the warning box below (`bootstrap.sh` still runs either
+way — `--yes` only removes the prompt, and only one script ever runs:
+`install.sh` never calls the identity-secrets script a second time,
+since `bootstrap.sh`'s own internal call is the one that actually
+rotates credentials).
 
 **Alternative** — run the two underlying scripts by hand:
 
@@ -218,27 +221,25 @@ line alone, without the second script.)
 
 ## Docs index
 
-<!-- TODO(H1 held tail): finalize this section against H2's merged
-     docs/README.md hub, docs/glossary.md, docs/naming-conventions.md,
-     and docs/access-and-credentials.md once that stream lands. The
-     links below point at what exists today; they are not the final,
-     coordinating-session-reviewed index. -->
+Full index: **[`docs/README.md`](docs/README.md)** — every document under
+`docs/` reachable in at most two clicks, organized
+[Diátaxis](https://diataxis.fr/)-style. Start there for the complete map;
+the four groups below are the fastest way in from here.
 
-**Learn**
-- [`docs/architecture.md`](docs/architecture.md) — the agent's graph shape and the three-image split.
-- [`docs/evaluation.md`](docs/evaluation.md) — how the eval harness and promotion gate work.
+**Learn** — [`docs/README.md#tutorials`](docs/README.md#tutorials):
+[`docs/architecture.md`](docs/architecture.md) (the agent's graph shape
+and the three-image split), [`docs/owner-walkthrough.md`](docs/owner-walkthrough.md)
+(a full live run, start to finish).
 
-**Operate**
-- [`docs/environments.md`](docs/environments.md) — what's deployed where, and by what.
-- [`docs/phase-c-runbook.md`](docs/phase-c-runbook.md) — the manual bootstrap steps behind Quickstart B.
-- [`docs/local-dev.md`](docs/local-dev.md) — the local dev loop in more depth.
-- [`docs/owner-walkthrough.md`](docs/owner-walkthrough.md) and [`docs/direct-chat-walkthrough.md`](docs/direct-chat-walkthrough.md) — walking through a live run.
-- [`docs/showcase-access.md`](docs/showcase-access.md) and [`docs/showcase-walkthrough-script.md`](docs/showcase-walkthrough-script.md) — running a demo on the showcase cluster.
-- [`docs/testing-perspectives-guide.md`](docs/testing-perspectives-guide.md) — how the test suite is organized.
+**Operate** — [`docs/README.md#how-to--runbooks`](docs/README.md#how-to--runbooks):
+[`docs/local-dev.md`](docs/local-dev.md), [`docs/phase-c-runbook.md`](docs/phase-c-runbook.md)
+(the manual steps behind Quickstart B), [`docs/access-and-credentials.md`](docs/access-and-credentials.md).
 
-**Reference**
-- [`docs/security-identity.md`](docs/security-identity.md) — identity, auth, and network policy.
-- [`docs/template-nine-output-mapping.md`](docs/template-nine-output-mapping.md) — how the skeleton templates map onto this repo.
+**Reference** — [`docs/README.md#reference`](docs/README.md#reference):
+[`docs/environments.md`](docs/environments.md),
+[`docs/glossary.md`](docs/glossary.md),
+[`docs/naming-conventions.md`](docs/naming-conventions.md),
+[`PINS.md`](PINS.md).
 
 **Decisions**
 - [`DECISIONS.md`](DECISIONS.md) — the project's single decision log. Each `DEC-NNN` entry records one ambiguity, finding, decision, evidence, and status, in that order.
