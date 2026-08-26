@@ -7843,3 +7843,60 @@ checkable evidence. Per `DEC-099`'s merge-order rule, G1's held tail
 (ArgoCD repoint + completing the approval-service's move to the Platform
 Foundation) is now unblocked. See
 `reports/feature-g2-three-image-split.md` for the complete evidence trail.
+
+## DEC-102 — G5: catalog model designed locally (System, approval-service
+Component+API, model-route Resources+API) -- not yet registered in
+RHDH's live catalog, by deliberate scope choice
+
+**Context**: `DEC-099`'s Stage 2, third parallel stream (alongside G1's
+held tail and a G3+G4 template-split stream). Ran in worktree branch
+`feature/g5-catalog-model`; this coordinating session lands this entry —
+the worktree stream never touched `DECISIONS.md`/`HANDOFF.md`/`PINS.md`
+directly, and never merged or pushed anything itself.
+
+**What was built**: three new files under `platform/catalog/` (new
+directory; `platform/bootstrap/` untouched) — a `System` entity for the
+Platform Foundation; a `Component` + OpenAPI `API` for the approval
+service (sourced from `srs/SRS-APR.md`'s real `IF-01`/`02`/`04`/`05`
+contract, cross-checked against `approval_service/api.py`'s actual route
+decorators, not invented); a shared OpenAI-compatible `API` plus two
+`Resource` entities (primary/fallback) for the model routes (sourced
+from `agent/model_client.py`'s real `RoutedModelClient` and its actual
+closed reason-code set — `none`/`primary_timeout`/`primary_429`/
+`primary_5xx`/`primary_unreachable` — which differs from
+`srs/SRS-AGT.md`'s own illustrative example set, noted so a future
+reader doesn't mistake the SRS's "e.g." list for the literal enum).
+
+**Deliberate design choice**: neither model-route `Resource` names a
+specific model — `SRS-AGT-IF-01` forbids hardcoding a model identifier in
+agent source, and the same principle is applied to the catalog entity:
+route identity (primary/fallback) is stable, the model behind it is
+injected configuration.
+
+**Deliberately deferred, not an oversight**: (1) live RHDH registration
+(editing `deploy/kustomize/overlays/rhdh/catalog-locations-config.yaml`)
+— deferred because a concurrent G1-tail stream and a concurrent G3+G4
+stream may also need to touch that same file; the coordinating session
+sequences that single shared edit once all Stage-2 streams report back,
+rather than repeating `DEC-101`'s governance/collision lesson. (2)
+Relations to Tools/Agent Template entities (`consumesApis`/`dependsOn`)
+— the concurrent G3+G4 stream owns that skeleton and hasn't landed; this
+entry documents an assumed naming convention
+(`golden-path-agent-model-route-api`, `<project-name>[-component]`) for
+that stream to confirm or correct, not a verified integration.
+
+**Ownership judgment call**: reused the repo's single existing owner
+(`group:default/golden-path-agent-team`) across every new entity rather
+than inventing a "platform team" vs. "agent team" distinction that has
+no real referent in this project yet — distinct ownership becomes
+meaningful at G7's multi-team scenario, not before.
+
+**Validation performed**: schema-shape only (required-field presence per
+Backstage's documented kind rules, dangling-reference check, OpenAPI 3.x
+parse check on both embedded definitions) — not live RHDH validation,
+which is part of the deferred registration step above.
+
+**Status**: Design complete, locally validated, not yet live. Next: the
+coordinating session sequences the shared RHDH catalog-config edit once
+G1's tail and the G3+G4 stream both report their own catalog-relevant
+output.
