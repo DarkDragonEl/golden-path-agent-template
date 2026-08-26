@@ -7138,3 +7138,83 @@ owner sees when they open a URL.
 page showing the correct single OIDC option). `reports/phase-f-f4-
 verification.md` updated with both findings. STOP 5's bar — genuinely,
 now, on the evidence a real browser produces — is met.
+
+## DEC-095 — Phase F5 complete: golden-path-agent Scaffolder Template
+authored and live-verified, STOP 6's DoD met
+
+Following `DEC-093`/`DEC-094`'s STOP 5 clearance, F5 (Template/Scaffolder
+authoring) proceeded in the same pass per the owner's own
+pre-authorization. Zero custom plugin code — the stock `fetch:template`
+action only, per `DEC-087` item 1 — wrapping F2/F3's own `skeleton/` +
+`template-schema.json` directly, so both paths render from the identical
+source with no parallel copy to drift (the exact failure class `DEC-075`
+already named and this project has structurally avoided ever since).
+
+**Three more real gaps, all found only by actually running the
+Template** — none visible from the schema-valid, `--dry-run`-clean YAML
+alone:
+1. `fs:readdir`'s real input schema is `paths` (array), not `path` —
+   caught by fetching `/api/scaffolder/v2/actions`'s own live schema
+   *before* writing the step, the one gap PINS-before-YAML avoided
+   outright rather than catching after a failed task.
+2. `fetch:template`'s relative `url` resolution needs `integrations.
+   github`, distinct from `backend.reading.allow` — first task run
+   failed with `InputError: No integration found for location ...`.
+3. `GithubUrlReader`'s host match is a literal string equality
+   (`url.host === integration.config.host`, confirmed by reading
+   Backstage's own source), never matching `raw.githubusercontent.com`
+   against `host: github.com` — fixed by registering the Template's own
+   catalog location via the `github.com/.../blob/main/...` form instead.
+   F1's own `catalog-info.yaml` location is unaffected (a different code
+   path, the generic reader, not the SCM-integration one).
+
+All three recorded in full in `PINS.md`.
+
+**STOP 6 DoD, each item backed by execution**:
+1. **Live Template run**: a real scaffolder task (`935ac835-...`),
+   driven via the same API the portal's own Create-page wizard calls,
+   completed successfully — 241 files/directories rendered with the
+   supplied parameters.
+2. **F3/F5 parity**: F3's CLI, run locally with identical parameters,
+   produced a file/directory list diffed byte-for-byte identical (241/241
+   entries, `diff` exit 0) against F5's live task's own rendered file
+   list. Stated honestly: this confirms file-set parity, not byte-level
+   file-*content* parity — this platform's own action set has no
+   `fs:read`-style action and the `dry-run` endpoint requires
+   pre-supplied content rather than a remote fetch, so content can't be
+   pulled back out of a completed task through this API. Given both
+   paths render the identical `skeleton/` tree with the identical
+   `${{ values.x }}` values, this is accepted as sufficient given the
+   platform's own tooling limit, not glossed over.
+3. **Live `OOD-006` re-run**: run directly against the live
+   `golden-path-agent` deployment (not the offline harness) with the
+   real query text. `tool_calls: []`, `selected_tool: null`, an explicit
+   capability disclaimer — the boundary holds even now that RHDH is
+   genuinely live and reachable, not just a hypothetical the agent has
+   never seen operate.
+4. **MCP boundary count**: confirmed `grep -c '@mcp.tool('` = 5 on both
+   the checked-out source and the live deployed `mcp` pod — unchanged.
+
+**One honest scope limit, named rather than assumed away**: driving the
+Template through the actual Create-page **wizard UI** (not just POSTing
+to the same backend endpoint) needs an authenticated browser session,
+and this session's own browser-automation rules prohibit entering any
+password — including this project's own synthetic demo account — into a
+browser field. The Template's registration and its parameter-form schema
+were confirmed live via the catalog API (the identical schema data the
+wizard renders from); the wizard's own click-through was not
+independently exercised. `DEC-094`'s own sign-in-page bug was a direct
+reminder that a scripted backend check and a real UI click-through are
+not fully interchangeable evidence — naming this gap rather than
+overclaiming is the same discipline applied to itself here.
+
+**Full evidence**: `reports/phase-f-f5-verification.md`.
+
+**Status recap for whoever picks this up next**: Phases F0–F5 complete.
+`OBJ-01`'s full portal exposure and `SysR-P-F-13`/`OS-09`'s second-team
+acceptance (named in `DEC-091`, restated in `DEC-093`) remain the two
+genuinely open items this project cannot self-certify. The Create-page
+wizard's own click-through (this entry's own honest scope limit) is a
+third, narrower one — resolvable by the owner completing one real
+browser login themselves and confirming the form renders as expected,
+which this session's own safety rules cannot do on their behalf.
