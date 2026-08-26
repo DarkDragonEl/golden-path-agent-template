@@ -29,6 +29,12 @@ metadata:
   name: golden-path-agent-rhdh-catalog-config
   labels:
     app.kubernetes.io/part-of: golden-path-agent
+#
+# Phase F5 (DEC-087 item 1): a second location entry registers
+# template.yaml (repo root) alongside F1's own Component -- a distinct
+# entity kind (Template, not Component) from a distinct file, kept as
+# its own locations entry rather than merged into catalog-info.yaml's
+# own content.
 data:
   app-config.catalog.yaml: |
     backend:
@@ -39,3 +45,5 @@ data:
       locations:
         - type: url
           target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/catalog-info.yaml
+        - type: url
+          target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/template.yaml

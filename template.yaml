@@ -1,0 +1,122 @@
+# Phase F5 (DECISIONS.md DEC-087 item 1; docs/phase-f-kickoff-plan.md SS6).
+# Wraps F2/F3's own skeleton/ + template-schema.json in a Backstage/RHDH
+# Scaffolder Template -- zero custom plugin code, the stock fetch:template
+# action only (confirmed present at this instance's own /api/scaffolder/v2/
+# actions before this file was written, per PINS.md's own F5 row).
+#
+# parameters below is a hand-translation of template-schema.json's own
+# properties into Backstage's RJSF-based form schema -- template-schema.json
+# stays the single source of truth for VALUES (both F3's CLI and this
+# Template's own fetch:template step read the identical skeleton/ against
+# the identical defaults); this file only adds the form/UI layer on top,
+# it does not duplicate or re-decide any default value.
+#
+# owner: matches catalog-info.yaml's own group reference exactly -- no new
+# Group entity invented, same sandbox-scope reality (zero User/Group
+# entities registered; DEC-092's dangerouslyAllowSignInWithoutUserInCatalog
+# note already covers why).
+#
+# `owner` parameter is a plain string, not Backstage's own OwnerPicker
+# ui:field -- OwnerPicker requires selectable Group/User catalog entities
+# to exist, and this catalog has none (same reason above). Re-entry point
+# if user/group ingestion is ever wanted: the same Keycloak catalog-backend
+# plugin PINS.md already names for the sign-in resolver's own equivalent
+# gap.
+#
+# No publish:* step -- DEC-087's own local-render-only scope decision
+# (no repo-creating actions, no new credentials), and this instance's own
+# live action list confirms no publish:* action is even registered here,
+# enforcing the boundary at the platform level, not just by this file's
+# own choice. Final step is fs:readdir, not fs:write/publish -- it lists
+# the rendered workspace as the task's own visible evidence that
+# templating actually happened, without writing the render anywhere
+# outside the ephemeral task workspace.
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: golden-path-agent-scaffolder
+  title: Golden Path Agent
+  description: >-
+    Scaffold a new Agentic AI pilot agent project from the golden-path-agent
+    blueprint (LangGraph agent, mock ITSM MCP tool server, human-approval
+    service). Local-render only in this sandbox -- no repository is created,
+    no credentials are used; the rendered project appears in this task's own
+    workspace listing below.
+  tags:
+    - agentic-ai
+    - langgraph
+    - mcp
+    - golden-path
+spec:
+  owner: group:default/golden-path-agent-team
+  type: service
+  parameters:
+    - title: Project identity
+      required:
+        - name
+        - owner
+      properties:
+        name:
+          title: Project name
+          type: string
+          description: >-
+            The base identifier for the scaffolded project. Every namespace,
+            resource name, OIDC client ID, and OTEL service name in the
+            rendered output is derived from this.
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          minLength: 2
+          maxLength: 40
+        owner:
+          title: Owning team
+          type: string
+          description: >-
+            Catalog owner reference for the scaffolded project (e.g.
+            'group:default/team-name'). Documentation/attribution only.
+        description:
+          title: Project description
+          type: string
+          description: One-sentence description of the scaffolded agent's purpose.
+          default: >-
+            An agentic AI pilot agent scaffolded from the golden-path-agent
+            blueprint.
+    - title: Repository metadata (optional, informational only)
+      properties:
+        repoOwner:
+          title: Git repository owner/org
+          type: string
+          description: >-
+            Not used for publishing in this sandbox (no publish step exists)
+            -- substituted only into the rendered project's own doc content.
+          default: REPLACE_ME_repoOwner
+        repoName:
+          title: Git repository name
+          type: string
+          description: Same local-render-only note as repoOwner above.
+          default: REPLACE_ME_repoName
+  steps:
+    - id: fetch-base
+      name: Render golden-path-agent skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          owner: ${{ parameters.owner }}
+          description: ${{ parameters.description }}
+          repoOwner: ${{ parameters.repoOwner }}
+          repoName: ${{ parameters.repoName }}
+    - id: list-rendered
+      name: List rendered project (local-render-only evidence)
+      action: fs:readdir
+      input:
+        paths:
+          - .
+        recursive: true
+  output:
+    text:
+      - title: Rendered project
+        content: |
+          Project '${{ parameters.name }}' rendered in this task's own
+          workspace (see the "List rendered project" step's output above
+          for the full file listing). Local-render only -- nothing was
+          published or written outside this ephemeral task workspace.
