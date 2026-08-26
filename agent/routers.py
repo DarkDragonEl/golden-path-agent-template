@@ -1,3 +1,20 @@
+"""Conditional-edge routing functions for the graph built in
+agent/graph.py — each takes the current `state` dict and returns the next
+node's name (the StateGraph.add_conditional_edges destination key); none of
+these mutate state.
+
+decide_after_decide routes to "fallback" on total model failure or a
+reasoning-step-limit breach (agent/policy.py::check_step_limit), to
+"tool_invoke" when decide_node selected a tool, otherwise "retrieve".
+decide_after_retrieve currently always routes to "generate" (TODO(domain):
+route retrieval_unavailable to "fallback" once a domain requires it).
+decide_after_generate mirrors decide_after_decide's fallback/step-limit
+checks before "respond". decide_after_tool routes a failed tool call to
+"fallback", a write-classified pending approval to "human_approval",
+otherwise "respond". decide_after_approval routes to "fallback" only on a
+fallback_reason set by human_approval_node, otherwise "respond".
+"""
+
 from . import policy
 
 

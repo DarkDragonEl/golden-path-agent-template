@@ -1,3 +1,14 @@
+"""Loads the harness-mechanics eval case fixtures from eval/cases/*.yaml
+into EvalCase Pydantic models — one YAML file per case, non-recursive glob.
+
+Deliberately distinct from eval/domain_loader.py, which loads
+eval/cases/domain/*.yaml's list-per-file layout instead: DECISIONS.md
+DEC-005 commits SRS-EVH-F-03 to keeping this split rather than unifying the
+two, since load_all_cases's flat `EvalCase(**data)` call would crash on the
+domain directory's nested list shape. The EXAMPLE-*.yaml cases loaded here
+are harness-mechanics smoke fixtures only, never scored as domain content.
+"""
+
 from pathlib import Path
 from typing import Literal, Optional
 

@@ -1,3 +1,23 @@
+"""Writes and prints the eval harness's run report.
+
+write_report assembles one JSON summary per run under eval/results/
+(SRS-EVH-IF-02: pass/fail counts, per-case results, plus the additive
+fields eval_set_version, build_reference/build_reference_type,
+config_reference, thresholds_applied, gate_verdict, tolerated_known_gaps).
+When no explicit build_reference is supplied, _default_build_reference
+derives one from git — a commit hash for a clean worktree, or the
+"local-dev-uncommitted" sentinel for a dirty one, self-described via
+build_reference_type so a downstream consumer (the Phase C pipeline, which
+supplies a real image digest instead) can never mistake one for the other.
+
+tolerated_known_gaps carries eval/cli.py's KNOWN_GAP_TOLERANCES entries —
+cases scored but explicitly, individually excluded from the gate's failure
+count (DECISIONS.md DEC-016/DEC-017).
+
+print_summary renders the same run_results list as human-readable PASS/FAIL
+lines to stdout; it does not read or write the JSON report.
+"""
+
 import json
 import subprocess
 import time

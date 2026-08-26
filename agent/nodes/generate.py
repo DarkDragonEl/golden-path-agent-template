@@ -1,3 +1,23 @@
+"""Second, context-grounded model call node — reached only after
+retrieve_node, on decide_node's "no tool needed" branch; owns final_output
+for that path.
+
+Node contract: reads state["input_query"] and state.get("retrieved_docs");
+returns a partial-state update including final_output, messages,
+reasoning_steps, model_route, model_route_reason_code, model_calls, and
+clears pending_approval/drafted_action/approved_action for this branch. On
+total model failure it mirrors decide_node's fallback_reason contract
+instead of setting final_output.
+
+Caps how much of state["retrieved_docs"] actually reaches the model via
+config.REASONING_CONTEXT_TOP_K / config.REASONING_EXCERPT_CHARS (see
+agent/config.py's own comment on the Phase B4 finding that drives this
+cap) — the full retrieved set is left untouched in state for citation
+assembly. SRS-AGT-F-01: every corpus-derived claim needs a citation naming
+the source doc_id and version, which is why context is only ever injected
+with that framing.
+"""
+
 from pathlib import Path
 
 from .. import config

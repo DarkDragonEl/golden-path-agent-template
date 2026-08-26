@@ -1,3 +1,24 @@
+"""Tool-execution node for a turn where decide_node selected a tool:
+read-classified tools are invoked eagerly here; write-classified tools are
+only ever drafted and submitted to the standalone approval service, never
+executed by this node (SRS-AGT-F-04, SRS-MIT-SEC-01) — agent/nodes/
+human_approval.py's human_approval_node is the sole invoker of an approved
+write, and only from approved_action.
+
+Node contract: reads state["selected_tool"] ({tool_name, arguments}, set by
+decide_node — never None here, see agent/routers.py's decide_after_decide).
+The read branch returns tool_calls plus final_output. The write branch
+returns tool_calls, drafted_action, and pending_approval=True plus
+proposal_id on a successful submission to the approval service (Phase D,
+DECISIONS.md DEC-008/DEC-049), or pending_approval=False plus a
+fallback_reason ("approval_service_failure:<ExcType>") if the approval
+service itself is unreachable or errors.
+
+Reads config.TOOL_TIMEOUT_SECONDS and config.AGENT_WORKLOAD_ID via
+agent/config.py; classification comes from agent/policy.py::classify_action
+against the policy bundle named by config.APPROVAL_RULES_REF.
+"""
+
 from .. import approval_client, config, policy
 from ..tool_result_format import format_tool_result
 from mcp_server.client import call_tool
