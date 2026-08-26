@@ -9173,3 +9173,63 @@ five pins with their live-verification method.
 separate, smaller part ii commit — re-checking this log's tail for a G6
 conflict on `catalog-info.yaml`/`template.yaml` first, per this entry's
 own `DEC-114` gate.
+
+## DEC-121 — Phase H3b, part ii: catalog-info.yaml techdocs-ref + live
+RHDH wiring landed, config verified live, browser-render check still open
+
+**Ambiguity:** whether `catalog-info.yaml`/`template.yaml` were safe to
+touch given G6's own concurrent, active work on this cluster.
+
+**Finding:** re-checked directly (not assumed) immediately before this
+commit: `git log` shows neither file touched on `main` since `DEC-114`,
+and `git diff main` against G6's own active worktree
+(`agent-aeed7ceb631a2b904`, branch tip `2e1d914`) showed zero changes to
+`catalog-info.yaml` either — only `template.yaml`, some
+`deploy/kustomize/overlays/rhdh/*` files, and
+`platform/bootstrap/provision-identity-secrets.sh`, none of which this
+entry's changes touch. Clear to proceed per this entry's own `DEC-114`
+gate.
+
+**Decision:** added `backstage.io/techdocs-ref: dir:.` to
+`catalog-info.yaml`; added `deploy/kustomize/overlays/rhdh/
+techdocs-app-config.yaml` (a new ConfigMap, `techdocs: {builder: local,
+generator: {runIn: local}, publisher: {type: local}}`) and wired it into
+`kustomization.yaml`'s `resources` and `backstage.yaml`'s
+`appConfig.configMaps`. `builder: local` chosen because RHDH's own
+bundled generator venv (DEC-120) can render this repo's docs on demand
+with zero new infrastructure — appropriate for this project's
+single-replica demo deployment, not necessarily what a multi-replica
+production RHDH would want. Landed via GitOps (this commit), not a live
+patch — the `DEC-100`/`DEC-103` selfHeal lesson applies verbatim.
+
+**Evidence:** `oc kustomize` validated the render before committing —
+the ConfigMap and its `configMaps`-list wiring both appeared exactly as
+authored. After push, forced an ArgoCD refresh (`argocd.argoproj.io/
+refresh=hard`, the `DEC-093` precedent); synced to this commit, the
+techdocs ConfigMap landed live, and the operator rolled a fresh pod.
+Backend startup logs confirm the change took effect, not just that the
+Deployment updated: the merged config-source list includes
+`app-config.techdocs.yaml`, plugin initialization completed for
+`'techdocs'` with zero errors, and — the decisive line —
+`Creating Local publisher for TechDocs`, the exact message the `local`
+publisher type logs on successful init.
+
+**Not verified, and said so rather than assumed:** an actual
+authenticated TechDocs generation-and-serve round trip through the real
+API, and the page rendering in an actual browser. Every catalog/techdocs
+API call (even plain `GET`s) returned `401` — `auth.environment:
+production` blocks unauthenticated calls, and the RHDH client
+(`golden-path-agent-rhdh`) has `directAccessGrantsEnabled: false` by
+design, same constraint `DEC-118`'s own Scaffolder-task proof had to work
+around with a full simulated-browser OIDC login. Reproducing that flow
+from scratch (undocumented in any report available at the time of this
+entry) was judged disproportionate effort for this specific check, given
+`DEC-094`/`DEC-097` already established — twice — that a scripted
+backend check isn't equivalent evidence to a real browser open anyway.
+
+**Status:** Config wiring done, committed, pushed, and live-verified via
+logs to the depth an internal, unauthenticated check can reach. The
+final "open the portal, see the rendered docs" confirmation
+(`STOP 3`'s own bar) is left to the owner's real browser session, or a
+follow-up session that invests in replicating `DEC-118`'s OIDC-simulation
+technique if fully automated proof is wanted instead.
