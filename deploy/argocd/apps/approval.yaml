@@ -1,0 +1,28 @@
+# Phase G, Stage 1 held tail (DECISIONS.md DEC-098/DEC-099, unblocked by
+# DEC-101). The approval service's own Application, mirroring
+# rhdh.yaml's shape exactly -- auto-sync on, same reasoning: no separate
+# promotion step exists for this Platform Foundation singleton the way
+# demo-prod's own promotion-PR-merge gate exists for the agent/mcp
+# images (this repo's own commit is the human gate here too).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: golden-path-agent-approval
+  namespace: openshift-gitops
+spec:
+  project: golden-path-agent
+  source:
+    repoURL: https://github.com/DarkDragonEl/golden-path-agent-template.git
+    targetRevision: main
+    path: deploy/kustomize/overlays/approval-platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: golden-path-agent-approval
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false # namespace is bootstrapped once, out-of-band
+        # (pipelines/bootstrap/namespaces.yaml), same reasoning as
+        # demo-prod's/RHDH's own Applications.

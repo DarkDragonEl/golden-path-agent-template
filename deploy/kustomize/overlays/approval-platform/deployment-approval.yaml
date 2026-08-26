@@ -1,0 +1,77 @@
+# DEC-098/DEC-099 (G2): own independently-built/promoted image and own
+# Tekton pipeline, superseding this file's original design (a role of
+# the one shared golden-path-agent image, promoted for free by Phase C's
+# single pipeline). CLAUDE.md's "one immutable artifact" rule now reads
+# as "one immutable artifact per component" -- applied consistently,
+# not special-cased.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: golden-path-agent-approval
+spec:
+  replicas: 1
+  strategy:
+    # Real gap found live (Stage 1/G2, promoting the approval image
+    # independently for the first time): the default RollingUpdate
+    # strategy schedules the new pod before killing the old one, which
+    # deadlocks against this Deployment's ReadWriteOnce state PVC (a new
+    # pod on a different node can't attach a volume still attached to the
+    # old one, and the old pod is never killed because the new one can
+    # never become Ready without it). Recreate is the standard fix for a
+    # single-replica Deployment on an RWO volume -- terminates the old pod
+    # first. No new availability trade-off beyond what replicas: 1 already
+    # has.
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: golden-path-agent
+      app.kubernetes.io/component: approval
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: golden-path-agent
+        app.kubernetes.io/component: approval
+    spec:
+      serviceAccountName: golden-path-agent-approval
+      containers:
+        - name: approval
+          image: golden-path-agent-approval
+          ports:
+            - name: http
+              containerPort: 8082
+          envFrom:
+            - configMapRef:
+                name: golden-path-agent-approval-config
+            - secretRef:
+                name: golden-path-agent-approval-secrets
+                optional: true   # AUTH_MODE=none (D1) needs no secret at all;
+                # required once D2 flips AUTH_MODE=oidc (an OIDC client
+                # secret) or if Postgres is chosen over SQLite (a DB
+                # credential) -- optional: true keeps D1 deployable on its
+                # own, per the plan's explicit "D1 independent of D2" goal.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: state
+              mountPath: /opt/app-root/src/state/approval
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: golden-path-agent-approval-state

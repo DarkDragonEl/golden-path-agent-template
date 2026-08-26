@@ -121,3 +121,18 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
     argocd.argoproj.io/managed-by: openshift-gitops
+---
+# Phase G, Stage 1 held tail (DECISIONS.md DEC-098/DEC-099, unblocked by
+# DEC-101). An eighth namespace for the approval service, extracted out
+# of golden-path-agent-demo-prod into its own Platform Foundation home --
+# a shared singleton, not scoped to one agent project, same reasoning as
+# golden-path-agent-keycloak/-otel/-rhdh's own separate namespaces above.
+# GitOps-managed (deploy/argocd/apps/approval.yaml), so it needs the same
+# write-access label those namespaces' own comments already explain.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: golden-path-agent-approval
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+    argocd.argoproj.io/managed-by: openshift-gitops

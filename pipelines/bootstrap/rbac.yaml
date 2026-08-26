@@ -234,7 +234,14 @@ subjects:
     # rest of D1's RBAC diff, not discovered live later.
   - kind: ServiceAccount
     name: golden-path-agent-approval
-    namespace: golden-path-agent-demo-prod
+    namespace: golden-path-agent-approval
+    # Phase G, Stage 1 held tail (DEC-098/DEC-099, unblocked by DEC-101):
+    # the approval service moved to its own Platform Foundation
+    # namespace -- this entry replaces the old golden-path-agent-demo-
+    # prod one below (removed, that workload no longer runs there),
+    # hitting the identical cross-namespace pull gap live on the very
+    # first apply (confirmed: "authentication required" ImagePullBackOff,
+    # same as every other entry in this list originally found).
   - kind: ServiceAccount
     name: golden-path-agent-mcp
     namespace: golden-path-agent-ephemeral-test

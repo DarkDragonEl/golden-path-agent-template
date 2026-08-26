@@ -9,6 +9,30 @@ namespace: golden-path-agent-demo-prod
 resources:
   - ../../base
 
+# Phase G, Stage 1 held tail (DECISIONS.md DEC-098/DEC-099, unblocked by
+# DEC-101). The approval service moves out of this per-project namespace
+# into the Platform Foundation (deploy/kustomize/overlays/approval-
+# platform/, its own ArgoCD Application, golden-path-agent-approval
+# namespace) as a shared singleton. base/'s own approval resources stay
+# in base/ unchanged -- ephemeral-test still needs its own throwaway
+# instance for isolated per-promotion-candidate testing (that overlay's
+# own comment says so explicitly) -- so they are deleted here, per
+# overlay, rather than removed from base/ itself. No data migration: the
+# old demo-prod approval instance's SQLite state is demo-scope-only
+# (synthetic corpus, CLAUDE.md), not preserved -- the new Platform
+# Foundation instance starts fresh, and G1's own STOP-3 DoD item
+# (restart-persistence/expiry re-verification) exercises that fresh
+# state directly rather than assuming continuity with the old one.
+patches:
+  - path: delete-approval-serviceaccount.yaml
+  - path: delete-approval-configmap.yaml
+  - path: delete-approval-pvc.yaml
+  - path: delete-approval-deployment.yaml
+  - path: delete-approval-service.yaml
+  - path: delete-approval-networkpolicy.yaml
+  - path: delete-approval-ingress.yaml
+  - path: delete-approval-pdb.yaml
+
 configMapGenerator:
   - name: golden-path-agent-config
     behavior: merge
@@ -59,16 +83,21 @@ configMapGenerator:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://golden-path-agent-otel-collector.golden-path-agent-otel.svc.cluster.local:4318 # DEC-071:
         # the cluster-tier collector (DEC-068) -- this is Checkpoint D's
         # own live-trace target environment.
-  - name: golden-path-agent-approval-config
-    behavior: merge
-    literals:
-      - AUTH_MODE=oidc # DEC-063: the D2 cutover's own binding requirement
-        # (DEC-046 owner-addition #1) -- the approval service now
-        # validates real Keycloak-issued tokens for every decision/query
-        # call in this environment. tools/check_config_contract.py's own
-        # new demo-prod-config assertion (DEC-063) mechanically fails if
-        # this line is ever reverted/omitted, not left to convention.
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://golden-path-agent-otel-collector.golden-path-agent-otel.svc.cluster.local:4318 # DEC-071
+      - APPROVAL_SERVICE_ENDPOINT=http://golden-path-agent-approval.golden-path-agent-approval.svc.cluster.local:8082 # Phase G,
+        # Stage 1 held tail (DEC-098/DEC-099/DEC-101): base/configmap.yaml's
+        # own default is the bare in-namespace name
+        # (http://golden-path-agent-approval:8082) -- correct for
+        # ephemeral-test, which still deploys its own throwaway approval
+        # instance in the same namespace as the agent under test, but
+        # wrong here: the approval service now lives in its own
+        # Platform Foundation namespace (golden-path-agent-approval),
+        # not golden-path-agent-demo-prod. Contract unchanged
+        # (SRS-APR-IF-* schemas are endpoint-agnostic) -- this is
+        # configuration only, no code change, same pattern the
+        # OTEL_EXPORTER_OTLP_ENDPOINT override above already establishes.
+        # golden-path-agent-approval-config itself (the ConfigMap the
+        # approval service's own container reads) no longer deploys here
+        # at all -- see this file's own `patches:` above.
 
 replicas:
   - name: golden-path-agent

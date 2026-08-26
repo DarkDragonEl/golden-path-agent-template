@@ -422,3 +422,241 @@ be this session's next action once notified the change is actually on `main` and
 the *blocked* state as of that point in the session — a corrected/final version should be
 drafted once the real live test (next step) actually succeeds or fails, rather than
 patching the Part 8 draft now to describe a result that hasn't happened yet.
+
+## Part 10 — the real live test, run after the fix landed on `main` and synced
+
+Confirmed the fix reached `main` (`a7de44d` is an ancestor of both local and `origin/main`)
+and that ArgoCD had already synced it (`status.sync.revision` includes `a7de44d`) —
+restarted the RHDH backend to load it into a running process (ConfigMaps aren't
+hot-reloaded) and re-verified the mounted file inside the new pod directly before testing.
+
+**Real, positive result**: the Gitea-hosted `template.yaml` location was successfully
+processed — `GET /api/catalog/entities?filter=kind=location` now shows a third entity for
+`.../golden-path-agent-admin/golden-path-agent-template/src/branch/main/template.yaml`,
+alongside the two GitHub-hosted ones. This is proof the `integrations.gitea` +
+`backend.reading.allow` fix works: RHDH's catalog processor genuinely fetched and parsed
+YAML content from Gitea via the new integration — this was NOT true before this fix (the
+earlier, wrong `integrations.github`-mimicking attempt registered nothing at all).
+
+**Real, honest limitation found**: because the mirrored `template.yaml` is byte-identical
+to the GitHub-hosted one, all three locations resolve to the *same* Template entity
+(`template:default/golden-path-agent-scaffolder`) — and that entity's
+`backstage.io/source-location` annotation stayed pinned to the GitHub location (the one
+registered first/earlier), not Gitea. Submitted a real scaffolder task
+(`8808c3f3-b9a4-42a6-bea6-cbdc1a924393`, `status: completed`, confirming no regression)
+and checked its own `spec.templateInfo.baseUrl` — it resolved to
+`https://github.com/.../tree/main/`, **not** the Gitea host. So `fetch:template`'s own
+relative-URL resolution was exercised against GitHub, not Gitea, in this specific task run
+— this session did **not** get a task-level proof of the Gitea fetch path specifically,
+only catalog-level proof that Gitea's content is readable and parseable.
+
+**Honest bottom line**: "RHDH loads content from Gitea" — proven, real, positive evidence.
+"RHDH runs a scaffolder task whose `fetch:template` step resolves against Gitea" — not
+exercised this session, because of how Backstage merges multiple locations pointing at one
+identical entity, not because of any remaining config defect. To close this fully, a
+future session would need either (a) a template.yaml that exists ONLY on Gitea (not
+mirrored to GitHub too, so there's no competing source-location), or (b) a Backstage-level
+way to force a specific location's precedence that this session did not find. Recorded as
+a real, specific, named gap — not glossed over.
+
+## Part 11 — the held tail: ArgoCD/GitOps repoint + approval-service extraction
+
+Unblocked per `DEC-099`'s merge-order rule once `DEC-101` closed G2's STOP 4 (all three
+pipelines green, demo-prod on real independently-promoted digests, bad-change gate
+re-verified). Proceeded directly per the owner's pre-authorization, no check-in before
+starting.
+
+### ArgoCD/GitOps repoint
+
+Confirmed `deploy/kustomize/base/kustomization.yaml`'s three-digest state (G2's own work,
+already live in demo-prod, unchanged by this session). New wiring added:
+
+- `pipelines/bootstrap/namespaces.yaml`: an eighth namespace,
+  `golden-path-agent-approval` (`app.kubernetes.io/part-of` + `argocd.argoproj.io/
+  managed-by: openshift-gitops` labels, matching the RHDH namespace's own precedent).
+- `deploy/argocd/project.yaml`: new destination entry for the namespace.
+- `deploy/argocd/apps/approval.yaml`: new Application (mirrors `rhdh.yaml`'s shape
+  exactly — auto-sync on, `CreateNamespace=false`), pointing at a new overlay.
+- `deploy/kustomize/overlays/approval-platform/`: new, deliberately standalone overlay
+  (not deriving from `../../base`) holding independent copies of the approval manifests,
+  with the service's own `images:` pin (same digest `base/kustomization.yaml` already
+  carries) and two real, deliberate deviations from the copied originals: `AUTH_MODE=oidc`
+  baked in directly (this overlay only ever has one target: the shared production
+  instance, unlike base's copy which stays "none" for demo-prod/ephemeral-test to
+  override), and the `NetworkPolicy`'s ingress rule widened from same-namespace-only
+  (`podSelector: {}` with no `namespaceSelector`, correct when agent+approval shared one
+  namespace, wrong now) to a `namespaceSelector` matching `app.kubernetes.io/part-of:
+  golden-path-agent` — every namespace this project owns, single-tenant demo scope;
+  flagged as something G7's future multi-tenant work will need to revisit, not silently
+  left as an oversight.
+- `deploy/kustomize/overlays/demo-prod/kustomization.yaml`: the approval resources are
+  excluded via eight `$patch: delete` files (top-level `$patch: delete`, not nested under
+  `metadata` — the same fix this session already found and documented for the Gitea
+  `ClusterRoleBinding` in Part 2, reapplied here) rather than removed from `../../base`
+  directly — `ephemeral-test`'s own overlay comment says explicitly it still needs its own
+  throwaway approval instance for isolated per-promotion-candidate testing, confirmed by
+  rendering that overlay after this change: all approval resources still present there,
+  untouched. Also added: `APPROVAL_SERVICE_ENDPOINT` override in the existing
+  `golden-path-agent-config` merge (the cross-namespace FQDN,
+  `http://golden-path-agent-approval.golden-path-agent-approval.svc.cluster.local:8082`)
+  — `base/configmap.yaml`'s own bare-name default stays correct for `ephemeral-test`,
+  which still runs its own approval instance in the same namespace as the agent under
+  test.
+- **Real gap found live and fixed**: `tools/check_config_contract.py`'s own
+  `DEMO_PROD_REQUIRED_VALUES` hardcoded an assertion that demo-prod's effective
+  `golden-path-agent-approval-config.AUTH_MODE` is `"oidc"` — this would have failed
+  mechanically the moment that ConfigMap stopped existing in demo-prod at all. Removed
+  that entry and added a new, separate `check_approval_platform_security_switch()`
+  reading `approval-platform`'s own `configmap-approval.yaml` directly (a plain resource
+  file, not a `configMapGenerator` merge, so it needed a structurally different check, not
+  a copy-paste of the old one) — same intent (a security-downgrade switch mechanically
+  checked, not left to convention), relocated to match where the switch actually lives now.
+- **Real gap found live and fixed**: cross-namespace image pull. The new pod hit
+  `ImagePullBackOff`/`"authentication required"` on first apply — OpenShift's internal
+  registry requires an explicit `system:image-puller` grant for a consuming namespace's
+  ServiceAccount, and `pipelines/bootstrap/rbac.yaml` already has exactly this pattern
+  established (one shared `RoleBinding` in `golden-path-agent-ci`, a growing subject list)
+  for every other cross-namespace workload in this project. Added the new namespace's
+  entry there, and removed the now-stale `golden-path-agent-demo-prod` subject entry for
+  approval (that workload no longer runs there) — not left as a dangling, unused grant.
+
+### Approval-service extraction and live verification
+
+Applied live (namespace, `AppProject` update, and the `approval-platform` overlay via
+`oc apply -k` directly — none of this is committed to `main` yet, so nothing here is
+ArgoCD-adopted; this is the same "get it running now to actually test it" approach Part 2
+used for Gitea, not a bypass of the review discipline). Pod came up `1/1 Running` clean
+after the RBAC fix; logs show a normal FastAPI/uvicorn startup with passing `/healthz`
+probes.
+
+**Real, live proof against the relocated service, using real OIDC tokens (not
+`AUTH_MODE=none`)** — obtained a client-credentials token for
+`golden-path-agent-approval-workload` and a password-grant token for `demo-approver` via
+`golden-path-agent-approver-ui` (`directAccessGrantsEnabled: true`), both fetched **from
+inside the cluster** (`oc exec` into the real agent pod, `python3` making the actual HTTP
+calls — matching this project's own established `DEC-034` in-cluster testing convention,
+not a workaround invented for this session). **Real gap found and fixed en route**: a
+token obtained via Keycloak's *external* Route has `iss` set to the external hostname; the
+approval service's own `OIDC_ISSUER_URL` is the *internal* Service DNS — a real mismatch
+(`401 invalid issuer`) fixed by requesting the token from inside the cluster against the
+internal endpoint instead, matching what the service is actually configured to trust.
+
+Ran three of Phase D's own seven original D1 scenarios (approve, restart-persistence,
+expiry — the ones this session's own STOP-3 DoD and the coordinator's task 3 specifically
+named; concurrency-race and restart-overdue-pickup were not re-run, time-scoped, not
+forgotten):
+
+1. **Approve, end-to-end**: submitted a real proposal (`89a265ec-...`) → `201 pending` →
+   approved by the real `demo-approver` identity → `200 approved`, `decided_by`/
+   `decided_at` populated with a real approver subject and timestamp.
+2. **Restart-persistence (`SRS-APR-DATA-01`)**: killed the pod mid-way through the
+   approved record's lifecycle, waited for the `Recreate`-strategy replacement to become
+   ready, queried the same `proposal_id` again — the full record, including
+   `decided_by`/`decided_at`, survived intact. SQLite-on-PVC persistence confirmed real,
+   not assumed.
+3. **Expiry (`SRS-APR-F-03`)**: temporarily lowered `APPROVAL_TIMEOUT_SECONDS` to `5`
+   (safe to live-patch here — unlike demo-prod's ConfigMap, this overlay isn't
+   ArgoCD-managed yet, so no `selfHeal` fight), restarted, submitted a fresh proposal,
+   waited past the window — transitioned `pending` → `expired` on its own (the periodic
+   scanner, not an immediate check: took longer than 15s, confirmed by 55s), with
+   `decided_by`/`decided_at` both `null` — exactly SRS-APR-F-03's "indistinguishable from
+   a rejection" requirement. Restored `APPROVAL_TIMEOUT_SECONDS` to `3600` afterward and
+   confirmed the pod came back up clean with the restored value.
+
+All temporary credential files cleaned from `/tmp` after use — nothing sensitive left on
+disk, same discipline as every other credential-handling step this session.
+
+### Real, structural blocker — the exact same class as Part 8's, expected this time
+
+Attempted to actually **cut over** demo-prod (delete its old approval Deployment/Service/
+ConfigMap/ServiceAccount/NetworkPolicy/Ingress/PDB/PVC, matching the committed
+`$patch: delete` set) so the agent would be forced onto the new shared endpoint for a true
+end-to-end test. **ArgoCD's `selfHeal` recreated the Deployment within moments of each
+delete** — demo-prod's `Application` still has `syncPolicy.automated.selfHeal: true` and
+its git-committed desired state (on `main`) still includes the old approval resources,
+since this session's changes are staged/committed in the worktree only, per the explicit
+"don't merge/push" instruction. This is not a new discovery — it's Part 8's exact finding,
+now hit on a second, different `Application`, exactly where predicted (the same reasoning
+applies to every GitOps-managed resource this project has, not uniquely to RHDH's).
+
+**Consequence, stated plainly**: the OLD demo-prod approval instance is still running,
+duplicated alongside the new Platform Foundation one, until this is merged. Its PVC
+(`golden-path-agent-approval-state`) is stuck `Terminating` — a real but harmless
+intermediate state: the underlying storage isn't lost (nothing deleted the actual data
+before Kubernetes' own PV-protection finalizer stepped in), and it will finish deleting on
+its own the moment `selfHeal` stops recreating a pod that mounts it (i.e., the moment this
+change is actually merged to `main`). **Did not force this** (e.g., stripping the
+finalizer) — that would risk actually orphaning storage rather than letting the normal
+termination path complete once the real blocker (an uncommitted change fighting a synced
+one) is gone.
+
+**What this means for "done"**: the new approval service is real, live, correctly
+configured, and proven correct in isolation (all three scenarios above ran against it
+directly, over the real network, with real tokens). The **full** agent-initiated
+end-to-end cutover (agent's own `APPROVAL_SERVICE_ENDPOINT` actually pointing at the new
+service, old demo-prod resources actually gone) cannot be exercised until this worktree's
+changes are reviewed and merged — exactly Part 8's lesson, applied a second time,
+correctly anticipated rather than fought again from scratch.
+
+## Draft DEC entry — Part 11 (placeholder `DEC-1xx`, NOT committed; lands at merge per
+`DEC-099`'s single-governance-owner rule)
+
+```
+## DEC-1xx — G1 held tail: approval service extracted to its own
+Platform Foundation namespace, proven correct in isolation with real
+OIDC-authenticated approve/restart-persistence/expiry scenarios; full
+agent cutover blocked on merge, same ArgoCD-selfHeal class as the
+earlier Gitea-integration finding
+
+**Context**: `DEC-101` closed G2's STOP 4, unblocking G1's held tail per
+`DEC-099`'s merge-order rule. Owner pre-authorized proceeding straight
+through. This entry records the result.
+
+**Done, with live evidence**: new namespace `golden-path-agent-approval`
+(`pipelines/bootstrap/namespaces.yaml`), new `AppProject` destination,
+new `Application` (`deploy/argocd/apps/approval.yaml`, mirrors
+`rhdh.yaml`'s shape), new standalone overlay
+(`deploy/kustomize/overlays/approval-platform/`) with the approval
+service's own independent-image digest, `AUTH_MODE=oidc` baked in
+directly, and a `NetworkPolicy` widened from same-namespace-only to a
+`namespaceSelector` on this project's own `part-of` label (flagged for
+G7's future multi-tenant revisit). `demo-prod`'s own approval resources
+excluded via `$patch: delete` (`ephemeral-test` keeps its own instance,
+confirmed via render, untouched) plus an `APPROVAL_SERVICE_ENDPOINT`
+cross-namespace override. Two real gaps found and fixed:
+`tools/check_config_contract.py`'s hardcoded demo-prod AUTH_MODE
+assertion (relocated to a new direct-read check against
+approval-platform's own ConfigMap) and a cross-namespace image-pull
+RBAC gap (`pipelines/bootstrap/rbac.yaml`, same established pattern,
+stale demo-prod subject entry removed).
+
+**Proven correct in isolation, with real tokens, not `AUTH_MODE=none`**:
+approve end-to-end (real `demo-approver` identity, real `decided_by`/
+`decided_at`), restart-persistence (`SRS-APR-DATA-01`: pod killed
+mid-lifecycle, approved record survived intact), expiry (`SRS-APR-F-03`:
+`APPROVAL_TIMEOUT_SECONDS` temporarily lowered to 5, `pending` ->
+`expired` with `decided_by`/`decided_at` both null, timeout restored to
+3600 after). A real issuer mismatch (external Route vs. internal Service
+DNS) was found and fixed en route to getting a token the service would
+actually accept.
+
+**Blocked, same class as Part 8's Gitea finding, not a new problem**:
+the full agent-initiated cutover (deleting demo-prod's old approval
+resources for good, the agent's own traffic actually flowing to the new
+endpoint) cannot be exercised live -- `demo-prod`'s `Application` has
+`selfHeal: true` and recreates the old Deployment within moments of any
+live delete, since this session's changes aren't on `main` yet. Not
+fought further; the old instance's PVC is left in a harmless
+`Terminating` state that resolves itself once merged. This is the
+second time this exact class of finding has landed in this branch's own
+history (Part 8, then here) -- worth the coordinating session treating
+"anything GitOps-managed needs to go through a real merge before final
+verification" as a standing fact about this project, not a per-instance
+surprise.
+
+**Status**: New service live, correct, and proven in isolation. Full
+cutover pending merge. Same "don't merge/push, draft DEC entry, send
+back for review" discipline as every fix since the governance
+correction.
+```
+

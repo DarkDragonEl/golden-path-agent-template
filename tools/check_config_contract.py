@@ -314,8 +314,30 @@ def check_placeholder_values() -> list[str]:
 DEMO_PROD_REQUIRED_VALUES = {
     ("golden-path-agent-config", "AGENT_OIDC_MODE"): "oidc",
     ("golden-path-agent-config", "MCP_AUTH_MODE"): "oidc",
-    ("golden-path-agent-approval-config", "AUTH_MODE"): "oidc",
 }
+
+# Phase G, Stage 1 held tail (DECISIONS.md DEC-098/DEC-099/DEC-101): the
+# approval service's own AUTH_MODE=oidc switch moved out of
+# DEMO_PROD_REQUIRED_VALUES above -- it no longer lives in demo-prod's
+# own configMapGenerator merge at all (the service itself moved to the
+# Platform Foundation, deploy/kustomize/overlays/approval-platform/).
+# That overlay's own configmap-approval.yaml is a plain resource file
+# (DEC-045's shape, not a configMapGenerator merge), so it needs its own
+# direct-read assertion rather than reusing
+# check_demo_prod_security_downgrade_switches()'s merge-based mechanism.
+APPROVAL_PLATFORM_CONFIGMAP = KUSTOMIZE_OVERLAYS / "approval-platform" / "configmap-approval.yaml"
+
+
+def check_approval_platform_security_switch() -> list[str]:
+    data = yaml.safe_load(APPROVAL_PLATFORM_CONFIGMAP.read_text())["data"]
+    effective = data.get("AUTH_MODE")
+    if effective != "oidc":
+        return [
+            f"approval-platform's effective golden-path-agent-approval-config.AUTH_MODE "
+            f"is {effective!r}, expected 'oidc' -- a security-relevant downgrade switch "
+            f"left un-flipped (DECISIONS.md DEC-046/DEC-063, relocated DEC-098/DEC-099)"
+        ]
+    return []
 
 
 def _configmap_generator_literal_map(kustomization_path: Path, configmap_name: str) -> dict[str, str]:
@@ -356,7 +378,11 @@ def main() -> int:
     approval_key_problems = check_approval_service_key_completeness()
     placeholder_problems = check_placeholder_values()
     downgrade_problems = check_demo_prod_security_downgrade_switches()
-    problems = key_problems + approval_key_problems + placeholder_problems + downgrade_problems
+    approval_platform_problems = check_approval_platform_security_switch()
+    problems = (
+        key_problems + approval_key_problems + placeholder_problems
+        + downgrade_problems + approval_platform_problems
+    )
 
     if problems:
         print("CONFIG-CONTRACT CHECK FAILED:", file=sys.stderr)
@@ -367,7 +393,7 @@ def main() -> int:
     required_count = len(_extract_no_default_env_keys())
     approval_required_count = len(_extract_no_default_env_keys(APPROVAL_CONFIG_PY))
     scanned_count = len(_gitops_synced_overlay_paths())
-    switch_count = len(DEMO_PROD_REQUIRED_VALUES)
+    switch_count = len(DEMO_PROD_REQUIRED_VALUES) + 1  # +1: approval-platform's own AUTH_MODE check
     print(
         f"config-contract check OK -- {required_count} agent no-default key(s) + "
         f"{approval_required_count} approval_service no-default key(s) accounted for "

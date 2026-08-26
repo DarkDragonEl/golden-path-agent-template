@@ -1,0 +1,32 @@
+# Phase G, Stage 1 held tail (DECISIONS.md DEC-098/DEC-099, unblocked by
+# DEC-101). The approval service's Platform Foundation home -- a shared
+# singleton, not a per-agent-project resource. Deliberately standalone
+# (not `resources: [../../base]`, unlike demo-prod/ephemeral-test):
+# ephemeral-test still needs its OWN throwaway approval instance for
+# isolated per-promotion-candidate testing (its own overlay comment says
+# so explicitly), so the approval manifests stay in `../../base` too --
+# this directory holds independent copies, not a further overlay of that
+# shared base, to avoid entangling the shared-platform-singleton's own
+# config with the per-test-run base's commonLabels/images transform.
+#
+# Own images: transform (not inherited from base) -- this is the same
+# digest base/kustomization.yaml already pins for
+# golden-path-agent-approval (G2's own independently-promoted image);
+# kept in sync manually until a shared images-pin mechanism exists
+# (out of scope for this session -- named here so it isn't silent).
+namespace: golden-path-agent-approval
+
+resources:
+  - serviceaccount-approval.yaml
+  - configmap-approval.yaml
+  - pvc-approval.yaml
+  - deployment-approval.yaml
+  - service-approval.yaml
+  - networkpolicy-approval.yaml
+  - ingress-approval.yaml
+  - pdb-approval.yaml
+
+images:
+  - name: golden-path-agent-approval
+    newName: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent-approval
+    digest: sha256:a3244d67e0e659c45c04d89c88f505b90c3f858c34d4c8503f547b70d3361657
