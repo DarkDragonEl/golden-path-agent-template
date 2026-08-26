@@ -41,7 +41,12 @@ data:
       cors:
         origin: ${PUBLIC_URL}
     auth:
-      environment: development
+      # environment: production (not development) -- deliberately, per
+      # owner guidance: this also hides the Guest login button on the
+      # home page, which is expected/desired here, not a regression --
+      # a demo should authenticate through the real Keycloak realm, not
+      # a no-auth guest bypass.
+      environment: production
       session:
         # Real gap found live (F4, DEC-092): omitting this produces
         # "Authentication failed, authentication requires session
@@ -55,7 +60,7 @@ data:
         secret: ${SESSION_SECRET}
       providers:
         oidc:
-          development:
+          production:
             clientId: ${OIDC_CLIENT_ID}
             clientSecret: ${OIDC_CLIENT_SECRET}
             metadataUrl: ${OIDC_METADATA_URL}
@@ -63,6 +68,19 @@ data:
               - profile
               - email
             prompt: consent
+            # Sandbox-scope decision, owner-directed (DEC-092): no user/
+            # group ingestion is configured for this catalog (only F1's
+            # own Component entity exists, zero User entities) --
+            # dangerouslyAllowSignInWithoutUserInCatalog lets a real
+            # Keycloak-authenticated identity sign in without first
+            # existing as a catalog User. Re-entry point if user/group
+            # ingestion is ever wanted: the Keycloak catalog-backend
+            # plugin, not this flag -- this flag stays a demo-scope
+            # shortcut, not a permanent posture.
+            signIn:
+              resolvers:
+                - resolver: preferredUsernameMatchingUserEntityName
+                  dangerouslyAllowSignInWithoutUserInCatalog: true
       # signInPage: live-verified -- see reports/phase-f-f4-verification.md
       # for the actual login-page/redirect outcome.
       signInPage: oidc
