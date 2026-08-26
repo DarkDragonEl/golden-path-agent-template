@@ -14,6 +14,19 @@ touched it.
 
 ## Where this is — most recent session first
 
+**Phase H (Documentation & DX hardening) kicked off** (`DECISIONS.md`
+`DEC-114`), by a separate coordinating session, running **concurrently**
+with G6 below — file ownership stays partitioned (see `DEC-114` for the
+exact claims), so this is not a conflict. H0's audit is complete
+(`reports/docs-audit.md`, `reports/docs-terms-sheet.md`); Wave-β worktree
+streams (`feature/h1-readme-rewrite`, `feature/h2-docs-ia`,
+`feature/h3a-python-docstrings`) and H4a (comment-census migration into
+`DECISIONS.md`) are running. Wave γ (TechDocs/mkdocs) is held until H2
+merges and re-checks this log's tail for a G6 conflict on
+`catalog-info.yaml`/`template.yaml` before touching either. This
+paragraph is added without altering anything below it — the G6 narrative
+that follows is that coordinating session's own and is left as-is.
+
 **Phase F4–F5 complete** (`DECISIONS.md` `DEC-092`–`DEC-095`,
 amended by `DEC-097`;
 `reports/phase-f-f4-verification.md` and `reports/phase-f-f5-
@@ -530,6 +543,10 @@ changed something.)
 
 ## Pointers
 
+- `reports/docs-audit.md`, `reports/docs-terms-sheet.md` — Phase H0's
+  audit and binding glossary for the documentation-hardening workstream
+  (`DEC-114` onward). Read these before touching `README.md`, `docs/`,
+  or adding Python docstrings.
 - `DECISIONS.md` — the complete, authoritative decision history,
   `DEC-001` through `DEC-109`. Always read the tail before starting new
   work in a fresh session.

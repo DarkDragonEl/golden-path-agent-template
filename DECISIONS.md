@@ -8687,3 +8687,51 @@ hand. What remains is short, mechanical, and fully scoped (§5 of
 Recommend resuming this spike once cluster access is restored, rather
 than defaulting to Path B alone — Path A is closer to done than the
 original time-box anticipated.
+
+## DEC-114 — Phase H (Documentation & DX hardening) kickoff: file-
+ownership claims announced ahead of Wave-β worktree streams
+
+A separate coordinating session started Phase H (pre-G6-scoped in its
+own mission brief, now running concurrently with G6 in progress — file
+ownership stays partitioned, so this is not a conflict). H0's audit
+(`reports/docs-audit.md`, `reports/docs-terms-sheet.md`) is complete.
+This entry exists so any other session reading this log's tail — in
+particular the G6 work already in flight — knows what Phase H claims
+before its worktree streams start writing.
+
+**Claimed for Wave β** (three parallel worktree streams, `feature/h1-
+readme-rewrite`, `feature/h2-docs-ia`, `feature/h3a-python-docstrings`):
+`README.md`, `docs/*` (including new per-directory `README.md` files,
+excluded: none), `scripts/install.sh`, and docstring-only additions
+(no logic, no comment edits) to 13 named Python files: `agent/api.py`,
+`agent/graph.py`, `agent/nodes/decide.py`, `agent/nodes/generate.py`,
+`agent/nodes/retrieve.py`, `agent/nodes/tool_invoke.py`,
+`agent/routers.py`, `agent/state.py`, `eval/config.py`, `eval/loader.py`,
+`eval/reporter.py`, `eval/runner.py`, `mcp_server/schemas.py`.
+
+**Claimed for Wave γ** (single stream, starts only after H2 merges and
+only after re-checking this log's tail for a conflict): `mkdocs.yml`
+(net new), `catalog-info.yaml` (adds a `backstage.io/techdocs-ref`
+annotation only), one additive step in `ci/pr-checks.yaml`. **If G6's
+own work claims or modifies `catalog-info.yaml`/`template.yaml` before
+Wave γ starts, Wave γ stops and surfaces the conflict to the owner
+instead of merging over it** — flagging this explicitly since G6
+(template publishing + automatic onboarding) is exactly the phase most
+likely to touch both files, and neither has been touched by G6 as of
+this entry (`git log` confirms their last touches are Phase F1/F5,
+pre-Phase-G).
+
+**Running now, in parallel, coordinating-session-only**: Phase H4a,
+migrating 35 code-comment findings from H0's census into `DECISIONS.md`
+addenda (never rewriting an existing entry's recorded reasoning) plus
+two corrections — a retroactive reconstruction of a `DEC-040` that was
+cited in code but never committed to this log, and a mis-attribution
+fix pointing a real Phase-E OTel-collector incident at its correct,
+newly-logged entry instead of the unrelated one a code comment cited.
+H4a touches only `DECISIONS.md` and, where a `DECISIONS.md` addendum
+isn't the better home, existing `docs/` pages already merged before
+this entry landed — never a page a live Wave-β stream is still drafting.
+
+**Status**: Announced. Wave β streams launch immediately after this
+entry commits. Wave γ and H4b (comment slimming) remain gated as
+originally planned.
