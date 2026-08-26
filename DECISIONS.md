@@ -8611,3 +8611,79 @@ references in prose comments.
 
 **Status**: `DEC-111`'s named gap is closed, with a larger real scope
 than its own framing anticipated, all verified live.
+
+## DEC-113 — G6 Path A spike: the Gitea scaffolder dynamic plugin builds
+and packages successfully using the same first-party tooling RHDH's own
+maintainers used for the bundled GitHub/GitLab modules; live RHDH wiring
+and the end-to-end wizard test are not yet done, blocked on cluster
+session expiry mid-spike, not on any technical wall
+
+**Context**: `DEC-110` chose Path B (CLI-first publish) as G6's first
+slice and named Path A (a custom Gitea Scaffolder dynamic plugin) as a
+real, non-blocking follow-up. The owner directed a time-boxed spike on
+Path A before settling for Path B alone, since a working plugin would
+restore the original design's `STOP 8` (owner runs the wizard through a
+real browser).
+
+**Pinned**: `quay.io/rhdh-community/dynamic-plugins-factory:1.10`
+(digest `sha256:ab3ab5eb73ba2f2080697f334478b9987c68468ce878d18802a4baeb90dac96c`)
+— the RHDH-1.10-targeted build tool, bakes in `RHDH_CLI_VERSION=1.10.7`,
+confirmed live by exec'ing into the image, not inferred from its tag
+name. Backstage source pinned to `backstage/backstage@v1.49.0`,
+confirmed to match this RHDH instance's own live `@backstage/backend-
+defaults@0.16.0` — not an arbitrary choice, checked against what's
+actually running.
+
+**TLS pre-check, passed clean**: a real `curl` from inside the RHDH pod
+against Gitea's own Route (the same host the read-only `integrations.gitea`
+entry already uses) succeeded with a clean TLS handshake and `200 OK` —
+no CA mounting needed, no host-literal mismatch found, unlike the
+read-side `GithubUrlReader`-vs-`GiteaIntegration` gap found earlier this
+phase.
+
+**The plugin builds and packages successfully** — real, live evidence,
+not a dry run: `npx @red-hat-developer-hub/cli@1.10.7 plugin export` and
+`plugin package` both completed, producing a real dynamic-plugin archive
+(`backstage-plugin-scaffolder-backend-module-gitea-dynamic-0.2.19.tgz`,
+4,575,700 bytes, real integrity hash recorded). Two real issues found and
+worked around: (1) the factory's own `:1.10` container image reads an
+undocumented `workspace-path` field directly from `source.json` —
+different from both the published README and the source at the git tag
+that can actually be cloned locally for reference, only discovered by
+reading the *running container's own* source once the mismatch was
+suspected; (2) the factory's remote-clone path always does a full,
+unshallowed `git clone` with no depth limit, which for a monorepo the
+size of `backstage/backstage` pulled ~7GB and was still running 20+
+minutes in — worked around with a manual shallow clone plus the
+factory's own documented `--use-local` flag, not a factory bug fix.
+
+**Read directly, not assumed**: the actual `publish:gitea` action source
+at the pinned ref confirms it authenticates via the exact same
+`integrations.gitea` config block (`@backstage/integration`'s
+`GiteaIntegrationConfig`) G1 already established for reading, needing
+only `username`/`password` fields added — the already-proven
+`golden-path-agent-scaffolder` machine-account token (`DEC-100`), not a
+new credential. It creates repos via the org-scoped API path, matching
+this project's own `golden-path-agent-projects` org exactly. Full real
+input schema recorded for whoever picks this up next.
+
+**Not completed this spike, and why**: live RHDH wiring (a new
+`dynamic-plugins.yaml` ConfigMap, pointing the `Backstage` CR's currently-
+unset `dynamicPluginsConfigMapName` at it), the `integrations.gitea`
+write-credential addition, a test-template `publish:gitea` step, and the
+actual end-to-end Scaffolder-task test. **Blocked by the cluster session
+token expiring mid-spike** (`oc whoami` now returns `Unauthorized`) after
+the legitimate build work ran long — not by any technical dead end. Per
+this project's own explicit policy (`scripts/bootstrap.sh`: "Never runs
+`oc login` — credential handling stays the owner's own one-time step"),
+re-authenticating is not this session's call to make. The coordinating
+session confirmed it shares the same expired `oc` session and needs the
+owner to re-authenticate before this work can resume.
+
+**Status**: Spike substantially de-risked Path A — the build itself,
+the hardest open question, is proven to work with a real artifact in
+hand. What remains is short, mechanical, and fully scoped (§5 of
+`reports/feature-g6-scaffolder-plugin-spike.md`), not further discovery.
+Recommend resuming this spike once cluster access is restored, rather
+than defaulting to Path B alone — Path A is closer to done than the
+original time-box anticipated.

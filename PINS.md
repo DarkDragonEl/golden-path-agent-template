@@ -124,3 +124,13 @@ infrastructure work begins, not after.
 |---|---|---|---|---|---|---|
 | In-cluster Git hosting | `rhpds/gitea-operator` | `v2.3.2`, commit `77cdc2b884c160663f7ef0b9040c35898d3ebcce` | community (Red Hat Portfolio Marketing / rhpds org) | 2026-08-26 | https://github.com/rhpds/gitea-operator | OLM-deployable (`oc apply -k .../OLMDeploy`), CRD `pfe.rhpds.com/v1` kind `Gitea`, declarative admin/user provisioning, password via Secret. Stood up at G1, not this entry. |
 | Combined RHDH + GitOps + Pipelines bootstrap | `redhat-ai-dev/ai-rhdh-installer` Helm charts | Release `v0.11.0` (commit `cfcdfe96765a634d8f532b0125bd4fc6ccb0b7ca`) or HEAD `6dd5aed6dfba3799f839e8c7a90345e1e55463e6` (2026-05-29) | community | 2026-08-26 | https://github.com/redhat-ai-dev/ai-rhdh-installer | Enables RHDH's "AI Software Templates" capability. G1 decides release-tag vs. HEAD at execution time; this project's own Phase F4 already installed RHDH/GitOps/Pipelines individually (`DEC-092`-`DEC-094`) without this installer — G1 evaluates whether adopting it now is worth the churn on an already-working install. |
+
+## Phase G, Stage 3 — G6 Path A spike (Gitea Scaffolder dynamic plugin)
+
+Per `DECISIONS.md` `DEC-113`. Pins verified live before the plugin build,
+not after.
+
+| Component | Realization | Channel/Version | Support level | Verified date | Source URL | Notes |
+|---|---|---|---|---|---|---|
+| RHDH dynamic-plugin build tool | `redhat-developer/rhdh-dynamic-plugin-factory` container image | `quay.io/rhdh-community/dynamic-plugins-factory:1.10`, digest `sha256:ab3ab5eb73ba2f2080697f334478b9987c68468ce878d18802a4baeb90dac96c` | community (`redhat-developer` org, no official support) | 2026-08-26 | https://github.com/redhat-developer/rhdh-dynamic-plugin-factory · `quay.io/rhdh-community/dynamic-plugins-factory` | The repo's own git tags are `1.8.0`/`1.9.1` (no `1.10.0` git tag exists), but the container image tag `1.10` is real, pulls cleanly, and bakes in `RHDH_CLI_VERSION=1.10.7` — confirmed by exec'ing into the pulled image and reading its own `default.env`, not inferred from the tag name. Pin the image digest, not the source repo's git ref, for this reason. |
+| Backstage source (for the `scaffolder-backend-module-gitea` plugin build) | `backstage/backstage` monorepo | tag `v1.49.0` | community (upstream Backstage core) | 2026-08-26 | https://github.com/backstage/backstage | Confirmed live to match exactly this RHDH 1.10.3 instance's own running `@backstage/backend-defaults@0.16.0` (read via `find`/`cat package.json` inside the RHDH pod) — not an arbitrary choice; a mismatched Backstage version risks a peer-dependency/API mismatch at plugin load time. |
