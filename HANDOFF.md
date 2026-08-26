@@ -1,16 +1,87 @@
 # Session handoff
 
-**Rewritten again, this time closing out a later session** (OTel
-collector fix + Phase F0–F3) on top of the Phase E kickoff session this
-file previously summarized. `DECISIONS.md` (currently through `DEC-091`)
-is the authoritative, complete, chronological record of every decision
-this project has made — this file is a *pickup* summary, not a
-substitute for it. When in doubt, `DECISIONS.md` wins. The Phase E
-content below (bootstrap proof, showcase promotion, sharing-moment
-artifacts) is unchanged since that earlier rewrite and remains current —
-nothing in this session's work touched it.
+**Rewritten again, this time closing out Phase F in full** (F0 through
+F5, on top of the OTel fix + F0–F3 the prior rewrite already covered).
+`DECISIONS.md` (currently through `DEC-095`) is the authoritative,
+complete, chronological record of every decision this project has
+made — this file is a *pickup* summary, not a substitute for it. When
+in doubt, `DECISIONS.md` wins. The Phase E content further below
+(bootstrap proof, showcase promotion, sharing-moment artifacts) is
+unchanged since the earlier rewrite and remains current — nothing in
+this session's work touched it.
 
 ## Where this is — most recent session first
+
+**Phase F4–F5 complete** (`DECISIONS.md` `DEC-092`–`DEC-095`;
+`reports/phase-f-f4-verification.md` and `reports/phase-f-f5-
+verification.md` carry the full command-level evidence): RHDH is live
+on the showcase cluster, synced via ArgoCD, with a real Scaffolder
+Template wired to F2/F3's own `skeleton/`.
+
+- **F4** (RHDH platform stand-up, `DEC-092`–`DEC-094`): operator
+  (`rhdh-operator.v1.10.3`), external Postgres, and a new OIDC client in
+  the existing `golden-path-agent-keycloak` realm are all live. STOP 5's
+  bar ("the owner could open the portal URL and log in") took **three
+  rounds of claiming it was met and then finding a real gap only a
+  literal browser navigation surfaced** — the single sharpest recurring
+  lesson of this phase: a scripted backend API call and a real browser
+  navigation are not interchangeable evidence. In order: (1) `scope` →
+  `additionalScopes`, missing `baseUrl`/`session.secret` — found by the
+  backend crash-looping; (2) `backend.reading.allow` for the catalog's
+  own `UrlReader` guard, unrelated to network reachability — found by
+  F1's `catalog-info.yaml` 404ing despite everything else checking out;
+  (3), *after* the first "STOP 5 cleared" claim (`DEC-093`), opening the
+  actual URL in Chrome surfaced two more: an HTTP-only Ingress that
+  modern browsers' HTTPS-first default can't reach at all (fixed by
+  switching to a native `Route` inheriting the cluster's own trusted
+  wildcard cert, since OpenShift's Ingress-to-Route translation — unlike
+  a native Route — requires an explicit Secret and won't fall back to
+  the router default), and a sign-in page silently defaulting to RHDH's
+  bundled example GitHub provider because `signInPage` was nested under
+  `auth:` instead of being a top-level key (`DEC-094`). Every fix
+  landed in the committed manifest before taking effect, after the very
+  first one was live-patched and silently reverted by ArgoCD's own
+  `selfHeal: true` within about a minute — documented in `PINS.md` as
+  the phase's other standing lesson.
+- **F5** (Template/Scaffolder authoring, `DEC-095`): `template.yaml`
+  wraps `skeleton/` via the stock `fetch:template` action — zero custom
+  plugin code, per `DEC-087` item 1, no `publish:*` step (this
+  instance's own live action list has none registered at all, enforcing
+  the local-render-only scope at the platform level). Three more real
+  gaps, all found only by actually running the Template (schema-valid
+  YAML and a clean `--dry-run` caught none of them): `fs:readdir`'s real
+  input key is `paths` (array), not `path`; `fetch:template`'s relative
+  URL resolution needs `integrations.github`, distinct from
+  `backend.reading.allow`; and `GithubUrlReader`'s host match is a
+  literal string equality (confirmed by reading Backstage's own source),
+  never matching `raw.githubusercontent.com` against `host: github.com`
+  — fixed by registering the Template via the `github.com/blob/main/...`
+  URL form instead (F1's own `catalog-info.yaml` location is unaffected).
+  STOP 6's four DoD items are all met with execution evidence: a
+  completed live Template run (241 files), F3/F5 file-set parity
+  (241/241 identical, with an honestly-stated limit — this platform has
+  no way to pull rendered file *content* back out of a completed task,
+  so this is file-set parity, not byte-level content parity), a live
+  `OOD-006` re-run against the real deployed agent (still `tool_calls:
+  []`, still refuses), and the MCP boundary confirmed unchanged at
+  exactly 5 tool registrations on both source and the live pod.
+- **What's genuinely still open, named rather than assumed closed**:
+  (1) `OBJ-01`'s full portal exposure (this stand-up proves the platform
+  is live and reachable; broader owner/team-facing rollout is a separate
+  later decision) — same item `DEC-091` already named; (2) `SysR-P-F-13`
+  /`OS-09`'s second-team acceptance — this project still cannot
+  self-certify that; (3) a narrower, new one from F5: the Create-page
+  **wizard's own click-through** was not independently exercised — this
+  session's own browser-automation safety rules prohibit entering any
+  password, including this project's own synthetic demo account, into a
+  browser field, so the Template's registration and parameter-form
+  schema were verified via the catalog API (the same schema data the
+  wizard renders from) rather than by clicking through the rendered form
+  itself. Resolvable by the owner completing one real browser login and
+  confirming the form renders as expected.
+
+**OTel collector fix + Phase F0–F3** (prior session, still current —
+detail below unchanged):
 
 **OTel collector fix** (no DEC entry — drafted in-conversation per
 `/close-step`'s draft-only governance, never committed; full detail in
