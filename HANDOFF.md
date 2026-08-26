@@ -2,7 +2,7 @@
 
 **Rewritten again, this time closing out Phase F in full** (F0 through
 F5, on top of the OTel fix + F0–F3 the prior rewrite already covered).
-`DECISIONS.md` (currently through `DEC-098`; `DEC-096` belongs to a
+`DECISIONS.md` (currently through `DEC-099`; `DEC-096` belongs to a
 concurrent parallel-workspace thread, `feature/phase-e-live-chat-
 verification`, not this one) is the authoritative, complete,
 chronological record of every decision this project has made — this
@@ -114,6 +114,18 @@ Template wired to F2/F3's own `skeleton/`.
   unarmed — still no demo date, reconfirmed this session, per `DEC-092`.
   Next: G1 (stand up Gitea, extract the Platform Foundation) — a separate
   phase, its own STOP, not started here.
+- **`DEC-099` (Phase G restructured into four stages; Stage 1 — G1's
+  Gitea stand-up + G2's three-image split — authorized as two parallel
+  worktree streams).** G1-G7 collapse into four dependency-driven stages
+  (see `DEC-099`'s stage table) without waiving any phase's own DoD or
+  STOP. Worktree isolation for the two Stage-1 streams; this coordinating
+  session remains the sole owner of `DECISIONS.md`/`HANDOFF.md`/`PINS.md`
+  throughout — each stream drafts its own DEC entry in its report, landed
+  here at merge. G1's ArgoCD-repoint/approval-extraction tail is held
+  until G2's STOP clears and the bad-change gate re-passes; G2's DoD
+  keeps the `DEC-096`-inherited `MCP_MODE=live` validation requirement.
+  Stage 2 (G1's held tail + G3/G4/G5) is pre-authorized to start the
+  moment Stage 1's dependency chain clears — no separate go needed.
 
 **OTel collector fix + Phase F0–F3** (prior session, still current —
 detail below unchanged):

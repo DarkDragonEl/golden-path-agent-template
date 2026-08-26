@@ -7517,3 +7517,84 @@ that isn't:**
 
 **Status**: Decided (owner-approved, this session). Nothing built.
 Next: G1 (Gitea + Platform Foundation stand-up).
+
+## DEC-099 — Phase G restructured into four stages to parallelize G1-G7;
+worktree isolation + single-owner governance adopted for the decision
+log; Stage 1 (G1's Gitea stand-up + G2's three-image split) authorized
+to begin immediately as two parallel streams
+
+**Context**: `DEC-098` (STOP 2) closed with the seven-phase G1-G7
+sequence unchanged from the draft. Reviewing that sequence, the owner
+identified real parallelization opportunity that the original phase
+numbering obscured — several of G1-G7's phases have no dependency on
+each other and were only sequenced together for narrative convenience,
+not because one's output gates the other's start. This entry adopts the
+owner's restructuring, stated once here so no future session re-derives
+or silently deviates from it.
+
+**Decision — four stages replace the seven-phase G1-G7 sequence.**
+Each original phase keeps its own identity, DoD, and STOP — nothing here
+waives or merges a STOP. What changes is which phases run concurrently:
+
+| Stage | Contains | Dependency shape |
+|---|---|---|
+| 1 | G1 (Gitea stand-up; Platform Foundation identity/telemetry extraction) **and** G2 (three-image artifact split) | Run as two parallel streams. G1's own tail — repointing ArgoCD/GitOps wiring to the split artifacts and completing the approval-service extraction using its own now-independent image — is held until G2's STOP clears (see merge-order rule below). Everything else in G1 (OLM install, `Gitea` CR, org/machine account, identity/telemetry extraction not requiring the split images) has no dependency on G2 and proceeds now. |
+| 2 | G1's held tail (once unblocked) **and** G3 (Tools Template) **and** G4 (Agent Template slimmed) **and** G5 (catalog model) | G3/G4/G5 have no dependency on each other's completion (different templates, mostly-independent catalog metadata) and can run concurrently once Stage 1's artifact shape is settled. G4's *verification* (not its drafting) still needs a real G3 MCP instance per G4's own DoD — tracked as an internal Stage-2 sequencing note, not a stage boundary. |
+| 3 | G6 (publish + automatic onboarding) | Unchanged rationale from the original sequencing: deliberately last among the build phases — it is the most credential-sensitive step, and building it against a still-changing artifact/template shape means building it twice. |
+| 4 | G7 (multi-team demonstration) | Unchanged: fully downstream of G6. |
+
+**Decision — worktree isolation, single governance owner.** Stage 1's
+two parallel streams (G1, G2) each work in their own git worktree, per
+this project's own established worktree mechanic (workspace-tooling
+precedent). Neither stream's worktree touches `DECISIONS.md`,
+`HANDOFF.md`, or `PINS.md` directly — this session (the coordinating
+session, not either worktree) remains the sole owner of all three files
+throughout the parallel phase and lands each stream's DEC entry into the
+log itself, at that stream's own merge, in dependency order. This is not
+a formality: `DECISIONS.md` is append-only with sequential numbering: two
+worktrees independently appending entries would either collide on a
+number or force a manual conflict resolution on a file this project
+treats as an authoritative, ordered record. Each stream instead drafts
+its own DEC entry text in its own report (`reports/<branch>.md`, per
+`CLAUDE.md`'s existing workflow-discipline requirement) for the
+coordinating session to transcribe verbatim (or with only the numbering
+adjusted) at merge time.
+
+**Decision — merge order.** G1 must not re-point any ArgoCD/GitOps
+wiring, and must not complete the approval-service extraction into its
+own independently-deployed image, until (a) G2's own STOP has cleared
+and (b) the seeded bad-change eval-gate test has re-passed under the new
+three-pipeline shape. This is parallel *work*, not parallel *merge* —
+G2's stability gates the one part of G1 that actually depends on it;
+everything else in G1 proceeds without waiting.
+
+**Decision — STOPs stay per-deliverable, not per-stage.** G1 and G2 each
+keep their own STOP (matching the original G1-G7 numbering: G1 → STOP 3,
+G2 → STOP 4). The owner may batch-review STOPs that close near each
+other in time, but no STOP is skipped or merged into a combined
+"Stage 1 STOP" — this preserves the checkpoint discipline `DEC-098`
+already restated, just lets the checkpoints land concurrently instead of
+strictly sequentially.
+
+**Decision — G2's DoD keeps the `DEC-096`-inherited requirement.**
+Artifact-split validation (confirming the three split artifacts are
+genuinely talking over the network, not in-process) runs with
+`MCP_MODE=live` explicitly — `MCP_MODE=mock` bypasses a
+separately-deployed MCP artifact entirely, a gap `DEC-096` already named
+and this entry does not relitigate.
+
+**Decision — Stage 2 is pre-authorized, not a separate ask.** Stage 2
+(G1's held tail, plus G3/G4/G5 kickoff) begins as soon as Stage 1's
+dependency chain clears (G2's STOP closes and the bad-change gate
+re-passes) — the coordinating session presents each STOP as it closes
+rather than returning for a fresh go-ahead between stages. This does not
+pre-authorize Stage 3 or Stage 4; those remain gated by their own STOPs
+and by this entry's stage table above.
+
+**What this entry does NOT decide**: it does not change any phase's DoD,
+does not change the `OI-04` fallback-trigger posture (`DEC-092`; still
+unarmed, still no demo date), and does not authorize any work inside
+Stage 3/4 ahead of their own stage's start.
+
+**Status**: Decided (owner-approved, this session). Stage 1 begins
+immediately as two parallel worktree streams (G1, G2) per this entry.
