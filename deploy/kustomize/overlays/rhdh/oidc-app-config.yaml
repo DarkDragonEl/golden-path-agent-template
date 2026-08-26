@@ -21,7 +21,25 @@ data:
   # failing to start with that exact error before this was changed to
   # `additionalScopes`. Not assumed from docs (which still show `scope`
   # in some published examples) -- caught only by running it.
+  # Real gap found live (F4, DEC-092): without app/backend.baseUrl set,
+  # Backstage defaults to its own internal http://localhost:7007 --
+  # every OIDC redirect_uri (and the frontend's own asset/API URLs) came
+  # back pointing at that unreachable-from-outside address. PUBLIC_URL
+  # is this showcase cluster's own live Ingress hostname -- kept out of
+  # git entirely (CLAUDE.md anonymity rule), same reasoning as the
+  # Ingress's own host field and the Keycloak client's wildcarded
+  # redirectUris; lives only in golden-path-agent-rhdh-oidc-secret,
+  # applied out-of-band. This one entry now covers both baseUrl and
+  # auth config (not "exactly one *topic* per entry", just one file --
+  # the operator's own constraint is about ConfigMap objects, not about
+  # how many top-level app-config keys one file's content may have).
   app-config.oidc.yaml: |
+    app:
+      baseUrl: ${PUBLIC_URL}
+    backend:
+      baseUrl: ${PUBLIC_URL}
+      cors:
+        origin: ${PUBLIC_URL}
     auth:
       environment: development
       session:
