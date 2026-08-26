@@ -58,38 +58,43 @@ not anyone else was relying on the previous values.
 
 ## Per-person provisioned accounts and the self-service reset flow
 
-Per this documentation stream's own brief, two further scripts are meant
-to extend the model above beyond the two static demo users:
+Two further scripts extend the model above beyond the two static demo
+users (added to this repo, and anonymity-checked, by the coordinating
+session — see the note below on why they didn't reach this doc's first
+draft):
 
-- **`tools/provision-demo-credentials.sh`** — intended to provision a
-  per-person account (rather than everyone sharing `demo-approver`/
-  `demo-user`), so multiple people can hold the approver role
-  independently during a walkthrough or showcase session.
-- **`tools/get-test-user-credential.sh`** — an intended self-service
-  reset flow, so a person who needs a fresh credential for their own
-  provisioned account can retrieve one without an operator running the
-  full provisioning script above.
+- **[`tools/provision-demo-credentials.sh`](../tools/provision-demo-credentials.sh)**
+  — provisions independent, per-person credentials instead of everyone
+  sharing `demo-approver`/`demo-user`: N cluster-admin identities in the
+  `sso` realm (OpenShift OIDC login, each bound individually to the
+  `cluster-admin` ClusterRole), N app-level test-user identities and N
+  app-level test-approver identities in the `golden-path-agent` realm
+  (mirroring `demo-user`/`demo-approver` respectively). Existing shared
+  accounts are left untouched. Writes generated passwords to a local,
+  gitignored, mode-600 file (`provisioned-credentials.<timestamp>.txt`)
+  — distribute rows individually, then delete the file.
+- **[`tools/get-test-user-credential.sh`](../tools/get-test-user-credential.sh)**
+  — self-service reset flow for holders of an individual cluster-admin
+  login: requires only `oc` access (no separate Keycloak admin secret
+  handed out), resets one named app-realm user's password to a fresh
+  value, and prints it. Usage: `./tools/get-test-user-credential.sh
+  <username>` (e.g. `test-user1`, `test-approver1`, `demo-approver`).
 
-**Verification status, stated plainly**: neither script is present in
-this worktree. Checked directly, not assumed: the working tree (`tools/`
-lists no file by either name), the full git history across every local
-and remote branch/ref (`git log --all -- '**/<name>.sh'`, zero hits for
-both), and the stash list (empty). This documentation stream's mandate
-was to read each script, run an anonymity check, and `git add` them — an
-isolated worktree cannot do any of that for a file it cannot see. This is
-most likely explained by how `git worktree` checkouts work: an untracked
-file sitting in another checkout's working directory (the coordinating
-session's own checkout, or wherever Phase H0's audit ran) is never copied
-into a new worktree, since only committed content transfers. **Neither
-script is tracked by this commit, and neither is linked from this
-document** — the two bullets above describe only the intended purpose,
-not a verified implementation. The coordinating session should supply
-these two files' actual content to whichever stream tracks them next, so
-the anonymity check and `git add` this mission calls for can actually
-happen.
+**Both scripts mutate the live cluster.** Neither is safe to run without
+warning whoever else might be using the same environment.
 
-**Consequence of the self-service reset flow's own design, once it does
-land**: a reset flow that rotates a named user's password means two
+**Note on this doc's own drafting**: this documentation stream ran in an
+isolated `git worktree`, and these two scripts were untracked (not yet
+committed anywhere) at the time it branched — untracked files in one
+checkout never propagate to a fresh `git worktree`, only committed
+content does. The stream correctly declined to fabricate their content
+and flagged the gap explicitly rather than guessing; the coordinating
+session then read both scripts from the checkout where they did exist,
+ran its own anonymity check, and tracked them as part of landing this
+stream's work.
+
+**Consequence of the self-service reset flow's own design**: a reset
+flow that rotates a named user's password means two
 people racing to reset credentials for *the same* provisioned username
 will invalidate each other's just-retrieved password. Coordinate who
 holds which provisioned account during a showcase rather than sharing

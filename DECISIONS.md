@@ -8776,3 +8776,52 @@ rather than reusing or deleting it unilaterally).
 
 **Status:** Merged to `main` (`076c4eb`). Phase H Wave β continues with
 H1/H2 in progress.
+
+## DEC-116 — Phase H2 merged: docs/ information architecture, glossary,
+naming conventions, access-and-credentials
+
+**Ambiguity:** `DEC-114`'s brief assumed two credential scripts
+(`tools/provision-demo-credentials.sh`, `tools/get-test-user-credential.sh`)
+and a `state/` directory already existed and were readable from a fresh
+worktree.
+
+**Finding:** Neither credential script was reachable from the H2
+worktree — not in its working tree, not in git history on any branch/ref,
+not stashed. Root cause, confirmed: both scripts were untracked in the
+primary checkout (visible in `git status` since before Phase H started),
+and `git worktree add` never copies untracked content into a new
+worktree — only committed history transfers. `state/` does not exist in
+this repository at all; it is fully `.gitignore`d (local runtime state
+only), so no worktree would ever see it either. Separately, `git branch
+-m feature/h2-docs-ia` failed inside the worktree: that name was already
+held by an empty, locked, unrelated worktree at the same base commit
+(confirmed harmless — zero commits, same session's own tooling artifact,
+not a competing effort) which the worktree's own sandbox could not clean
+up cross-worktree.
+
+**Decision:** H2's stream correctly declined to fabricate the two
+scripts or a `state/README.md`, documenting the intended credential
+model with both scripts explicitly marked unverified/unlinked, and
+committed all other work on its actual branch name instead. The
+coordinating session then read both scripts directly from the primary
+checkout (where they exist, untracked), ran an anonymity check (generic
+`golden-path-agent-*`/`sso` realm names only, no real hostnames — all
+hosts resolved live via `oc get route`; no hardcoded credentials), and
+tracked them as a small follow-up commit alongside this merge, updating
+`docs/access-and-credentials.md`'s two script bullets from "intended,
+unverified" to real links with real usage.
+
+**Evidence:** `reports/feature-h2-docs-ia.md` — full docs-tree
+before/after (zero file moves), the two stale-file fixes
+(`docs/local-dev.md`, `docs/security-identity.md`, both updated from the
+pre-G2 single-image model to the real three-image topology), 13
+per-directory `README.md` files, link-check and anonymity-sweep results.
+Also flagged (out of Phase H's scope, not acted on): a hardcoded GitHub
+org/repo string in `pipelines/tasks/open-promotion-pr.yaml` (the repo
+owner's own identity on their own public repo — not a client-anonymity
+concern, left as-is); two pre-G2 `promote/<sha>` branches without a
+component segment (pre-existing debris, unrelated to Phase H).
+
+**Status:** Merged to `main`. Both credential scripts now tracked and
+linked from `docs/access-and-credentials.md`. Phase H Wave β continues
+with H1's held tail pending.
