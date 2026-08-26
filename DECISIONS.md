@@ -8114,3 +8114,64 @@ numbering) are not yet declared cleared — the eval-harness gap above is
 significant enough that this entry recommends treating it as a
 precondition for declaring either template "done," not a footnote to
 note in passing. Escalated to the owner.
+
+## DEC-105 — Owner decision on `DEC-104`'s escalated eval-harness gap:
+domain-eval fault injection moves to an in-process eval fixture,
+decoupled from the real MCP server; network-fault fidelity is the
+integration suite's job, not domain eval's
+
+**Context**: `DEC-104` escalated a real architectural question per
+`CLAUDE.md`'s "if not covered by these documents, STOP and ask" rule:
+how should the domain eval harness inject deterministic tool failures
+(timeout/error scenarios) once the MCP server is a genuinely separate,
+network-deployed process, given that `mcp_server/itsm_store.py`'s
+existing `_simulate_error` hook is explicitly documented as "never
+reachable from a real agent-constructed call, since the MCP tool wrapper
+in `server.py` does not expose this parameter at all"?
+
+**Decision**: move the mock ITSM store logic (or a thin fixture
+mirroring its contract) into `eval/` tooling itself. Domain eval cases
+needing fault injection run against this in-process fixture via a
+test-only MCP client stub; the `MCP_MODE=live` split-validation suite
+(already established by G2) separately proves real network integration.
+
+**Owner's stated rationale, recorded verbatim in substance because it
+governs future judgment calls of the same shape, not just this one**:
+this is a *template* — a config-gated fault-injection surface on the
+real MCP server would ship in every MCP server the platform ever
+scaffolds, for every future team, guarded only by an environment flag.
+In a platform whose entire posture is *structurally*-gated writes, that
+walk-back from "unreachable by code structure" to "unreachable by
+config" is incoherent, and flag-drift into a real deployment is exactly
+the class of config error this platform exists to prevent by
+construction, not by convention. The existing docstring's guarantee
+(categorically unreachable via the real call path) is the correct one
+to keep, not weaken. A second, purpose-built eval-only MCP server was
+also rejected: domain-eval fault cases test the agent's behavior under
+tool failure, not server internals, so a deterministic in-process
+fixture is the correct fidelity for them, and a second server
+implementation to maintain buys nothing.
+
+**Explicit complement, not optional**: the fidelity this decision gives
+up (a real network fault, not a simulated in-process one) must be
+covered honestly by the integration side, not silently dropped. The
+`MCP_MODE=live` split-validation suite must include at least one
+genuine network-level fault case — killing the MCP pod or blocking it
+via `NetworkPolicy` mid-run, then verifying the agent's real
+network-timeout/error handling — reusing an existing case from G2's own
+work if one already covers this, or adding one there if not. Domain eval
+keeps determinism; the integration suite keeps realism. This complement
+is part of the decision, not a nice-to-have.
+
+**What this does NOT change**: `_simulate_error`'s own existing
+docstring guarantee and `server.py`'s own refusal to expose it as a tool
+parameter — both stay exactly as they are today, unmodified. Nothing
+about the real, deployed MCP server's own attack surface changes as a
+result of this decision.
+
+**Status**: Decided. Implementation (the eval fixture, the client stub,
+re-verifying `tests/test_dec009_route_assertion.py`/
+`tests/test_gate_tolerance.py`/`tests/test_eval_harness_smoke.py`
+against the split Agent Template, and the integration-suite network-fault
+complement) is assigned back to the G3+G4 stream, which has full context
+on the exact coupling `DEC-104` found.
