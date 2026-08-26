@@ -1,6 +1,8 @@
 # Phase C, Step C4 (DECISIONS.md DEC-021/DEC-040). The Git-bootstrapped
-# app-of-apps root: syncs deploy/argocd/apps/ as a plain directory of
-# Application manifests (not Kustomize/Helm) -- applying this one object
+# app-of-apps root: syncs argocd/apps/ (this GitOps repo's own root --
+# DEC-111's two-repo split moved this whole deploy/ tree here, dropping
+# the redundant deploy/ prefix) as a plain directory of Application
+# manifests (not Kustomize/Helm) -- applying this one object
 # instantiates every GitOps-managed environment from Git alone.
 #
 # Deliberately scoped to only demo-prod. ephemeral-test is pipeline-
@@ -26,9 +28,9 @@ metadata:
 spec:
   project: ${{ values.name }}
   source:
-    repoURL: https://github.com/${{ values.repoOwner }}/${{ values.repoName }}.git
+    repoURL: https://${{ values.gitHost }}/${{ values.repoOwner }}/${{ values.repoName }}-gitops.git
     targetRevision: main
-    path: deploy/argocd/apps
+    path: argocd/apps
     directory:
       recurse: false
   destination:

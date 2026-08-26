@@ -22,9 +22,9 @@ metadata:
 spec:
   project: ${{ values.name }}
   source:
-    repoURL: https://github.com/${{ values.repoOwner }}/${{ values.repoName }}.git
+    repoURL: https://${{ values.gitHost }}/${{ values.repoOwner }}/${{ values.repoName }}-gitops.git
     targetRevision: main
-    path: deploy/kustomize/overlays/ephemeral-test
+    path: kustomize/overlays/ephemeral-test
   destination:
     server: https://kubernetes.default.svc
     namespace: ${{ values.name }}-ephemeral-test

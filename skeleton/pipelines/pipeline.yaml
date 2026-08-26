@@ -16,7 +16,7 @@ spec:
   params:
     - name: repo-url
       type: string
-      default: https://github.com/${{ values.repoOwner }}/${{ values.repoName }}.git
+      default: https://${{ values.gitHost }}/${{ values.repoOwner }}/${{ values.repoName }}.git
     - name: revision
       type: string
       default: main

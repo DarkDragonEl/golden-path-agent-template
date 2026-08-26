@@ -1,8 +1,10 @@
-# Single small AppProject scoped to this one repo and its four destination
-# namespaces (three environment namespaces plus the shared GitOps
-# controller's own namespace, for this project's own Application objects
-# only -- see the openshift-gitops destination entry below) — not a
-# multi-service, multi-repo platform project.
+# Single small AppProject scoped to this project's one GitOps repo
+# (DEC-098/DEC-099/DEC-111 -- a separate '<repoName>-gitops' repo, not the
+# source+pipeline repo this pipeline itself is built from) and its four
+# destination namespaces (three environment namespaces plus the shared
+# GitOps controller's own namespace, for this project's own Application
+# objects only -- see the openshift-gitops destination entry below) — not
+# a multi-service, multi-repo platform project.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -14,13 +16,17 @@ metadata:
 spec:
   description: Golden-path agent MVP — one repo, four promoted environments.
   sourceRepos:
-    - https://github.com/${{ values.repoOwner }}/${{ values.repoName }}.git
-    # Public repo, HTTPS -- deliberate: the shared Argo CD instance needs no
-    # read credential to sync it, so this project makes zero writes to
-    # openshift-gitops beyond this one AppProject/its own Applications
-    # (DEC-024). A private repo would require injecting a read credential
-    # into the *shared* GitOps controller's own repo-credentials Secret --
-    # exactly the kind of blast-radius increase this plan avoids elsewhere.
+    - https://${{ values.gitHost }}/${{ values.repoOwner }}/${{ values.repoName }}-gitops.git
+    # Points at the separate GitOps repo (DEC-098/DEC-099/DEC-111's own
+    # two-repo decision), not the source+pipeline repo -- every Application
+    # object this AppProject scopes syncs manifests from there, never from
+    # ${{ values.repoName }} itself. Public repo, HTTPS -- deliberate: the
+    # shared Argo CD instance needs no read credential to sync it, so this
+    # project makes zero writes to openshift-gitops beyond this one
+    # AppProject/its own Applications (DEC-024). A private repo would
+    # require injecting a read credential into the *shared* GitOps
+    # controller's own repo-credentials Secret -- exactly the kind of
+    # blast-radius increase this plan avoids elsewhere.
   destinations:
     - namespace: ${{ values.name }}-ephemeral-test
       server: https://kubernetes.default.svc
