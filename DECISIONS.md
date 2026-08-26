@@ -8013,3 +8013,104 @@ assumed. Per `DEC-099`'s stage table, Stage 1 is done; Stage 2 (G3/G4/G5)
 was already authorized to proceed the moment this stage's dependency
 chain cleared, and per `DECISIONS.md`'s own tail (`DEC-102`, landed
 during this same session's work) has already begun in parallel.
+
+## DEC-104 — G3+G4 complete: Tools Template created, Agent Template
+re-cut to consume it and the platform approval service over the network
+only; one significant gap named -- the eval harness's own
+mcp_server.itsm_store coupling is not yet resolved
+
+**Context**: `DEC-099`'s Stage 2, combined into one worktree stream
+(rather than two separate G3/G4 streams) because both operations
+partition the same `skeleton/` tree — doing them as uncoordinated
+parallel streams would recreate the exact file-collision risk Stage 1's
+G1/G2 streams already taught this project to avoid. This coordinating
+session lands this entry; the worktree stream never touched
+`DECISIONS.md`/`HANDOFF.md`/`PINS.md` directly.
+
+**What changed**: a new Tools Template (`skeleton-tools/`,
+`template-tools.yaml`, `template-schema-tools.json`) produces a
+standalone MCP server — full server implementation, its own
+single-purpose Containerfile/pipeline/deploy manifests, a catalog
+`Component`+`API` declaration. The existing Agent Template (`skeleton/`)
+is re-cut: `mcp_server/` trimmed to `client.py` only (mirroring G2's own
+already-proven `Containerfile.agent` COPY list), `approval_service/`
+removed entirely (zero Python import ever referenced it directly,
+confirmed by grep before deleting). New required scaffold parameters
+`mcpEndpoint`/`approvalServiceEndpoint` (genuinely required, no default
+— there is no same-project value to derive them from anymore); optional
+`oidcIssuerUrl`/`modelRoute`/`mcpApiName`. `catalog-info.yaml` added to
+both templates: the Agent Template's declares `consumesApis` (the Tools
+Template's own API, by name) and `dependsOn` a fixed, platform-level
+Resource name (`platform-approval-service` — deliberately not derived
+from any specific project's own name, since it's a shared singleton).
+
+**Six real bugs found and fixed, all live, none hypothetical**: three
+leaked source-repo literals in new `catalog-info.yaml`/`README.md` files
+(caught by `tools/verify_skeleton.py`'s own sweep, extended this session
+to check both templates); a latent `MCP_MODE=mock` ConfigMap-override
+bug in `skeleton/`'s own ephemeral-test overlay, untouched since before
+the split and structurally identical to the `DEC-096`/`DEC-101` class of
+bug G2 already fixed for the non-templated project (G2 was explicitly
+out of scope for `skeleton/`, so this instance was never caught until
+now); three unit tests relying on `MCP_MODE=mock`'s in-process dispatch
+to real mock-tool logic, fixed by mocking `call_tool` at each importing
+module's own boundary with return values matching the real mock tools
+exactly (verified live: 84/84 Agent Template tests pass post-fix, up
+from 5 failures + 2 collection errors on the first real run); a
+`security-tests.yaml` check reading a hardcoded co-deployed mcp Service
+DNS that no longer resolves, fixed to read the agent's own already-
+configured `MCP_TOOL_ENDPOINT` instead; a `security-tests.yaml` check
+testing a NetworkPolicy this repo no longer owns, removed (the Tools
+Template's own new `mcp-operational-test.yaml` is the correct home now).
+
+**Verified live, not just rendered**: both templates render cleanly (zero
+leaked literals, zero unresolved placeholders, schema/skeleton property
+parity — `tools/verify_skeleton.py` extended and actually run, not just
+edited); both rendered projects' own full test suites pass (Agent:
+84/84 excluding three eval-harness-coupled files named as a real,
+unresolved gap below; Tools: 55/55); both rendered Containerfiles
+actually build with podman; both built images actually start as real
+containers and respond to a real HTTP request (the agent's `/healthz`
+returned `{"status":"ok"}` from inside a running container; the Tools
+Template's MCP server came up and shut down cleanly).
+
+**SIGNIFICANT GAP, not resolved, recorded plainly**: the eval harness
+(`eval/domain_executor.py`, `eval/domain_scorer.py`) imports
+`mcp_server.itsm_store` directly and monkey-patches its methods
+in-process to inject deterministic failure scenarios for domain eval
+cases — a fundamentally deeper coupling than the three unit-test fixes
+above (in-process method patching cannot cross a real network boundary
+at all). `tests/test_dec009_route_assertion.py`,
+`tests/test_gate_tolerance.py`, and `tests/test_eval_harness_smoke.py`
+all still fail/error against the split Agent Template, left failing
+rather than worked around, and by extension `make eval`/`eval-fast`/
+`eval-domain` and the CI pipeline's own `eval-gate-offline`/
+`eval-gate-live` Tasks were not exercised against the split shape this
+session. This needs a real design decision (a debug-only
+scenario-injection surface on the Tools Template's own server; or a
+different eval-harness architecture for domain cases needing
+deterministic tool-level failure injection) — named here as its own
+explicitly-scoped follow-up, not something to squeeze into a future
+session's margins. **Per `CLAUDE.md`'s own instruction — "If an
+implementation decision is not covered by these documents, STOP and
+ask" — this is escalated to the owner rather than decided here.**
+
+**Other named gaps, deliberately not resolved this session**: (1) a
+cross-template NetworkPolicy admission question for
+`operational-tests.yaml`'s fallback-demo clone (documented inline in
+that file); (2) per-project CI bootstrap (namespace/RBAC) was not
+created for the new Tools Template, and the Agent Template's own
+`pipelines/bootstrap/` still contains pre-Platform-Foundation
+operator-install manifests, untouched — a real decision for G1/G6 about
+what "bootstrap" means per-project vs. platform-wide; (3)
+`tools/instantiate_agent_project.py` (F3's CLI) was not extended to
+support the Tools Template — still hardcoded to the Agent Template's own
+schema/skeleton; (4) a full `skeleton/docs/*.md` narrative-accuracy pass
+was not done, only `docs/architecture.md`.
+
+**Status**: G3+G4's core split is complete and functionally verified
+live, merged to `main`. STOP 5/6 (per the original phase design's own
+numbering) are not yet declared cleared — the eval-harness gap above is
+significant enough that this entry recommends treating it as a
+precondition for declaring either template "done," not a footnote to
+note in passing. Escalated to the owner.
