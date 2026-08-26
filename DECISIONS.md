@@ -8380,3 +8380,83 @@ every named gap across `DEC-102` (G5), `DEC-104`/`DEC-105`/`DEC-108`
 catalog registration) is closed. **Stage 2 (G3/G4/G5) is complete.**
 Per `DEC-099`'s stage table, G6 (publish + automatic onboarding) is
 next.
+
+## DEC-110 — G6 feasibility investigation: the original draft's Gitea-
+scaffolder-plugin assumption is confirmed false for this RHDH version;
+CLI-first publish (Path B) chosen as G6's first implementation slice,
+a portal-wizard experience (Path A, a custom dynamic plugin) sequenced
+as a real, non-blocking follow-up
+
+**Context**: Stage 2 closed (`DEC-109`); per `DEC-099`'s stage table, G6
+is next. Before committing to implementation, a feasibility pass checked
+the original phase-G draft's own claim: "the Gitea scaffolder module is
+a stock Backstage dynamic-plugin, same enablement mechanism as the
+GitHub one — configure `integrations.gitea` and enable the plugin, no
+custom code."
+
+**Finding: that claim is false for this specific RHDH version, confirmed
+live, not assumed from documentation.** Direct inspection of the running
+pod's own bundled plugin catalog
+(`/opt/app-root/src/dynamic-plugins/dist/`, all 42 packages RHDH 1.10
+ships pre-built into the image) shows GitHub and GitLab both have
+complete catalog **and** scaffolder-publish support; Gitea has zero
+plugins of any kind — not catalog, not scaffolder, not disabled-but-
+present. Cross-checked against `redhat-developer/rhdh`'s own repo: the
+only "gitea" hits anywhere are incidental UI translation strings, no
+functional code. The `Backstage` CR's dynamic-plugins ConfigMap is
+still the operator's own generated default — this project has never
+actually customized RHDH's dynamic-plugin set yet.
+
+**Two independently viable paths identified, at genuinely different
+effort levels:**
+- **Path A — a custom-built Gitea scaffolder dynamic plugin**, via Red
+  Hat's own `redhat-developer/rhdh-dynamic-plugin-factory` tool (almost
+  certainly the same tool RHDH's own maintainers used to build the
+  bundled GitHub/GitLab modules). The upstream package needed,
+  `@backstage/plugin-scaffolder-backend-module-gitea`, lives in the same
+  monorepo/directory shape as the GitHub module already bundled — a
+  same-tool, same-shape build, not a research problem. Feasible at
+  low-to-medium effort; the concrete recipe (factory config shape,
+  upstream package path, `--push-image` packaging, `Backstage` CR
+  `dynamicPluginsConfigMapName` wiring) is now known well enough to
+  execute directly, not investigate further.
+- **Path B — CLI-first publish, no RHDH plugin work at all.** Extends
+  `tools/instantiate_agent_project.py` (Phase F3's already-proven CLI)
+  to call Gitea's REST API directly (create repo, push rendered tree),
+  using the exact scoped `golden-path-agent-scaffolder` credential G1
+  already proved to actual destruction (`DEC-100`). `template-
+  schema.json`'s `repoOwner`/`repoName` fields have been sitting ready
+  for exactly this since Phase F2, explicitly commented as "only
+  load-bearing for a not-yet-attempted 'publish' stretch goal" — this
+  isn't new scope, it's closing an anticipated gap.
+
+**Decision: pursue Path B first.** It independently and fully satisfies
+`SysR-P-F-01(b)` (direct CLI instantiation, a normatively co-equal path,
+not a fallback per the requirement's own text — `Annex_A_Open_Items_EN.md`
+`OI-04`'s adopted assumption about portal-first sequencing governs demo
+risk framing, not the requirement itself), uses already-proven
+credentials and an already-proven API, and requires zero RHDH plugin
+architecture. Path A is not abandoned — it's sequenced as G6's second
+slice, a real follow-up rather than a blocker, since the three-layer
+design (`DEC-098`) still benefits from a genuine portal publish
+experience eventually.
+
+**What this means for the original draft's `STOP 8` ("owner performs the
+run themselves through the browser")**: named explicitly so it isn't
+silently reinterpreted — that specific moment (a portal-wizard-driven
+publish) does not happen on this first G6 slice. It happens once Path A
+lands. G6's first slice instead closes the CLI-driven instantiation
+path's own end-to-end loop (render → publish → pipeline → deploy →
+probe), independently valid per `SysR-P-F-01(b)` but not the same
+demo moment the original draft envisioned.
+
+**Named, not investigated this session**: whether Backstage's own
+entity-merging behavior (the same mechanism `DEC-103` found for the
+Gitea-mirrored `template.yaml` resolving against the GitHub `source-
+location`) causes any confusion once a CLI-published, Gitea-native
+project registers in the same catalog — likely a non-issue for newly
+scaffolded, Gitea-only projects (no competing GitHub-hosted copy would
+exist), but worth a real live check once Path B actually registers a
+first project's catalog entity, not assumed clean by analogy.
+
+**Status**: Decided. Path B implementation begins next.
