@@ -8460,3 +8460,77 @@ exist), but worth a real live check once Path B actually registers a
 first project's catalog entity, not assumed clean by analogy.
 
 **Status**: Decided. Path B implementation begins next.
+
+## DEC-111 — G6 Path B implemented: CLI-first Gitea publish, two
+repositories per project, verified live for both templates; the
+published GitOps content's own ArgoCD/promotion-PR references are not
+yet Gitea-aware -- a real, separate, named follow-up
+
+**Context**: `DEC-110` chose Path B (CLI-first publish) as G6's first
+implementation slice. This entry records that work as done and verified
+live, not just attempted.
+
+**What changed**: `tools/gitea_publish.py` (new) implements repo
+create/push/delete against the Platform Foundation's Gitea instance
+(`DEC-100`), using the scoped `golden-path-agent-scaffolder` machine
+account for create/push and the admin credential only for this session's
+own test cleanup. `tools/instantiate_agent_project.py` gained `--template
+{agent,tools}` (closing `DEC-104`'s own named gap — the CLI was
+previously hardcoded to the Agent Template only) and `--publish`
+(credential via `GITEA_TOKEN`/`GITEA_USERNAME` environment variables
+only, never a bare CLI flag). `tools/skeleton_renderer.py` gained a
+shared `resolve_template()`/`schema_path_for()` pair, refactored out of
+`tools/verify_skeleton.py`'s own pre-existing inline derivation so the
+schema/skeleton pairing is declared once, not twice (`DEC-075`'s own
+duplicated-constant lesson, applied proactively rather than after a
+second drift incident).
+
+**Two-repo split**: `deploy/` (kustomize + argocd + otel) goes to a new
+`<name>-gitops` repo, everything else stays in `<name>` — the owner's
+own binding decision, matching the verified `redhat-ai-dev/ai-lab-template`
+pattern. Judgment call made this session: the GitOps repo drops the
+redundant `deploy/` prefix at its own root (`kustomize/`, `argocd/`,
+`otel/` directly), not backed by a prior decision but reasoned in the
+report.
+
+**Verified live, twice (once per template), with real Gitea API content
+fetches, not just "push succeeded"**: both templates publish correctly as
+two real repos each; file-level split matches expectations (no `deploy/`
+in the source repo, no non-deploy content in the GitOps repo);
+`catalog-info.yaml`'s substituted project name confirmed correct in the
+published content; idempotent re-run confirmed (a second create call
+against an existing repo returns the existing repo, not an error);
+minimum-scoping re-confirmed (the scaffolder token still cannot delete a
+repo it created, `403`, matching `DEC-100`); all test repos and local
+credential files cleaned up and confirmed gone after verification.
+
+**SIGNIFICANT, NAMED GAP — not resolved this session**: the published
+GitOps repo's own `argocd/*.yaml` content still has `spec.source.repoURL`
+pointing at `github.com/${{ values.repoOwner }}/${{ values.repoName }}`
+— the *source* repo, on GitHub, by hardcoded hostname — not the actual
+GitOps repo just published to Gitea. `pipelines/tasks/open-promotion-pr.yaml`
+(staying in the source repo) is similarly hardcoded to GitHub's REST API
+for opening promotion PRs, needing a Gitea-native equivalent targeting
+the GitOps repo instead. This is pre-existing skeleton content (hardcoded
+to GitHub since before this session, across every template render, not
+introduced by the two-repo split specifically) now genuinely broken in a
+new way once a real two-repo Gitea publish exists. Recommend sequencing
+this as its own explicitly-scoped follow-up — "make the rendered
+pipeline/GitOps content Gitea-aware" — the promotion-side counterpart to
+`DEC-110`'s own Path A (portal-publish-side) follow-up, not squeezed into
+a future session's margins.
+
+**Also not attempted, per this session's own explicit scope**: per-project
+CI namespace/RBAC bootstrap, Tekton webhook/EventListener wiring, ArgoCD
+app-of-apps onboarding for newly-published projects, and live RHDH
+catalog registration of a published project's own `Component` entity
+(listed as optional this session, not attempted to stay focused on the
+core publish mechanism). `DEC-110`'s own named open question about
+Backstage's entity-merging behavior for a genuinely Gitea-only project
+remains unanswered.
+
+**Status**: G6's core CLI-first publish mechanism is complete and
+verified live for both templates. The rendered content's own
+GitOps/promotion internal consistency, and full pipeline/ArgoCD
+auto-onboarding, remain real, separately-scoped follow-up work — named
+explicitly, not silently assumed done.
