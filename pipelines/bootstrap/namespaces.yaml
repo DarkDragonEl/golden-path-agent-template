@@ -91,3 +91,21 @@ metadata:
   name: golden-path-agent-otel
   labels:
     app.kubernetes.io/part-of: golden-path-agent
+---
+# Phase F4 (DECISIONS.md DEC-087/DEC-092). A seventh namespace for RHDH
+# (Internal Developer Portal) and its own dedicated Postgres -- platform
+# dev-tooling infrastructure, not part of this project's own promoted
+# image/environments, same reasoning as golden-path-agent-keycloak/-otel's
+# own separate namespaces above. The RHDH Operator's own Subscription is
+# cluster-scoped (openshift-operators, AllNamespaces-only install mode,
+# PINS.md Phase F) -- this namespace holds only the namespace-scoped
+# `Backstage` CR instance and its Postgres, matching the operator/instance
+# split already established for Pipelines/GitOps (cluster operator,
+# project-owned instances). Same manual, human-applied bootstrap
+# discipline as every other namespace in this file.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: golden-path-agent-rhdh
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent

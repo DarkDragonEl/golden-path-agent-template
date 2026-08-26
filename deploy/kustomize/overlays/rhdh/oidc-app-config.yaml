@@ -1,0 +1,32 @@
+# Phase F4 (DECISIONS.md DEC-087/DEC-092). RHDH's own sign-in via the
+# existing golden-path-agent-keycloak realm (DEC-087 item 2 -- no second
+# realm). Values pulled from golden-path-agent-rhdh-oidc-secret via
+# Backstage's own ${VAR} env-var substitution (spec.application.extraEnvs
+# .secrets on the Backstage CR makes every key in that Secret available as
+# an env var) -- never a plaintext secret in this ConfigMap.
+#
+# Exactly one data entry, per the operator's own documented merge-order
+# constraint (docs/configuration.md: "Each app-config ConfigMap must
+# contain exactly one data entry").
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: golden-path-agent-rhdh-oidc-config
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+data:
+  app-config.oidc.yaml: |
+    auth:
+      environment: development
+      providers:
+        oidc:
+          development:
+            clientId: ${OIDC_CLIENT_ID}
+            clientSecret: ${OIDC_CLIENT_SECRET}
+            metadataUrl: ${OIDC_METADATA_URL}
+            scope: openid profile email
+            prompt: consent
+      # signInPage: kept as a live-verified item, not assumed correct
+      # from docs alone -- see reports/phase-f-f4-verification.md for
+      # whether this needed adjustment once actually tested.
+      signInPage: oidc

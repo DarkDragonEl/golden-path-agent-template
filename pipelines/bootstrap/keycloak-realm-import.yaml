@@ -139,6 +139,30 @@ spec:
               access.token.claim: "true"
               id.token.claim: "false"
               userinfo.token.claim: "false"
+      # Phase F4 (DECISIONS.md DEC-087/DEC-092). RHDH's own sign-in --
+      # confidential client, standard Authorization Code flow (Backstage's
+      # backend OIDC plugin handles the token exchange server-side with
+      # this client secret, unlike golden-path-agent-approver-ui's public
+      # PKCE-only shape above -- a genuinely distinct trust surface,
+      # dev-tooling sign-in vs. end-user approval auth, DEC-087 item 2).
+      # Same realm reused, no second realm, per that same decision.
+      - clientId: golden-path-agent-rhdh
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        redirectUris:
+          - "*" # TODO(F4 follow-up): tighten to the real RHDH Ingress
+          # host's callback path once a stable, non-ephemeral hostname
+          # exists -- same wildcard-at-demo-stage precedent as
+          # golden-path-agent-approver-ui above, and for the same reason:
+          # this showcase cluster's own hostname is sandbox-specific and
+          # not committed to Git (CLAUDE.md anonymity rule); the real
+          # value is applied live only, never here.
+        webOrigins:
+          - "*" # TODO(F4 follow-up): same deferral as redirectUris above
     users:
       # DEC-058 (owner requirement): at minimum one user with the
       # approver role, one without -- the wrong-role 403 negative test

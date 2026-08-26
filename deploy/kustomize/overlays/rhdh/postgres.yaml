@@ -1,0 +1,94 @@
+# Phase F4 (DECISIONS.md DEC-087/DEC-092). RHDH's own dedicated Postgres --
+# a separate instance from Keycloak's own DB (owner directive, DEC-087),
+# same plain Deployment+PVC pattern as pipelines/bootstrap/keycloak-
+# postgres.yaml (no new operator; PINS.md: OpenShift's built-in
+# openshift/postgresql:15-el9 ImageStream, already S2I/restricted-v2-shaped).
+#
+# Unlike Keycloak's own Postgres (a manual bootstrap step, out-of-band),
+# this one is GitOps-managed -- owner directive, DEC-087's "new Argo CD
+# Application under deploy/argocd/apps/ tracking deploy/kustomize/overlays/
+# rhdh/" -- since RHDH's own Backstage CR is also GitOps-managed here, and
+# a Postgres its CR depends on belongs in the same sync unit.
+#
+# Credentials: a plain Secret (golden-path-agent-rhdh-db-secret), manually
+# provisioned out-of-band, never committed -- same established pattern as
+# golden-path-agent-secrets/golden-path-agent-keycloak-db-secret.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: golden-path-agent-rhdh-db
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: golden-path-agent-rhdh-db
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # RWO PVC -- a rolling update would try to schedule a
+    # second pod against the same volume before the first releases it.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: golden-path-agent-rhdh-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: golden-path-agent-rhdh-db
+    spec:
+      containers:
+        - name: postgresql
+          image: image-registry.openshift-image-registry.svc:5000/openshift/postgresql:15-el9
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: golden-path-agent-rhdh-db-secret
+          readinessProbe:
+            tcpSocket:
+              port: postgresql
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: postgresql
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/pgsql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: golden-path-agent-rhdh-db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: golden-path-agent-rhdh-db
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  selector:
+    app.kubernetes.io/name: golden-path-agent-rhdh-db
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql

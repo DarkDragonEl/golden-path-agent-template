@@ -1,0 +1,46 @@
+# Phase F4 (DECISIONS.md DEC-087/DEC-092). RHDH's own instance -- the
+# namespace-scoped `Backstage` CR the cluster-wide RHDH Operator
+# reconciles (PINS.md Phase F: AllNamespaces install mode is the
+# operator's own Subscription; the CR instance itself stays project-owned
+# and namespace-scoped here).
+#
+# route.enabled: false -- DEC-087 item 3 (Ingress-vs-Route, ~1h timebox):
+# live-confirmed this is a clean, first-class, documented toggle
+# ("Control the creation of a Route on OpenShift") -- no Route object is
+# created with this set, no raw-runtime-config workaround needed. This
+# repo's own Ingress-only precedent (deploy/kustomize/base/ingress.yaml)
+# holds without exception; no DEC-entry-documented fallback was needed.
+# The Service this CR generates for its own Ingress to target is named
+# backstage-<this CR's name> (confirmed live against a throwaway test CR,
+# deleted immediately after) -- golden-path-agent-rhdh.yaml's own Ingress
+# (applied out-of-band, see that file's own header for why) targets it.
+#
+# database.enableLocalDb: false + authSecretName -- DEC-087 item 3: external
+# Postgres (postgres.yaml, this directory), not the operator's own bundled
+# option (enableLocalDb: true default) -- a separate instance from
+# Keycloak's own DB, per owner directive.
+#
+# application.extraEnvs.secrets -- golden-path-agent-rhdh-oidc-secret's
+# three keys (OIDC_CLIENT_ID/CLIENT_SECRET/METADATA_URL) become env vars
+# the oidc-app-config.yaml ConfigMap (this directory) substitutes via
+# Backstage's own ${VAR} syntax -- never a plaintext secret in the
+# ConfigMap.
+apiVersion: rhdh.redhat.com/v1alpha5
+kind: Backstage
+metadata:
+  name: golden-path-agent
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  application:
+    route:
+      enabled: false
+    appConfig:
+      configMaps:
+        - name: golden-path-agent-rhdh-oidc-config
+    extraEnvs:
+      secrets:
+        - name: golden-path-agent-rhdh-oidc-secret
+  database:
+    enableLocalDb: false
+    authSecretName: golden-path-agent-rhdh-db-secret

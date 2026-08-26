@@ -184,4 +184,104 @@ unset DEMO_APPROVER_PASS DEMO_USER_PASS
 echo "provisioned demo user passwords in ${NS_KEYCLOAK}/golden-path-agent-demo-users"
 echo "(retrieve for a live walkthrough with: oc get secret golden-path-agent-demo-users -n ${NS_KEYCLOAK} -o jsonpath='{.data.demo-approver-password}' | base64 -d)"
 
+# --- Step 4: RHDH's own OIDC client (Phase F4, DECISIONS.md DEC-092) ------
+# Real gap found live: KeycloakRealmImport is a one-shot Job-based import
+# -- re-applying the CR with a client added to spec.realm.clients does NOT
+# create it live once the import has already reported Done=True (the
+# operator does not reconcile spec changes against an already-completed
+# import). golden-path-agent-rhdh is declared in
+# keycloak-realm-import.yaml for a FRESH environment's own first-ever
+# import (where it creates cleanly, in the same pass as the other three
+# clients) -- but on an already-provisioned realm, it needs this
+# create-if-missing step instead, unlike the two workload clients above
+# which always already exist by the time this script runs. Same
+# regenerate-via-admin-API pattern either way, so provisioning a fresh
+# environment and rotating an existing one stay the same code path here
+# too, once the client itself exists.
+NS_RHDH=golden-path-agent-rhdh
+
+RHDH_CLIENT_EXISTS=$(oc exec -i -n "$NS_KEYCLOAK" "$PG_POD" -- python3 - "$ADMIN_USER" "$ADMIN_PASS" "$REALM" <<'PYEOF'
+import json, sys, urllib.request, urllib.parse
+
+admin_user, admin_pass, realm = sys.argv[1], sys.argv[2], sys.argv[3]
+BASE = "http://golden-path-agent-service:8080"
+
+def token(client_id, extra):
+    body = {"grant_type": "password", "client_id": client_id, **extra}
+    data = urllib.parse.urlencode(body).encode()
+    req = urllib.request.Request(f"{BASE}/realms/master/protocol/openid-connect/token", data=data, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)["access_token"]
+
+access_token = token("admin-cli", {"username": admin_user, "password": admin_pass})
+
+def admin(method, path, body=None):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(
+        f"{BASE}/admin{path}", data=data, method=method,
+        headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r) if r.length != 0 else None
+
+matches = admin("GET", f"/realms/{realm}/clients?clientId=golden-path-agent-rhdh")
+if not matches:
+    admin("POST", f"/realms/{realm}/clients", {
+        "clientId": "golden-path-agent-rhdh",
+        "protocol": "openid-connect",
+        "publicClient": False,
+        "clientAuthenticatorType": "client-secret",
+        "standardFlowEnabled": True,
+        "directAccessGrantsEnabled": False,
+        "serviceAccountsEnabled": False,
+        "redirectUris": ["*"],
+        "webOrigins": ["*"],
+    })
+print("done")
+PYEOF
+)
+[ "$RHDH_CLIENT_EXISTS" = "done" ] || { echo "[provision-identity-secrets.sh] FAILED to ensure golden-path-agent-rhdh client exists" >&2; exit 1; }
+
+RHDH_OIDC_SECRET=$(oc exec -i -n "$NS_KEYCLOAK" "$PG_POD" -- python3 - "$ADMIN_USER" "$ADMIN_PASS" "$REALM" <<'PYEOF'
+import json, sys, urllib.request, urllib.parse
+
+admin_user, admin_pass, realm = sys.argv[1], sys.argv[2], sys.argv[3]
+BASE = "http://golden-path-agent-service:8080"
+
+def token(client_id, extra):
+    body = {"grant_type": "password", "client_id": client_id, **extra}
+    data = urllib.parse.urlencode(body).encode()
+    req = urllib.request.Request(f"{BASE}/realms/master/protocol/openid-connect/token", data=data, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)["access_token"]
+
+access_token = token("admin-cli", {"username": admin_user, "password": admin_pass})
+
+def admin(method, path, body=None):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(
+        f"{BASE}/admin{path}", data=data, method=method,
+        headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r) if r.length != 0 else None
+
+matches = admin("GET", f"/realms/{realm}/clients?clientId=golden-path-agent-rhdh")
+uuid = matches[0]["id"]
+secret_result = admin("POST", f"/realms/{realm}/clients/{uuid}/client-secret")
+print(secret_result["value"], end="")
+PYEOF
+)
+if oc get secret golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" >/dev/null 2>&1; then
+  oc patch secret golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" --type merge \
+    -p "{\"data\":{\"OIDC_CLIENT_SECRET\":\"$(printf '%s' "$RHDH_OIDC_SECRET" | base64 -w0)\"}}" >/dev/null
+else
+  oc create secret generic golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" \
+    --from-literal=OIDC_CLIENT_ID=golden-path-agent-rhdh \
+    --from-literal=OIDC_CLIENT_SECRET="$RHDH_OIDC_SECRET" \
+    --from-literal=OIDC_METADATA_URL="http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/${REALM}/.well-known/openid-configuration" >/dev/null
+fi
+unset RHDH_OIDC_SECRET
+echo "provisioned RHDH OIDC client secret in ${NS_RHDH}/golden-path-agent-rhdh-oidc-secret"
+
 echo "provision-identity-secrets.sh: done."

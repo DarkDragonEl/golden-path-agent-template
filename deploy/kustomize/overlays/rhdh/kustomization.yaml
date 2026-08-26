@@ -1,0 +1,12 @@
+# Phase F4 (DECISIONS.md DEC-087/DEC-092). Not an overlay of the shared
+# base/ (agent/approval/mcp) -- RHDH is a separate component with its own
+# namespace and its own resources entirely. Named to match
+# deploy/argocd/apps/rhdh.yaml's own `path`, matching this repo's existing
+# overlays/<name>/ convention rather than inventing a new directory shape.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: golden-path-agent-rhdh
+resources:
+  - postgres.yaml
+  - oidc-app-config.yaml
+  - backstage.yaml

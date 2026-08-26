@@ -6893,3 +6893,96 @@ this milestone-satisfied state isn't mistaken for full closure**:
 on a real demo date (arms the `OI-04` trigger threshold, kickoff doc
 §4.2 item 5) and owner authorization to begin — no cluster work starts
 from this entry alone.
+
+## DEC-092 — F4 authorized: RHDH platform stand-up, live infrastructure
+through operator/DB/auth/manifests, ArgoCD sync + end-to-end verification
+still pending in a follow-up entry
+
+Owner authorized F4 (`OI-04` trigger threshold stays unarmed — no demo
+date set, per owner instruction, do not track or ask). Standing decisions
+restated in the owner's own authorization message (namespace, operator/
+Postgres/auth approach, GitOps wiring, Ingress/Route timebox) are
+followed as given, not re-litigated here. `DEC-086`'s kubeconfig
+discipline held throughout — every `oc` call this entry either used an
+explicit `--context` or a dedicated single-context `KUBECONFIG` file
+(needed because `wait_for_csv`'s own body, reused verbatim rather than
+reimplemented, calls bare `oc`).
+
+**Live infrastructure, in mutation order**:
+1. `golden-path-agent-rhdh` namespace — added unconditionally to
+   `pipelines/bootstrap/namespaces.yaml` (matching `-keycloak`/`-otel`'s
+   own precedent, not gated), applied live.
+2. RHDH Operator Subscription (`pipelines/bootstrap/rhdh-operator.yaml`,
+   `openshift-operators`, channel `fast-1.10`, `startingCSV: rhdh-
+   operator.v1.10.3` — re-verified live, unchanged from `DEC-085`) —
+   installed by genuinely reusing `scripts/bootstrap.sh`'s own
+   `wait_for_csv`/`approve_pending_installplan` function bodies (extracted
+   and sourced, not reimplemented), CSV reached `Succeeded`, CRD
+   registered. Gated behind a new `--with-rhdh` flag in `bootstrap.sh`
+   for future reproducibility — unlike the namespace/Keycloak-client
+   additions, the operator install has a real cluster-wide visibility
+   cost (`AllNamespaces`, same precedent already accepted for Pipelines/
+   GitOps) not forced onto every fresh-cluster bootstrap by default.
+3. Ingress-vs-Route (item 3, ~1h timebox): resolved in a few minutes, well
+   inside the timebox. `spec.application.route.enabled: false` is a
+   clean, documented, first-class toggle — confirmed live via a throwaway
+   test CR (`route-test`, deleted immediately after) that created zero
+   `Route` objects. No fallback needed; this repo's Ingress-only
+   precedent holds without exception. The same test also revealed the
+   operator's generated Service naming (`backstage-<cr-name>`), needed to
+   target the eventual Ingress correctly. Both findings recorded in
+   `PINS.md` before any real manifest was authored.
+4. `golden-path-agent-rhdh-db-secret` — external Postgres credentials, one
+   Secret carrying both the S2I `postgresql` image's own
+   `POSTGRESQL_USER`/`_PASSWORD`/`_DATABASE` keys and the RHDH operator's
+   own `POSTGRES_HOST`/`_PORT`/`_USER`/`_PASSWORD` keys (exact names
+   confirmed via the operator's own `external-db.md`, not guessed — same
+   password material, no duplication). A genuinely separate database
+   instance from Keycloak's own, per the owner's explicit instruction.
+5. Keycloak client `golden-path-agent-rhdh` — **a real gap found live**:
+   re-applying `keycloak-realm-import.yaml` with the client added did
+   *not* create it, because `KeycloakRealmImport` is a one-shot import
+   that does not reconcile spec changes once its own `Done` condition is
+   `True` (confirmed by querying the admin API directly after reapplying
+   — the client simply didn't exist). Recorded in `PINS.md`. Fixed by
+   extending `provision-identity-secrets.sh` with a create-if-missing
+   step before its existing regenerate-secret pattern — same script,
+   same idempotent philosophy, now covering a client that doesn't
+   already exist by construction the way the other two do. Client
+   secret stored in `golden-path-agent-rhdh-oidc-secret`
+   (`golden-path-agent-rhdh` namespace), never printed to any log
+   (regenerated a second time specifically to avoid the value lingering
+   after an intermediate debug call had echoed it).
+6. GitOps manifests authored and validated, not yet synced: `deploy/
+   kustomize/overlays/rhdh/` (Postgres Deployment+PVC+Service, the OIDC
+   `app-config` `ConfigMap` referencing the client secret via Backstage's
+   own `${VAR}` substitution — never a plaintext secret in the
+   `ConfigMap` — and the `Backstage` CR itself), `deploy/argocd/
+   apps/rhdh.yaml` (auto-sync on, matching `demo-prod`'s own precedent),
+   `deploy/argocd/project.yaml` (new `Backstage` CRD-kind whitelist entry
+   + `golden-path-agent-rhdh` destination, same additive pattern as
+   `DEC-064`). `oc kustomize` build and a server-side `--dry-run` of the
+   full output, `project.yaml`, and the new `Application` all passed
+   clean before this commit.
+
+**Deliberately excluded from the git-committed manifests, both for the
+same reason (`CLAUDE.md`'s anonymity rule)**: the RHDH Ingress's real
+`host` (this showcase sandbox's own hostname) and the Keycloak client's
+real `redirectUris`/`webOrigins` (wildcarded `"*"`, same precedent
+already accepted for `golden-path-agent-approver-ui`). Both are
+live-cluster-specific bindings, not portable blueprint content — the
+Ingress is applied out-of-band with the real host, never committed; a
+future, more permanent showcase hostname would warrant tightening the
+wildcard, same `TODO(D3)`-shaped deferral already accepted elsewhere in
+this realm-import file.
+
+**Evidence**: live command output captured in this session (CSV
+`Succeeded`, CRD registered, test-CR Route/Service behavior, admin-API
+client-existence checks, `oc kustomize`/`--dry-run=server` output) — full
+detail folds into the STOP 5 report once sync + end-to-end verification
+complete.
+
+**Status**: Infrastructure and manifests ready. **Sync and end-to-end
+verification (operator healthy, DB up, UI reachable, Keycloak login,
+`catalog-info.yaml` visible) are a separate, following step** — this
+entry does not itself claim STOP 5's bar is met.

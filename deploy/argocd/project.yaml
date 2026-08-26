@@ -30,6 +30,13 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: golden-path-agent-pilot-prod
       server: https://kubernetes.default.svc
+    - namespace: golden-path-agent-rhdh
+      server: https://kubernetes.default.svc
+      # Phase F4 (DEC-087/DEC-092): RHDH's own dedicated Postgres +
+      # Backstage CR -- same additive pattern DEC-064 already established
+      # for the approval service's own PVC (a new destination/whitelist
+      # entry when a genuinely new resource kind or namespace is needed,
+      # nothing removed or narrowed from what already exists).
     - namespace: openshift-gitops
       server: https://kubernetes.default.svc
       # Step C4 (DEC-021/DEC-041): required for the root app-of-apps
@@ -90,3 +97,9 @@ spec:
       # Application this permits still only ever takes effect via this
       # SAME AppProject's own `destinations`/`namespaceResourceWhitelist`
       # boundaries -- it cannot be used to reach outside them.
+    - group: rhdh.redhat.com
+      kind: Backstage # Phase F4 (DEC-087/DEC-092): the RHDH Operator's
+      # own namespace-scoped CR, created via deploy/kustomize/overlays/
+      # rhdh/backstage.yaml -- same additive pattern as every other
+      # resource kind in this list, needed only because this is a
+      # genuinely new resource kind, not a widening of an existing grant.

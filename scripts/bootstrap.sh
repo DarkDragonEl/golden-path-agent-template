@@ -20,7 +20,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'USAGE'
-usage: bootstrap.sh <kubeconfig-path> [--reenable-sync]
+usage: bootstrap.sh <kubeconfig-path> [--reenable-sync] [--with-rhdh]
 
 Bootstraps the golden-path-agent blueprint onto a fresh OpenShift cluster
 from Git alone. The kubeconfig must already be authenticated (this script
@@ -34,6 +34,16 @@ deploy/argocd/application-root.yaml, rather than silently re-enabling
 auto-sync and resurrecting DEC-078's original cross-cluster-promotion
 hazard via a routine maintenance command. Pass --reenable-sync only if
 you deliberately intend to reverse that specific cluster's freeze.
+
+--with-rhdh (Phase F4, DEC-092): also installs the RHDH Operator
+(cluster-scoped, openshift-operators, AllNamespaces -- visible to every
+tenant on a shared cluster, same precedent as Pipelines/GitOps) and
+provisions its dedicated Postgres credentials Secret. Opt-in, unlike the
+golden-path-agent-rhdh namespace and Keycloak client (provisioned
+unconditionally below, matching every other platform-infra namespace in
+this file) -- the operator install specifically has a real, cluster-wide
+cost/visibility a plain namespace or Keycloak client does not, so it is
+not forced onto every fresh-cluster bootstrap by default.
 USAGE
   exit 1
 }
@@ -42,7 +52,13 @@ USAGE
 [ -r "$1" ] || { echo "[bootstrap.sh] kubeconfig not readable: $1" >&2; exit 1; }
 export KUBECONFIG="$1"
 REENABLE_SYNC=false
-[ "${2:-}" = "--reenable-sync" ] && REENABLE_SYNC=true
+WITH_RHDH=false
+for arg in "${@:2}"; do
+  case "$arg" in
+    --reenable-sync) REENABLE_SYNC=true ;;
+    --with-rhdh) WITH_RHDH=true ;;
+  esac
+done
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -162,6 +178,34 @@ oc apply -f pipelines/bootstrap/keycloak-realm-import.yaml
 
 log "=== step 4/9: cluster-tier otel collector ==="
 oc apply -f pipelines/bootstrap/otel-collector.yaml
+
+if [ "$WITH_RHDH" = "true" ]; then
+  log "=== step 4b/9 (--with-rhdh, Phase F4, DEC-092): RHDH operator + Postgres secret ==="
+  ensure_operator openshift-operators "RHDH" \
+    pipelines/bootstrap/rhdh-operator.yaml \
+    rhdh-operator.v1.10.3 300
+  # Real gap found live (Phase F4): the RHDH Operator's external-DB secret
+  # needs both the OpenShift postgresql S2I image's own env vars
+  # (POSTGRESQL_USER/PASSWORD/DATABASE) AND the operator's own
+  # POSTGRES_HOST/PORT/USER/PASSWORD keys (docs/external-db.md,
+  # spec.database.authSecretName) -- one Secret with both key sets, not
+  # two, to avoid duplicating the same password material.
+  if ! oc get secret golden-path-agent-rhdh-db-secret -n golden-path-agent-rhdh >/dev/null 2>&1; then
+    log "creating golden-path-agent-rhdh-db-secret (first time on this cluster)"
+    RHDH_DB_PASSWORD=$(openssl rand -base64 18)
+    oc create secret generic golden-path-agent-rhdh-db-secret \
+      -n golden-path-agent-rhdh \
+      --from-literal=POSTGRESQL_USER=rhdh \
+      --from-literal=POSTGRESQL_PASSWORD="$RHDH_DB_PASSWORD" \
+      --from-literal=POSTGRESQL_DATABASE=rhdh \
+      --from-literal=POSTGRES_HOST=golden-path-agent-rhdh-db \
+      --from-literal=POSTGRES_PORT=5432 \
+      --from-literal=POSTGRES_USER=rhdh \
+      --from-literal=POSTGRES_PASSWORD="$RHDH_DB_PASSWORD" >/dev/null
+    unset RHDH_DB_PASSWORD
+  fi
+  log "RHDH operator ready, DB secret provisioned -- Postgres/Backstage CR themselves are GitOps-managed (deploy/kustomize/overlays/rhdh/, deploy/argocd/apps/rhdh.yaml), applied automatically by golden-path-agent-root's own selfHeal sync, not by this script"
+fi
 
 log "=== waiting for Keycloak to report Ready before provisioning identity secrets ==="
 KC_WAITED=0
