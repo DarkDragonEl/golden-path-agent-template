@@ -54,16 +54,22 @@
       "description": "Reserved for G5's catalog model completion -- once model routes are registered as catalog Resources (SysR-P-F-12's routing seam), this becomes a catalog-backed picker selecting one. Not yet wired to any rendered config value this phase (real model endpoint config is still supplied per-environment via deploy/kustomize/overlays/*, independent of scaffold-time templating); recorded on the rendered catalog-info.yaml as an annotation only, so the intent is visible even before the wiring exists.",
       "default": "not-yet-selected"
     },
+    "gitHost": {
+      "type": "string",
+      "title": "Git host for this project's own repositories",
+      "description": "Hostname of the Platform Foundation's shared Git-hosting instance (Gitea, DEC-098/DEC-100) -- used to construct the pipeline's own source-fetch URL, the GitOps repo's ArgoCD Application repoURLs, and the promotion-PR Task's API calls. Phase G, Stage 3 (DEC-098/DEC-099/DEC-110/DEC-111): this project's own scaffolded-project publish target is Gitea, not GitHub -- GitHub is only ever this blueprint repo's own public upstream (DEC-098's own phrasing), never a legitimate target for a scaffolded child project's repositories. Defaults to this blueprint's own live Platform Foundation instance -- this schema default is the single source of truth for that hostname (DEC-075's own duplicated-constant lesson applied here too); tools/instantiate_agent_project.py no longer keeps a separate copy.",
+      "default": "golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io"
+    },
     "repoOwner": {
       "type": "string",
       "title": "Git repository owner/org",
-      "description": "GitHub org or user that will own the scaffolded project's own repository. Only load-bearing for F5's explicit stretch goal (opening a PR against a real scratch repo, decision 4 / DEC-087) -- F2's own verification render and F3's local-only CLI path both work correctly with a placeholder value, since neither pushes anywhere. Known rough edge, not fully resolved this phase: a handful of doc-prose references (e.g. tools/trace-check's own README) still read a little awkwardly post-substitution since they were written assuming this repo IS the template, not a scaffolded instance of one -- cosmetic, not functional, and left for refinement whenever F5's stretch goal is actually attempted.",
+      "description": "Gitea org that will own the scaffolded project's two repositories (source+pipeline, and a separate '<repoName>-gitops' repo, DEC-098/DEC-099's own two-repo decision). Only load-bearing once actually published (tools/gitea_publish.py, DEC-111) -- F2's own verification render and a local-only CLI render both work correctly with a placeholder value, since neither pushes anywhere. Known rough edge, not fully resolved this phase: a handful of doc-prose references (e.g. tools/trace-check's own README) still read a little awkwardly post-substitution since they were written assuming this repo IS the template, not a scaffolded instance of one -- cosmetic, not functional.",
       "default": "REPLACE_ME_repoOwner"
     },
     "repoName": {
       "type": "string",
       "title": "Git repository name",
-      "description": "Name of the scaffolded project's own repository. Defaults to the same value as 'name' -- a real instance's repo is not itself a template, so it does not get a '-template' suffix the way this blueprint repo's own name has one. Only load-bearing for F5's publish stretch goal, same as repoOwner.",
+      "description": "Name of the scaffolded project's own source+pipeline repository. Defaults to the same value as 'name' -- a real instance's repo is not itself a template, so it does not get a '-template' suffix the way this blueprint repo's own name has one. The separate GitOps repo this project's own manifests publish into is always '<repoName>-gitops' (DEC-111) -- not an independent parameter, to keep the two names from ever drifting apart. Only load-bearing once actually published, same as repoOwner.",
       "default": "REPLACE_ME_repoName"
     }
   }

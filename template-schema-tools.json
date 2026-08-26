@@ -32,6 +32,12 @@
       "description": "The 'name' value of the single Agent Template instance authorized to reach this server's own NetworkPolicy-restricted ingress (deploy/kustomize/base/networkpolicy.yaml). Single-consumer only this phase -- see that file's own header comment.",
       "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
     },
+    "gitHost": {
+      "type": "string",
+      "title": "Git host for this project's own repositories",
+      "description": "Same Platform Foundation Gitea host as the Agent Template's own template-schema.json -- see that file for the full rationale.",
+      "default": "golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io"
+    },
     "repoOwner": {
       "type": "string",
       "title": "Git repository owner/org",
@@ -41,7 +47,7 @@
     "repoName": {
       "type": "string",
       "title": "Git repository name",
-      "description": "Same local-render-only note as the Agent Template's own template-schema.json.",
+      "description": "Same local-render-only note as the Agent Template's own template-schema.json -- the separate GitOps repo is always '<repoName>-gitops' (DEC-111), not an independent parameter.",
       "default": "REPLACE_ME_repoName"
     }
   }

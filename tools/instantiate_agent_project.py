@@ -17,11 +17,20 @@ behavior, unchanged for anyone not passing the new flag); --publish
 extends rendering with a real publish to the Platform Foundation's Gitea
 instance, as two repositories (source+pipeline, and a separate GitOps
 repo) per the owner's own two-repo decision. See tools/gitea_publish.py
-and reports/feature-g6-cli-publish.md for the publish mechanism itself
-and its one significant named gap (the published GitOps repo's own
-ArgoCD/promotion-PR content is not yet rewritten to be internally
-consistent with the two-repo, Gitea-hosted split -- that's separate,
-larger GitOps-onboarding work, not attempted here).
+and reports/feature-g6-cli-publish.md for the publish mechanism itself.
+
+Phase G, Stage 3 follow-up (DEC-1xx, this session): repoOwner/repoName
+are now resolved to their real publish target BEFORE rendering, not
+after -- rendering first and resolving the actual repo names afterward
+(the original G6 Path B shape) meant the rendered content's own
+${{ values.repoOwner }}/${{ values.repoName }} placeholders stayed as
+the literal 'REPLACE_ME_*' strings whenever a caller didn't pass
+--repoOwner/--repoName explicitly (the common case), even though the
+real publish target (this CLI's own --gitea-org/'name' fallback) was
+something else entirely. Every rendered reference to those values
+(pipeline.yaml's own repo-url default, the ArgoCD Application repoURLs,
+pyproject.toml's package name, etc.) is now self-consistent with the
+actual two-repo Gitea target this invocation is about to publish to.
 
 Usage:
     python3 tools/instantiate_agent_project.py --name my-agent \\
@@ -56,9 +65,6 @@ from skeleton_renderer import (  # noqa: E402
     resolve_values,
 )
 
-DEFAULT_GITEA_HOST = (
-    "golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io"
-)
 DEFAULT_GITEA_ORG = "golden-path-agent-projects"
 PLACEHOLDER_REPO_OWNER = "REPLACE_ME_repoOwner"
 PLACEHOLDER_REPO_NAME = "REPLACE_ME_repoName"
@@ -104,12 +110,11 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--gitea-host", default=DEFAULT_GITEA_HOST,
-        help="Gitea hostname (default: this project's own Platform Foundation instance).",
-    )
-    parser.add_argument(
         "--gitea-org", default=DEFAULT_GITEA_ORG,
-        help="Gitea org to publish into (default: this project's own scaffolded-projects org).",
+        help=(
+            "Gitea org to publish into when repoOwner is left at its placeholder "
+            "default (this project's own scaffolded-projects org)."
+        ),
     )
     args = parser.parse_args()
 
@@ -123,6 +128,18 @@ def main() -> int:
     except ValueError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1
+
+    if args.publish:
+        # Resolve repoOwner/repoName to their REAL publish target BEFORE
+        # rendering (not after -- see this module's own docstring) so
+        # every rendered ${{ values.repoOwner }}/${{ values.repoName }}
+        # reference is self-consistent with where this invocation is
+        # actually about to push. gitHost needs no such fallback: its own
+        # schema default is already a real hostname, not a placeholder.
+        if not values.get("repoOwner") or values["repoOwner"] == PLACEHOLDER_REPO_OWNER:
+            values["repoOwner"] = args.gitea_org
+        if not values.get("repoName") or values["repoName"] == PLACEHOLDER_REPO_NAME:
+            values["repoName"] = values["name"]
 
     print(f"Rendering into {args.output} with: {values}")
     render_skeleton(args.output, values, skeleton_dir=skeleton_dir)
@@ -141,26 +158,18 @@ def main() -> int:
         )
         return 1
 
-    # repoOwner/repoName default to REPLACE_ME_* placeholders in both
-    # schemas (they were only ever load-bearing for this exact publish
-    # step, per template-schema.json's own long-standing comment) -- fall
-    # back to the org/name actually being published with, rather than
-    # publishing a repo literally named "REPLACE_ME_repoName".
-    repo_owner = values.get("repoOwner")
-    if not repo_owner or repo_owner == PLACEHOLDER_REPO_OWNER:
-        repo_owner = args.gitea_org
-    repo_name = values.get("repoName")
-    if not repo_name or repo_name == PLACEHOLDER_REPO_NAME:
-        repo_name = values["name"]
+    gitea_host = values["gitHost"]
+    repo_owner = values["repoOwner"]
+    repo_name = values["repoName"]
     gitops_repo_name = f"{repo_name}-gitops"
 
     from gitea_publish import publish  # noqa: E402  (deferred: only needed for --publish)
 
-    print(f"Publishing to https://{args.gitea_host}/{repo_owner} as "
+    print(f"Publishing to https://{gitea_host}/{repo_owner} as "
           f"'{repo_name}' + '{gitops_repo_name}' ...")
     result = publish(
         args.output,
-        gitea_host=args.gitea_host,
+        gitea_host=gitea_host,
         org=repo_owner,
         token=gitea_token,
         username=gitea_username,

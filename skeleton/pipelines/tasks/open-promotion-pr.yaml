@@ -1,15 +1,29 @@
 # Phase C, Step C1b. SysR-P-F-06 -- promotion is exclusively a GitOps PR
 # merge, never a rebuild and never a direct push to main. This Task only
 # runs when every prior gate passed (the Pipeline's `when:` condition, not
-# this Task's own logic) and only ever touches
-# deploy/kustomize/base/kustomization.yaml's one images.digest field.
+# this Task's own logic) and only ever touches the GitOps repo's own
+# kustomize/base/kustomization.yaml's one images.digest field.
 #
-# Credential: docs/phase-c-runbook.md §3 -- a fine-grained GitHub PAT,
-# scoped to Contents (read/write) + Pull requests (read/write) on this one
-# repository only, stored as Secret ${{ values.name }}-github-token in
-# ${{ values.name }}-ci, key `token`. Never a pipeline param, never in this
-# Task's own args (only as an env var sourced from the Secret, which
-# Tekton does not log), never echoed by any step below.
+# Phase G, Stage 3 (DEC-098/DEC-099/DEC-111, G6): DEC-111's two-repo split
+# moved deploy/ (now kustomize/, argocd/, otel/ at the GitOps repo's own
+# root -- the deploy/ prefix is dropped there) out of this Task's own
+# source workspace entirely. This Task used to edit
+# deploy/kustomize/base/kustomization.yaml in place inside the
+# already-checked-out source repo; that file no longer exists there once
+# a project is actually published via tools/gitea_publish.py. Rewritten
+# to clone the separate '<repoName>-gitops' repo into its own scratch
+# subdirectory of the shared workspace, edit/commit/push there instead --
+# the source workspace's own checked-out content is untouched.
+#
+# Credential: a Gitea access token scoped to this one '<repoName>-gitops'
+# repo (create/push + PR), stored as Secret ${{ values.name }}-gitea-token
+# in ${{ values.name }}-ci, keys `token`/`username` -- same
+# manually-provisioned-per-project pattern this Task's own prior
+# GitHub-based version already used (docs/phase-c-runbook.md §3), now
+# targeting the Platform Foundation's own shared Gitea instance
+# (DEC-098/DEC-100) instead. Never a pipeline param, never in this Task's
+# own args (only as env vars sourced from the Secret, which Tekton does
+# not log), never echoed by any step below.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -31,42 +45,48 @@ spec:
       image: docker.io/alpine/git:2.54.0
       workingDir: $(workspaces.source.path)
       env:
-        - name: GITHUB_TOKEN
+        - name: GITEA_TOKEN
           valueFrom:
             secretKeyRef:
-              name: ${{ values.name }}-github-token
+              name: ${{ values.name }}-gitea-token
               key: token
+        - name: GITEA_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: ${{ values.name }}-gitea-token
+              key: username
       script: |
         #!/bin/sh
         set -eu
         BRANCH="promote/$(params.commit-sha)"
+        GITOPS_DIR=".gitops-clone"
+        rm -rf "$GITOPS_DIR"
+        git clone -q "https://${GITEA_USERNAME}:${GITEA_TOKEN}@${{ values.gitHost }}/${{ values.repoOwner }}/${{ values.repoName }}-gitops.git" "$GITOPS_DIR"
+        cd "$GITOPS_DIR"
         sed -i "s#digest: sha256:.*#digest: $(echo "$(params.image-ref)" | sed 's/.*@//')#" \
-          deploy/kustomize/base/kustomization.yaml
+          kustomize/base/kustomization.yaml
         git config user.name "${{ values.name }}-ci"
-        git config user.email "${{ values.name }}-ci@users.noreply.github.com"
+        git config user.email "${{ values.name }}-ci@users.noreply.example.org"
         git checkout -b "$BRANCH"
-        git add deploy/kustomize/base/kustomization.yaml
-        git commit -m "Promote $(params.commit-sha): $(params.image-ref)"
-        # DEC-037: GitHub's git-over-HTTPS smart endpoint does not accept
-        # a bare `Authorization: Bearer` header for git push -- confirmed
-        # live ("could not read Username for 'https://github.com'", git
-        # falling back to an interactive credential prompt with no TTY
-        # available). The URL-embedded-credential form below is GitHub's
-        # own documented mechanism for PAT-based git push and is
-        # recognized immediately, no credential helper needed. Still
-        # never echoed -- only ever appears as a command argument, same
-        # handling this Task's own header comment already commits to.
-        git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ values.repoOwner }}/${{ values.repoName }}.git" "$BRANCH"
+        git add kustomize/base/kustomization.yaml
+        git commit -q -m "Promote $(params.commit-sha): $(params.image-ref)"
+        # DEC-037's own lesson (GitHub's git-over-HTTPS smart endpoint
+        # rejecting a bare Bearer header for push) doesn't apply here --
+        # Gitea's own git-over-HTTPS auth accepts standard HTTP Basic auth
+        # (username:token), already embedded in the clone URL above, the
+        # same pattern tools/gitea_publish.py's own push_directory()
+        # already proved live (DEC-100/DEC-111), not re-derived here.
+        git push -q origin "$BRANCH:$BRANCH"
         echo "$BRANCH" > $(workspaces.source.path)/.promotion-branch
 
     - name: open-pr
       image: docker.io/alpine/git:2.54.0
       workingDir: $(workspaces.source.path)
       env:
-        - name: GITHUB_TOKEN
+        - name: GITEA_TOKEN
           valueFrom:
             secretKeyRef:
-              name: ${{ values.name }}-github-token
+              name: ${{ values.name }}-gitea-token
               key: token
       script: |
         #!/bin/sh
@@ -79,11 +99,14 @@ spec:
             'title': 'Promote ' + '$(params.commit-sha)'[:12],
             'head': '$BRANCH',
             'base': 'main',
-            'body': 'Automated digest promotion PR. Image: $(params.image-ref)\n\nOnly deploy/kustomize/base/kustomization.yaml\'s images.digest field changes. Merging this is the promotion event (SysR-P-F-06) -- demo-prod syncs from it via ArgoCD.',
+            'body': 'Automated digest promotion PR. Image: $(params.image-ref)\n\nOnly kustomize/base/kustomization.yaml\'s images.digest field changes. Merging this is the promotion event (SysR-P-F-06) -- demo-prod syncs from it via ArgoCD.',
         }))
         ")
+        # Gitea's PR-creation endpoint (api/v1/repos/{owner}/{repo}/pulls),
+        # token auth via the `token` scheme header -- same convention
+        # tools/gitea_publish.py already proved live (DEC-100/DEC-111).
         curl -sf -X POST \
-          -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: token ${GITEA_TOKEN}" \
+          -H "Content-Type: application/json" \
           -d "$BODY" \
-          https://api.github.com/repos/${{ values.repoOwner }}/${{ values.repoName }}/pulls
+          https://${{ values.gitHost }}/api/v1/repos/${{ values.repoOwner }}/${{ values.repoName }}-gitops/pulls
