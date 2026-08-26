@@ -2,11 +2,16 @@
 
 ## Workload identity
 
-`deploy/kustomize/base/serviceaccount.yaml` is the identity anchor every
-Deployment runs under (`serviceAccountName: golden-path-agent` on both the
-agent and MCP pods). Its OIDC/workload-identity federation annotation is
-TODO(platform) — left empty in the base, meant to be added per environment
-via an overlay patch once a real identity provider integration is chosen.
+Each of the three components has its own dedicated `ServiceAccount`
+(`DECISIONS.md` `DEC-061`, closing a `DEC-045` finding that agent and MCP
+originally shared one, which made "ServiceAccount-per-workload" not
+actually true at the Kubernetes layer), all three in
+`deploy/kustomize/base/`: `serviceaccount.yaml` (`golden-path-agent`, the
+agent pod), `serviceaccount-mcp.yaml` (`golden-path-agent-mcp`), and
+`serviceaccount-approval.yaml` (`golden-path-agent-approval`). Each one's
+OIDC/workload-identity federation annotation is TODO(platform) — left
+empty in the base, meant to be added per environment via an overlay patch
+once a real identity provider integration is chosen.
 
 ## Secrets
 
@@ -18,11 +23,16 @@ different mechanism is used for the real engagement, replace this file's
 
 ## Network boundary between agent and MCP
 
-Even though both roles ship from the same container image,
 `deploy/kustomize/base/networkpolicy.yaml` restricts ingress to the MCP
-pod to only the agent pod's label selector. This is the "independent
-security boundary" the architecture doc's one-image-two-roles design
-relies on.
+pod to only the agent pod's label selector. This is an "independent
+security boundary" in the literal sense now, not just the policy sense:
+since `DECISIONS.md` `DEC-098`/`DEC-099` (Phase G, G2), agent, MCP, and
+approval are three separately built, separately promoted images
+(`Containerfile.agent`, `.mcp`, `.approval`) — superseding the earlier
+single-image, positional-entrypoint-dispatch design `docs/architecture.md`
+documents as superseded. The `NetworkPolicy` boundary and the image
+boundary now reinforce each other instead of one being the only real
+separation.
 
 ## The human-approval gate
 
