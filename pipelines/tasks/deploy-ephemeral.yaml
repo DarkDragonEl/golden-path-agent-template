@@ -31,9 +31,28 @@ metadata:
     app.kubernetes.io/part-of: golden-path-agent
 spec:
   params:
-    - name: image-ref
+    # DEC-098/DEC-099 (G2, three-image split): a PipelineRun under test
+    # exercises ONE fresh, just-built component against the other two
+    # components' currently-committed (last-promoted) digests -- exactly
+    # the standard "test against what's actually deployed" pattern, and
+    # the only one that makes sense once the three images build and
+    # promote independently. Each pipeline (agent/mcp/approval) passes
+    # its own fresh ref in the matching param below and leaves the other
+    # two empty; an empty value means "don't touch this image entry,
+    # kustomize build renders base/kustomization.yaml's own committed
+    # digest for it unchanged."
+    - name: agent-image-ref
       type: string
-      description: Full pushed image reference including digest, e.g. <registry>/<repo>@sha256:...
+      default: ""
+      description: Full pushed agent image reference including digest, or "" to leave the committed digest untouched.
+    - name: mcp-image-ref
+      type: string
+      default: ""
+      description: Full pushed mcp image reference including digest, or "" to leave the committed digest untouched.
+    - name: approval-image-ref
+      type: string
+      default: ""
+      description: Full pushed approval image reference including digest, or "" to leave the committed digest untouched.
   workspaces:
     - name: source
   steps:
@@ -80,8 +99,17 @@ spec:
       script: |
         #!/bin/sh
         set -eu
-        (cd $(workspaces.source.path)/deploy/kustomize/base && \
-          kustomize edit set image golden-path-agent="$(params.image-ref)")
+        cd $(workspaces.source.path)/deploy/kustomize/base
+        # Only the component(s) actually under test in this PipelineRun
+        # get a digest override -- the others keep whatever is currently
+        # committed (last independently promoted), per DEC-098/DEC-099.
+        [ -n "$(params.agent-image-ref)" ] && \
+          kustomize edit set image golden-path-agent="$(params.agent-image-ref)"
+        [ -n "$(params.mcp-image-ref)" ] && \
+          kustomize edit set image golden-path-agent-mcp="$(params.mcp-image-ref)"
+        [ -n "$(params.approval-image-ref)" ] && \
+          kustomize edit set image golden-path-agent-approval="$(params.approval-image-ref)"
+        cd $(workspaces.source.path)/deploy/kustomize/overlays/ephemeral-test
         kustomize edit set configmap golden-path-agent-config \
           --from-literal=MODEL_API_BASE_URL="${MODEL_API_BASE_URL}" \
           --from-literal=MODEL_NAME="${MODEL_NAME}" \

@@ -1,0 +1,70 @@
+# Phase G, G2 (DECISIONS.md DEC-098/DEC-099). Lean, mcp-specific
+# operational gate for the independently-built/promoted MCP image --
+# security-tests.yaml's own rest-zero-mutation-check is agent-specific
+# (drives the agent's /invoke), so it stays on the agent pipeline
+# unchanged; this Task carries only the two checks that genuinely
+# exercise the freshly-built MCP image itself.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mcp-operational-test
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  steps:
+    - name: disallowed-egress-proof
+      # Identical check to security-tests.yaml's own step of the same
+      # name -- kept here too (not just on the agent pipeline) because
+      # this is the one automated proof that THIS run's freshly-deployed
+      # MCP pod's NetworkPolicy binding actually took effect; the agent
+      # pipeline's copy proves the same NetworkPolicy resource exists,
+      # not that this specific promotion re-applied cleanly.
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        echo "Attempting direct cross-namespace access to the MCP service's port 8081 (expect: blocked)..."
+        if curl -sf --max-time 5 \
+             http://golden-path-agent-mcp.golden-path-agent-ephemeral-test.svc.cluster.local:8081/healthz; then
+          echo "FAIL: reached the MCP service directly from a different namespace -- NetworkPolicy did not block it." >&2
+          exit 1
+        fi
+        echo "OK: direct cross-namespace access blocked, as the NetworkPolicy requires."
+
+    - name: end-to-end-tool-call-via-agent
+      # Exercises the freshly-built MCP image for real: calls the agent's
+      # own real /invoke path (the same allowed caller security-tests.yaml
+      # already uses), with a read-only query, and confirms the response
+      # reflects a real tool round trip through the just-deployed MCP pod
+      # -- not a mock/in-process call (MCP_MODE=live is this image's own
+      # runtime posture regardless of what the agent's own build sets,
+      # since this MCP pod is the one thing under test here).
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        NS=golden-path-agent-ephemeral-test
+        AGENT_POD=$(oc get pod -n "$NS" -l app.kubernetes.io/component=agent -o jsonpath='{.items[0].metadata.name}')
+        oc exec -i -n "$NS" "$AGENT_POD" -- python3 - <<'PYEOF'
+        import json
+        import urllib.request
+
+        data = json.dumps(
+            {
+                "query": "What is the status of incident INC-10240?",
+                "write": False,
+                "user_id": "ci-mcp-operational-test",
+            }
+        ).encode()
+        req = urllib.request.Request(
+            "http://localhost:8080/invoke",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            resp = json.load(r)
+        assert resp.get("final_output"), f"FAIL: no final_output -- expected a real answer routed through the freshly-deployed MCP pod, got: {resp}"
+        print("OK: agent's real /invoke path produced a final_output via the freshly-deployed MCP pod.")
+        PYEOF

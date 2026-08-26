@@ -47,7 +47,17 @@ configMapGenerator:
         # fallback" is a hard scope requirement.
       - DATA_SOURCE_BINDING=synthetic
       - APPROVAL_MODE=required
-      - MCP_MODE=mock
+      # DEC-098/DEC-099 (G2, three-image split): flipped from "mock" to
+      # "live". The split agent image (Containerfile.agent) deliberately
+      # excludes mcp_server/server.py -- MCP_MODE=mock's call_tool()
+      # branch does `from . import server`, which would ImportError with
+      # this image. This also closes the exact gap DEC-096 named: mock
+      # mode routes tool calls in-process, so ephemeral-test's own
+      # security-tests/operational-tests/mcp-operational-test gates were
+      # never actually proving the deployed agent and MCP pods talk to
+      # each other over the network -- they were proving the agent talks
+      # to itself.
+      - MCP_MODE=live
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://golden-path-agent-otel-collector.golden-path-agent-otel.svc.cluster.local:4318 # DEC-071:
         # the cluster-tier collector (DEC-068), reachable cross-namespace --
         # same internal Service DNS pattern as OIDC_ISSUER_URL/MCP_TOOL_ENDPOINT.

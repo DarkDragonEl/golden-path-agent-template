@@ -2,8 +2,12 @@ CONTAINER_ENGINE ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || 
 
 .PHONY: build up up-offline down logs eval eval-fast eval-domain validate-eval-set trace test lint bootstrap
 
+# DEC-098/DEC-099 (G2, three-image split): three independent images, one
+# per component -- no more single shared image + entrypoint dispatch.
 build:
-	$(CONTAINER_ENGINE) build -t golden-path-agent:dev .
+	$(CONTAINER_ENGINE) build -t golden-path-agent:dev -f Containerfile.agent .
+	$(CONTAINER_ENGINE) build -t golden-path-agent-mcp:dev -f Containerfile.mcp .
+	$(CONTAINER_ENGINE) build -t golden-path-agent-approval:dev -f Containerfile.approval .
 
 up:
 	./scripts/dev.sh up

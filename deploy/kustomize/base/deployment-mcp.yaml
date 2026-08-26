@@ -17,8 +17,10 @@ spec:
       serviceAccountName: golden-path-agent-mcp
       containers:
         - name: mcp
-          image: golden-path-agent
-          args: ["mcp"]
+          # DEC-098/DEC-099 (G2): own independently-built/promoted image,
+          # not a role of the shared golden-path-agent image anymore --
+          # single-purpose, no positional-arg dispatch.
+          image: golden-path-agent-mcp
           ports:
             - name: http
               containerPort: 8081

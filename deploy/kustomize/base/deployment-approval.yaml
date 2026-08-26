@@ -1,8 +1,9 @@
-# Same immutable image, a third entrypoint.sh role ("approval") -- Phase
-# C's whole build-once/promote-unchanged pipeline covers this component
-# for free: no new Tekton pipeline, no new ImageStream, no new
-# digest-promotion step. The literal reading of CLAUDE.md's "one
-# immutable artifact" rule, applied consistently, not special-cased.
+# DEC-098/DEC-099 (G2): own independently-built/promoted image and own
+# Tekton pipeline, superseding this file's original design (a role of
+# the one shared golden-path-agent image, promoted for free by Phase C's
+# single pipeline). CLAUDE.md's "one immutable artifact" rule now reads
+# as "one immutable artifact per component" -- applied consistently,
+# not special-cased.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,8 +23,7 @@ spec:
       serviceAccountName: golden-path-agent-approval
       containers:
         - name: approval
-          image: golden-path-agent
-          args: ["approval"]
+          image: golden-path-agent-approval
           ports:
             - name: http
               containerPort: 8082
