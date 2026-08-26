@@ -7598,3 +7598,103 @@ Stage 3/4 ahead of their own stage's start.
 
 **Status**: Decided (owner-approved, this session). Stage 1 begins
 immediately as two parallel worktree streams (G1, G2) per this entry.
+
+## DEC-100 — G1 (Stage 1) complete except one item: Gitea + Platform
+Foundation stood up via upstream kustomize (not OLM), org/machine-
+account/scoped-token proven live, blueprint mirrored, identity/telemetry/
+RHDH manifests relocated to platform/bootstrap/, backup/restore proven;
+RHDH-loads-template-from-Gitea blocked by ArgoCD selfHeal reacting faster
+than any live test window this session could hold open
+
+**Context**: `DEC-099` authorized G1 as a parallel worktree stream. Two
+blockers from an earlier session pass (a stuck OLM resolver; an overbroad
+`pipelines/` exclusion) were resolved by the coordinating session and are
+closed. This entry records the resulting build-out and its one genuine
+remaining gap.
+
+**Gitea stood up via upstream kustomize, not OLM.** `rhpds/gitea-
+operator`'s own OLM Subscription path never resolved (stuck resolver
+cache in the shared, cluster-wide `catalog-operator` pod — a
+`DEC-055`/`DEC-056`-class problem, not fixed unilaterally, same
+reasoning). Abandoned in favor of `config/default` kustomize
+(`platform/bootstrap/gitea-operator-upstream/`), pinned to tag `v2.3.2`
+by digest (`sha256:ec115feaa606459300c33f8aecd751d637217185e5e9087513f
+0280768695613`). Real gap found and fixed: upstream's own RBAC binds a
+cluster-wide-write `ClusterRole` via a `ClusterRoleBinding` across every
+namespace on this shared cluster — narrowed to a namespace-scoped
+`RoleBinding` (same effective permission, confirmed via the operator's
+own `"Watching namespaces":["golden-path-agent-gitea"]` log line after
+also setting `WATCH_NAMESPACE`), matching `keycloak-operator-upstream`'s
+own house style.
+
+**Gitea instance, org, machine account, scoped token — all proven live,
+not just created.** `Gitea` CR reconciled successfully; Route auto-
+created and confirmed reachable (HTTP 200). Org `golden-path-agent-
+projects` created. Machine account `golden-path-agent-scaffolder`
+(non-admin) added to a new, narrowly-scoped team (`write` on
+`repo.code`/`repo.pulls` only, not the org's default Owners team). Its
+API token was tested to actual destruction: a `write:repository`-only
+token failed org-repo-creation (needs `write:organization` too, a real
+API-scoping finding); the corrected token successfully created a real
+repo and then correctly *failed* to delete it (403, not the repo's
+owner) — live proof of correct minimum-scoping, not just an assumption
+from the scope name. Blueprint mirrored (`golden-path-agent-admin/
+golden-path-agent-template`, real `main` branch content pushed and
+verified via content fetch).
+
+**Backup/restore exercised with real data, not a synthetic file.** CSI
+RBD `VolumeSnapshot` of Gitea's data PVC, restored into a fresh PVC,
+mounted, and found to contain the actual mirrored blueprint's complete
+`.git` directory — proof against real data, not an assumption. Probe
+resources cleaned up after; the `VolumeSnapshot` manifest itself stays
+committed as the documented mechanism.
+
+**Identity/telemetry/RHDH manifests relocated to `platform/bootstrap/`,
+per the corrected `pipelines/` scope** (the earlier "don't touch
+`pipelines/`" instruction was overbroad — only the Tekton build pipeline
+itself, `pipelines/pipeline.yaml`/`pipelinerun-template.yaml`/`tasks/*`,
+was ever meant to be off-limits, not `pipelines/bootstrap/`).
+`keycloak-cr.yaml`, `keycloak-operator.yaml`, `keycloak-operator-
+upstream/`, `keycloak-postgres.yaml`, `keycloak-realm-import.yaml`,
+`otel-collector.yaml`, `rhdh-operator.yaml`, `provision-identity-
+secrets.sh` all moved via `git mv`; `scripts/bootstrap.sh` and two
+operational docs updated to match; `skeleton/`'s own independent copy
+deliberately untouched (G3/G4's job). `pipelines/bootstrap/` now holds
+exactly `gitops-operator.yaml`/`namespaces.yaml`/`pipelines-
+operator.yaml`/`rbac.yaml`, matching the corrected scope precisely.
+
+**What did NOT get done, and the real reason why**: RHDH loading the
+Scaffolder template from Gitea. No first-class Gitea plugin ships in
+this RHDH image (confirmed live via the dynamic-plugins-root listing).
+The documented `integrations.github`-pointed-at-Gitea workaround was
+drafted but could not be verified: the target ConfigMap is GitOps-
+managed with `selfHeal: true`, and this session found the revert cycle
+reacts within a few seconds — faster than a manual apply-then-check
+cycle can outrun, and faster even than a live patch to the ArgoCD
+`Application`'s own `syncPolicy` (itself GitOps-managed by a parent
+app-of-apps, reverted the same way). Not authorized to merge to `main`
+to make the test config actually stick (the only mechanism `DEC-094`
+already established for this exact class of problem, at that time).
+The untested edit was reverted from the tracked file rather than left
+looking like a validated fix. A second, independent open question for
+whoever picks this up: the probed URL shape (Gitea's own
+`/src/branch/<ref>/<path>` web-UI convention) may not even match what
+`GithubUrlReader` expects (`/blob/<ref>/<path>`, per this project's own
+F5 history) — untested, to be checked by the coordinating session before
+the next live attempt.
+
+**Regression check**: `golden-path-agent-demo-prod`'s three Deployments
+confirmed still healthy and `1/1` throughout this session. Their
+imagestream names changed from one shared name to three distinct ones
+during this session — attributed to the concurrent G2 stream's own
+progress (per `DEC-099`'s parallel-streams design), not this session's
+doing, noted for the record only.
+
+**Status**: G1's STOP-3 DoD substantially met and merged to `main`
+(commit `da48eba`, merge `9da5aac`); one item (RHDH-loads-from-Gitea)
+genuinely blocked, documented rather than faked, and picked up directly
+by the coordinating session next rather than re-queued to G1 — see
+`DEC-101`. Merge order per `DEC-099` still applies: G1's remaining tail
+(ArgoCD/GitOps repoint, approval-service extraction into its own image)
+stays held until G2's own STOP clears and the seeded bad-change gate
+re-passes.
