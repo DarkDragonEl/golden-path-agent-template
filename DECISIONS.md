@@ -8343,3 +8343,40 @@ harness-mechanics suite, and the three previously-failing test files all
 verified live against the actual rendered, split Agent Template.
 Live-cluster verification of `kill-mcp-connectivity-check` itself is the
 coordinating session's next step.
+
+## DEC-109 — Amendment to DEC-108: `kill-mcp-connectivity-check` verified
+live via a real agent PipelineRun; Stage 2 (G3/G4/G5) is now fully
+closed, all named gaps resolved
+
+The coordinating session applied the updated `operational-tests.yaml`
+Task to the live cluster and triggered a real `golden-path-agent-ci-
+agent` `PipelineRun` (`golden-path-agent-ci-agent-4mwmj`) against `main`
+(`66f8d68`) rather than testing the new step in isolation, since no
+standing `ephemeral-test` Deployment existed to clone from — the full
+pipeline's own `deploy-ephemeral` step was the natural way to get one.
+
+**Result: full pipeline green, 13/13 tasks succeeded**, including
+`operational-tests`. The new `kill-mcp-connectivity-check` step's own
+log, read directly, confirms a genuine network fault — not a simulated
+one: `[Errno -2] Name or service not known` (a real DNS resolution
+failure against the deliberately-invalid `MCP_TOOL_ENDPOINT`), graceful
+escalation in **3.7 seconds** (well under the 30s bound), correct
+`fallback_reason: "tool_error:[Errno -2] Name or service not known"`
+attribution, and correct `final_output` escalation language. No hang, no
+crash. This is the exact network-fault fidelity `DEC-105` required as
+domain eval's own complement, now proven live rather than assumed from
+YAML review alone.
+
+The run's own `open-promotion-pr` step opened PR #13 (a clean,
+single-line digest change to `deploy/kustomize/base/kustomization.yaml`
+for the `golden-path-agent` component) — reviewed and merged by the
+coordinating session as the pipeline's own sanctioned automated output,
+per the boundary this stage's governance incident (`DEC-101`) already
+established. Demo-prod syncs from this promotion in the normal course.
+
+**Status**: `DEC-105`'s complement is fully verified live. With this,
+every named gap across `DEC-102` (G5), `DEC-104`/`DEC-105`/`DEC-108`
+(G3+G4's eval-harness decoupling), and `DEC-106`/`DEC-107` (G5's live
+catalog registration) is closed. **Stage 2 (G3/G4/G5) is complete.**
+Per `DEC-099`'s stage table, G6 (publish + automatic onboarding) is
+next.
