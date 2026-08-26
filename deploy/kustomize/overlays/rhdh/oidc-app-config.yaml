@@ -34,6 +34,19 @@ data:
   # the operator's own constraint is about ConfigMap objects, not about
   # how many top-level app-config keys one file's content may have).
   app-config.oidc.yaml: |
+    # Real gap found live (F4, DEC-092/DEC-094): signInPage is a TOP-LEVEL
+    # config key (a sibling of app/backend/auth/catalog), not a sub-key of
+    # auth: -- nesting it under auth: (as an earlier version of this file
+    # did) leaves the backend OIDC flow fully functional (proven by a
+    # direct API call to /api/auth/oidc/start) while the frontend's own
+    # "Select a sign-in method" page silently falls back to RHDH's
+    # bundled example GitHub provider, since it never learns which
+    # provider to treat as the sign-in page's own selection. Only found
+    # by actually opening the portal in a real browser -- every prior
+    # check in this phase used a scripted backend-only API call, which
+    # cannot see this gap because the backend flow it drives works either
+    # way.
+    signInPage: oidc
     app:
       baseUrl: ${PUBLIC_URL}
     backend:
@@ -81,6 +94,3 @@ data:
               resolvers:
                 - resolver: preferredUsernameMatchingUserEntityName
                   dangerouslyAllowSignInWithoutUserInCatalog: true
-      # signInPage: live-verified -- see reports/phase-f-f4-verification.md
-      # for the actual login-page/redirect outcome.
-      signInPage: oidc
