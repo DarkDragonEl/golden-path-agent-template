@@ -1,0 +1,35 @@
+# Phase H3b (DECISIONS.md DEC-114 onward, DEC-120). Wires RHDH's own
+# bundled TechDocs generator (confirmed live, PINS.md's Phase H section:
+# /opt/techdocs-venv inside the running backstage-golden-path-agent pod
+# already has mkdocs + mkdocs-techdocs-core + mkdocs-material installed)
+# to generate this repo's docs/ tree on demand -- no new image, no
+# sidecar, no object storage.
+#
+# builder: 'local' + generator.runIn: 'local' means the RHDH backend
+# process itself shells out to its own bundled mkdocs to render a
+# requested entity's docs, then serves the result -- appropriate for
+# this project's single-replica demo deployment (DEC-092), not
+# necessarily how a multi-replica production RHDH would be configured
+# (that would want a prebuilt-and-published static site instead, one CI
+# step beyond this mission's own single-sanctioned-CI-edit scope,
+# H3b/DEC-120).
+#
+# Exactly one data entry, per the operator's own documented merge-order
+# constraint (same as oidc-app-config.yaml/catalog-locations-config.yaml)
+# -- confirmed live (DEC-093) that separate app-config ConfigMaps merge
+# per-key-path, so this techdocs: key sits alongside the other
+# ConfigMaps' app/backend/auth/catalog keys without disturbing them.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: golden-path-agent-rhdh-techdocs-config
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+data:
+  app-config.techdocs.yaml: |
+    techdocs:
+      builder: 'local'
+      generator:
+        runIn: 'local'
+      publisher:
+        type: 'local'

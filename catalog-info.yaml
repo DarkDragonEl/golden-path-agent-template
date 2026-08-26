@@ -18,6 +18,11 @@ metadata:
     every run and human approval gating every write.
   annotations:
     github.com/project-slug: DarkDragonEl/golden-path-agent-template
+    # Phase H3b (DECISIONS.md DEC-114 onward). dir:. -- docs/ + mkdocs.yml
+    # live in this same repo, at its root, alongside this file. RHDH's
+    # own generator wiring: deploy/kustomize/overlays/rhdh/
+    # techdocs-app-config.yaml.
+    backstage.io/techdocs-ref: dir:.
   links:
     - url: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/docs/architecture.md
       title: Architecture

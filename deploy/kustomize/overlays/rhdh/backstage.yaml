@@ -39,6 +39,7 @@ spec:
       configMaps:
         - name: golden-path-agent-rhdh-oidc-config
         - name: golden-path-agent-rhdh-catalog-config
+        - name: golden-path-agent-rhdh-techdocs-config
     extraEnvs:
       secrets:
         - name: golden-path-agent-rhdh-oidc-secret
