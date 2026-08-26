@@ -1,0 +1,161 @@
+# Phase G, Stage 2 (DECISIONS.md DEC-098/DEC-099, G5). The approval
+# service as a shared Platform Foundation Component (DEC-098's decision:
+# a singleton serving every Agent Template instance, not bundled per
+# agent) plus its real interface contract as a catalog API, sourced from
+# srs/SRS-APR.md (the actual normative document, not invented) and
+# cross-checked against approval_service/api.py's real route paths.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: golden-path-agent-approval-service
+  description: >-
+    Shared human-approval service (Platform Foundation). Receives every
+    agent-proposed external write, presents it to a human approver with
+    full decision context, records the decision, and releases execution
+    -- only on approval, only through the tool-contract path. Enforcement
+    point for OBJ-05 (human approval for every external write).
+  annotations:
+    github.com/project-slug: DarkDragonEl/golden-path-agent-template
+  tags:
+    - agentic-ai
+    - golden-path
+    - platform-foundation
+    - approval
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/golden-path-agent-team
+  system: golden-path-agent-platform-foundation
+  providesApis:
+    - golden-path-agent-approval-api
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: golden-path-agent-approval-api
+  description: >-
+    Proposal submission, decision, and query surface (srs/SRS-APR.md
+    SRS-APR-IF-01/02/04/05). Fail-closed on any internal error, dependency
+    failure, or undecidable state (SRS-APR-SEC-01); consumers unable to
+    reach this API must hold the affected action, never synthesize a
+    locally-assumed approval (SRS-APR-QUAL-02, added at DEC-098's shared-
+    service consumption boundary).
+  tags:
+    - golden-path
+    - platform-foundation
+    - approval
+spec:
+  type: openapi
+  lifecycle: production
+  owner: group:default/golden-path-agent-team
+  system: golden-path-agent-platform-foundation
+  definition: |
+    openapi: 3.0.3
+    info:
+      title: golden-path-agent approval service
+      version: "0.3"
+      description: >-
+        Real route paths verified against approval_service/api.py; field
+        shapes verified against approval_service/schemas.py and
+        srs/SRS-APR.md. idempotency_key (SRS-APR-F-07) is optional, where
+        adopted.
+    paths:
+      /proposals:
+        post:
+          operationId: submitProposal
+          description: SRS-APR-IF-01 -- proposal intake.
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - action_type
+                    - target_system_id
+                    - action_arguments
+                    - evidence_refs
+                    - initiating_user_id
+                    - agent_workload_id
+                    - originating_session_id
+                    - originating_request_id
+                  properties:
+                    action_type: {type: string}
+                    target_system_id: {type: string}
+                    action_arguments: {type: object}
+                    evidence_refs: {type: array, items: {type: string}}
+                    initiating_user_id: {type: string}
+                    agent_workload_id: {type: string}
+                    originating_session_id: {type: string}
+                    originating_request_id: {type: string}
+                    idempotency_key: {type: string, nullable: true}
+          responses:
+            "201":
+              description: Proposal created, state=pending.
+            "422":
+              description: Schema validation failure; no proposal created.
+        get:
+          operationId: listPendingProposals
+          description: >-
+            SRS-APR-IF-04 -- pending-proposal query, filterable by
+            originating_session_id or originating_request_id.
+          parameters:
+            - name: originating_session_id
+              in: query
+              required: false
+              schema: {type: string}
+            - name: originating_request_id
+              in: query
+              required: false
+              schema: {type: string}
+          responses:
+            "200":
+              description: Matching set of pending proposals.
+      /proposals/{proposal_id}:
+        get:
+          operationId: getProposalTerminalState
+          description: >-
+            SRS-APR-IF-05 -- terminal-state query. For an approved
+            proposal, returns the unmodified action_arguments accepted
+            at intake (the exact arguments the agent must execute).
+          parameters:
+            - name: proposal_id
+              in: path
+              required: true
+              schema: {type: string}
+          responses:
+            "200":
+              description: Current state, and terminal-state record once decided.
+      /proposals/{proposal_id}/decision:
+        post:
+          operationId: decideProposal
+          description: >-
+            SRS-APR-IF-02 -- decision surface. Approver identity is
+            established from the authenticated session (SRS-APR-SEC-03),
+            never client-supplied.
+          parameters:
+            - name: proposal_id
+              in: path
+              required: true
+              schema: {type: string}
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [decision]
+                  properties:
+                    decision: {type: string, enum: [approve, reject]}
+          responses:
+            "200":
+              description: Decision recorded, state transitioned.
+            "409":
+              description: Proposal not pending; refused, current state returned.
+      /healthz:
+        get:
+          operationId: healthCheck
+          responses:
+            "200":
+              description: Service healthy.
