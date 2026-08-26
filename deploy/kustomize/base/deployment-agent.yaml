@@ -17,8 +17,10 @@ spec:
       serviceAccountName: golden-path-agent
       containers:
         - name: agent
+          # DEC-098/DEC-099 (G2): single-purpose image now -- no more
+          # positional-arg role dispatch (DEC-047's entrypoint.sh case
+          # statement is retired).
           image: golden-path-agent
-          args: ["agent"]
           ports:
             - name: http
               containerPort: 8080

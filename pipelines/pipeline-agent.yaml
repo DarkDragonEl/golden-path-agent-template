@@ -1,17 +1,18 @@
-# Phase C, Step C1b (DECISIONS.md DEC-025). Realizes the accepted plan's
-# C1 stage sequence as a real Tekton Pipeline. Fan-out where stages are
-# independent (unit-tests/eval-gate-offline/policy-validate all only need
-# the checkout; eval-gate-live/security-tests/operational-tests all only
-# need the ephemeral deployment) -- Tekton's default DAG semantics already
-# mean open-promotion-pr only runs if every upstream task succeeded, and
-# destroy-ephemeral (finally:) always runs regardless.
+# Phase G, G2 (DECISIONS.md DEC-098/DEC-099): the agent's own independent
+# build/test/promote pipeline, split out of the original single
+# golden-path-agent-ci Pipeline (Phase C, DEC-025). Keeps the full gate
+# set the monolithic pipeline always ran for the agent's own reasoning
+# quality and behavior (unit-tests, eval-gate-offline/live, policy-
+# validate, security-tests, operational-tests) -- none of those gates
+# were ever mcp/approval-specific, so none move.
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: golden-path-agent-ci
+  name: golden-path-agent-ci-agent
   namespace: golden-path-agent-ci
   labels:
     app.kubernetes.io/part-of: golden-path-agent
+    app.kubernetes.io/component: agent
 spec:
   params:
     - name: repo-url
@@ -51,14 +52,6 @@ spec:
       workspaces: [{ name: source, workspace: source }]
 
     - name: container-build
-      # DEC-030: references the OpenShift Pipelines operator's own
-      # pre-built buildah Task (openshift-pipelines namespace) via the
-      # cluster resolver, in place of the custom Task this Pipeline
-      # originally defined -- see pipelines/bootstrap/rbac.yaml's
-      # pipelines-scc RoleBinding for why, and DEC-030 for the full
-      # investigation. Not an external Tekton Hub bundle fetch: `cluster`
-      # resolves a Task object already installed on this cluster by the
-      # operator, no network fetch, no version-pin-chasing.
       taskRef:
         resolver: cluster
         params:
@@ -71,18 +64,12 @@ spec:
         - name: IMAGE
           value: "$(params.image-repo):pr-$(tasks.fetch-source.results.commit-sha)"
         - name: DOCKERFILE
-          value: ./Containerfile
+          value: ./Containerfile.agent
 
     - name: digest-capture
       taskRef: { name: digest-capture }
       runAfter: [container-build]
       params:
-        # DEC-031: no namespace prefix -- digest-capture's own TaskRun
-        # already executes in golden-path-agent-ci (where the ImageStream
-        # lives); `oc get imagestreamtag "ns/name:tag"` was live-confirmed
-        # NOT equivalent to `-n ns imagestreamtag name:tag` -- it triggers
-        # "there is no need to specify a resource type as a separate
-        # argument..." instead of resolving cross-namespace.
         - name: imagestream-tag
           value: "golden-path-agent:pr-$(tasks.fetch-source.results.commit-sha)"
 
@@ -99,8 +86,11 @@ spec:
       runAfter: [digest-capture]
       workspaces: [{ name: source, workspace: source }]
       params:
-        - name: image-ref
+        - name: agent-image-ref
           value: "$(params.image-repo)@$(tasks.digest-capture.results.digest)"
+        # mcp-image-ref / approval-image-ref left at their "" default --
+        # ephemeral-test renders with the currently-committed (last
+        # independently promoted) mcp/approval digests, per DEC-099.
 
     - name: eval-gate-live
       taskRef: { name: eval-gate-live }
@@ -129,6 +119,10 @@ spec:
           value: "$(params.image-repo)@$(tasks.digest-capture.results.digest)"
         - name: commit-sha
           value: "$(tasks.fetch-source.results.commit-sha)"
+        - name: image-name
+          value: golden-path-agent
+        - name: component
+          value: agent
 
   finally:
     - name: destroy-ephemeral

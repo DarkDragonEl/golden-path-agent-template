@@ -299,7 +299,11 @@ log "=== step 7/9: pipeline + task definitions ==="
 # project's docs or scripts -- on the SNO this was evidently done ad hoc
 # during Phase C's own live session and never captured. Without this, a
 # PipelineRun fails immediately with CouldntGetPipeline.
-oc apply -f pipelines/pipeline.yaml -n golden-path-agent-ci
+# DEC-098/DEC-099 (G2): the single golden-path-agent-ci Pipeline is
+# retired -- apply all three independent component Pipelines instead.
+oc apply -f pipelines/pipeline-agent.yaml -n golden-path-agent-ci
+oc apply -f pipelines/pipeline-mcp.yaml -n golden-path-agent-ci
+oc apply -f pipelines/pipeline-approval.yaml -n golden-path-agent-ci
 oc apply -f pipelines/tasks/ -n golden-path-agent-ci
 
 log "=== step 8/9: argocd app-of-apps root ==="

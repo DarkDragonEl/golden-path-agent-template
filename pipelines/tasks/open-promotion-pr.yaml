@@ -24,6 +24,22 @@ spec:
       description: Full pushed image reference including digest.
     - name: commit-sha
       type: string
+    # DEC-098/DEC-099 (G2, three-image split): three independent
+    # PipelineRuns can promote off the same commit-sha (each pipeline
+    # fires on the same push). `image-name` scopes the digest edit to
+    # exactly one of the three `images:` entries in
+    # deploy/kustomize/base/kustomization.yaml -- a blind, unscoped sed
+    # (this Task's original single-image behavior) would match and
+    # corrupt all three digest lines at once now that there's more than
+    # one. `component` disambiguates the promotion branch name so three
+    # concurrent promotions off one commit never collide on
+    # `promote/<sha>`.
+    - name: image-name
+      type: string
+      description: "The kustomize images[].name key to update: golden-path-agent | golden-path-agent-mcp | golden-path-agent-approval"
+    - name: component
+      type: string
+      description: "agent | mcp | approval -- used only to keep promotion branch names collision-free across the three independent pipelines."
   workspaces:
     - name: source
   steps:
@@ -39,8 +55,17 @@ spec:
       script: |
         #!/bin/sh
         set -eu
-        BRANCH="promote/$(params.commit-sha)"
-        sed -i "s#digest: sha256:.*#digest: $(echo "$(params.image-ref)" | sed 's/.*@//')#" \
+        BRANCH="promote/$(params.component)/$(params.commit-sha)"
+        NEW_DIGEST="digest: $(echo "$(params.image-ref)" | sed 's/.*@//')"
+        # Range-scoped sed: only the digest line inside THIS image's own
+        # `- name: $(params.image-name)` block is touched -- the other
+        # two images' digest lines fall outside the /- name: .../,/digest:/
+        # address range and are left untouched. Confirmed against the
+        # real file shape: each images[] entry is exactly
+        # `- name: ...` / `newName: ...` / `digest: ...`, three lines,
+        # so the range closes on the very next `digest:` line, which is
+        # this same entry's own.
+        sed -i "/- name: $(params.image-name)$/,/digest: sha256:/{s#digest: sha256:.*#${NEW_DIGEST}#}" \
           deploy/kustomize/base/kustomization.yaml
         git config user.name "golden-path-agent-ci"
         git config user.email "golden-path-agent-ci@users.noreply.github.com"
@@ -76,10 +101,10 @@ spec:
         BODY=$(python3 -c "
         import json
         print(json.dumps({
-            'title': 'Promote ' + '$(params.commit-sha)'[:12],
+            'title': 'Promote $(params.component) ' + '$(params.commit-sha)'[:12],
             'head': '$BRANCH',
             'base': 'main',
-            'body': 'Automated digest promotion PR. Image: $(params.image-ref)\n\nOnly deploy/kustomize/base/kustomization.yaml\'s images.digest field changes. Merging this is the promotion event (SysR-P-F-06) -- demo-prod syncs from it via ArgoCD.',
+            'body': 'Automated digest promotion PR for the $(params.component) component ($(params.image-name)). Image: $(params.image-ref)\n\nOnly the $(params.image-name) entry in deploy/kustomize/base/kustomization.yaml\'s images: list changes -- the other two components\' digests are untouched. Merging this is the promotion event (SysR-P-F-06) -- demo-prod syncs from it via ArgoCD.',
         }))
         ")
         curl -sf -X POST \
