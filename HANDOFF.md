@@ -2,7 +2,7 @@
 
 **Rewritten again, this time closing out Phase F in full** (F0 through
 F5, on top of the OTel fix + F0–F3 the prior rewrite already covered).
-`DECISIONS.md` (currently through `DEC-103`; `DEC-096` belongs to a
+`DECISIONS.md` (currently through `DEC-109`; `DEC-096` belongs to a
 concurrent parallel-workspace thread, `feature/phase-e-live-chat-
 verification`, not this one) is the authoritative, complete,
 chronological record of every decision this project has made — this
@@ -182,6 +182,39 @@ Template wired to F2/F3's own `skeleton/`.
   identity, and executed (`REQ-30100`), nothing simulated or isolated.
   Stage 1 is now fully done; Stage 2 (G3/G4/G5) is already running in
   parallel per pre-authorization.
+- **`DEC-104`/`DEC-105`/`DEC-108`/`DEC-109` (G3+G4/Stage-2, Tools
+  Template + slimmed Agent Template, complete).** A new Tools Template
+  (`skeleton-tools/`) produces a standalone MCP server; the existing
+  Agent Template (`skeleton/`) is re-cut to remove `mcp_server`'s server
+  implementation and `approval_service` entirely, consuming both over
+  the network only (six real bugs found and fixed live; both templates
+  render, test, build, and run as real containers). This surfaced a real
+  architectural gap — domain eval's fault-injection monkey-patched
+  `mcp_server.itsm_store` in-process, incompatible with a genuinely
+  separate MCP server — escalated to the owner per `CLAUDE.md`'s "STOP
+  and ask" rule rather than decided unilaterally. Owner's ruling
+  (`DEC-105`): decouple domain eval into an in-process, eval-only
+  fixture (never adding a fault-injection surface to the real,
+  templated MCP server, since that would ship in every future scaffolded
+  project guarded only by an env flag — incoherent for a
+  structurally-gated-writes platform); network-fault fidelity becomes the
+  integration suite's job instead. Implemented and verified live
+  (`DEC-108`): 95/95 rendered tests, `eval-domain` 60/62 matching G2's
+  pre-split baseline exactly. The required network-fault complement
+  (`kill-mcp-connectivity-check`) verified via a real agent `PipelineRun`
+  (`DEC-109`) — a genuine DNS-resolution failure, graceful escalation in
+  3.7s, correct `fallback_reason` attribution.
+- **`DEC-102`/`DEC-106`/`DEC-107` (G5/Stage-2, catalog model, complete).**
+  G5's three locally-designed catalog files registered live in RHDH
+  (three new `catalog.locations` entries) and confirmed fully resolved
+  against the live catalog database — all six entities present, 18
+  relation rows, zero dangling references. Deliberately did not register
+  `skeleton/catalog-info.yaml`/`skeleton-tools/catalog-info.yaml`
+  (template output, unresolved placeholders) — that's G6's job once a
+  real instance is scaffolded.
+
+**Stage 2 (G3/G4/G5) is now fully complete.** Per `DEC-099`'s stage
+table, G6 (publish + automatic onboarding) is next.
 
 **Open items, deferred (owner-reviewed, low priority, no dedicated work
 until named):**
@@ -498,7 +531,7 @@ changed something.)
 ## Pointers
 
 - `DECISIONS.md` — the complete, authoritative decision history,
-  `DEC-001` through `DEC-103`. Always read the tail before starting new
+  `DEC-001` through `DEC-109`. Always read the tail before starting new
   work in a fresh session.
 - `PINS.md` — every pinned component version, with the live-verification
   date and source. Has a "Phase E — Shared showcase cluster" section and
