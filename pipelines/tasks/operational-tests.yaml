@@ -122,3 +122,96 @@ spec:
           exit 1
         }
         echo "OK: call succeeded with primary deliberately broken -- fallback route absorbed the failure."
+
+    - name: kill-mcp-connectivity-check
+      runAfter: [kill-primary-fallback-check]
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        NS=golden-path-agent-ephemeral-test
+        NAME=golden-path-agent-mcp-unreachable-demo
+
+        # Phase G, Stage 2 (DEC-098/DEC-099/DEC-104/DEC-105): the
+        # complement DEC-105 requires -- domain eval's own fault
+        # injection moved to an in-process, eval-only fixture (never
+        # touching the real, deployed MCP server), so the network-level
+        # fidelity that gives up must be proven honestly here instead,
+        # against the real split architecture. This is a genuine network
+        # fault (an unreachable DNS name, real connection failure), not a
+        # simulated one -- MCP_TOOL_ENDPOINT is the one env var overridden
+        # (mirrors kill-primary-fallback-check's own MODEL_API_BASE_URL
+        # override above, same throwaway-clone pattern, same
+        # merge-not-replace label fix already proven correct there and in
+        # DEC-101) rather than a live NetworkPolicy edit or killing the
+        # standing mcp pod -- both would affect the standing deployment
+        # other stages in this same PipelineRun still depend on; this
+        # clone is fully isolated and self-cleans.
+        oc get deployment golden-path-agent -n "$NS" -o json \
+          | python3 -c "
+        import json, sys
+        d = json.load(sys.stdin)
+        labels = dict(d['metadata'].get('labels') or {})
+        labels['app.kubernetes.io/component'] = 'agent-mcp-unreachable-demo'
+        d['metadata'] = {'name': '$NAME', 'namespace': '$NS', 'labels': labels}
+        spec = d['spec']
+        spec['selector'] = {'matchLabels': {'app.kubernetes.io/instance': '$NAME'}}
+        tmpl_labels = dict(spec['template']['metadata'].get('labels') or {})
+        tmpl_labels['app.kubernetes.io/component'] = 'agent-mcp-unreachable-demo'
+        tmpl_labels['app.kubernetes.io/instance'] = '$NAME'
+        spec['template']['metadata']['labels'] = tmpl_labels
+        for c in spec['template']['spec']['containers']:
+            c['env'] = (c.get('env') or []) + [{'name': 'MCP_TOOL_ENDPOINT', 'value': 'http://mcp-endpoint.invalid:8081'}]
+        json.dump(d, sys.stdout)
+        " | oc apply -n "$NS" -f -
+
+        oc rollout status deployment/"$NAME" -n "$NS" --timeout=180s
+        POD=$(oc get pod -n "$NS" -l app.kubernetes.io/instance="$NAME" -o jsonpath='{.items[0].metadata.name}')
+
+        oc exec -i -n "$NS" "$POD" -- python3 - <<'PYEOF' > /tmp/mcp_fault_resp.json
+        import json
+        import sys
+        import time
+        import urllib.request
+
+        data = json.dumps(
+            {
+                "query": "What is the status of incident INC-10240?",
+                "write": False,
+                "user_id": "ci-mcp-fault-test",
+            }
+        ).encode()
+        req = urllib.request.Request(
+            "http://localhost:8080/invoke",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        start = time.monotonic()
+        with urllib.request.urlopen(req, timeout=60) as r:
+            resp = json.load(r)
+        resp["_elapsed_seconds"] = time.monotonic() - start
+        json.dump(resp, sys.stdout)
+        PYEOF
+        cat /tmp/mcp_fault_resp.json
+
+        oc delete deployment "$NAME" -n "$NS" --wait=false
+
+        # Bounded, not hung: TOOL_TIMEOUT_SECONDS=10 (base configmap.yaml)
+        # plus generous margin for the request/response round trip itself
+        # -- a real regression (e.g. an unbounded network call somewhere
+        # in the chain) would show up here as a request that takes far
+        # longer than the tool's own configured timeout, not as an
+        # outright hang this script would otherwise need its own separate
+        # watchdog to catch.
+        python3 -c "
+        import json, sys
+        resp = json.load(open('/tmp/mcp_fault_resp.json'))
+        elapsed = resp.get('_elapsed_seconds', 0)
+        final_output = resp.get('final_output') or ''
+        fallback_reason = resp.get('fallback_reason') or ''
+        assert elapsed < 30, f'FAIL: took {elapsed:.1f}s -- expected a bounded tool-timeout failure well under 30s, not a hang'
+        assert 'could not be completed safely' in final_output.lower(), f'FAIL: expected a graceful escalation message, got: {final_output!r}'
+        assert fallback_reason.startswith('tool_error:'), f'FAIL: expected fallback_reason to attribute this to a tool error, got: {fallback_reason!r}'
+        print(f'OK: MCP unreachable -> graceful tool_error escalation in {elapsed:.1f}s, no hang, no crash.')
+        "

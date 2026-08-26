@@ -15,12 +15,12 @@ import time
 import uuid
 from unittest.mock import patch
 
-import mcp_server.itsm_store as itsm_store_module
 from agent import approval_client, config as agent_config
 from agent.graph import build_graph
 from agent.retrieval_client import RetrievedChunk
 from agent.retrieval_client import retrieve as _real_retrieve
 from .fake_approval_client import FakeApprovalService
+from .mock_itsm_fixture import eval_call_tool, fixture as itsm_fixture
 
 
 class DomainExecutionTrace:
@@ -55,17 +55,20 @@ def _initial_state(session_id: str, case) -> dict:
 
 @contextlib.contextmanager
 def _apply_fault(fault: str | None, fault_params: dict | None):
-    """operational category fault injection. Store/model-client faults are
-    applied by temporarily patching the real singletons' bound methods --
-    restored automatically on exit, regardless of the tests' own
-    _simulate_error hook, which stays unreachable from any real agent call
-    (test_itsm_mcp_server.py already covers that)."""
+    """operational category fault injection. Phase G, Stage 2
+    (DEC-098/DEC-099/DEC-104/DEC-105): store/model-client faults are
+    applied by temporarily patching the eval-only fixture's bound
+    methods (mock_itsm_fixture.py) -- restored automatically on exit.
+    This never touches the real Tools Template's own server/store at
+    all (the Agent Template cannot even import that package); the real
+    server's own _simulate_error hook and its refusal to expose it as a
+    tool parameter are unrelated to this and unchanged (DEC-105)."""
     fault_params = fault_params or {}
 
     if fault in ("tool_timeout", "tool_error"):
         simulate_value = "timeout" if fault == "tool_timeout" else fault_params.get("error_type", "error")
-        original_search = itsm_store_module.store.search
-        original_create = itsm_store_module.store.create_request
+        original_search = itsm_fixture.search
+        original_create = itsm_fixture.create_request
 
         def patched_search(*args, **kwargs):
             kwargs.setdefault("_simulate_error", simulate_value)
@@ -75,8 +78,8 @@ def _apply_fault(fault: str | None, fault_params: dict | None):
             kwargs.setdefault("_simulate_error", simulate_value)
             return original_create(*args, **kwargs)
 
-        with patch.object(itsm_store_module.store, "search", new=patched_search), patch.object(
-            itsm_store_module.store, "create_request", new=patched_create
+        with patch.object(itsm_fixture, "search", new=patched_search), patch.object(
+            itsm_fixture, "create_request", new=patched_create
         ):
             yield
 
@@ -115,7 +118,7 @@ def execute_domain_case(case) -> DomainExecutionTrace:
     # manager constraint (found in Phase B1) complicating a harness that
     # runs many cases in one process.
     trace.request_ids_before = {
-        r["record_id"] for r in itsm_store_module.store.list_records(record_type="request")
+        r["record_id"] for r in itsm_fixture.list_records(record_type="request")
     }
 
     fault = case.input.get("fault")
@@ -131,9 +134,17 @@ def execute_domain_case(case) -> DomainExecutionTrace:
     # active for every case, not fault-conditional like _apply_fault
     # above, since any write-classified case needs it, not just specific
     # fault scenarios.
+    # Phase G, Stage 2 (DEC-098/DEC-099/DEC-105): the split Agent Template
+    # never bundles mcp_server/server.py, so the real call_tool's own
+    # "mock" in-process branch (`from . import server`) would ImportError
+    # -- every domain eval run patches both call sites to this eval-only
+    # stub instead, for the same reason submit_proposal/get_proposal are
+    # already patched to a fake below (no live services in this harness).
     fake_approval = FakeApprovalService()
     with patch("agent.approval_client.submit_proposal", side_effect=fake_approval.submit_proposal), patch(
         "agent.approval_client.get_proposal", side_effect=fake_approval.get_proposal
+    ), patch("agent.nodes.tool_invoke.call_tool", side_effect=eval_call_tool), patch(
+        "agent.nodes.human_approval.call_tool", side_effect=eval_call_tool
     ), _apply_fault(fault, fault_params):
         if injection_source == "document":
             # Simulate a compromised/malicious retrieved document: run
