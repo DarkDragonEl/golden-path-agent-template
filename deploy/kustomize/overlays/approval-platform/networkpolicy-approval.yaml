@@ -1,0 +1,43 @@
+# Copied from deploy/kustomize/base/networkpolicy-approval.yaml (Phase G,
+# Stage 1 held tail, DEC-098/DEC-099) and adjusted for cross-namespace
+# access -- base's own version only ever allowed same-namespace traffic
+# (a bare `podSelector: {}` with no sibling `namespaceSelector` matches
+# same-namespace pods only, per NetworkPolicy's own spec), which was
+# correct when the agent and approval service shared one namespace but
+# is now wrong: the agent calling in stays in golden-path-agent-demo-prod
+# while approval lives here. Scoped to this project's own
+# `app.kubernetes.io/part-of: golden-path-agent` namespace label (already
+# applied to every namespace this project owns, pipelines/bootstrap/
+# namespaces.yaml) rather than naming golden-path-agent-demo-prod
+# specifically -- single-tenant demo scope for now; G7's future
+# multi-tenant fan-out will need to revisit this same label-based
+# approach once more than one agent project's namespace exists and needs
+# distinguishing (out of scope here, named so it isn't silent).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: golden-path-agent-approval-restrict
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: golden-path-agent
+      app.kubernetes.io/component: approval
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: golden-path-agent
+      ports:
+        - port: 8082
+          protocol: TCP
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              policy-group.network.openshift.io/ingress: "" # standard OpenShift
+              # SDN/OVN convention for "traffic from the router" -- same
+              # label base's own copy already used, unchanged here.
+      ports:
+        - port: 8082
+          protocol: TCP

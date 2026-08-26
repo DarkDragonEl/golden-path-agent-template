@@ -37,6 +37,12 @@ spec:
       # for the approval service's own PVC (a new destination/whitelist
       # entry when a genuinely new resource kind or namespace is needed,
       # nothing removed or narrowed from what already exists).
+    - namespace: golden-path-agent-approval
+      server: https://kubernetes.default.svc
+      # Phase G, Stage 1 held tail (DEC-098/DEC-099, unblocked by
+      # DEC-101): the approval service's own Platform Foundation home,
+      # extracted out of golden-path-agent-demo-prod -- same additive
+      # pattern as every other destination entry above.
     - namespace: openshift-gitops
       server: https://kubernetes.default.svc
       # Step C4 (DEC-021/DEC-041): required for the root app-of-apps
