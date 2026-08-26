@@ -8175,3 +8175,61 @@ re-verifying `tests/test_dec009_route_assertion.py`/
 against the split Agent Template, and the integration-suite network-fault
 complement) is assigned back to the G3+G4 stream, which has full context
 on the exact coupling `DEC-104` found.
+
+## DEC-106 — G5's platform catalog model registered live in RHDH: three
+new catalog.locations entries, a real endpoint added to the approval
+API's OpenAPI definition; live graph-resolution verification deferred
+to post-merge (same ArgoCD selfHeal class as DEC-103's own findings)
+
+**Context**: Stage 2's three streams (G3+G4, G5) landed
+(`DEC-102`/`DEC-104`/`DEC-105`) with their catalog models designed
+locally but not yet registered live, to avoid three streams racing one
+shared RHDH config file. This session already owns that file from its
+own G1 Gitea work — did the coordinated registration.
+
+**Registered**: `platform/catalog/{system,approval-service,model-
+routes}.yaml` added as three new `catalog.locations` entries in
+`deploy/kustomize/overlays/rhdh/catalog-locations-config.yaml`, same
+`raw.githubusercontent.com` host already allow-listed. Verified live
+(`curl -sI`) that all three files are genuinely on the public repo
+before registering them, not assumed from local worktree state.
+Deliberately did NOT register `skeleton/catalog-info.yaml`/`skeleton-
+tools/catalog-info.yaml` — confirmed these are template output
+(unresolved placeholders throughout), correctly deferred to G6's future
+publish flow.
+
+**Real gap found and fixed**: the approval-service `API` entity's own
+OpenAPI `definition` had no `servers:` block at all — not a placeholder
+needing correction, genuinely absent. Added the real, live Service DNS
+this session's own G1 held-tail work stood up
+(`golden-path-agent-approval.golden-path-agent-approval.svc.cluster.local:8082`),
+explicitly marked as catalog documentation only (no runtime code reads
+it — `APPROVAL_SERVICE_ENDPOINT`, injected config, remains the actual
+contract-honoring path, per `SysR-P-IF-05`/`SRS-AGT-IF-01`).
+
+**Blocked on live verification, same class as `DEC-103`'s own two prior
+findings, not re-investigated a third time**: a live apply-and-restart
+test confirmed the ConfigMap change gets reverted by
+`golden-path-agent-rhdh`'s own `Application` `selfHeal: true` before the
+restarted pod even finishes initializing — the identical structural
+fact `DEC-103` already established twice, now confirmed a third time on
+a third Application. Not fought with a sync-pause attempt (already shown
+unreliable). Went straight to commit-for-review.
+
+**Regression checks both clean**: `check_config_contract.py` unchanged
+(3 demo-prod switches still confirmed); demo-prod/approval-platform
+namespaces untouched (this task is RHDH-catalog-only). `make trace`
+failed in the worktree for an unrelated, pre-existing reason (the tool's
+own one-directory-up lookup for the top-level SyRS/StRS docs doesn't
+resolve from a nested worktree path) — confirmed by the coordinating
+session to pass cleanly (0 violations) from the actual repo root; not a
+regression from this change.
+
+**What this entry does NOT verify**: live catalog-graph resolution (zero
+dangling references across the new `System`/`Component`+`API`/two
+`Resource`s+shared `API`) — deferred to post-merge, per the same pattern
+`DEC-103` already established for every GitOps-managed change this
+branch has made.
+
+**Status**: Registration merged to `main`. Live graph verification
+pending post-merge sync.
