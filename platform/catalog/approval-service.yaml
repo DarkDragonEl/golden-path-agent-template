@@ -60,6 +60,18 @@ spec:
         shapes verified against approval_service/schemas.py and
         srs/SRS-APR.md. idempotency_key (SRS-APR-F-07) is optional, where
         adopted.
+    servers:
+      - url: http://golden-path-agent-approval.golden-path-agent-approval.svc.cluster.local:8082
+        description: >-
+          The Platform Foundation's actual live Service DNS (Phase G,
+          Stage 1 held tail, DEC-098/DEC-099/DEC-103) -- in-cluster only,
+          not reachable from outside the cluster network. Catalog
+          documentation only; no agent/tool code reads this value (the
+          real config is APPROVAL_SERVICE_ENDPOINT, injected per SysR-P-
+          IF-05/SRS-AGT-IF-01's contracts-not-couplings rule) -- if this
+          service is ever relocated again, this line needs a matching
+          update or it becomes a stale catalog annotation, not a broken
+          dependency.
     paths:
       /proposals:
         post:

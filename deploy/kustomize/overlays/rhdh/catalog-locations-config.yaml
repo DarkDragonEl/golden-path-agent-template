@@ -75,6 +75,19 @@ metadata:
 # unauthenticated reads are needed for template *loading* -- same
 # posture as the GitHub entries above. Add one (referencing a Secret,
 # never a literal value here) only if a live read genuinely fails auth.
+#
+# Phase G, Stage 2 (DEC-098/DEC-099, G5 registration). Three more
+# location entries: G5's own locally-designed platform catalog model
+# (`platform/catalog/{system,approval-service,model-routes}.yaml`),
+# committed but never registered live until now -- same
+# `raw.githubusercontent.com` host already allow-listed above, no new
+# `backend.reading.allow`/`integrations` entry needed. Deliberately NOT
+# registered here: `skeleton/catalog-info.yaml` and `skeleton-tools/
+# catalog-info.yaml` -- those are template *output* (rendered into a
+# scaffolded project's own repo, `${{ values.x }}` placeholders and all),
+# not something to register from this repo's own source tree; they prove
+# out for real only once G6's publish flow actually scaffolds and pushes
+# a real instance.
 data:
   app-config.catalog.yaml: |
     backend:
@@ -95,3 +108,9 @@ data:
           target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/template.yaml
         - type: url
           target: https://golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io/golden-path-agent-admin/golden-path-agent-template/src/branch/main/template.yaml
+        - type: url
+          target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/platform/catalog/system.yaml
+        - type: url
+          target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/platform/catalog/approval-service.yaml
+        - type: url
+          target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/platform/catalog/model-routes.yaml
