@@ -8735,3 +8735,44 @@ this entry landed — never a page a live Wave-β stream is still drafting.
 **Status**: Announced. Wave β streams launch immediately after this
 entry commits. Wave γ and H4b (comment slimming) remain gated as
 originally planned.
+
+## DEC-115 — Phase H3a merged: module docstrings for 13 agent/eval/
+mcp_server files
+
+**Ambiguity:** `DEC-114`/H0's audit (`reports/docs-audit.md`) confirmed
+13 Python files across `agent/`, `eval/`, and `mcp_server/` have no
+module-level docstring, but left open exactly what content each one
+should carry and which existing `DEC-NNN` numbers its behavior actually
+traces to.
+
+**Finding:** Each file already carries function-level docstrings and/or
+inline `DEC-NNN`/`SRS-*` comments describing its own contract in detail
+(e.g. `agent/nodes/decide.py`'s DEC-013-candidate reordering rationale,
+`agent/nodes/tool_invoke.py`'s DEC-008/DEC-049 approval-submission path,
+`eval/loader.py`'s DEC-005 split from `eval/domain_loader.py`). A module
+docstring's job is to summarize that existing narrative at the top of
+the file in the format already established by
+`agent/nodes/human_approval.py` and `agent/config.py`, not to invent new
+decisions.
+
+**Decision:** Added exactly one module-level docstring to each of the
+13 files named in `DEC-114`, covering purpose, the node/route/schema
+contract, any `config`-sourced env-var inputs, and a brief DEC pointer
+where one applies. No comment, logic, or behavior changes; only these
+13 files touched. Full docstring text: `reports/feature-h3a-python-
+docstrings.md`.
+
+**Evidence:** `git diff --stat` showed 209 insertions / 0 deletions
+across exactly these 13 files; `make test`/`pytest -q` stayed at 253
+passed, 1 skipped, identical before and after; `make lint`/`py_compile`
+clean on all 13 files; anonymity sweep of the new text found no real
+org/employee/hostname references. Landed via PR #15 (branch `feature/
+h3a-python-docstrings-2` — the plain `feature/h3a-python-docstrings`
+name was already held by an unrelated, unmerged, pre-existing branch
+of the same name at the same base commit; the coordinating session
+confirmed that branch's own single commit is a distinct, earlier,
+never-finished attempt at this identical task and left it untouched
+rather than reusing or deleting it unilaterally).
+
+**Status:** Merged to `main` (`076c4eb`). Phase H Wave β continues with
+H1/H2 in progress.
