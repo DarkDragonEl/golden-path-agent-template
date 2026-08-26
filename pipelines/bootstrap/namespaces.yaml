@@ -103,9 +103,21 @@ metadata:
 # split already established for Pipelines/GitOps (cluster operator,
 # project-owned instances). Same manual, human-applied bootstrap
 # discipline as every other namespace in this file.
+#
+# Real gap found live: unlike golden-path-agent-keycloak/-otel (applied
+# via oc apply directly, not ArgoCD), this namespace's own Postgres/
+# Backstage CR ARE GitOps-managed (DEC-087's own GitOps-wiring decision)
+# -- without this label, the ArgoCD application-controller's own
+# ClusterRole grants only get/list/watch cluster-wide (the exact gap
+# golden-path-agent-demo-prod's own label comment already names), so its
+# first sync attempt failed outright ("services is forbidden... cannot
+# create resource"). Added after hitting this live, not preemptively --
+# golden-path-agent-ephemeral-test deliberately still does NOT get this
+# label, same reasoning as that namespace's own comment below.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: golden-path-agent-rhdh
   labels:
     app.kubernetes.io/part-of: golden-path-agent
+    argocd.argoproj.io/managed-by: openshift-gitops
