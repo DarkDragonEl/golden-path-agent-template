@@ -8233,3 +8233,46 @@ branch has made.
 
 **Status**: Registration merged to `main`. Live graph verification
 pending post-merge sync.
+
+## DEC-107 — Amendment to DEC-106: live catalog-graph resolution
+confirmed, zero dangling references, all six entities and their
+relations correctly linked
+
+Once `DEC-106`'s merge (`f3afad6`) landed, the coordinating session
+force-refreshed the `golden-path-agent-rhdh` ArgoCD `Application`
+(`Synced` to `45f2958` within seconds of the annotation, no `selfHeal`
+fight this time — a plain refresh, not a live-patch-against-drift), then
+restarted `deployment/backstage-golden-path-agent` (ConfigMaps aren't
+hot-reloaded, the standing lesson this branch's own history keeps
+confirming) and waited for the new pod to reach `2/2 Running`.
+
+**Live catalog API queries needed authentication now (a change from
+earlier in this phase — `GET /api/catalog/entities/by-name/...` returned
+`401 AuthenticationError`), so verification went straight to the
+catalog's own Postgres database** (`backstage_plugin_catalog`,
+`final_entities`/`relations` tables, queried via `oc exec` into
+`golden-path-agent-rhdh-db`) rather than spending further effort
+scripting an OIDC token exchange for a one-time read-only check.
+
+**Confirmed, directly from the database, not inferred from logs**: all
+six expected entities present in `final_entities`
+(`System golden-path-agent-platform-foundation`; `Component
+golden-path-agent-approval-service`; `API golden-path-agent-approval-
+api`; `API golden-path-agent-model-route-api`; `Resource golden-path-
+agent-model-route-primary`; `Resource golden-path-agent-model-route-
+fallback`). The `relations` table shows the full expected graph, 18 rows,
+zero dangling targets: the `System` `hasPart`-links all four owned
+entities; the approval `Component` `providesApi`s its `API`, which
+`apiProvidedBy`s back to it; every entity resolves `ownedBy`
+`group:default/golden-path-agent-team` and `partOf` the `System`. One
+minor, non-blocking schema nuance noted for the record: the two model-
+route `Resource` entities' own `spec.providesApis` did not produce a
+`providesApi`/`apiProvidedBy` relation row the way the `Component`'s did
+— consistent with Backstage's catalog processor treating `providesApis`
+as a `Component`-kind field, not a general one; not a registration
+defect, since `hasPart`/`partOf`/`ownedBy` are all present and correct
+for these entities regardless.
+
+**Status**: `DEC-106`'s one open item is closed. G5's platform catalog
+model is live, fully linked, and verified against the actual database
+state, not assumed from a successful `apply`.
