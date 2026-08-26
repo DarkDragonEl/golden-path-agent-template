@@ -9120,3 +9120,56 @@ command-level transcripts: `reports/phase-e-otel-collector-fix.md`.
 sidecar pin has no relationship to this project's own CI/promotion
 lifecycle, so the specific failure class that caused this outage cannot
 recur.
+
+## DEC-120 — Phase H3b, part i: mkdocs.yml pinned to RHDH's real bundled
+generator, lychee link-check added non-blocking, both builds verified live
+
+**Ambiguity:** the mission brief called for `mkdocstrings[python]` in the
+same `mkdocs.yml` RHDH's live TechDocs generator uses, without having
+checked what that generator's own bundled Python environment actually
+has installed.
+
+**Finding:** `oc exec` into the running `backstage-golden-path-agent` pod
+found a dedicated `/opt/techdocs-venv` with `mkdocs==1.6.0`,
+`mkdocs-techdocs-core==1.6.1`, and `mkdocs-material==9.7.1` — and nothing
+else. No `mkdocstrings`. MkDocs raises on an unresolvable plugin entry
+point rather than skipping it, so putting `mkdocstrings` in the one
+`mkdocs.yml` RHDH reads would make the live TechDocs build fail outright,
+not degrade gracefully.
+
+**Decision:** `mkdocs.yml` (repo root) is the RHDH-compatible base —
+`techdocs-core` only, versions pinned to exactly what's live, not PyPI's
+latest — with `nav` mirroring `docs/README.md`'s Diátaxis hub. A second
+file, `mkdocs.local.yml` (`INHERIT: mkdocs.yml`, explicit full `nav`
+rather than relying on unverified INHERIT list-merge semantics), adds
+`mkdocstrings` for a fuller local-only preview
+(`docs/reference/api.md`, generated from every module's own docstring
+across `agent/`, `mcp_server/`, `approval_service/`, `eval/`) —
+documented in the new `docs/techdocs-preview.md`, linked from
+`docs/README.md`. Added `ci/pr-checks.yaml`'s `link-check` stage
+(`lychee`, pinned `lychee-v0.24.2`), explicitly `blocking: false` per the
+mission's own scope (the one sanctioned CI edit); also removed that
+file's own dangling `../../Agentic_AI_Platform_MVP_Agnostic.md` reference
+while already touching it (H1 had flagged but not fixed it, being out of
+H1's own file ownership).
+
+**Evidence:** both builds run for real, in an isolated venv, not
+assumed: `mkdocs build --strict` (pinned `requirements-docs.txt`) passed
+clean after fixing 4 real warnings it surfaced on its own — `docs/
+README.md` and `docs/access-and-credentials.md` had relative links
+pointing outside `docs_dir` (`../PINS.md`, `../DECISIONS.md`, and the two
+`tools/*.sh` credential scripts), which 404 on a built static site even
+though they resolve fine on GitHub's own file browser; converted all
+four to absolute `github.com/.../blob/main/...` URLs. `mkdocs build -f
+mkdocs.local.yml --strict` also passed clean, with the app's own runtime
+dependencies installed alongside `mkdocstrings`/`mkdocstrings-python`
+(pinned `requirements-docs-local.txt`) so every module actually imports;
+spot-checked the rendered output directly (not just a clean exit code)
+for real docstring content. `PINS.md`'s new Phase H section records all
+five pins with their live-verification method.
+
+**Status:** Part i complete and pushed. `catalog-info.yaml`'s
+`techdocs-ref` annotation and the live RHDH app-config wiring are a
+separate, smaller part ii commit — re-checking this log's tail for a G6
+conflict on `catalog-info.yaml`/`template.yaml` first, per this entry's
+own `DEC-114` gate.
