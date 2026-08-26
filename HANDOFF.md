@@ -155,6 +155,15 @@ Template wired to F2/F3's own `skeleton/`.
   `DEC-099`'s merge-order rule, G1's held tail is now unblocked —
   Stage 2 begins next.
 
+**Open items, deferred (owner-reviewed, low priority, no dedicated work
+until named):**
+- Branch protection on `main` — deferred to G7's scope, where "platform
+  ready for a second team" makes it part of that phase's own deliverable.
+- `PINS.md`/RRT row 24 describe Gitea's OLM install path; it actually
+  landed via non-OLM `config/default` kustomize (`DEC-100`) — correction
+  folded into the end-of-phase docs-reconciliation batch, not dedicated
+  work.
+
 **OTel collector fix + Phase F0–F3** (prior session, still current —
 detail below unchanged):
 
