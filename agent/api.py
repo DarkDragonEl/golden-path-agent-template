@@ -1,3 +1,29 @@
+"""FastAPI HTTP surface for the golden-path agent — the process boundary
+between an external caller and the LangGraph graph built by agent/graph.py.
+
+Routes and their contracts:
+- POST /invoke — body: InvokeRequest {query, write, user_id, session_id?};
+  starts (or continues) a graph run on a per-session thread and returns
+  {session_id, final_output, pending_approval, tool_calls, fallback_reason}
+  (see _public_view). If config.AUTO_APPROVE_IN_DEV is set and the run
+  paused for approval, _auto_approve clears it in-process before
+  responding — a dev-only bypass of the real approval service, never
+  enabled in staging/pilot-prod/demo-prod overlay configmaps.
+- POST /approvals/{session_id}/resume — body: ResumeRequest (deliberately
+  empty; see its own docstring). Never trusts caller-supplied decision
+  data — it only triggers agent/approval_client.py::resolve_and_resume to
+  re-fetch the approval service's own terminal-state (SRS-APR-IF-05)
+  before resuming the paused graph (DECISIONS.md DEC-008/DEC-045/DEC-049's
+  Layer 1/Layer 2 split).
+- GET /healthz — liveness probe.
+- GET /ui / GET /ui/config — serves the static approver UI page and the
+  one piece of real environment config it needs at load time
+  (OIDC_ISSUER_URL).
+
+Reads config.AUTO_APPROVE_IN_DEV and config.OIDC_ISSUER_URL via
+agent/config.py; no environment variables are read directly here.
+"""
+
 import uuid
 from pathlib import Path
 

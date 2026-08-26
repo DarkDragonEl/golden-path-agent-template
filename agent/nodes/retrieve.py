@@ -1,3 +1,14 @@
+"""Retrieval node — runs only on decide_node's "no tool needed" branch
+(DEC-013 candidate: decide-then-retrieve reordering), no longer the
+graph's unconditional entry point.
+
+Node contract: reads state["input_query"] and state.get("user_id"); returns
+{"retrieved_docs": [...], "retrieval_unavailable": bool}. Calls
+agent/retrieval_client.py::retrieve with config.RETRIEVAL_TOP_K as top_k;
+any exception is caught and flagged via retrieval_unavailable rather than
+raised, keeping the graph runnable if the corpus/manifest is unreadable.
+"""
+
 from .. import config
 from ..retrieval_client import retrieve
 

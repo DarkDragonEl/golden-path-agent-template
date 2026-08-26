@@ -1,3 +1,18 @@
+"""Shared state schema for the LangGraph graph assembled in agent/graph.py.
+
+AgentState is a TypedDict with total=False: every node function in
+agent/nodes/*.py receives the accumulated state dict and returns only the
+subset of keys it updates, which LangGraph merges into the run's
+checkpointed state rather than requiring each node to return the full
+state. ToolCallRecord and ModelCallRecord are the per-call telemetry
+shapes appended to state["tool_calls"] / state["model_calls"] (R4/DEC-020:
+SRS-AGT-IF-08's "every policy decision" / "token consumption" surfaced per
+call, not just as a final summary). See each field's own inline comment for
+the specific node that sets it and the DEC it traces to — notably
+DEC-008/DEC-009/DEC-049 governing approved_action/drafted_action/
+model_calls.
+"""
+
 from typing import Any, Literal, Optional, TypedDict
 
 

@@ -1,3 +1,23 @@
+"""Pydantic request/response schemas for the mock ITSM MCP tool contract
+(srs/SRS-MIT.md) that mcp_server/server.py's tool handlers validate
+against; agent/tool_schemas.py mirrors the input fields field-for-field for
+the model-facing tool schema, so the two stay in lockstep without importing
+one from the other.
+
+ItsmSearchRecordsInput/Output implement SRS-MIT-IF-02 (read-only,
+record_type constrained to itsm_store.RECORD_TYPES). ItsmCreateRequestInput/
+Output implement SRS-MIT-IF-03 (write, category constrained to
+itsm_store.REQUEST_CATEGORIES) — approval-gated by the agent's write-gating
+restructure (SRS-MIT-SEC-01), not by this schema or by mcp_server/server.py.
+PlaceholderLookupInput/Output are the not-yet-domain-specific placeholder
+tool's schema (TODO(domain): replace once the real domain tools are
+selected). PlaceholderWriteActionInput is the dedicated write-classified
+placeholder tool introduced at Phase C (agent/policy.py, DECISIONS.md
+DEC-023) so a write is signaled by which tool is called, never by an
+argument flag — placeholder_lookup's own legacy `write` field is unchanged
+and unused by this tool.
+"""
+
 from pydantic import BaseModel, Field
 
 from .itsm_store import RECORD_TYPES, REQUEST_CATEGORIES

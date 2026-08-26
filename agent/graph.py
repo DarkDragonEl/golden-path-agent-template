@@ -1,3 +1,13 @@
+"""Assembles the golden path's LangGraph state graph: wires the node
+functions from agent/nodes/*.py and the conditional-edge router functions
+from agent/routers.py into a single compiled graph, keyed on AgentState
+(agent/state.py).
+
+See build_graph's own docstring below for the node topology and the
+interrupt_before=["human_approval"] contract that makes human approval a
+real execution pause, not just a recorded intent.
+"""
+
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 

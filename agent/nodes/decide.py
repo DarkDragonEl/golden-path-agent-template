@@ -1,3 +1,23 @@
+"""The graph's sole tool-vs-no-tool decision node (see agent/graph.py's
+build_graph: decide -> tool_invoke | retrieve -> generate | fallback).
+
+Node contract: reads state["input_query"], state.get("user_id"), and
+state.get("reasoning_steps"); on success returns a partial-state update
+(messages, reasoning_steps, model_route, model_route_reason_code,
+model_calls, selected_tool). On total model failure it returns
+fallback_reason instead of selected_tool, which agent/routers.py's
+decide_after_decide routes to "fallback" (SysR-A-F-05/SysR-P-F-12).
+
+DEC-013 candidate (decide-then-retrieve reordering): this node sees only
+the user query and TOOL_SCHEMAS, deliberately no retrieved corpus context,
+so citation instructions can no longer compete with tool-calling
+instructions for the model's attention (DEC-012's diagnosed root cause). In
+config.AGENT_MODEL_MODE == "fake" mode it reproduces the pre-Phase-B3
+deterministic dispatch (state["write_requested"] selects between
+placeholder_lookup and placeholder_write_action, DEC-023) so
+eval/cases/EXAMPLE-*.yaml's frozen harness-mechanics fixtures keep passing.
+"""
+
 from pathlib import Path
 
 from .. import config
