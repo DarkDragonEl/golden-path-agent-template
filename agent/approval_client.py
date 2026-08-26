@@ -76,6 +76,22 @@ def get_proposal(proposal_id: str, timeout: float = 10.0) -> dict:
     return response.json()
 
 
+def decide_proposal(proposal_id: str, decision: str, timeout: float = 10.0) -> dict:
+    """SRS-APR-IF-02. Records a human decision on the standalone approval
+    service. Only agent/cli.py's own --decision convenience path calls
+    this directly, standing in for a real approver hitting the approval
+    service's own API/UI -- resolve_and_resume remains the only path that
+    turns a decision into graph/tool-execution state."""
+    response = httpx.post(
+        f"{config.APPROVAL_SERVICE_ENDPOINT}/proposals/{proposal_id}/decision",
+        json={"decision": decision},
+        headers=_auth_headers(),
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 def resolve_and_resume(graph, thread_config: dict):
     """Query this session's pending proposal (SRS-APR-IF-05); if still
     `pending`, return the graph's current state unchanged -- the graph is

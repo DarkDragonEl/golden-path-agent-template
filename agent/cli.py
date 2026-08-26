@@ -1,19 +1,30 @@
 """Single-shot local invocation for dev convenience.
 
 Runs the whole invoke -> (pause) -> approve/reject -> resume sequence in
-ONE process, so it needs no server. Unlike agent/api.py (where `_graph` is
-built once and reused across requests, so state genuinely persists between
-an /invoke and a later /approvals/.../resume call), this builds a fresh
-in-memory checkpointer every run — there is no cross-invocation resume
-mode here. For the real cross-request approval flow, run the actual
-server (scripts/dev.sh / make up) and call
-POST /approvals/{session_id}/resume against it.
+ONE process. This is convenient (no server to run), but it is NOT
+network-free: a `--write` query still submits a real proposal to the
+standalone approval service via approval_client.submit_proposal, exactly
+as agent/api.py's /invoke does, so APPROVAL_SERVICE_ENDPOINT must be
+reachable for any --write call regardless of this CLI.
+
+Unlike agent/api.py (where `_graph` is built once and reused across
+requests, so state genuinely persists between an /invoke and a later
+/approvals/.../resume call), this builds a fresh in-memory checkpointer
+every run — there is no cross-*process* resume here. But within this one
+process, --decision now genuinely round-trips through the approval
+service: it POSTs the decision to {approval_service}/proposals/{id}/decision
+(standing in for a real approver) and then calls
+approval_client.resolve_and_resume, the same terminal-state-query-then-
+inject logic agent/api.py's /resume endpoint uses (DECISIONS.md
+DEC-008/DEC-049 -- a decision is never trusted from local state, only
+from the approval service's own record of it).
 """
 
 import argparse
 import json
 import sys
 
+from . import approval_client
 from .graph import build_graph
 
 
@@ -57,8 +68,9 @@ def main():
                     file=sys.stderr,
                 )
                 decision = "reject"
-        graph.update_state(thread_config, {"approval_decision": decision})
-        result = graph.invoke(None, thread_config)
+        proposal_id = graph.get_state(thread_config).values["proposal_id"]
+        approval_client.decide_proposal(proposal_id, decision)
+        result = approval_client.resolve_and_resume(graph, thread_config)
 
     print(json.dumps(result, indent=2, default=str))
 

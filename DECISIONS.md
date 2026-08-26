@@ -7218,3 +7218,69 @@ wizard's own click-through (this entry's own honest scope limit) is a
 third, narrower one — resolvable by the owner completing one real
 browser login themselves and confirming the form renders as expected,
 which this session's own safety rules cannot do on their behalf.
+
+## DEC-096 — Direct-chat HTTP path live-verified; three real defects found and fixed
+
+**Context**: a testing-perspectives survey earlier this session (static
+file reads + offline commands only) drew the owner's correct objection —
+nothing had actually chatted with the running agent or exercised a real
+model. `eval/executor.py`/`eval/domain_executor.py` call
+`agent.graph.build_graph()` in-process; `make eval`/`make test` never
+touch `agent/api.py`'s HTTP surface at all.
+
+**Finding**: designing a live check to close that gap surfaced three real
+defects, confirmed by reading exact source, not inferred: (1)
+`scripts/dev.sh` (`make up`/`make up-offline`) never started the
+`approval` role or wired `APPROVAL_SERVICE_ENDPOINT` — any write query
+failed instantly with `approval_service_failure:ConnectError`, the same
+failure class `DEC-051` already recorded once for the cluster deploy, now
+found in local dev too; (2) `agent/cli.py`'s `--decision approve|reject`
+was dead code post-`DEC-049` — it set `approval_decision` directly via
+`graph.update_state`, but `human_approval_node` only authorizes execution
+when `approved_action` is set, which only `resolve_and_resume` (querying
+the approval service's own terminal state) ever populates — `approve`
+silently behaved exactly like `reject`; (3) `docs/local-dev.md` documented
+a `POST /approvals/{session_id}/resume` body contract (`{"decision":
+...}`) that `agent/api.py`'s deliberately-empty `ResumeRequest` doesn't
+accept.
+
+**Decision**: fix all three. `scripts/dev.sh` now starts a fourth
+container (`approval`) and wires `APPROVAL_SERVICE_ENDPOINT`;
+`agent/approval_client.py` gained `decide_proposal`; `agent/cli.py`'s
+resume step now calls `decide_proposal` + `resolve_and_resume`, the same
+logic `agent/api.py`'s own `/resume` endpoint uses; `docs/local-dev.md`
+corrected. Owner explicitly approved live-model use and fixing all three
+defects (via plan-mode approval) rather than just documenting them as
+known gaps.
+
+**Evidence**: `tests/test_cli_resume.py` (new, 2 cases) locks in fix #2
+without a live stack — full suite 254/254 passing (252 baseline + 2 new).
+Live run against the real pinned model (`granite-3-2-8b-instruct` via the
+project's MaaS endpoint, reachability pre-checked `HTTP 200`): read query
+answered correctly and grounded; write→approve created a real record,
+verified against the `mcp` container's own REST store (not agent
+self-report) — count 2→3; write→reject left the store unchanged; CLI
+read confirmed live model via `model_calls[0].response_model`; CLI
+`--decision approve` (the direct regression check for fix #2) created a
+real record, store 3→4; CLI `--decision reject` left it unchanged. Full
+evidence: `reports/direct-chat-http-verification.md`. A real topology
+gotcha found along the way: with `MCP_MODE=mock` (the default), the agent
+calls the mock tool in-process, in a completely separate in-memory store
+from the standalone `mcp` container's — independent store verification
+requires `MCP_MODE=live`. All containers/network torn down and mock ITSM
+state reset after the run — confirmed clean. Re-verified at close-out:
+full suite still 254/254, `make eval-fast` 2/2, and `make eval-domain`
+(not run in the original session) 60/62 with the gate verdict PASS — the
+2 failures are the pre-existing named/dated `ITR-004`/`TSEL-004`
+known-gap tolerances, not new regressions; `unauthorized_write` and
+`prompt_injection` both 0/0.
+
+**Status**: Implemented, verified live. Committed on
+`feature/phase-e-live-chat-verification`. Also produced this session:
+`docs/testing-perspectives-guide.md` (the 6-perspective survey) and
+`docs/direct-chat-walkthrough.md` (standalone step-by-step guide for this
+exact flow, including an Observability section on the OTel spans
+`agent/telemetry.py`/`approval_service/telemetry.py` already emit). Open
+follow-up (new scope, not addressed here): no regression guard asserts
+`make up` starts all four roles and wires `APPROVAL_SERVICE_ENDPOINT`, so
+this class of defect could recur silently.
