@@ -1,0 +1,114 @@
+# Phase G, Stage 2 (DECISIONS.md DEC-098/DEC-099, G5). Model routes as
+# catalog Resources, with their OpenAI-compatible contract as a shared
+# API, and fallback + reason-code metadata attached -- this is the
+# phase-two AI Routing Grid's plug point (CLAUDE.md's scope guard: rules-
+# based routing with reason codes only, no semantic routing built here).
+# Verified against the real implementation (agent/model_client.py,
+# agent/config.py) and its normative requirement (srs/SRS-AGT.md
+# SRS-AGT-IF-02) -- deliberately does NOT hardcode a model name/endpoint
+# in the catalog entity, since SRS-AGT-IF-01 forbids hardcoding either
+# in agent source; the route identity is stable, the model behind it is
+# injected configuration and can change without touching this entity.
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: golden-path-agent-model-route-api
+  description: >-
+    OpenAI-compatible chat-completions contract every model route exposes
+    (SRS-AGT-IF-01). Agents depend on a route (this API), never on a
+    model name directly -- the model identity behind a route is injected
+    configuration (MODEL_NAME / MODEL_FALLBACK_NAME), not part of this
+    contract.
+  tags:
+    - golden-path
+    - platform-foundation
+    - model-route
+spec:
+  type: openapi
+  lifecycle: production
+  owner: group:default/golden-path-agent-team
+  system: golden-path-agent-platform-foundation
+  definition: |
+    openapi: 3.0.3
+    info:
+      title: golden-path-agent model route (OpenAI-compatible)
+      version: "0.1"
+      description: >-
+        Minimal shape actually used by agent/model_client.py's
+        OpenAICompatibleModelClient -- chat.completions.create with
+        messages/tools/temperature/seed, response carrying
+        choices[].message (content, tool_calls), usage, and model
+        (the serving model identity, read-only, can differ from the
+        requested name per an alias).
+    paths:
+      /chat/completions:
+        post:
+          operationId: createChatCompletion
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [model, messages]
+                  properties:
+                    model: {type: string}
+                    messages: {type: array, items: {type: object}}
+                    tools: {type: array, items: {type: object}, nullable: true}
+                    temperature: {type: number}
+                    seed: {type: integer}
+          responses:
+            "200":
+              description: Chat completion, tool_calls, usage, and serving model identity.
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: golden-path-agent-model-route-primary
+  description: >-
+    Primary model route (SysR-P-F-12). Configured via MODEL_API_BASE_URL/
+    MODEL_NAME (agent/config.py) -- injected, not catalog-fixed.
+  annotations:
+    golden-path-agent.io/route-role: primary
+  tags:
+    - golden-path
+    - platform-foundation
+    - model-route
+spec:
+  type: model-route
+  owner: group:default/golden-path-agent-team
+  system: golden-path-agent-platform-foundation
+  providesApis:
+    - golden-path-agent-model-route-api
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: golden-path-agent-model-route-fallback
+  description: >-
+    Fallback model route (SysR-P-F-12). Configured via
+    MODEL_FALLBACK_API_BASE_URL/MODEL_FALLBACK_NAME (agent/config.py);
+    optional -- absent when no fallback is configured. Selected on any
+    primary-route failure, per agent/model_client.py's RoutedModelClient,
+    with a routing decision reason code drawn from the closed set this
+    project's own code actually emits: none (primary succeeded),
+    primary_timeout, primary_429, primary_5xx, primary_unreachable
+    (srs/SRS-AGT.md SRS-AGT-IF-02 -- its own listed example codes are
+    illustrative, "e.g.", not the literal enum; this is the real one).
+    DEC-009 selected llama-scout-17b as the fallback model identity
+    (a realization choice, injected via config, not catalog-fixed here).
+  annotations:
+    golden-path-agent.io/route-role: fallback
+    golden-path-agent.io/reason-codes: "none,primary_timeout,primary_429,primary_5xx,primary_unreachable"
+  tags:
+    - golden-path
+    - platform-foundation
+    - model-route
+spec:
+  type: model-route
+  owner: group:default/golden-path-agent-team
+  system: golden-path-agent-platform-foundation
+  providesApis:
+    - golden-path-agent-model-route-api

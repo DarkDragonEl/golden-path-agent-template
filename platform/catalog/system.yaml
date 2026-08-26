@@ -1,0 +1,22 @@
+# Phase G, Stage 2 (DECISIONS.md DEC-098/DEC-099, G5). The Platform
+# Foundation as a Backstage/RHDH System entity -- the grouping node the
+# catalog graph hangs off of: platform -> tools -> agents. Local design
+# only this session (not yet registered in RHDH's live catalog.locations
+# -- see reports/feature-g5-catalog-model.md for why that's deliberately
+# deferred).
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: golden-path-agent-platform-foundation
+  description: >-
+    Shared platform services for the Agentic AI Platform golden path --
+    identity, telemetry, the approval service, Git hosting, model routes,
+    GitOps machinery, and the Internal Developer Portal (RHDH) itself.
+    Stood up once per environment (DEC-098's Layer/Platform-Foundation
+    decision); not produced per agent-project instantiation.
+  tags:
+    - agentic-ai
+    - golden-path
+    - platform-foundation
+spec:
+  owner: group:default/golden-path-agent-team
