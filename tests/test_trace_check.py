@@ -706,18 +706,20 @@ def test_real_syrs_and_strs_id_counts_match_documents_own_claims():
 
 def test_real_srs_documents_parse_without_error_and_match_known_counts():
     """Confirmed by direct grep against the real files during this tool's
-    development: 25+19+13+6+11 = 74 total bold SRS definitions across the
+    development: 25+20+13+6+11 = 75 total bold SRS definitions across the
     five documents, with srs/SRS-MIT.md (interface-only, no section 7)
     among them, proving the parser handles that structural difference.
     SRS-APR.md's count moved from 18 to 19 at Checkpoint B0-b, when
     SRS-APR-IF-05 (terminal-state proposal query) was added to close
-    FIND-004 (DECISIONS.md DEC-008).
+    FIND-004 (DECISIONS.md DEC-008); and from 19 to 20 at Phase G kickoff
+    (G0), when SRS-APR-QUAL-02 (held, never auto-approved, on shared-
+    service unavailability) was added (DECISIONS.md DEC-098).
     """
     repo_root = Path(__file__).resolve().parent.parent
     srs_dir = repo_root / "srs"
     expected_per_file = {
         "SRS-AGT.md": 25,
-        "SRS-APR.md": 19,
+        "SRS-APR.md": 20,
         "SRS-EVH.md": 13,
         "SRS-MIT.md": 6,
         "SRS-RET.md": 11,
@@ -733,7 +735,7 @@ def test_real_srs_documents_parse_without_error_and_match_known_counts():
         for r in reqs:
             assert r["has_trace"], f"{fname}: {r['id']} unexpectedly has no Trace line"
         total += len(reqs)
-    assert total == 74
+    assert total == 75
 
 
 def test_real_deferred_md_absent_yields_empty_deferred_set():
