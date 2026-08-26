@@ -2,17 +2,20 @@
 
 **Rewritten again, this time closing out Phase F in full** (F0 through
 F5, on top of the OTel fix + F0–F3 the prior rewrite already covered).
-`DECISIONS.md` (currently through `DEC-095`) is the authoritative,
-complete, chronological record of every decision this project has
-made — this file is a *pickup* summary, not a substitute for it. When
-in doubt, `DECISIONS.md` wins. The Phase E content further below
-(bootstrap proof, showcase promotion, sharing-moment artifacts) is
-unchanged since the earlier rewrite and remains current — nothing in
-this session's work touched it.
+`DECISIONS.md` (currently through `DEC-097`; `DEC-096` belongs to a
+concurrent parallel-workspace thread, `feature/phase-e-live-chat-
+verification`, not this one) is the authoritative, complete,
+chronological record of every decision this project has made — this
+file is a *pickup* summary, not a substitute for it. When in doubt,
+`DECISIONS.md` wins. The Phase E content further below (bootstrap proof,
+showcase promotion, sharing-moment artifacts) is unchanged since the
+earlier rewrite and remains current — nothing in this session's work
+touched it.
 
 ## Where this is — most recent session first
 
-**Phase F4–F5 complete** (`DECISIONS.md` `DEC-092`–`DEC-095`;
+**Phase F4–F5 complete** (`DECISIONS.md` `DEC-092`–`DEC-095`,
+amended by `DEC-097`;
 `reports/phase-f-f4-verification.md` and `reports/phase-f-f5-
 verification.md` carry the full command-level evidence): RHDH is live
 on the showcase cluster, synced via ArgoCD, with a real Scaffolder
@@ -65,20 +68,33 @@ Template wired to F2/F3's own `skeleton/`.
   `OOD-006` re-run against the real deployed agent (still `tool_calls:
   []`, still refuses), and the MCP boundary confirmed unchanged at
   exactly 5 tool registrations on both source and the live pod.
+- **`DEC-097` (amendment to `DEC-093`/`DEC-095`): the owner's own real
+  external browser found a deeper login gap immediately after STOP 6 was
+  first declared cleared.** Every login test in F4/F5 up to that point,
+  including the ones cited as proof, ran via `oc exec` *inside* the
+  cluster — structurally blind to whether a real external browser can
+  even reach the redirect target. It couldn't: RHDH's OIDC popup
+  redirected to Keycloak's internal-cluster-only Service DNS,
+  `ERR_CONNECTION_REFUSED`. Two more bugs chained off fixing that
+  (Keycloak reporting `http://` endpoints behind an edge-terminated
+  Route until `spec.proxy.headers: xforwarded` was set; then RHDH's own
+  stale discovery-document cache needing one more restart) — full chain
+  in `DEC-097`/`PINS.md`. Fix: a native `Route` exposing Keycloak
+  externally (same pattern as RHDH's own Route, `DEC-094`) — a
+  deliberate departure from this project's existing hosts-file +
+  port-forward workaround for this exact class of problem
+  (approver-ui's own `DEC-074`), since RHDH is the first genuinely
+  owner-facing entry point here, not an internal testing tool. Once
+  fixed, the owner completed a real login and then drove the
+  Create-page wizard's actual click-through themselves (project-identity
+  form fields only, never a credential) — **closing the wizard
+  click-through gap the initial STOP 6 report had honestly left open**.
 - **What's genuinely still open, named rather than assumed closed**:
   (1) `OBJ-01`'s full portal exposure (this stand-up proves the platform
   is live and reachable; broader owner/team-facing rollout is a separate
   later decision) — same item `DEC-091` already named; (2) `SysR-P-F-13`
   /`OS-09`'s second-team acceptance — this project still cannot
-  self-certify that; (3) a narrower, new one from F5: the Create-page
-  **wizard's own click-through** was not independently exercised — this
-  session's own browser-automation safety rules prohibit entering any
-  password, including this project's own synthetic demo account, into a
-  browser field, so the Template's registration and parameter-form
-  schema were verified via the catalog API (the same schema data the
-  wizard renders from) rather than by clicking through the rendered form
-  itself. Resolvable by the owner completing one real browser login and
-  confirming the form renders as expected.
+  self-certify that.
 
 **OTel collector fix + Phase F0–F3** (prior session, still current —
 detail below unchanged):
