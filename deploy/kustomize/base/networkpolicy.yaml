@@ -17,6 +17,21 @@ spec:
             matchLabels:
               app.kubernetes.io/name: golden-path-agent
               app.kubernetes.io/component: agent
+        # DEC-098/DEC-099 (G2): operational-tests.yaml's own throwaway
+        # kill-primary-fallback-check clone -- real gap found live once
+        # MCP_MODE=live made its tool call an actual network request for
+        # the first time (previously masked entirely by MCP_MODE=mock).
+        # Deliberately a second, narrow podSelector entry rather than
+        # widening the first: this clone's own component value
+        # (agent-fallback-demo) is chosen specifically so it is NOT a
+        # subset-match for the standing agent Deployment's selector
+        # (avoids ReplicaSet adoption) while still being explicitly,
+        # narrowly admitted here -- not a general relaxation of this
+        # boundary.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: golden-path-agent
+              app.kubernetes.io/component: agent-fallback-demo
       ports:
         - port: 8081
           protocol: TCP
