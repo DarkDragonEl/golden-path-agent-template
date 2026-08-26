@@ -106,9 +106,8 @@ spec:
         #!/bin/sh
         set -eu
         oc apply -n ${{ values.name }}-ephemeral-test -f $(workspaces.source.path)/rendered-ephemeral.yaml
+        # Phase G, Stage 2 (DEC-098/DEC-099): this repo now renders exactly
+        # one Deployment -- mcp and approval are no longer co-deployed
+        # here (independent Tools Template instance; shared Platform
+        # Foundation component, respectively). Nothing else to gate on.
         oc rollout status deployment/${{ values.name }} -n ${{ values.name }}-ephemeral-test --timeout=180s
-        oc rollout status deployment/${{ values.name }}-mcp -n ${{ values.name }}-ephemeral-test --timeout=180s
-        # DEC-050: approval-service is now part of this same rendered
-        # manifest set (ephemeral-test only, per DEC-046) -- gate on its
-        # rollout the same way, not just applied-and-hoped.
-        oc rollout status deployment/${{ values.name }}-approval -n ${{ values.name }}-ephemeral-test --timeout=180s

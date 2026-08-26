@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+
+commonLabels:
+  app.kubernetes.io/name: ${{ values.name }}
+  app.kubernetes.io/part-of: ${{ values.name }}
+
+# CI/CD promotion updates only this digest field — the identical image is
+# promoted unmodified across ephemeral-test -> demo-prod, same convention
+# the Agent Template's own kustomization.yaml uses.
+images:
+  - name: ${{ values.name }}
+    newName: image-registry.openshift-image-registry.svc:5000/${{ values.name }}-ci/${{ values.name }}
+    digest: sha256:ba1c42282c52a831cfea7804543d1c4e07d36ddc62f6e30c1fd383f123c7eba9

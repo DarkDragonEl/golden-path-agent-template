@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace is bootstrapped once, out-of-band -- same convention the
+# Agent Template's own ephemeral-test overlay uses (DEC-031/DEC-024).
+namespace: ${{ values.name }}-ephemeral-test
+
+resources:
+  - ../../base
+
+configMapGenerator:
+  - name: ${{ values.name }}-config
+    behavior: merge
+    literals:
+      - MCP_MODE=mock
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318
+
+replicas:
+  - name: ${{ values.name }}
+    count: 1

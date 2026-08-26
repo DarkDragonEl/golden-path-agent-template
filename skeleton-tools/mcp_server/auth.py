@@ -26,7 +26,7 @@ _DEV_CALLER_IDENTITY = "dev-caller"
 # its own config module; mcp_server has no config module to add a setting
 # to without creating one for this alone. A hardcoded constant matching
 # this one specific server's own identity is fine and arguably clearer.
-MCP_AUDIENCE = "${{ values.name }}-mcp"
+MCP_AUDIENCE = "${{ values.name }}"
 
 # In-process JWKS-client cache, keyed by issuer URL -- same posture as
 # approval_service/auth.py's own cache: no TTL/refresh beyond process

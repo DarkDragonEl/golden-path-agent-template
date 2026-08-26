@@ -2,11 +2,22 @@ import os
 from unittest.mock import patch
 
 os.environ.setdefault("AGENT_MODEL_MODE", "fake")
-os.environ.setdefault("MCP_MODE", "mock")
+os.environ.setdefault("MCP_MODE", "live")
 
 from agent import approval_client  # noqa: E402
 from agent.graph import build_graph  # noqa: E402
 from eval.fake_approval_client import FakeApprovalService  # noqa: E402
+
+# Phase G, Stage 2 (DEC-098/DEC-099): this repo never bundles
+# mcp_server/server.py (moved to the Tools Template) -- call_tool's own
+# "mock" in-process branch would ImportError, and "live" needs a real,
+# reachable server this hermetic unit-test suite doesn't have. Patched at
+# the tool-execution boundary instead, matching test_write_gating.py's
+# own fix for the identical structural issue; the return value mirrors
+# exactly what the real placeholder_lookup tool would have returned in
+# mock mode (mcp_server/schemas.py::PlaceholderLookupOutput), since these
+# tests assert on that literal marker string, not on dispatch mechanics.
+_PLACEHOLDER_RESPONSE = {"result": "PLACEHOLDER_TOOL_RESPONSE_MARKER", "source": "mock"}
 
 
 def _invoke(query, write=False, session_id="test-shell"):
@@ -29,7 +40,8 @@ def _invoke(query, write=False, session_id="test-shell"):
 
 
 def test_read_path_completes_without_approval():
-    result = _invoke("what is the status", write=False, session_id="test-shell-read")
+    with patch("agent.nodes.tool_invoke.call_tool", return_value=_PLACEHOLDER_RESPONSE):
+        result = _invoke("what is the status", write=False, session_id="test-shell-read")
     assert result["pending_approval"] is False
     assert result["final_output"] is not None
     assert "PLACEHOLDER_TOOL_RESPONSE_MARKER" in result["final_output"]
@@ -69,7 +81,10 @@ def test_resume_after_approval_completes():
         )
 
     fake.decide(state["proposal_id"], "approved")
-    with patch("agent.approval_client.get_proposal", side_effect=fake.get_proposal):
+    with (
+        patch("agent.approval_client.get_proposal", side_effect=fake.get_proposal),
+        patch("agent.nodes.human_approval.call_tool", return_value=_PLACEHOLDER_RESPONSE),
+    ):
         result = approval_client.resolve_and_resume(graph, thread_config)
     assert result["pending_approval"] is False
     assert "PLACEHOLDER_TOOL_RESPONSE_MARKER" in result["final_output"]

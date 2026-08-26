@@ -1,0 +1,89 @@
+# Phase C, Step C1b. SysR-P-F-06 -- promotion is exclusively a GitOps PR
+# merge, never a rebuild and never a direct push to main. This Task only
+# runs when every prior gate passed (the Pipeline's `when:` condition, not
+# this Task's own logic) and only ever touches
+# deploy/kustomize/base/kustomization.yaml's one images.digest field.
+#
+# Credential: docs/phase-c-runbook.md §3 -- a fine-grained GitHub PAT,
+# scoped to Contents (read/write) + Pull requests (read/write) on this one
+# repository only, stored as Secret ${{ values.name }}-github-token in
+# ${{ values.name }}-ci, key `token`. Never a pipeline param, never in this
+# Task's own args (only as an env var sourced from the Secret, which
+# Tekton does not log), never echoed by any step below.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: open-promotion-pr
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  params:
+    - name: image-ref
+      type: string
+      description: Full pushed image reference including digest.
+    - name: commit-sha
+      type: string
+  workspaces:
+    - name: source
+  steps:
+    - name: commit-and-push-branch
+      image: docker.io/alpine/git:2.54.0
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: ${{ values.name }}-github-token
+              key: token
+      script: |
+        #!/bin/sh
+        set -eu
+        BRANCH="promote/$(params.commit-sha)"
+        sed -i "s#digest: sha256:.*#digest: $(echo "$(params.image-ref)" | sed 's/.*@//')#" \
+          deploy/kustomize/base/kustomization.yaml
+        git config user.name "${{ values.name }}-ci"
+        git config user.email "${{ values.name }}-ci@users.noreply.github.com"
+        git checkout -b "$BRANCH"
+        git add deploy/kustomize/base/kustomization.yaml
+        git commit -m "Promote $(params.commit-sha): $(params.image-ref)"
+        # DEC-037: GitHub's git-over-HTTPS smart endpoint does not accept
+        # a bare `Authorization: Bearer` header for git push -- confirmed
+        # live ("could not read Username for 'https://github.com'", git
+        # falling back to an interactive credential prompt with no TTY
+        # available). The URL-embedded-credential form below is GitHub's
+        # own documented mechanism for PAT-based git push and is
+        # recognized immediately, no credential helper needed. Still
+        # never echoed -- only ever appears as a command argument, same
+        # handling this Task's own header comment already commits to.
+        git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ values.repoOwner }}/${{ values.repoName }}.git" "$BRANCH"
+        echo "$BRANCH" > $(workspaces.source.path)/.promotion-branch
+
+    - name: open-pr
+      image: docker.io/alpine/git:2.54.0
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: ${{ values.name }}-github-token
+              key: token
+      script: |
+        #!/bin/sh
+        set -eu
+        apk add --no-cache curl python3 >/dev/null
+        BRANCH=$(cat $(workspaces.source.path)/.promotion-branch)
+        BODY=$(python3 -c "
+        import json
+        print(json.dumps({
+            'title': 'Promote ' + '$(params.commit-sha)'[:12],
+            'head': '$BRANCH',
+            'base': 'main',
+            'body': 'Automated digest promotion PR. Image: $(params.image-ref)\n\nOnly deploy/kustomize/base/kustomization.yaml\'s images.digest field changes. Merging this is the promotion event (SysR-P-F-06) -- demo-prod syncs from it via ArgoCD.',
+        }))
+        ")
+        curl -sf -X POST \
+          -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          -d "$BODY" \
+          https://api.github.com/repos/${{ values.repoOwner }}/${{ values.repoName }}/pulls

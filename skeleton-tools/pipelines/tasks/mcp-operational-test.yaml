@@ -1,0 +1,59 @@
+# Lean operational gate for the freshly-deployed MCP image, adapted for a
+# standalone Tools Template repo: there is no co-deployed agent pod in
+# this repo's own ephemeral-test namespace to call through (unlike the
+# combined-repo pipeline this pattern was originally proven in -- see
+# DEC-098/DEC-099's Stage-1 mcp-operational-test.yaml). Instead, this
+# Task creates two throwaway probe pods directly: one carrying the
+# allowed-consumer's labels (per allowedConsumerName /
+# deploy/kustomize/base/networkpolicy.yaml), one without -- proving the
+# NetworkPolicy admits the former and blocks the latter, and exercising
+# the real REST introspection route (POST /tools/{tool_name}) the freshly
+# built image actually serves.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mcp-operational-test
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  steps:
+    - name: disallowed-egress-proof
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        NS=${{ values.name }}-ephemeral-test
+        oc run mcp-probe-blocked --image=quay.io/openshift/origin-cli:4.20 \
+          --restart=Never -n "$NS" \
+          --labels="app.kubernetes.io/component=mcp-operational-test-probe" \
+          --command -- sleep 60
+        oc wait --for=condition=Ready pod/mcp-probe-blocked -n "$NS" --timeout=60s
+        echo "Attempting access from an unlabeled pod (expect: blocked)..."
+        if oc exec -n "$NS" mcp-probe-blocked -- \
+             curl -sf --max-time 5 http://${{ values.name }}:8081/tools/healthcheck -X POST -d '{}'; then
+          echo "FAIL: reached the MCP service from a pod without the allowed consumer's labels -- NetworkPolicy did not block it." >&2
+          exit 1
+        fi
+        echo "OK: unauthorized access blocked, as the NetworkPolicy requires."
+        oc delete pod mcp-probe-blocked -n "$NS" --ignore-not-found=true
+
+    - name: allowed-access-and-real-tool-call
+      runAfter: [disallowed-egress-proof]
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        NS=${{ values.name }}-ephemeral-test
+        oc run mcp-probe-allowed --image=quay.io/openshift/origin-cli:4.20 \
+          --restart=Never -n "$NS" \
+          --labels="app.kubernetes.io/name=${{ values.allowedConsumerName }},app.kubernetes.io/component=agent" \
+          --command -- sleep 60
+        oc wait --for=condition=Ready pod/mcp-probe-allowed -n "$NS" --timeout=60s
+        echo "Calling the real tool dispatch route from an allowed-consumer-labeled pod..."
+        RESPONSE=$(oc exec -n "$NS" mcp-probe-allowed -- \
+          curl -sf --max-time 10 http://${{ values.name }}:8081/tools/healthcheck -X POST -d '{}')
+        echo "$RESPONSE"
+        echo "$RESPONSE" | grep -q '"status"' || { echo "FAIL: no status field in healthcheck response -- expected a real tool round trip through the freshly-deployed pod." >&2; exit 1; }
+        echo "OK: allowed consumer reached the freshly-deployed MCP pod's real tool dispatch route."
+        oc delete pod mcp-probe-allowed -n "$NS" --ignore-not-found=true

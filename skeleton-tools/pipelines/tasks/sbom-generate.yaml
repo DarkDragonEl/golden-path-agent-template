@@ -1,0 +1,68 @@
+# Phase C, Step C1b. SysR-P-PKG-02 -- an SBOM generated at build time,
+# associated with the image digest.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: sbom-generate
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  params:
+    - name: image
+      type: string
+      description: Full image reference including digest, e.g. <registry>/<repo>@sha256:...
+  workspaces:
+    - name: source
+  volumes:
+    # DEC-027: syft's own image-analysis machinery hardcodes some of its
+    # own /tmp usage regardless of $HOME/$XDG_CACHE_HOME -- and this
+    # image's own baked-in /tmp isn't world-writable under an arbitrary
+    # non-root UID (confirmed live: "mkdir /tmp/stereoscope-...: permission
+    # denied" even with HOME/XDG_CACHE_HOME redirected elsewhere). A
+    # emptyDir mounted directly at /tmp overrides the image's own
+    # permissions with a genuinely writable directory, verified locally
+    # (podman, simulated non-root UID, real SBOM produced, exit 0) before
+    # trusting it on a cluster run.
+    - name: syft-tmp
+      emptyDir: {}
+  steps:
+    - name: build-registry-auth
+      # syft is a standalone tool, not a kubelet image pull -- it needs an
+      # actual docker-config credential to read from the internal
+      # registry, not just K8s RBAC on this ServiceAccount. OpenShift's
+      # internal registry accepts the pod's own mounted SA token as that
+      # credential (the same mechanism `oc registry login` automates).
+      image: docker.io/library/python:3.12-slim
+      volumeMounts:
+        - name: syft-tmp
+          mountPath: /tmp
+      script: |
+        #!/bin/sh
+        set -eu
+        mkdir -p /tmp/.docker
+        python3 -c "
+        import base64, json
+        token = open('/var/run/secrets/kubernetes.io/serviceaccount/token').read().strip()
+        auth = base64.b64encode(f'serviceaccount:{token}'.encode()).decode()
+        json.dump({'auths': {'image-registry.openshift-image-registry.svc:5000': {'auth': auth}}},
+                  open('/tmp/.docker/config.json', 'w'))
+        "
+    - name: syft
+      image: docker.io/anchore/syft:v1.51.0
+      workingDir: $(workspaces.source.path)
+      env:
+        # HOME=/tmp so syft's own docker-credential resolution finds the
+        # config.json the previous step wrote to /tmp/.docker/ -- both
+        # steps mount the same emptyDir at /tmp, so this is really one
+        # shared, writable directory across the two containers.
+        - name: HOME
+          value: /tmp
+      volumeMounts:
+        - name: syft-tmp
+          mountPath: /tmp
+      command: ["/syft"]
+      args:
+        - "$(params.image)"
+        - "-o"
+        - "spdx-json=sbom.json"

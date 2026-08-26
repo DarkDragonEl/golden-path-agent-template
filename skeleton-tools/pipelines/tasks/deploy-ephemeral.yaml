@@ -1,0 +1,45 @@
+# Applies deploy/kustomize/overlays/ephemeral-test with a pipeline-scoped
+# digest override -- kustomize edit set image runs against base's own
+# kustomization.yaml, in this scratch, uncommitted workspace checkout
+# only, never the committed repo. Namespace lifecycle:
+# ${{ values.name }}-ephemeral-test is pre-created out-of-band -- this
+# Task manages only the workload resources inside it.
+#
+# Simpler than the Agent Template's own deploy-ephemeral.yaml: this repo
+# has exactly one component and no live-model dependency to inject.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: deploy-ephemeral
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  params:
+    - name: image-ref
+      type: string
+      description: Full pushed image reference including digest, e.g. <registry>/<repo>@sha256:...
+  workspaces:
+    - name: source
+  steps:
+    - name: render-with-digest-override
+      image: registry.k8s.io/kustomize/kustomize:v5.8.1
+      workingDir: $(workspaces.source.path)/deploy/kustomize/overlays/ephemeral-test
+      script: |
+        #!/bin/sh
+        set -eu
+        (cd $(workspaces.source.path)/deploy/kustomize/base && \
+          kustomize edit set image ${{ values.name }}="$(params.image-ref)")
+        kustomize build . > $(workspaces.source.path)/rendered-ephemeral.yaml
+        # kustomize edit set image rewrites base/kustomization.yaml's
+        # entire content in place -- revert now that the render is
+        # already captured; open-promotion-pr needs the original,
+        # unmodified committed file.
+        git -C $(workspaces.source.path) checkout -- deploy/kustomize/base/kustomization.yaml
+    - name: apply
+      image: quay.io/openshift/origin-cli:4.20
+      script: |
+        #!/bin/sh
+        set -eu
+        oc apply -n ${{ values.name }}-ephemeral-test -f $(workspaces.source.path)/rendered-ephemeral.yaml
+        oc rollout status deployment/${{ values.name }} -n ${{ values.name }}-ephemeral-test --timeout=180s

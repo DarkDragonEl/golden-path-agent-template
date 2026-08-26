@@ -1,0 +1,52 @@
+# Phase G, Stage 2 (DEC-098/DEC-099). Registers this scaffolded Tools
+# Template instance as its own catalog Component, plus the tool contract
+# it exposes as a catalog API -- an Agent Template instance's own
+# catalog-info.yaml (see the sibling Agent Template's output)
+# `consumesApis` this entity by name. Local YAML only this session --
+# live registration into a running RHDH catalog is a separate, later
+# step (G5's catalog model completion / G6's onboarding flow), not done
+# here.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: >-
+    ${{ values.description }}
+  tags:
+    - agentic-ai
+    - mcp
+    - golden-path-tools
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  providesApis:
+    - ${{ values.name }}-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}-api
+  description: >-
+    MCP tool contract exposed by ${{ values.name }} -- a Model Context
+    Protocol server plus a plain REST introspection route
+    (POST /tools/{tool_name}) for direct, model-bypassing calls. Scopes:
+    read-only tools (itsm_search_records, healthcheck, placeholder_lookup)
+    and one write-capable tool (itsm_create_request, write:true) -- see
+    mcp_server/schemas.py for the full per-tool input/output contract.
+  tags:
+    - mcp
+  annotations:
+    tool-contract.io/write-capable: "true"
+    tool-contract.io/allowed-consumer: ${{ values.allowedConsumerName }}
+spec:
+  type: mcp
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  definition: |
+    MCP streamable-HTTP transport on port 8081 (protocol session), plus
+    POST /tools/{tool_name} (plain REST, same port) accepting a JSON
+    arguments body and returning the tool's own JSON output -- see
+    mcp_server/server.py and mcp_server/schemas.py for the authoritative
+    per-tool schemas. Auth: MCP_AUTH_MODE (none | oidc), see
+    deploy/kustomize/base/configmap.yaml.

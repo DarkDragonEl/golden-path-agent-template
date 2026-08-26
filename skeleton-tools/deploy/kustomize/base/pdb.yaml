@@ -1,10 +1,10 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: ${{ values.name }}-approval
+  name: ${{ values.name }}
 spec:
   minAvailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: ${{ values.name }}
-      app.kubernetes.io/component: approval
+      app.kubernetes.io/component: mcp

@@ -2,9 +2,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "template-schema.json",
   "title": "golden-path-agent template parameters",
-  "description": "Phase F2 (DECISIONS.md DEC-087 item 1; docs/phase-f-kickoff-plan.md SS6). The single source of truth for every value substituted into skeleton/ -- consumed identically by F3's CLI renderer and F5's RHDH Scaffolder Template (via the stock fetch:template action), so the two paths can never drift the way DEC-075's parallel-constant bug did. Every '${{ values.x }}' placeholder in skeleton/ corresponds to exactly one property below; there are no undocumented placeholders and no properties without a placeholder.",
+  "description": "Phase F2 (DECISIONS.md DEC-087 item 1; docs/phase-f-kickoff-plan.md SS6), amended at Phase G Stage 2 (DEC-098/DEC-099) when mcp_server/approval_service were removed from skeleton/ (the amended SysR-P-F-01 forbids this template from bundling either). The single source of truth for every value substituted into skeleton/ -- consumed identically by F3's CLI renderer and F5's RHDH Scaffolder Template (via the stock fetch:template action), so the two paths can never drift the way DEC-075's parallel-constant bug did. Every '${{ values.x }}' placeholder in skeleton/ corresponds to exactly one property below; there are no undocumented placeholders and no properties without a placeholder.",
   "type": "object",
-  "required": ["name", "owner"],
+  "required": ["name", "owner", "mcpEndpoint", "approvalServiceEndpoint"],
   "additionalProperties": false,
   "properties": {
     "name": {
@@ -25,6 +25,34 @@
       "title": "Project description",
       "description": "One-sentence description of the scaffolded agent's purpose, used in README.md. Optional -- a generic placeholder sentence is used if omitted.",
       "default": "An agentic AI pilot agent scaffolded from the golden-path-agent blueprint."
+    },
+    "mcpEndpoint": {
+      "type": "string",
+      "title": "MCP tool server endpoint",
+      "description": "Base URL of the Tools Template instance this agent consumes (e.g. 'http://my-tools-mcp.my-tools-ns.svc.cluster.local:8081'). Phase G, Stage 2 (DEC-098/DEC-099): the agent no longer bundles or co-deploys an MCP server -- genuinely required, no default, since there is no same-project value to fall back to anymore (unlike repoOwner/repoName below, which are optional because nothing functional depends on them yet). The named consumer that mcpEndpoint's own Tools Template instance must admit (its own allowedConsumerName, template-schema-tools.json) should be this project's 'name' value."
+    },
+    "mcpApiName": {
+      "type": "string",
+      "title": "MCP tool server catalog API name",
+      "description": "The full name of the API entity the Tools Template instance mcpEndpoint points at registers itself as -- that template's own catalog-info.yaml names it '<name>-api' (its own 'name' scaffold parameter plus that fixed suffix), e.g. 'my-tools-api' for a Tools Template instance scaffolded with name 'my-tools'. Distinct from mcpEndpoint (a network address, not a catalog reference) -- this is what lets catalog-info.yaml's own consumesApis actually resolve to the right entity once both are live-registered in the same catalog. Optional: a placeholder is fine if the Tools Template instance isn't registered yet.",
+      "default": "REPLACE_ME_mcpApiName"
+    },
+    "approvalServiceEndpoint": {
+      "type": "string",
+      "title": "Platform approval service endpoint",
+      "description": "Base URL of the shared Platform Foundation approval service (DEC-098's own architecture decision -- one singleton serves every agent project, not one per project). Genuinely required, no default, same reasoning as mcpEndpoint above; per the amended SysR-P-F-01, this project consumes the approval service through its published contract (SRS-APR-IF-01..05) and shall not bundle an approval-service implementation."
+    },
+    "oidcIssuerUrl": {
+      "type": "string",
+      "title": "Shared identity realm issuer URL",
+      "description": "Issuer URL of the shared Platform Foundation Keycloak realm this project's workload clients (approvalOidcClientId's own client, etc.) are registered against. Optional -- only load-bearing once AGENT_OIDC_MODE is switched from 'none' to 'oidc'; a placeholder default is safe until then.",
+      "default": "REPLACE_ME_oidcIssuerUrl"
+    },
+    "modelRoute": {
+      "type": "string",
+      "title": "Model route (informational, reserved)",
+      "description": "Reserved for G5's catalog model completion -- once model routes are registered as catalog Resources (SysR-P-F-12's routing seam), this becomes a catalog-backed picker selecting one. Not yet wired to any rendered config value this phase (real model endpoint config is still supplied per-environment via deploy/kustomize/overlays/*, independent of scaffold-time templating); recorded on the rendered catalog-info.yaml as an annotation only, so the intent is visible even before the wiring exists.",
+      "default": "not-yet-selected"
     },
     "repoOwner": {
       "type": "string",

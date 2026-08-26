@@ -1,0 +1,39 @@
+# Phase G, Stage 2 (DEC-098/DEC-099). Registers this scaffolded Agent
+# Template instance as its own catalog Component, declaring its
+# dependency on a separately-scaffolded Tools Template instance's API and
+# on the shared Platform Foundation's approval service -- the catalog
+# graph DEC-098's architecture decision describes ("platform -> tools ->
+# agents"). Local YAML only this session -- live registration into a
+# running RHDH catalog, and turning mcpEndpoint/approvalServiceEndpoint
+# into real catalog-backed pickers instead of plain strings, are G5/G6
+# work, not done here.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: >-
+    ${{ values.description }}
+  annotations:
+    tool-contract.io/model-route: ${{ values.modelRoute }}
+  tags:
+    - agentic-ai
+    - langgraph
+    - golden-path
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  # Phase G Stage 2: this agent consumes an external MCP tool contract
+  # and the platform's shared approval service -- it does not bundle
+  # either implementation (amended SysR-P-F-01).
+  consumesApis:
+    - ${{ values.mcpApiName }}
+    # ^ The Tools Template instance mcpEndpoint (a network address, kept
+    # separately) actually points at -- resolves once both this entity
+    # and that one are live-registered in the same catalog.
+  dependsOn:
+    - resource:default/platform-approval-service
+  # ^ Platform Foundation singleton (DEC-098) -- one Resource entity,
+  # shared by every agent project (a fixed, platform-level name,
+  # deliberately not derived from this project's own 'name' -- it isn't
+  # this project's own resource). Registering it live is G1/G5 work.

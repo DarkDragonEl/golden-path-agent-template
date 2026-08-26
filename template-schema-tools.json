@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "template-schema-tools.json",
+  "title": "Tools Template parameters",
+  "description": "Phase G, Stage 2 (DECISIONS.md DEC-098/DEC-099). The single source of truth for every value substituted into skeleton-tools/ -- the sibling schema to template-schema.json (the Agent Template's own), kept as a separate file rather than a union schema because the two templates render independently and take genuinely different parameter sets. Every '${{ values.x }}' placeholder in skeleton-tools/ corresponds to exactly one property below.",
+  "type": "object",
+  "required": ["name", "owner", "allowedConsumerName"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Project name",
+      "description": "The base identifier for the scaffolded tool server project. Every namespace, resource name, and OTEL service name in the rendered output is derived from this.",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+      "minLength": 2,
+      "maxLength": 40
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owning team",
+      "description": "Backstage catalog owner reference for the scaffolded project (e.g. 'group:default/team-name')."
+    },
+    "description": {
+      "type": "string",
+      "title": "Project description",
+      "description": "One-sentence description of this tool server's purpose, used in README.md and catalog-info.yaml.",
+      "default": "An MCP tool server scaffolded from the golden-path-agent blueprint's Tools Template."
+    },
+    "allowedConsumerName": {
+      "type": "string",
+      "title": "Allowed consumer project name",
+      "description": "The 'name' value of the single Agent Template instance authorized to reach this server's own NetworkPolicy-restricted ingress (deploy/kustomize/base/networkpolicy.yaml). Single-consumer only this phase -- see that file's own header comment.",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+    },
+    "repoOwner": {
+      "type": "string",
+      "title": "Git repository owner/org",
+      "description": "Same local-render-only note as the Agent Template's own template-schema.json.",
+      "default": "REPLACE_ME_repoOwner"
+    },
+    "repoName": {
+      "type": "string",
+      "title": "Git repository name",
+      "description": "Same local-render-only note as the Agent Template's own template-schema.json.",
+      "default": "REPLACE_ME_repoName"
+    }
+  }
+}

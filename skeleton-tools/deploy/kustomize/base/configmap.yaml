@@ -1,0 +1,26 @@
+# "Environment differences expressed through configuration" -- same
+# pattern the Agent Template's own configmap.yaml uses. Every value here
+# is a safe local-dev-shaped default; overlays override per environment.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${{ values.name }}-config
+data:
+  MCP_AUTH_MODE: "none" # none | oidc, gates POST /tools/{tool_name}'s own
+  # auth check (mcp_server/auth.py). Set to "oidc" once real consumer
+  # workload identities exist to validate against.
+  MCP_AUTH_TOKEN: "not-needed" # Secret-shadowed placeholder; real value
+  # (if MCP_AUTH_MODE=oidc) is provisioned out-of-band, never committed.
+  OIDC_ISSUER_URL: "" # Required only if MCP_AUTH_MODE=oidc; empty is a
+  # valid, safe default for the none case (auth.py never reads it then).
+  MCP_MODE: "mock" # mock | live -- gates the PLACEHOLDER example tools'
+  # own backend (mock canned response vs. a real enterprise-tool call,
+  # not yet implemented, see TODO_DOMAIN.md). NAMING COLLISION, inherited
+  # from the pre-split skeleton, not introduced here: the Agent
+  # Template's own MCP_MODE (agent/mcp_server/client.py) is an unrelated
+  # concept -- in-process-vs-network tool dispatch -- that happens to
+  # share this exact env-var name. The two are in separate repos/
+  # ConfigMaps now and can never collide again once the domain
+  # implementation replaces this file's own placeholder tools.
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  OTEL_SERVICE_NAME: "${{ values.name }}"

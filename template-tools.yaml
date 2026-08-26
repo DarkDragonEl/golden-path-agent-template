@@ -1,0 +1,97 @@
+# Phase G, Stage 2 (DECISIONS.md DEC-098/DEC-099). The Tools Template --
+# sibling to template.yaml (the Agent Template's own), same shape and
+# same local-render-only scope (no publish:* step, same reasoning as
+# DEC-087 item 1). Wraps skeleton-tools/ + template-schema-tools.json.
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: golden-path-tools-scaffolder
+  title: Golden Path Tools (MCP Server)
+  description: >-
+    Scaffold a new, independently deployable MCP tool server from the
+    golden-path-agent blueprint's Tools Template. Local-render only in
+    this sandbox -- no repository is created, no credentials are used.
+  tags:
+    - agentic-ai
+    - mcp
+    - golden-path
+spec:
+  owner: group:default/golden-path-agent-team
+  type: service
+  parameters:
+    - title: Project identity
+      required:
+        - name
+        - owner
+        - allowedConsumerName
+      properties:
+        name:
+          title: Project name
+          type: string
+          description: >-
+            The base identifier for the scaffolded tool server project.
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          minLength: 2
+          maxLength: 40
+        owner:
+          title: Owning team
+          type: string
+          description: >-
+            Catalog owner reference for the scaffolded project (e.g.
+            'group:default/team-name').
+        description:
+          title: Project description
+          type: string
+          description: One-sentence description of this tool server's purpose.
+          default: >-
+            An MCP tool server scaffolded from the golden-path-agent
+            blueprint's Tools Template.
+        allowedConsumerName:
+          title: Allowed consumer project name
+          type: string
+          description: >-
+            The 'name' of the single Agent Template instance authorized
+            to reach this server. Single-consumer only this phase.
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+    - title: Repository metadata (optional, informational only)
+      properties:
+        repoOwner:
+          title: Git repository owner/org
+          type: string
+          description: >-
+            Not used for publishing in this sandbox (no publish step
+            exists) -- substituted only into the rendered project's own
+            doc content.
+          default: REPLACE_ME_repoOwner
+        repoName:
+          title: Git repository name
+          type: string
+          description: Same local-render-only note as repoOwner above.
+          default: REPLACE_ME_repoName
+  steps:
+    - id: fetch-base
+      name: Render golden-path-tools skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton-tools
+        values:
+          name: ${{ parameters.name }}
+          owner: ${{ parameters.owner }}
+          description: ${{ parameters.description }}
+          allowedConsumerName: ${{ parameters.allowedConsumerName }}
+          repoOwner: ${{ parameters.repoOwner }}
+          repoName: ${{ parameters.repoName }}
+    - id: list-rendered
+      name: List rendered project (local-render-only evidence)
+      action: fs:readdir
+      input:
+        paths:
+          - .
+        recursive: true
+  output:
+    text:
+      - title: Rendered project
+        content: |
+          Project '${{ parameters.name }}' rendered in this task's own
+          workspace. Local-render only -- nothing was published or
+          written outside this ephemeral task workspace.
