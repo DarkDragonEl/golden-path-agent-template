@@ -1,0 +1,38 @@
+# This tool server's independent security boundary. Phase G, Stage 2
+# (DEC-098/DEC-099): now that the MCP tool server is its own independently
+# deployable artifact (no longer co-deployed with one specific agent under
+# a shared project name), "only the agent pod may reach it" becomes "only
+# the configured consumer's pod(s) may reach it" -- allowedConsumerName
+# (template-schema-tools.json) names the single consumer this instance is
+# provisioned for.
+#
+# NAMED LIMITATION, not solved this session: this is a single-consumer
+# allow-list, not a real multi-tenant ACL. A Tools Template instance meant
+# to serve more than one Agent Template consumer needs either multiple
+# ingress rules (one matchLabels block per consumer, added by hand or by a
+# future scaffolder action) or a broader selector plus an
+# application-level authorization check (mcp_server/auth.py already does
+# per-request JWT audience validation, which is the real enforcement point
+# for that case -- this NetworkPolicy is defense-in-depth on top of it).
+# Revisit when G5's catalog model / G6's onboarding flow needs to wire up
+# a genuinely shared, multi-consumer tool instance.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ${{ values.name }}-restrict
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ${{ values.name }}
+      app.kubernetes.io/component: mcp
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ${{ values.allowedConsumerName }}
+              app.kubernetes.io/component: agent
+      ports:
+        - port: 8081
+          protocol: TCP

@@ -11,38 +11,20 @@ kind: Kustomization
 # content -- the safe fix is not declaring it as a managed resource at
 # all. deployment-agent.yaml's envFrom.secretRef still references
 # ${{ values.name }}-secrets by name; nothing here needs to create it.
+#
+# Phase G, Stage 2 (DEC-098/DEC-099): mcp and approval resources are gone
+# from this list entirely -- the amended SysR-P-F-01 forbids this
+# template from bundling either. mcp is now an independent Tools
+# Template instance (mcpEndpoint, configmap.yaml); approval is a shared
+# Platform Foundation singleton (approvalServiceEndpoint, configmap.yaml).
+# This repo renders exactly one Deployment.
 resources:
   - deployment-agent.yaml
-  - deployment-mcp.yaml
   - service-agent.yaml
-  - service-mcp.yaml
   - ingress.yaml
   - serviceaccount.yaml
-  - serviceaccount-mcp.yaml
   - configmap.yaml
-  - networkpolicy.yaml
   - pdb.yaml
-  # Phase D2 cutover (DECISIONS.md DEC-063): the approval-service
-  # manifests, promoted from the ephemeral-test-only nested kustomization
-  # (deploy/kustomize/base/approval/, DEC-050) into base/ directly, per
-  # DEC-046's own sequencing rule -- this is the one commit that also
-  # flips AUTH_MODE=oidc (demo-prod overlay) and adds the mechanical
-  # demo-prod assertion, all together, atomically. Flattened rather than
-  # kept as a nested kustomization: DEC-050's whole reason for the
-  # nesting was working around kustomize's file-reference restriction
-  # from ephemeral-test's overlay -- base/kustomization.yaml is these
-  # files' own directory, so no such restriction applies here, and
-  # flattening also means deployment-approval.yaml is now visible to
-  # this file's own images: transform below, retiring DEC-050's separate
-  # base/approval/kustomization.yaml images: stanza entirely.
-  - serviceaccount-approval.yaml
-  - configmap-approval.yaml
-  - pvc-approval.yaml
-  - deployment-approval.yaml
-  - service-approval.yaml
-  - networkpolicy-approval.yaml
-  - ingress-approval.yaml
-  - pdb-approval.yaml
 
 commonLabels:
   app.kubernetes.io/name: ${{ values.name }}

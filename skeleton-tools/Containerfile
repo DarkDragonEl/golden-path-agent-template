@@ -1,0 +1,26 @@
+# ARG, not a hardcoded pin: the enterprise-approved base image is supplied
+# at build time per engagement/platform. This default is a plain, generic
+# image so the scaffold builds and runs anywhere out of the box.
+ARG BASE_IMAGE=python:3.12-slim
+FROM ${BASE_IMAGE}
+
+WORKDIR /opt/app-root/src
+
+# Dependencies first (cache layer).
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Code only. This is the Tools Template's own product: an independent MCP
+# tool server, no agent/approval-service code exists in this repo at all
+# (Phase G, DEC-098/DEC-099 -- Layer 1 separation from the Agent Template).
+COPY mcp_server/ ./mcp_server/
+COPY --chmod=0755 entrypoint.sh ./entrypoint.sh
+
+ENV MCP_PORT=8081
+
+# Restricted-SCC-compatible: arbitrary non-root UID, group-writable, GID 0.
+RUN chmod -R g=u /opt/app-root/src
+
+USER 1001
+EXPOSE 8081
+ENTRYPOINT ["./entrypoint.sh"]

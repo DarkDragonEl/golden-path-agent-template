@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ${{ values.name }}-mcp
+  name: ${{ values.name }}
 spec:
   replicas: 1
   selector:
@@ -14,23 +14,16 @@ spec:
         app.kubernetes.io/name: ${{ values.name }}
         app.kubernetes.io/component: mcp
     spec:
-      serviceAccountName: ${{ values.name }}-mcp
+      serviceAccountName: ${{ values.name }}
       containers:
         - name: mcp
+          # Phase G, Stage 2 (DEC-098/DEC-099): the Tools Template's own
+          # independently-built/promoted image -- this repo's sole
+          # deployable, no positional-arg role dispatch.
           image: ${{ values.name }}
-          args: ["mcp"]
           ports:
             - name: http
               containerPort: 8081
-          # Deliberate exception to sharing ${{ values.name }}-config
-          # wholesale below: a container-level env entry takes precedence
-          # over the same key sourced via envFrom, so mcp reports its own
-          # OTEL_SERVICE_NAME instead of inheriting the agent's
-          # ("${{ values.name }}") -- otherwise mcp spans are indistinguishable
-          # from agent spans by service name once traces flow.
-          env:
-            - name: OTEL_SERVICE_NAME
-              value: ${{ values.name }}-mcp
           envFrom:
             - configMapRef:
                 name: ${{ values.name }}-config

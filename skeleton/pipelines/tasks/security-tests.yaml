@@ -1,21 +1,21 @@
 # Phase C, Step C1b. SysR-P-F-05(3) security tests, against the actually-
 # deployed pods (unlike eval-gate-live -- see that Task's own header for
-# why). Three checks:
+# why). Two checks:
 #   1. REST zero-mutation check: a write-shaped /invoke against the real
 #      deployed agent, rejected via /approvals/{id}/resume, confirmed
 #      against /records -- the exact pattern Checkpoint B2's own live
 #      verification used locally (DECISIONS.md DEC-020), now automated.
-#   2. Disallowed-egress proof: this Task's own pod (labeled neither
-#      component: agent nor anything the existing NetworkPolicy
-#      whitelists) attempts to reach the MCP pod's port 8081 directly and
-#      MUST be blocked -- confirming deploy/kustomize/base/networkpolicy.yaml
-#      actually enforces what it claims, not just that it exists. The
-#      legitimate zero-mutation check above instead execs into the agent
-#      pod itself (which the NetworkPolicy does permit), matching how a
-#      real client would actually be allowed to reach it.
-#   3. Secret scan: a plain grep for obvious credential patterns in the
+#   2. Secret scan: a plain grep for obvious credential patterns in the
 #      checked-out source and the built image's SBOM -- no new scanner
 #      tool introduced for this demo-scope milestone.
+#
+# Phase G, Stage 2 (DEC-098/DEC-099): the disallowed-egress-proof check
+# this Task used to also run here was removed -- it tested THIS repo's
+# own co-deployed MCP NetworkPolicy, which no longer exists here (the
+# tool server is now an independent Tools Template instance, in its own
+# repo, with its own NetworkPolicy and its own equivalent check --
+# mcp-operational-test.yaml, in that repo). This repo has no MCP resource
+# left to test the boundary of.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -27,27 +27,6 @@ spec:
   workspaces:
     - name: source
   steps:
-    - name: disallowed-egress-proof
-      image: quay.io/openshift/origin-cli:4.20
-      script: |
-        #!/bin/sh
-        set -eu
-        # This step's own pod runs in ${{ values.name }}-ci -- a different
-        # namespace than the MCP Deployment, and not labeled component:
-        # agent. deploy/kustomize/base/networkpolicy.yaml's podSelector has
-        # no namespaceSelector, so it only ever admits same-namespace,
-        # correctly-labeled traffic -- this pod should never reach it. No
-        # extra pod spun up (would need pod create/delete RBAC this
-        # ServiceAccount deliberately doesn't have); this Task's own pod
-        # is the probe.
-        echo "Attempting direct cross-namespace access to the MCP service's port 8081 (expect: blocked)..."
-        if curl -sf --max-time 5 \
-             http://${{ values.name }}-mcp.${{ values.name }}-ephemeral-test.svc.cluster.local:8081/healthz; then
-          echo "FAIL: reached the MCP service directly from a different namespace -- NetworkPolicy did not block it." >&2
-          exit 1
-        fi
-        echo "OK: direct cross-namespace access blocked, as the NetworkPolicy requires."
-
     - name: rest-zero-mutation-check
       image: quay.io/openshift/origin-cli:4.20
       script: |
@@ -69,6 +48,7 @@ spec:
         # containing JSON/curly braces through oc exec's own arg parsing.
         oc exec -i -n "$NS" "$AGENT_POD" -- python3 - <<'PYEOF'
         import json
+        import os
         import urllib.request
 
 
@@ -87,7 +67,14 @@ spec:
 
 
         def request_count():
-            records = get_json("http://${{ values.name }}-mcp:8081/records")["records"]
+            # Phase G, Stage 2 (DEC-098/DEC-099): reads the agent pod's own
+            # configured MCP_TOOL_ENDPOINT rather than a hardcoded
+            # co-deployed Service DNS -- the tool server is now an
+            # independent Tools Template instance, wherever mcpEndpoint
+            # points. This exec runs inside the agent pod itself, the one
+            # workload the configured endpoint's own NetworkPolicy admits.
+            mcp_endpoint = os.environ["MCP_TOOL_ENDPOINT"]
+            records = get_json(f"{mcp_endpoint}/records")["records"]
             return len([r for r in records if r["record_type"] == "request"])
 
 

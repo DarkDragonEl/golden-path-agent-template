@@ -16,15 +16,10 @@ namespace: ${{ values.name }}-ephemeral-test
 # longer referenced from `resources:`.
 resources:
   - ../../base
-  # DECISIONS.md DEC-063: the approval-service manifests are now part of
-  # ../../base's own resources: directly (promoted at the D2 cutover,
-  # DEC-046's sequencing rule) -- the separate DEC-050 nested-kustomization
-  # reference this line used to carry is retired; ../../base alone
-  # already includes them. AUTH_MODE stays "none" here (this overlay
-  # never overrides it) -- ephemeral-test's own pipeline gate keeps
-  # exercising the real approval service with AUTH_MODE=none, per the
-  # owner's own D2 execution instruction ("AUTH_MODE=oidc everywhere
-  # beyond ephemeral-test's own gate").
+  # Phase G, Stage 2 (DEC-098/DEC-099): approval is no longer co-deployed
+  # by this repo at all -- it's a shared Platform Foundation singleton,
+  # consumed via approvalServiceEndpoint config only. Nothing here needs
+  # to provision or override its own ConfigMap anymore.
 
 configMapGenerator:
   - name: ${{ values.name }}-config
@@ -47,14 +42,17 @@ configMapGenerator:
         # fallback" is a hard scope requirement.
       - DATA_SOURCE_BINDING=synthetic
       - APPROVAL_MODE=required
-      - MCP_MODE=mock
+      # Phase G, Stage 2 (DEC-098/DEC-099): MCP_MODE=mock deliberately NOT
+      # set here anymore -- this repo's split agent image never bundles
+      # server.py, so a mock override would ImportError, the exact
+      # DEC-096/DEC-101 class of bug G2 already found and fixed live for
+      # the non-templated project. The image's own Containerfile ENV
+      # (MCP_MODE=live) is the only value that may ever apply; a real
+      # configMapGenerator literal here would win over that image default
+      # (pod-spec env beats image ENV) and silently reintroduce the bug.
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318 # DEC-071:
         # the cluster-tier collector (DEC-068), reachable cross-namespace --
         # same internal Service DNS pattern as OIDC_ISSUER_URL/MCP_TOOL_ENDPOINT.
-  - name: ${{ values.name }}-approval-config
-    behavior: merge
-    literals:
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318 # DEC-071
 
 replicas:
   - name: ${{ values.name }}

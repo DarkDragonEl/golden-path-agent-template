@@ -38,10 +38,13 @@ metadata:
   title: Golden Path Agent
   description: >-
     Scaffold a new Agentic AI pilot agent project from the golden-path-agent
-    blueprint (LangGraph agent, mock ITSM MCP tool server, human-approval
-    service). Local-render only in this sandbox -- no repository is created,
-    no credentials are used; the rendered project appears in this task's own
-    workspace listing below.
+    blueprint (LangGraph agent). Phase G, Stage 2 (DEC-098/DEC-099): no
+    longer bundles an MCP tool server or an approval service -- those are
+    consumed over the network from a separately-scaffolded Tools Template
+    instance and the shared Platform Foundation approval service,
+    respectively. Local-render only in this sandbox -- no repository is
+    created, no credentials are used; the rendered project appears in this
+    task's own workspace listing below.
   tags:
     - agentic-ai
     - langgraph
@@ -79,6 +82,50 @@ spec:
           default: >-
             An agentic AI pilot agent scaffolded from the golden-path-agent
             blueprint.
+    - title: Platform connections
+      required:
+        - mcpEndpoint
+        - approvalServiceEndpoint
+      properties:
+        mcpEndpoint:
+          title: MCP tool server endpoint
+          type: string
+          description: >-
+            Base URL of the Tools Template instance this agent consumes.
+            No default -- genuinely required, unlike the optional
+            repository-metadata fields below.
+        mcpApiName:
+          title: MCP tool server catalog API name (optional)
+          type: string
+          description: >-
+            The Tools Template instance's own catalog API entity name
+            (its 'name' plus '-api', e.g. 'my-tools-api') -- distinct
+            from mcpEndpoint, a network address. Lets consumesApis
+            resolve once both are live-registered.
+          default: REPLACE_ME_mcpApiName
+        approvalServiceEndpoint:
+          title: Platform approval service endpoint
+          type: string
+          description: >-
+            Base URL of the shared Platform Foundation approval service
+            (one singleton for every agent project). No default --
+            genuinely required.
+        oidcIssuerUrl:
+          title: Shared identity realm issuer URL (optional)
+          type: string
+          description: >-
+            Only load-bearing once AGENT_OIDC_MODE is switched from
+            "none" to "oidc" -- a placeholder default is safe until then.
+          default: REPLACE_ME_oidcIssuerUrl
+        modelRoute:
+          title: Model route (informational, reserved)
+          type: string
+          description: >-
+            Reserved for G5's catalog model completion -- a catalog-backed
+            picker will replace this plain string once model routes are
+            registered as catalog entities. Not yet wired to any rendered
+            config value.
+          default: not-yet-selected
     - title: Repository metadata (optional, informational only)
       properties:
         repoOwner:
@@ -103,6 +150,11 @@ spec:
           name: ${{ parameters.name }}
           owner: ${{ parameters.owner }}
           description: ${{ parameters.description }}
+          mcpEndpoint: ${{ parameters.mcpEndpoint }}
+          mcpApiName: ${{ parameters.mcpApiName }}
+          approvalServiceEndpoint: ${{ parameters.approvalServiceEndpoint }}
+          oidcIssuerUrl: ${{ parameters.oidcIssuerUrl }}
+          modelRoute: ${{ parameters.modelRoute }}
           repoOwner: ${{ parameters.repoOwner }}
           repoName: ${{ parameters.repoName }}
     - id: list-rendered

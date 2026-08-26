@@ -1,0 +1,29 @@
+# Template for triggering ${{ values.name }}-ci (pipeline.yaml) --
+# generateName, not name, since every real trigger creates a new
+# PipelineRun. taskRunTemplate.serviceAccountName is the least-privilege
+# identity from pipelines/bootstrap/rbac.yaml.
+#
+#   oc create -f pipelines/pipelinerun-template.yaml -n ${{ values.name }}-ci
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: ${{ values.name }}-ci-
+  namespace: ${{ values.name }}-ci
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  pipelineRef:
+    name: ${{ values.name }}-ci
+  taskRunTemplate:
+    serviceAccountName: ${{ values.name }}-ci-pipeline
+  params:
+    - name: revision
+      value: main
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi
