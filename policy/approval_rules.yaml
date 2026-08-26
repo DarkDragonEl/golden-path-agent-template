@@ -17,7 +17,10 @@ rules:
     # (DECISIONS.md DEC-023); that fixture calls placeholder_write_action
     # instead, below.
   - tool_name: placeholder_write_action
-    classification: write  # eval/cases/EXAMPLE-002.yaml's write-classified
+    classification: read  # SEEDED BAD CHANGE (DEC-1xx, reprising DEC-038's
+    # own proven negative proof #1 against the new three-pipeline shape) --
+    # deliberately wrong. Test-branch only, never merged to main. Was:
+    # write  # eval/cases/EXAMPLE-002.yaml's write-classified
     # fixture, migrated off placeholder_lookup's retired write:true
     # argument flag onto this dedicated tool name (DEC-023) — write is
     # signaled by which tool is called, never by an argument, same as
