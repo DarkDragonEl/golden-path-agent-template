@@ -146,21 +146,81 @@ golden-path-agent-rhdh-db-7448dcbcc-48d2c     12m          267Mi
 Comfortably inside the headroom `PINS.md`'s F0 row already confirmed
 (worker nodes at 3–4% CPU / 16–17% memory before this stand-up).
 
-## 7. Deviations from F0's own research
+## 7. Real browser verification — two more gaps invisible to scripted checks
+
+Sections 1–6 above (and the original `DEC-093`) relied on `curl` and
+scripted Python API calls. Immediately after, literally opening the
+portal URL in a real Chrome browser surfaced two further real gaps —
+neither one visible to any backend-only check, because both are
+frontend/transport-layer properties a direct API call has no way to
+exercise:
+
+**7a. TLS.** Chrome's HTTPS-first default silently upgraded every
+attempt to `https://`, hitting the OpenShift router's own "Application
+is not available" default backend — the Ingress had no TLS-terminated
+Route at all (`TERMINATION: None`). The obvious fix (a bare
+`spec.tls: [{hosts: [...]}]`, no `secretName`) failed outright with a
+live `IncompleteIngressToRouteRules` event — OpenShift's Ingress-to-
+Route translation requires an explicit Secret, unlike a native `Route`,
+which can leave its cert fields empty and inherit the router's default
+certificate. A self-signed cert satisfied the translation but produced
+a real untrusted-cert browser warning; `openssl s_client` against this
+cluster's own `router-default` host showed a real, publicly-trusted
+wildcard cert already exists (Google Trust Services). Fixed by deleting
+the Ingress and applying a native `Route` with empty cert fields
+instead — same target Service, now inheriting the trusted cert with
+zero extra material:
+
+```
+$ oc get routes -n golden-path-agent-rhdh -o wide
+NAME                     HOST/PORT                          ... TERMINATION     WILDCARD
+golden-path-agent-rhdh   golden-path-agent-rhdh.apps...     ... edge/Redirect   None
+$ openssl s_client -connect <host>:443 ... | openssl x509 -noout -issuer -subject
+issuer=C=US, O=Google Trust Services, CN=WR1
+subject=CN=*.apps.<cluster-domain>
+```
+
+**7b. Sign-in page provider.** With `signInPage: oidc` nested under
+`auth:` (an earlier commit's structure), the backend OIDC route worked
+perfectly — exactly why every scripted check up to this point passed —
+but the frontend's own "Select a sign-in method" page never learned
+which provider to use and silently fell back to RHDH's bundled example
+GitHub provider:
+
+```
+Before fix: "Select a sign-in method" → [GitHub] "Sign in using GitHub"
+After fix:  "Select a sign-in method" → [OIDC]   "Sign in using OIDC"
+```
+
+Confirmed against `redhat-developer/rhdh`'s own `docs/auth.md`:
+`signInPage` must be a top-level config key. Fixed and re-verified live
+via an actual browser screenshot showing the corrected single-option
+OIDC sign-in page.
+
+Both gaps are recorded in full in `PINS.md` and `DEC-094` (an amendment
+to `DEC-093`, not a retraction — every server-side claim in `DEC-093`
+remains true).
+
+## 8. Deviations from F0's own research
 
 None material. Every F0 research finding (operator install mode,
 Route/Ingress toggle behavior, external-DB support) held exactly as
-researched. All six gaps found in sections 2–5 above are new, live-only
-findings — the kind F0's static research could not have surfaced, and
-the exact reason this project's execution-based verification discipline
-exists.
+researched. All eight gaps found in sections 2–7 above are new,
+live-only findings — the kind F0's static research could not have
+surfaced, and the exact reason this project's execution-based
+verification discipline exists. Section 7 in particular is the
+sharpest instance of a narrower lesson: a scripted backend API check
+and a real browser navigation are not interchangeable evidence for a
+claim about what an owner sees when they open a URL.
 
 ## Verdict
 
 STOP 5's bar — "the owner could open the portal URL and log in" — is
-met with execution evidence: operator `Succeeded`, database healthy,
-ArgoCD `Synced`/`Healthy`, a full OIDC login proven end to end, and F1's
+met with execution evidence, including a real browser navigation, not
+just scripted API calls: operator `Succeeded`, database healthy, ArgoCD
+`Synced`/`Healthy`, a trusted-cert HTTPS route, a sign-in page correctly
+offering OIDC, a full OIDC login proven end to end, and F1's
 `catalog-info.yaml` now live and queryable in the catalog. See `DEC-093`
-for the decision record and the two items intentionally left open
-(`OBJ-01` full portal exposure, `SysR-P-F-13`/`OS-09` second-team
-acceptance).
+and its amendment `DEC-094` for the full decision record and the two
+items intentionally left open (`OBJ-01` full portal exposure,
+`SysR-P-F-13`/`OS-09` second-team acceptance).

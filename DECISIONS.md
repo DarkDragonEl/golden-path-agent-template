@@ -7067,3 +7067,74 @@ already named both; restated here as still open, not newly discovered).
 in" — is met with execution evidence, not a claim. Per the owner's own
 pre-authorization, proceeding directly into F5 (Template/Scaffolder
 authoring) in this same pass.
+
+## DEC-094 — Amendment to DEC-093: literal browser-based verification found
+two more real gaps invisible to scripted checks; both fixed, STOP 5's
+bar now genuinely met
+
+`DEC-093`'s own server-side claims stand unretracted (operator, DB,
+ArgoCD sync, the scripted OIDC handshake, `catalog-info.yaml` visibility
+— all still true, all still backed by their own execution evidence).
+But its closing line — "the owner could open the portal URL and log in"
+— had only been tested via `curl`/scripted Python, never by literally
+opening the URL in a real browser. Doing that immediately after pushing
+`DEC-093` surfaced two further real gaps, neither one visible to any
+check this phase had run up to that point:
+
+1. **Plain-HTTP Ingress + a modern browser's HTTPS-first default don't
+   mix.** Chrome silently upgraded every attempt to `https://`, hitting
+   the OpenShift router's own "Application is not available" default
+   backend (no TLS-terminated route existed for the host at all —
+   confirmed via `oc get routes`, `TERMINATION: None`). Attempting the
+   obvious fix — a bare `spec.tls: [{hosts: [...]}]` on the Ingress, no
+   `secretName` — produced a live `IncompleteIngressToRouteRules` event
+   ("Invalid or missing TLS secret") and no Route at all: OpenShift's
+   Ingress-to-Route translation *requires* an explicit Secret reference,
+   unlike a native `Route`, which can leave its own `tls.certificate`/
+   `key`/`caCertificate` fields empty and inherit the router's default
+   certificate. A self-signed cert + Secret satisfied the translation
+   but produced a real untrusted-cert browser warning — worse than
+   necessary, since `openssl s_client` against this cluster's own
+   `router-default` host showed it already carries a real, publicly-
+   trusted wildcard cert (Google Trust Services, `*.apps.<cluster-
+   domain>`). Resolved by deleting the Ingress and applying a native
+   `Route` instead (same target Service, `tls: {termination: edge,
+   insecureEdgeTerminationPolicy: Redirect}`, no cert fields) — this
+   inherits the cluster's own trusted cert with zero extra material.
+   This is a narrower, different decision from the operator's own
+   Route-vs-Ingress toggle (`DEC-092`'s item 3, which asked only whether
+   `spec.application.route.enabled` on the `Backstage` CR itself
+   suppresses Route generation — it does, and that decision is
+   unchanged); this decision is about how *this project's own*
+   externally-facing binding gets TLS, a question the original ~1h
+   timebox never tested. Both objects stay out-of-band (never
+   git-committed) for the same reason the Ingress already was — the
+   real hostname is anonymity-sensitive.
+2. **`signInPage` is a top-level config key, not a sub-key of `auth:`.**
+   With it nested under `auth:` (as an earlier commit had it), the
+   *backend* OIDC flow was fully functional — exactly why every
+   scripted check in this phase (direct calls to `/api/auth/oidc/start`)
+   passed — but the frontend's own "Select a sign-in method" page
+   never learned which provider to use, and silently fell back to
+   RHDH's bundled example GitHub provider instead. A real owner opening
+   this portal would have seen a "Sign in using GitHub" button and no
+   way to reach Keycloak at all. Confirmed against
+   `redhat-developer/rhdh`'s own `docs/auth.md`; fixed by moving
+   `signInPage: oidc` to the document root. Re-verified live: the sign-
+   in page now shows a single "OIDC" / "Sign in using OIDC" card.
+
+**Why the earlier scripted verification couldn't have caught either
+gap**: both are frontend/transport-layer properties that a direct
+backend API call has no way to exercise — the backend route these
+checks called is identical either way. This is the sharpest instance in
+this project's own "verification by execution, not documentation"
+discipline of a narrower truth: *which* execution you run matters, not
+just that you ran one. A scripted API check and a real browser
+navigation are not interchangeable evidence for a claim about what an
+owner sees when they open a URL.
+
+**Status**: both fixes committed, synced, and live-reconfirmed (Route
+`TERMINATION: edge/Redirect` with the cluster's trusted cert; sign-in
+page showing the correct single OIDC option). `reports/phase-f-f4-
+verification.md` updated with both findings. STOP 5's bar — genuinely,
+now, on the evidence a real browser produces — is met.
