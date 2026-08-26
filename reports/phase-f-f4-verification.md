@@ -85,6 +85,21 @@ content still holding the old value. Every fix after that point landed
 in the committed manifest first. This is the single most consequential
 operational lesson of the phase (`PINS.md`).
 
+### 4a. A real external browser found a deeper gap this section's own evidence missed (`DEC-097`)
+
+Section 4's own proof above was run via `oc exec` *inside the cluster* —
+this structurally cannot see whether a real external browser can even
+*reach* the redirect target at all. It couldn't: when the project owner
+attempted the walkthrough with a real external browser, RHDH's OIDC
+popup redirected to
+`golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local`
+— internal-cluster-only DNS, `ERR_CONNECTION_REFUSED`. Two more bugs
+surfaced in sequence while fixing it (Keycloak reporting `http://`
+endpoints behind an edge-terminated Route, then RHDH's own stale
+discovery-document cache after the first fix) — full chain and fixes in
+`DEC-097`. **STOP 5's own bar is only genuinely met as of that entry**:
+a real external login, not just a scripted proxy for one.
+
 ## 5. `catalog-info.yaml` visible — F1's own smoke test
 
 The hardest gap of the phase. Sequence of elimination, each step a real

@@ -141,22 +141,34 @@ $ oc exec <mcp pod> -- grep -c '@mcp.tool(' mcp_server/server.py   # live deploy
 Confirmed on both the checked-out source and the live running pod —
 **still exactly 5**, unchanged by this phase's work.
 
-## 7. Honest scope note on what wasn't verified
+## 7. Wizard click-through — closed after initial report (`DEC-097`)
 
-This phase's login-page bug (`DEC-094`) was caught only by literally
-opening a real browser — a lesson this verification pass deliberately
-tries to apply, but with one real constraint: driving the scaffolder
-task through the actual Create-page **wizard UI** (clicking through the
-parameter form, not just POSTing to the same backend endpoint the
-wizard calls) requires being logged in, and this session's own
-browser-automation safety rules prohibit entering any password —
-including this project's own synthetic demo account — into a browser
-field. The Template's registration and its JSON Schema-driven parameter
-form were confirmed live via the catalog API (the same schema data the
-wizard renders from); the actual click-through of the wizard's own
-rendered form was not independently exercised. Stated plainly rather
-than glossed over, matching this phase's own discipline of naming gaps
-instead of assuming success.
+This section originally stated an honest gap: driving the scaffolder
+task through the actual Create-page **wizard UI** requires being logged
+in, and this session's own browser-automation safety rules prohibit
+entering any password — including this project's own synthetic demo
+account — into a browser field, so only the equivalent backend API call
+had been exercised, not the wizard's own click-through.
+
+That gap is now closed. The project owner completed a real external
+login (itself only possible after the three-bug chain `DEC-097`
+documents was fixed — `DEC-093`'s original login proof, run via `oc
+exec` inside the cluster, could not have caught it) and then, at this
+session's own request, drove the wizard themselves through this
+session's browser automation — filling in only project-identity form
+fields (`Project name`, `Owning team`), never a credential. Real
+sequence: Templates list → **Golden Path Agent** card → **Choose** →
+step 1 (Project identity) filled and **Next** → step 2 (Repository
+metadata) left at defaults, **Review** → step 3 confirmed all values
+correctly, **Create** → task `b78eadc2-2bd4-4359-a782-087c4785ca63` ran
+both steps green, full file listing visible in the task's own log.
+
+One non-blocking observation from that real run, not new: the portal
+shows a warning that `group:default/golden-path-agent-team` (this
+Template's own `owner`, matching `catalog-info.yaml`'s) can't be found
+in the catalog — expected, since this catalog has zero `User`/`Group`
+entities by deliberate sandbox-scope decision. Confirmed it did not
+block the Create flow from completing.
 
 ## 8. Owner-facing walkthrough
 
@@ -200,5 +212,8 @@ All four STOP 6 DoD items are met with execution evidence: a completed
 live Template run (241 files rendered), F3/F5 file-set parity (241/241,
 with the byte-content-parity limitation stated honestly above),
 `OOD-006` still refusing on the live agent, and the MCP boundary
-unchanged at exactly 5 registrations. See `DEC-095` for the decision
-record.
+unchanged at exactly 5 registrations. A second, real Template run then
+followed via the actual wizard UI, driven by the project owner
+themselves through a real external login — closing section 7's own
+originally-honest gap. See `DEC-095` and its amendment `DEC-097` for the
+full decision record.
