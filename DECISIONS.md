@@ -547,6 +547,8 @@ required spot-check (below) found severe regressions in categories that
 were solid under granite; a follow-up isolation experiment ruled out the
 context cap as the cause. The swap this entry made is reverted.
 
+**Addendum (Phase H4a, migrated from `agent/config.py:109-119`'s code comment):** A Phase B4 live-testing finding (`reports/feature-phase-b-golden-path.md`) was that `draft_request`/`tool_selection` failed their thresholds decisively when the full `RETRIEVAL_TOP_K` corpus context was injected into the model's context verbatim — a detailed procedure document reliably out-competed the tool schemas for the model's attention. `REASONING_CONTEXT_TOP_K`/`REASONING_EXCERPT_CHARS` (a smaller, separate context budget) were introduced as the structural mitigation, distinct from `RETRIEVAL_TOP_K`, so `decide_node` never sees the full retrieved context.
+
 ## DEC-011 — DEC-010 reverted: Scout-primary regresses knowledge_qa/out_of_domain/itsm_read
 
 **Document/scope:** `agent/config.py`'s `MODEL_NAME`/`MODEL_FALLBACK_NAME`
@@ -998,6 +1000,8 @@ for owner adjudication of the proposed-remedy table** (`reports/feature-phase-b-
 "Mission Step R1" section) at Checkpoint R1, per this mission's explicit
 rule that no remedy is applied before that sign-off.
 
+**Addendum (Phase H4a, migrated from `agent/tool_result_format.py:1-16`'s module docstring):** This module exists to fix a gap first found in the Phase B2 report — `human_approval_node`'s `final_output` formatting did not know `itsm_create_request`'s output shape. Live-smoke-testing Phase B3 found the identical gap also affects `tool_invoke_node`'s own read path for `itsm_search_records`; this module's `format_tool_result` closes both call sites with one shared formatter.
+
 ## DEC-014 — R2 batch applied; mixed result, three genuinely new
 findings, none of the six remedies fully closes its target
 
@@ -1119,6 +1123,8 @@ none remediated this cycle. **Holding at Checkpoint R2** for owner review —
 per this mission's explicit sequencing, no further remedy, prompt change, or
 case edit happens without that review, and Step R3 (gate-semantics design)
 is next only after this checkpoint clears.
+
+**Addendum (Phase H4a, migrated from `mcp_server/itsm_store.py:25-31`'s docstring):** The trailing-s tolerance in free-text search matching (`ITR-001`) is justified by realism — a real ITSM search box would reasonably tolerate a trailing-s mismatch without doing full stemming — not by bending the store's behavior to match a specific eval outcome. Store behavior is justified by the store's own intent first.
 
 ## DEC-015 — Sampling pinned (temperature=0, seed=42): the dominant source
 of residual pass-to-pass noise, confirmed and closed
@@ -1726,6 +1732,8 @@ Checkpoint B2's live verification step is not optional ceremony.
 **STOP at R4 completion, per the mission's explicit instruction** — holding
 for owner review before Phase C.
 
+**Addendum (Phase H4a, migrated from `agent/config.py:157-161`'s code comment):** `AGENT_WORKLOAD_ID` is deliberately distinct from `OTEL_SERVICE_NAME` (an OTel resource-attribute convention) even though the two share a default value today — `AGENT_WORKLOAD_ID` names the real ServiceAccount/workload identity, which can diverge from the OTel service name in a future environment (e.g. multiple workload identities sharing one OTel service name, or vice versa); the two fields are not meant to be collapsed into one.
+
 ## DEC-021 — Checkpoint B2 approved and formally closed
 
 **Document/scope:** Owner review of `DEC-020`. No code changes — this
@@ -2066,6 +2074,8 @@ is the plan's own designated repo-only entry gate.
 the Phase C plan's own instruction, for a quick owner sanity check before
 the first real cluster write (C1a).**
 
+**Addendum (Phase H4a, migrated from `deploy/kustomize/base/networkpolicy-approval.yaml:32-39`'s code comment):** a live, still-open TODO — the OpenShift-SDN ingress label this NetworkPolicy relies on has not been individually re-verified against a specific new cluster; per this project's own "verify, don't assume" discipline, that verification should happen before relying on it in a new environment.
+
 ## DEC-024 — Phase C Step C1a: first real cluster/repo writes — namespaces,
 RBAC, secret bootstrap, public GitHub repo, `AppProject`
 
@@ -2206,6 +2216,8 @@ runbook procedures now written into `eval-gate-live`'s design + the
 rego↔YAML mechanical sync check) — **holding at C1b's own STOP (manifests
 + RBAC diff for review) before the first real `PipelineRun` (C1c)**, per
 the owner's explicit sequencing.
+
+**Addendum (Phase H4a, migrated from `deploy/kustomize/overlays/demo-prod/namespace.yaml:1-16`'s code comment):** `Application.spec.syncPolicy.syncOptions`'s `CreateNamespace=true` only works when the ArgoCD instance's own ServiceAccount has cluster-scoped `Namespace` permissions — worth recording since this project's own pipeline identity is deliberately denied any such cluster-scoped grant, so the namespace must instead be bootstrapped once, out-of-band, exactly as this project already does.
 
 ## DEC-025 — Phase C Step C1b: full Tekton pipeline manifests, rego↔YAML
 sync check, promotion-PR credential mechanism — holding at the C1b STOP
@@ -3425,6 +3437,43 @@ owner's explicit authorization, per their own instruction. Holding at the
 pre-C3/C4 STOP with the PR diff plus the prepared (committed, dry-run
 -validated, unapplied) C3/C4 manifest package for review together.
 
+## DEC-040 (retroactively reconstructed by Phase H4a — see DEC-114) — the ArgoCD root/ephemeral-test Application scaffolds are filled in at C3/C4 but deliberately not synced yet
+
+**Note on this entry's provenance:** `DEC-040` is cited by two committed
+code comments (`deploy/argocd/application-root.yaml`,
+`deploy/argocd/application-ephemeral-test.yaml`) as their source, but no
+`DEC-040` entry was ever committed to this log — confirmed by
+`grep -n "^## DEC-040" DECISIONS.md` returning nothing before this
+session added this entry. This is a genuine historical gap in the
+record, not a renumbering artifact (the numbering sequence elsewhere is
+otherwise continuous around this point). What follows is a **retroactive
+reconstruction**, assembled from what the two citing comments actually
+say plus the closely related `DEC-021` ("no staging, no pilot" kickoff
+decision) and `DEC-024` (which independently documents the same
+"ephemeral-test/root Application manifests are filled in but
+deliberately never applied/synced, kept as a future scaffold" content
+these comments describe) — **not a contemporaneous record**. If the
+original session's actual intent differs from this reconstruction, a
+human with direct memory of this period should correct it.
+
+**Reconstructed content:** at Step C3/C4, `deploy/argocd/application-
+root.yaml` and `deploy/argocd/application-ephemeral-test.yaml` were
+authored and committed in full (real `Application` manifests, not
+placeholders) but deliberately left unapplied/un-synced — kept as a
+ready-to-use future scaffold rather than applied prematurely. This
+follows directly from `DEC-021`'s own "no staging, no pilot" scope
+decision: `staging`/`pilot-prod`'s existing stub `Application`s stay
+outside the app-of-apps too, unsynced, for the same reason. The specific
+mechanics — that `ephemeral-test`'s own `Application` exists in Git as a
+complete, correct manifest ready to be synced the moment a pipeline run
+needs it, without requiring a fresh authoring pass at that later point —
+are the same fact `DEC-024` records independently for the root
+`Application`'s own child-Application scaffolding.
+
+**Status:** Reconstructed for documentation continuity (Phase H4a). Not
+an original decision record — treat any specific numeric or procedural
+detail here as inferred, not verified against a contemporaneous source.
+
 ## DEC-041 — Step C3/C4 execution: PR merged (the promotion event),
 `AppProject`/root `Application` applied; two bugs found and fixed before
 the app-of-apps actually synced
@@ -3491,6 +3540,8 @@ have been a false statement in `DECISIONS.md` had it gone unverified.
 **Status:** root `Application` applied, `Synced`/`Healthy`; `demo-prod`'s
 own child `Application` created and syncing. Two further, independent
 bugs surfaced at that point in the workload itself — see `DEC-042`.
+
+**Addendum (Phase H4a, migrated from `deploy/kustomize/overlays/demo-prod/kustomization.yaml:55-82`'s code comment):** a third copy of `golden-path-agent-secrets` is intentional, relying on Kubernetes' own `envFrom` ordering — `deployment-agent.yaml` lists `secretRef` AFTER `configMapRef`, so the Secret's real values correctly shadow this ConfigMap's inherited base placeholders in the rendered environment, rather than the two colliding unpredictably.
 
 ## DEC-042 — Step C4: `demo-prod`'s pods failed on `InvalidImageName` and
 a missing cross-namespace image-pull grant; both fixed and verified live
@@ -3823,6 +3874,8 @@ pipeline green. Then hold at the D1 verification STOP — live cluster
 run-through (approve/reject/expiry), pod-restart-survives-pending-approval,
 the restart-overdue-expiry pickup, and `F-02`'s concurrency race exercised
 live, not just unit-tested.
+
+**Addendum (Phase H4a, migrated from `approval_service/api.py:13-21`'s code comment):** telemetry for this service (SRS-APR-IF-03) is realized via structured `logging`, not an OTel span/`TracerProvider`, because this service's config contract at the time carried no `OTEL_EXPORTER_OTLP_ENDPOINT`/`OTEL_SERVICE_NAME` fields — wiring a real OTel exporter was deferred until the config contract grew those fields (closed later at `DEC-071`).
 
 ## DEC-047 — D1 implementation step (a): approval-service business logic
 + full `SRS-APR` §6 test set, reviewed and verified independently
@@ -4473,6 +4526,8 @@ same turn and waiting for explicit ack before running any of: the
 namespace create, the operator `Subscription`, or the Postgres
 `Deployment`.
 
+**Addendum (Phase H4a, migrated from `platform/bootstrap/keycloak-realm-import.yaml:39-42`'s code comment):** the second test user is deliberately never assigned the `approval-approver` role — this is what makes the project's own named negative test possible, correct by omission, with nothing to misconfigure in order to "block" that user's approval access.
+
 ## DEC-055 — D2 entry gate BLOCKED: cluster-wide OLM resolution failure,
 caused by another tenant's broken `CatalogSource`, not this project's
 
@@ -4550,6 +4605,8 @@ configuration error on this project's part, and — confirmed independently
 `OperatorHub.spec.disableAllDefaultSources` does not apply either: it
 only covers the cluster's own default catalogs, not a different tenant's
 custom one.
+
+**Addendum (Phase H4a, migrated from `scripts/bootstrap.sh:72-81`'s code comment):** `installPlanApproval: Manual` (this project's own pin-exact-versions, no-silent-auto-upgrade discipline, `PINS.md`) means even the FIRST install of a pinned `startingCSV` sits in `RequiresApproval` until explicitly patched — never previously exercised in this project, since Keycloak's OLM path was always blocked earlier by this entry's own poisoned-catalog finding. `approve_pending_installplan` only ever approves the exact pinned CSV, never an arbitrary pending one — the safety property that makes this automatable without loosening the pin discipline.
 
 ## DEC-056 — D2 entry gate UNBLOCKED: Keycloak operator installed via
 its own upstream, OLM-free kustomize path — `DEC-055`'s blocker worked
@@ -4826,6 +4883,8 @@ true by construction, not by any explicit deny rule).
 realm, secrets) fully live and verified end to end. Proceeding to the
 agent-side/MCP-side code (delegated to a subagent, in progress) and then
 the cutover sequence.
+
+**Addendum (Phase H4a, migrated from `scripts/bootstrap.sh:137-148`'s code comment):** a real gap found live, not documented anywhere before — `keycloak-cr.yaml`'s own header comment names `golden-path-agent-keycloak-db-secret` and `golden-path-agent-keycloak-admin` as "manually provisioned out-of-band," but `docs/phase-d-runbook.md` never actually documented the exact commands to create them, and getting the create-once-vs-`CreateContainerConfigError` sequencing wrong (creating the Postgres `Deployment` before its Secret exists) produces a `CreateContainerConfigError` that looks like a manifest bug rather than a missing-secret ordering issue.
 
 ## DEC-060 — D2 implementation: agent-side OIDC token exchange, MCP
 credential enforcement — built by a delegated agent, reviewed directly
@@ -5526,6 +5585,8 @@ new tests); `tools/check_config_contract.py` clean; a scratch
 `kustomize build` of `demo-prod` confirms `OTEL_EXPORTER_OTLP_ENDPOINT`
 renders correctly on both `ConfigMap`s.
 
+**Addendum (Phase H4a, migrated from `agent/telemetry.py:90-97`'s code comment):** the `proposal_id`-correlation attribute is emitted as an empty string, not omitted, when no proposal was ever drafted in that turn — a consistent, always-present attribute is easier to query across a trace store than one that is sometimes present and sometimes absent.
+
 ## DEC-072 — D3 implementation: the minimal approver UI, built by a
 delegated agent, reviewed directly
 
@@ -6079,6 +6140,10 @@ catalog -- confirmed live this session); as the colleague-facing
 system, its lifetime and renewal cadence is an owner-managed
 operational item, not blueprint scope.
 
+**Addendum (Phase H4a, migrated from `scripts/bootstrap.sh:2-9`'s header comment):** this script is the actual from-scratch operator-bootstrap leg Phase E/E1 exists to prove — a scripted replay of the manual bootstrap sequence `docs/phase-c-runbook.md` established by hand on the SNO, extended with two operator `Subscription`s (`pipelines/bootstrap/pipelines-operator.yaml`, `gitops-operator.yaml`) that neither the SNO nor any prior phase ever had to author, since those operators were always pre-installed there by other work before this project touched it.
+
+**Addendum (Phase H4a, migrated from `scripts/bootstrap.sh:297-303`'s code comment):** a real gap found live during this phase's bootstrap replay — applying `pipelines/pipeline.yaml` and `pipelines/tasks/*.yaml` was never written down anywhere in this project's docs or scripts; on the SNO this had evidently been done ad hoc during Phase C's own live session and never captured, surfacing as a `CouldntGetPipeline` error on a fresh cluster. `scripts/bootstrap.sh` now applies the three independent Pipelines (`DEC-098`/`DEC-099`'s split) directly instead of the since-retired single Pipeline.
+
 ## DEC-079 — First-generation workspace tooling released: 4 skills, 2
 commands, a provisional UI map -- live-tested end to end, ahead of any
 Phase E work
@@ -6561,6 +6626,14 @@ created or modified — every command was a `get`/`describe`-class read.
 `docs/phase-f-kickoff-plan.md` §4.2. Held at kickoff plan STOP 1 — no
 phase past F0 is authorized by this entry.
 
+**Correction (Phase H4a):** `platform/bootstrap/otel-collector.yaml`'s
+code comment cites this entry (`DEC-085`) as the source for the Phase E
+`traces-http` sidecar image-pruning outage and its fix. That citation is
+in error — this entry is Phase F0 RHDH/kickoff research and has no
+connection to OTel, the collector, or that incident. The real record for
+that outage is `DEC-119`, logged retroactively from
+`reports/phase-e-otel-collector-fix.md`.
+
 ## DEC-086 — kubeconfig hygiene rule for the remainder of Phase F: pin an
 explicit context or a dedicated KUBECONFIG, never the ambient shared one
 
@@ -6987,6 +7060,14 @@ verification (operator healthy, DB up, UI reachable, Keycloak login,
 `catalog-info.yaml` visible) are a separate, following step** — this
 entry does not itself claim STOP 5's bar is met.
 
+**Addendum (Phase H4a, migrated from `deploy/kustomize/overlays/rhdh/oidc-app-config.yaml:1-10`'s code comment):** the RHDH operator's own documentation states an `app-config` `ConfigMap` must contain exactly one `data` entry, per its documented merge-order constraint (`docs/configuration.md`) — this overlay's OIDC config `ConfigMap` follows that constraint deliberately, not as an arbitrary style choice.
+
+**Addendum (Phase H4a, migrated from `platform/bootstrap/keycloak-realm-import.yaml:143-149`'s code comment):** RHDH's own OIDC client is a confidential client using the standard Authorization Code flow, since Backstage's backend OIDC plugin handles the token exchange server-side — a genuinely distinct trust surface from this project's dev-tooling sign-in audience, deliberately not reusing an existing client.
+
+**Addendum (Phase H4a, migrated from `platform/bootstrap/provision-identity-secrets.sh:279-286`'s code comment):** omitting RHDH's `SESSION_SECRET` entirely produces the runtime error "Authentication failed, authentication requires session support" on the very first login attempt — this script generates it once and never rotates it on subsequent runs, since rotating a session secret would invalidate every live session without any corresponding security benefit.
+
+**Addendum (Phase H4a, migrated from `platform/bootstrap/rhdh-operator.yaml:16-19`'s code comment):** RHDH's `AllNamespaces` install mode makes the operator visible to every tenant on this shared cluster once installed — this is not considered a new exposure class this project introduces, since Pipelines/GitOps already established the identical `AllNamespaces`/`openshift-operators` precedent on this same shared cluster.
+
 ## DEC-093 — STOP 5 cleared: RHDH sync + end-to-end verification complete,
 F4 done, owner's own bar ("open the portal URL and log in") met
 
@@ -7067,6 +7148,14 @@ already named both; restated here as still open, not newly discovered).
 in" — is met with execution evidence, not a claim. Per the owner's own
 pre-authorization, proceeding directly into F5 (Template/Scaffolder
 authoring) in this same pass.
+
+**Addendum (Phase H4a, migrated from `deploy/kustomize/overlays/rhdh/catalog-locations-config.yaml:1-25`'s code comment):** the catalog `UrlReader` gap produced the error text `NotAllowedError ... backend.reading.allow`, fixed by adding a `backend.reading.allow` entry. Backstage's own config merge is per-key-path, not whole-object-replace, so this addition and the OIDC ConfigMap's own `backend.*` keys both survive in the same running config without one overwriting the other.
+
+**Addendum (Phase H4a, migrated from `deploy/kustomize/overlays/rhdh/oidc-app-config.yaml:18-35`'s code comment):** this RHDH version's `oidc` auth provider rejects the `scope` configuration key outright with the error "no longer supports the 'scope' configuration option" — fixed by migrating to `additionalScopes`. Separately, Backstage defaults its own backend base URL to `http://localhost:7007` when `backend.baseUrl` is left unset, which silently breaks OIDC redirect URLs in a real deployment.
+
+**Addendum (Phase H4a, migrated from `deploy/kustomize/overlays/rhdh/oidc-app-config.yaml:64-72`'s code comment):** omitting `auth.session.secret` entirely produces the runtime error "Authentication failed, authentication requires session support" on the very first `/api/auth/oidc/start` request — Backstage's OIDC flow depends on cookie-based session support (`express-session` under the hood), which requires this secret to be set.
+
+**Addendum (Phase H4a, migrated from `deploy/kustomize/overlays/rhdh/postgres.yaml:17-31`'s code comment):** each Backstage backend plugin creates its own database on first use, so the app user needs `CREATEDB` privilege or every plugin fails with "permission denied to create database" — fixed live via `ALTER ROLE rhdh CREATEDB;` run through `oc exec`/`psql` against the Postgres pod directly.
 
 ## DEC-094 — Amendment to DEC-093: literal browser-based verification found
 two more real gaps invisible to scripted checks; both fixed, STOP 5's
@@ -7284,6 +7373,10 @@ exact flow, including an Observability section on the OTel spans
 follow-up (new scope, not addressed here): no regression guard asserts
 `make up` starts all four roles and wires `APPROVAL_SERVICE_ENDPOINT`, so
 this class of defect could recur silently.
+
+**Addendum (Phase H4a, migrated from `agent/cli.py:1-21`'s module docstring):** this CLI builds a fresh in-memory checkpointer every run, so there is no cross-*process* resume — only within-process. Its `--decision approve|reject` flag now genuinely round-trips through the approval service (calling `decide_proposal` then `resolve_and_resume`), fixing the dead-code gap this entry's own finding names.
+
+**Addendum (Phase H4a, migrated from `scripts/dev.sh:99-102`'s code comment):** the dev-loop gap this entry fixed also included wiring `APPROVAL_SERVICE_ENDPOINT` — before the fix, the agent's default (`http://localhost:8082`) pointed at nothing inside `scripts/dev.sh`'s own container network namespace, so any write-classified query failed immediately in local dev. `scripts/dev.sh` now sets this explicitly for the agent container.
 
 ## DEC-097 — Amendment to DEC-093/DEC-095: the owner's own real external
 browser found a deeper login gap this session's own verification could
@@ -7518,6 +7611,8 @@ that isn't:**
 **Status**: Decided (owner-approved, this session). Nothing built.
 Next: G1 (Gitea + Platform Foundation stand-up).
 
+**Addendum (Phase H4a, migrated from `scripts/dev.sh:70-77`'s code comment):** the split agent image (`Containerfile.agent`) deliberately excludes `mcp_server/server.py`, so `MCP_MODE=mock`'s old in-process fallback (`from . import server`) would `ImportError` inside that image — this is why `scripts/dev.sh` now runs `MCP_MODE=live` unconditionally for local dev, exercising the real, separate `mcp` container instead of an in-process stub.
+
 ## DEC-099 — Phase G restructured into four stages to parallelize G1-G7;
 worktree isolation + single-owner governance adopted for the decision
 log; Stage 1 (G1's Gitea stand-up + G2's three-image split) authorized
@@ -7598,6 +7693,8 @@ Stage 3/4 ahead of their own stage's start.
 
 **Status**: Decided (owner-approved, this session). Stage 1 begins
 immediately as two parallel worktree streams (G1, G2) per this entry.
+
+**Addendum (Phase H4a, migrated from `pipelines/pipeline-mcp.yaml:1-9`'s header comment):** this pipeline was deliberately framed and built as a "Layer-1/Tools-Template proof-of-independence in miniature" — proving the MCP tool server's build/test/promote path works fully independently ahead of G3's own, more general, separate Tools Template.
 
 ## DEC-100 — G1 (Stage 1) complete except one item: Gitea + Platform
 Foundation stood up via upstream kustomize (not OLM), org/machine-
@@ -7698,6 +7795,10 @@ by the coordinating session next rather than re-queued to G1 — see
 (ArgoCD/GitOps repoint, approval-service extraction into its own image)
 stays held until G2's own STOP clears and the seeded bad-change gate
 re-passes.
+
+**Addendum (Phase H4a, migrated from `platform/bootstrap/gitea-cr.yaml:1-9`'s code comment):** this is one shared Platform Foundation Gitea instance, not one per agent-project — its admin password is provisioned via a Secret (the `giteaAdminPasswordSecretName` field), never committed as plaintext to Git.
+
+**Addendum (Phase H4a, migrated from `platform/bootstrap/gitea-operator-upstream/kustomization.yaml:4-26`'s code comment):** Gitea's own OLM install hit a DIFFERENT failure than the Keycloak `nousie-docling-catalog` incident documented elsewhere in this log — `ResolutionFailed`/`CatalogSourcesUnhealthy` despite a healthy `CatalogSource`, root-caused to a stuck internal resolver cache in the cluster-wide `catalog-operator` pod. Worked around identically (upstream kustomize install), resolving the operator image to a digest via `skopeo inspect` (`sha256:ec115feaa606459300c33f8aecd751d637217185e5e9087513f0280768695613`).
 
 ## DEC-101 — G2 complete, STOP 4 cleared: monolithic image split into
 three independently-built, independently-promoted, independently-live
@@ -7843,6 +7944,8 @@ checkable evidence. Per `DEC-099`'s merge-order rule, G1's held tail
 (ArgoCD repoint + completing the approval-service's move to the Platform
 Foundation) is now unblocked. See
 `reports/feature-g2-three-image-split.md` for the complete evidence trail.
+
+**Addendum (Phase H4a, migrated from `deploy/kustomize/base/networkpolicy.yaml:20-30`'s code comment):** the second, narrow `podSelector` entry added for `agent-fallback-demo` was chosen specifically because it is NOT a subset-match for the standing agent `Deployment`'s own selector — avoiding ReplicaSet adoption, which a broader, widened first-selector edit would have risked.
 
 ## DEC-102 — G5: catalog model designed locally (System, approval-service
 Component+API, model-route Resources+API) -- not yet registered in
@@ -8013,6 +8116,12 @@ assumed. Per `DEC-099`'s stage table, Stage 1 is done; Stage 2 (G3/G4/G5)
 was already authorized to proceed the moment this stage's dependency
 chain cleared, and per `DECISIONS.md`'s own tail (`DEC-102`, landed
 during this same session's work) has already begun in parallel.
+
+**Addendum (Phase H4a, migrated from `deploy/kustomize/overlays/demo-prod/kustomization.yaml:12-25`'s code comment):** no data migration was performed for the approval service's extraction — the old `demo-prod` approval instance's SQLite state was demo-scope-only and was not preserved; the new, independently-deployed instance starts fresh.
+
+**Addendum (Phase H4a, migrated from `deploy/kustomize/overlays/rhdh/catalog-locations-config.yaml:32-90`'s code comment):** the `GiteaIntegration` fix was confirmed by reading RHDH's own source directly — `packages/integration/src/gitea/core.ts`'s `parseGiteaUrl` function — before writing the corrected config, rather than guessing at the expected URL shape from documentation alone.
+
+**Addendum (Phase H4a, migrated from `platform/bootstrap/gitea-backup-restore-probe.yaml:1-11`'s code comment):** the backup/restore proof uses the cluster's existing CSI RBD `VolumeSnapshotClass` (`ocs-external-storagecluster-rbdplugin-snapclass`, confirmed present live) rather than a manual tar-based backup, and is run as a one-shot probe rather than a recurring schedule, since this milestone only needs to prove the mechanism works, not operate a continuous backup regime.
 
 ## DEC-104 — G3+G4 complete: Tools Template created, Agent Template
 re-cut to consume it and the platform approval service over the network
@@ -8956,3 +9065,58 @@ coordinating session will author the Git changes listed above (resolving
 the two-repo question first) and route them through this project's
 normal review/merge process, after which `STOP 8` (owner runs the real
 browser wizard) is restorable to G6's plan as originally designed.
+
+## DEC-119 (retroactively logged by Phase H4a — see DEC-114) — Phase E OTel-collector `traces-http` sidecar image-pruning outage and fix
+
+**Note on this entry's provenance:** this incident and its fix were
+never logged in this file under any number — confirmed by grepping
+`DECISIONS.md` for the fix's own distinctive terms (`traces-http`,
+`ImagePullBackOff`, the commit hash) before adding this entry, zero
+hits. `platform/bootstrap/otel-collector.yaml:103-127`'s code comment
+cites `DEC-085` for it in error (`DEC-085` covers unrelated Phase F0/RHDH
+kickoff research — see the correction addendum added there alongside
+this entry). The full command-level investigation, fix, and
+verification live in `reports/phase-e-otel-collector-fix.md`; this entry
+summarizes it for the decision log.
+
+**Finding:** the owner reported "otel is not working" on the showcase
+cluster. Live investigation found the `traces-http` sidecar (added per
+`DEC-068`, since the upstream OTel Collector image is distroless) pinned
+to a digest borrowed from this project's own
+`golden-path-agent-ci/golden-path-agent` `ImageStream` — an ImageStream
+whose whole purpose is CI churn, so it prunes old build digests over
+time by design. That digest was pruned, contradicting `DEC-068`'s own
+stated intent that the pin "does not need to track future promotions."
+Root cause confirmed live: the collector pod was `1/2 ImagePullBackOff`
+for 17+ hours, zero ready Service endpoints, and the agent's own OTLP
+exporter call failed with `Connection refused`.
+
+**Decision/fix:** repinned the `traces-http` sidecar to
+`registry.access.redhat.com/ubi9/python-312-minimal` (a Red Hat-
+published UBI image with zero relationship to this project's own CI/
+promotion lifecycle — the failure class that broke the original pin
+cannot recur against this one), confirmed live-tested locally before
+pinning. Secondary fix bundled in the same change: `deployment-mcp.yaml`
+gained an explicit `OTEL_SERVICE_NAME=golden-path-agent-mcp` (it
+previously inherited `golden-path-agent` from the shared ConfigMap,
+indistinguishable from the agent's own spans). Both files are outside
+any `Containerfile`'s `COPY` list, so per `CLAUDE.md`'s workflow rule
+this was committed directly to `main` (commit `a6e1625`, pushed), no
+feature branch, matching established Phase C/D practice.
+
+**Evidence:** post-fix, the collector pod is `2/2 Running`, the Service
+has a ready `addresses` entry, and a real end-to-end write → approve →
+resume flow (driven from inside the live `agent` pod) produced a full
+cross-service trace query result — spans/events from both
+`golden-path-agent` and `golden-path-agent-approval`, correlated by
+`request.id`/session/proposal attributes (`DEC-071`'s mechanism), with
+correct `model_call.route`, `tool_call.classification`, and
+`approval.decision` attributes throughout. The local dev OTel path
+(`scripts/dev.sh`) was independently live-verified in the same pass —
+previously only structurally reviewed, never actually run. Full
+command-level transcripts: `reports/phase-e-otel-collector-fix.md`.
+
+**Status:** Fixed, verified live end to end. Nothing left open — the new
+sidecar pin has no relationship to this project's own CI/promotion
+lifecycle, so the specific failure class that caused this outage cannot
+recur.

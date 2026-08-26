@@ -219,3 +219,53 @@ this finding does not change phase ordering, only H4's effort estimate.
   `application-root.yaml`) cite a `DEC-040` that was never written — decide
   what to cite once their content is migrated, since there's nothing at
   DEC-040 to point back to.
+
+## H4a — migration mapping
+
+All 35 category-(c) items migrated into `DECISIONS.md`, plus the two
+special cases (the phantom `DEC-040`, the `DEC-085`→real-incident
+misattribution). Every row below is now committed to `DECISIONS.md`; H4b
+may cite the "New home" column when slimming each comment.
+
+| # | Original location | Cited DEC (as written) | New home | Summary |
+|---|---|---|---|---|
+| 1 | `agent/cli.py:1-21` | DEC-008/049 | Addendum at **DEC-096** | Fresh in-memory checkpointer per run; `--decision` now genuinely round-trips |
+| 2 | `agent/config.py:109-119` | DEC-012/013 | Addendum at **DEC-010** | `RETRIEVAL_TOP_K` context out-competed tool schemas; `REASONING_CONTEXT_TOP_K` mitigation |
+| 3 | `agent/config.py:157-161` | DEC-020 | Addendum at **DEC-020** | `AGENT_WORKLOAD_ID` deliberately distinct from `OTEL_SERVICE_NAME` |
+| 4 | `agent/telemetry.py:90-97` | DEC-071 | Addendum at **DEC-071** | Empty-string-not-omitted attribute rationale |
+| 5 | `agent/tool_result_format.py:1-16` | DEC-013/012 | Addendum at **DEC-013** | Phase B2/B3 bug-discovery narrative for `format_tool_result` |
+| 6 | `mcp_server/itsm_store.py:25-31` | DEC-014 | Addendum at **DEC-014** | Store-behavior-justified-by-intent design philosophy |
+| 7 | `approval_service/api.py:13-21` | DEC-046 | Addendum at **DEC-046** | Telemetry-via-structured-logging rationale |
+| 8 | `scripts/bootstrap.sh:2-9` | DEC-078 | Addendum at **DEC-078** | Script's Phase E/E1 purpose, newly-authored operator Subscriptions |
+| 9 | `scripts/bootstrap.sh:72-81` | DEC-055 | Addendum at **DEC-055** | `installPlanApproval: Manual` semantics, `approve_pending_installplan` safety property |
+| 10 | `scripts/bootstrap.sh:137-148` | DEC-059 | Addendum at **DEC-059** | `keycloak-cr.yaml` header-comment gap, secret names, `CreateContainerConfigError` reasoning |
+| 11 | `scripts/bootstrap.sh:297-303` | DEC-098/099 | Addendum at **DEC-078** | Undocumented ad-hoc `pipelines/pipeline.yaml` apply, `CouldntGetPipeline` gap |
+| 12 | `scripts/dev.sh:70-77` | DEC-098/099 (partial) | Addendum at **DEC-098** | `Containerfile.agent` excludes `mcp_server/server.py`, mock-mode `ImportError` |
+| 13 | `scripts/dev.sh:99-102` | DEC-047 | Addendum at **DEC-096** | `APPROVAL_SERVICE_ENDPOINT` dev-loop wiring gap |
+| 14 | `pipelines/pipeline-mcp.yaml:1-9` | DEC-098/099/101/104 | Addendum at **DEC-099** | "Layer-1/Tools-Template proof-of-independence in miniature" framing |
+| 15 | `deploy/argocd/application-ephemeral-test.yaml:1-16` | DEC-021/**040**/039 | **New DEC-040** (reconstructed) | Phantom DEC-040 — see dedicated entry |
+| 16 | `deploy/argocd/application-root.yaml:1-20` | DEC-021/**040** | **New DEC-040** (reconstructed) | Phantom DEC-040 — see dedicated entry |
+| 17 | `deploy/kustomize/base/networkpolicy-approval.yaml:32-39` | DEC-023 | Addendum at **DEC-023** | Live open TODO, OpenShift SDN ingress label re-verification |
+| 18 | `deploy/kustomize/base/networkpolicy.yaml:20-30` | DEC-098/099 | Addendum at **DEC-101** | Narrow `podSelector` avoids ReplicaSet adoption |
+| 19 | `deploy/kustomize/overlays/demo-prod/kustomization.yaml:12-25` | DEC-103 | Addendum at **DEC-103** | No-data-migration policy for approval service extraction |
+| 20 | `deploy/kustomize/overlays/demo-prod/kustomization.yaml:55-82` | DEC-035/039 | Addendum at **DEC-041** | `envFrom` ordering / third-Secret-copy shadowing mechanism |
+| 21 | `deploy/kustomize/overlays/demo-prod/namespace.yaml:1-16` | DEC-021/024 | Addendum at **DEC-024** | ArgoCD `CreateNamespace=true` cluster-scoped SA requirement |
+| 22 | `deploy/kustomize/overlays/rhdh/catalog-locations-config.yaml:1-25` | DEC-087/098/099/100 | Addendum at **DEC-093** | UrlReader `NotAllowedError`, per-key-path merge semantics |
+| 23 | `deploy/kustomize/overlays/rhdh/catalog-locations-config.yaml:32-90` | DEC-087/098/099/100 | Addendum at **DEC-103** | `parseGiteaUrl`/`core.ts` debugging provenance |
+| 24 | `deploy/kustomize/overlays/rhdh/oidc-app-config.yaml:1-10` | DEC-087/092 | Addendum at **DEC-092** | "Exactly one data entry" operator-doc quote |
+| 25 | `deploy/kustomize/overlays/rhdh/oidc-app-config.yaml:18-35` | DEC-092 | Addendum at **DEC-093** | `scope` rejection error text, `baseUrl` localhost default |
+| 26 | `deploy/kustomize/overlays/rhdh/oidc-app-config.yaml:64-72` | DEC-092 | Addendum at **DEC-093** | Session-support error text, cookie/express-session explanation |
+| 27 | `deploy/kustomize/overlays/rhdh/postgres.yaml:17-31` | DEC-087 | Addendum at **DEC-093** | Per-plugin DB creation, `CREATEDB` fix, exact error text |
+| 28 | `platform/bootstrap/gitea-backup-restore-probe.yaml:1-11` | DEC-098/099 | Addendum at **DEC-103** | CSI RBD `VolumeSnapshotClass` name, one-shot rationale |
+| 29 | `platform/bootstrap/gitea-cr.yaml:1-9` | DEC-098/099 | Addendum at **DEC-100** | Admin-password Secret field, one-shared-instance framing |
+| 30 | `platform/bootstrap/gitea-operator-upstream/kustomization.yaml:4-26` | DEC-055/056/098/099 | Addendum at **DEC-100** | Distinct Gitea OLM failure, root cause, resolved digest |
+| 31 | `platform/bootstrap/keycloak-realm-import.yaml:39-42` | DEC-054 | Addendum at **DEC-054** | "Correct by omission" negative-test design |
+| 32 | `platform/bootstrap/keycloak-realm-import.yaml:143-149` | DEC-087/092 | Addendum at **DEC-092** | RHDH OIDC client confidential/Authorization-Code shape |
+| 33 | `platform/bootstrap/otel-collector.yaml:103-127` | DEC-085 (wrong) | **New DEC-119** + correction at DEC-085 | OTLP outage misattribution — see below |
+| 34 | `platform/bootstrap/provision-identity-secrets.sh:279-286` | DEC-092 | Addendum at **DEC-092** | `SESSION_SECRET` gap, error text, generate-once-never-rotate |
+| 35 | `platform/bootstrap/rhdh-operator.yaml:16-19` | DEC-092 | Addendum at **DEC-092** | "Not a new exposure class" reasoning |
+| — | Phantom `DEC-040` (items 15, 16 above) | — | **New DEC-040** | Retroactively reconstructed from DEC-021/DEC-024 + the two citing comments; explicitly marked as reconstruction, not a contemporaneous record |
+| — | OTLP outage misattribution (item 33 above) | — | **New DEC-119** + correction addendum at **DEC-085** | Real Phase E incident (traces-http sidecar image pruned, 12h+ outage), logged retroactively from `reports/phase-e-otel-collector-fix.md`; DEC-085 corrected to point here |
+
+37 rows total (35 migrated items + the DEC-040 and DEC-119 special-case
+rows). All committed to `DECISIONS.md` as of this report's update.
