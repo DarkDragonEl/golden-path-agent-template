@@ -13,6 +13,22 @@
 # Credentials: a plain Secret (golden-path-agent-rhdh-db-secret), manually
 # provisioned out-of-band, never committed -- same established pattern as
 # golden-path-agent-secrets/golden-path-agent-keycloak-db-secret.
+#
+# REQUIRED MANUAL STEP, found live (F4, DEC-092): RHDH creates one
+# Postgres database per backend plugin at startup (e.g.
+# backstage_plugin_search, backstage_plugin_events, ...), not just the
+# single POSTGRESQL_DATABASE this S2I image provisions by default -- the
+# app user needs CREATEDB or every plugin fails ("permission denied to
+# create database"). The S2I image's own `postgres` superuser is
+# reachable with no password from inside the pod (confirmed live), so
+# after this Deployment is Running:
+#   oc exec -n golden-path-agent-rhdh <pg-pod> -- \
+#     psql -U postgres -d postgres -c "ALTER ROLE rhdh CREATEDB;"
+# scripts/bootstrap.sh's own --with-rhdh block does not automate this
+# (it runs before GitOps has created this Deployment at all) -- run once,
+# by hand, the first time this Postgres instance is created on a cluster;
+# the grant lives in the role itself (PVC-backed), so it survives pod
+# restarts and does not need repeating after that.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

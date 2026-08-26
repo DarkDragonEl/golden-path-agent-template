@@ -15,6 +15,12 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
 data:
+  # Real gap found live (F4, DEC-092): this RHDH version's oidc auth
+  # provider rejects the `scope` key outright ("no longer supports the
+  # 'scope' configuration option") -- confirmed by the backend actually
+  # failing to start with that exact error before this was changed to
+  # `additionalScopes`. Not assumed from docs (which still show `scope`
+  # in some published examples) -- caught only by running it.
   app-config.oidc.yaml: |
     auth:
       environment: development
@@ -24,9 +30,10 @@ data:
             clientId: ${OIDC_CLIENT_ID}
             clientSecret: ${OIDC_CLIENT_SECRET}
             metadataUrl: ${OIDC_METADATA_URL}
-            scope: openid profile email
+            additionalScopes:
+              - profile
+              - email
             prompt: consent
-      # signInPage: kept as a live-verified item, not assumed correct
-      # from docs alone -- see reports/phase-f-f4-verification.md for
-      # whether this needed adjustment once actually tested.
+      # signInPage: live-verified -- see reports/phase-f-f4-verification.md
+      # for the actual login-page/redirect outcome.
       signInPage: oidc
