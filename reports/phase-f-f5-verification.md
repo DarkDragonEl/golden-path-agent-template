@@ -158,6 +158,42 @@ rendered form was not independently exercised. Stated plainly rather
 than glossed over, matching this phase's own discipline of naming gaps
 instead of assuming success.
 
+## 8. Owner-facing walkthrough
+
+The real Ingress hostname is kept out of git per this project's
+anonymity rule (same reasoning as every other live-cluster-specific
+binding this phase touched) — substitute the showcase cluster's own
+current value, visible via `oc get routes -n golden-path-agent-rhdh`.
+
+1. Open `https://<the showcase cluster's RHDH Route host>/` in a
+   browser. (Must be `https://` — the Route has no plain-HTTP listener;
+   see `DEC-094` on why an HTTP-only Ingress doesn't work with modern
+   browsers' HTTPS-first default.)
+2. On "Select a sign-in method," click **Sign In** under the **OIDC**
+   card. This redirects to the existing `golden-path-agent-keycloak`
+   realm's own login page.
+3. Sign in with a real Keycloak user in that realm (e.g. the
+   `demo-approver` account already used elsewhere in this project's own
+   walkthroughs).
+4. From the portal's left navigation, open **Create** (or navigate
+   directly to `/create`).
+5. Choose the **Golden Path Agent** template (tags: `agentic-ai`,
+   `langgraph`, `mcp`, `golden-path`).
+6. Fill in **Project name** (lowercase, digits, hyphens — this becomes
+   every derived namespace/resource name) and **Owning team**; leave
+   **Project description** and the two repository-metadata fields at
+   their defaults unless customizing.
+7. Click through to run the task. Local-render only — no repository is
+   created and no credentials are used; the task's own log (visible in
+   the portal as it runs) lists every file written, and the completed
+   task page confirms success.
+
+This session's own browser-automation safety rules prevented completing
+steps 2–3 with the actual demo credential (see section 7's honest scope
+note) — steps 4–7 were instead verified via the equivalent backend API
+call in section 3 above, using the same Bearer token a completed browser
+login would produce.
+
 ## Verdict
 
 All four STOP 6 DoD items are met with execution evidence: a completed
