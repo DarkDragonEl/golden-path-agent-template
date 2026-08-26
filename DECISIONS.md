@@ -8534,3 +8534,80 @@ verified live for both templates. The rendered content's own
 GitOps/promotion internal consistency, and full pipeline/ArgoCD
 auto-onboarding, remain real, separately-scoped follow-up work — named
 explicitly, not silently assumed done.
+
+## DEC-112 — G6 follow-up: rendered GitOps/promotion content made
+Gitea-aware, closing DEC-111's named gap; scaffolded projects target
+Gitea exclusively (not GitHub), per DEC-098's own already-recorded
+framing
+
+**Context**: `DEC-111` (G6 Path B) found and named a real gap: the
+published GitOps repo's own ArgoCD/promotion-PR references were still
+hardcoded to GitHub. This entry closes it — and found the real scope
+was larger than "wrong hostname."
+
+**What changed, all one root cause (`DEC-111`'s two-repo split relocated
+`deploy/` into a separate `<repoName>-gitops` repo, dropping the
+`deploy/` prefix there)**:
+1. All four `Application` manifests' `repoURL` (+ `project.yaml`'s
+   `sourceRepos`) now point at the GitOps repo
+   (`${{ values.gitHost }}/${{ values.repoOwner }}/${{ values.repoName }}-gitops.git`),
+   not the source repo on GitHub.
+2. Those same manifests' `path:` fields had their own `deploy/` prefix
+   stripped (`argocd/apps`, `kustomize/overlays/*`) — found live, not in
+   the gap's original framing.
+3. `open-promotion-pr.yaml` (byte-identical in `skeleton/` and
+   `skeleton-tools/`, both fixed) was structurally broken, not just
+   hostname-wrong: it edited `deploy/kustomize/base/kustomization.yaml`
+   inside the pipeline's own already-checked-out source-repo workspace —
+   that file doesn't exist there anymore once split. Rewritten to clone
+   the separate GitOps repo into its own scratch subdirectory, edit/
+   commit/push there, and open the PR via Gitea's own API.
+4. `pipeline.yaml`'s own `repo-url` default (both templates) was also
+   GitHub-hardcoded — a third spot, same root cause, fixed for
+   consistency.
+5. A connected, pre-existing bug found and fixed: `--publish` resolved
+   `repoOwner`/`repoName` to their real target *after* rendering, so the
+   common no-explicit-flags case baked literal `REPLACE_ME_*` strings
+   into rendered content while publishing somewhere else entirely.
+   Resolution now happens before rendering.
+
+**Design decision, resolved with cited support (`DEC-098`'s own text),
+not guessed**: scaffolded projects target Gitea exclusively, not "both
+GitHub and Gitea" — GitHub was always this blueprint repo's own public
+upstream (`DEC-098`'s own phrasing), never a legitimate scaffolded-child
+target; the pre-Gitea hardcoding predates Gitea entirely and was never a
+deliberate dual-support decision.
+
+**New schema parameter**: `gitHost` (both `template-schema.json` and
+`template-schema-tools.json`), real default (not a placeholder) since
+every scaffolded project shares one Platform Foundation Gitea instance.
+The GitOps repo name stays derived (`<repoName>-gitops`), not an
+independent parameter, matching `tools/gitea_publish.py`'s own
+convention. `instantiate_agent_project.py`'s own separate
+`DEFAULT_GITEA_HOST` constant and the now-redundant `--gitea-host` flag
+were removed — one source of truth, not two copies of the same literal
+(`DEC-075`'s lesson, applied again).
+
+**Verified live, with real evidence**: `verify_skeleton.py` clean on both
+templates; full suite 253/1 skipped unchanged; a real end-to-end publish
+to the live Gitea instance, with published content fetched back and
+confirmed correct (GitOps repo self-references itself, correct paths, no
+`deploy/` prefix; source repo's own pipeline points at the source repo);
+the resolution-order fix confirmed working in the no-explicit-flags case;
+a real, live simulation of the rewritten `open-promotion-pr.yaml` logic
+— clone, edit, commit, push, and a genuine PR opened via Gitea's API
+(PR #1, confirmed created) — proving Gitea's PR-creation endpoint
+accepts the same request shape as GitHub's, not assumed. All test
+artifacts (two repos, one PR, all local scratch/credential files)
+cleaned up and confirmed gone.
+
+**Not attempted, per this session's own scope**: a real Tekton
+`PipelineRun` exercising this fix end-to-end (the underlying per-project
+CI namespace/RBAC bootstrap this would need doesn't exist yet, `DEC-111`'s
+own separate named gap); coordination with the concurrent portal-wizard
+publish spike (not needed — this fix is publish-path-agnostic); a
+`docs/*.md` consistency pass for the old GitHub-based credential
+references in prose comments.
+
+**Status**: `DEC-111`'s named gap is closed, with a larger real scope
+than its own framing anticipated, all verified live.
