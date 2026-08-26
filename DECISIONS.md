@@ -6986,3 +6986,84 @@ complete.
 verification (operator healthy, DB up, UI reachable, Keycloak login,
 `catalog-info.yaml` visible) are a separate, following step** — this
 entry does not itself claim STOP 5's bar is met.
+
+## DEC-093 — STOP 5 cleared: RHDH sync + end-to-end verification complete,
+F4 done, owner's own bar ("open the portal URL and log in") met
+
+Following `DEC-092`'s infrastructure-ready state, sync and every
+end-to-end check named in that entry's own "separate, following step"
+are now complete, each via execution, not a claim:
+
+1. **ArgoCD sync**: `golden-path-agent-rhdh` Application `Synced`/
+   `Healthy` at `916de5666...` (latest commit). The one pre-sync gap
+   found live — the namespace's own `argocd.argoproj.io/managed-by`
+   label was missing, so the first sync attempt failed outright
+   (`services is forbidden ... cannot create resource`) — was fixed live
+   (label added, same RBAC-grant mechanism `demo-prod`'s own namespace
+   already relies on) and the fix backfilled into
+   `pipelines/bootstrap/namespaces.yaml` in this entry's own commit set
+   (it had been live-patched before being committed; recorded here as
+   the closure of that gap, not a new one).
+2. **Operator/CSV**: `rhdh-operator.v1.10.3`, `Succeeded`; Subscription
+   `AtLatestKnown`.
+3. **Database**: `golden-path-agent-rhdh-db` pod `Running`/`1/1`,
+   `ALTER ROLE rhdh CREATEDB;` grant applied (per `PINS.md`'s own finding)
+   — RHDH's per-backend-plugin database creation succeeded, no further
+   crash-loops.
+4. **Auth flow, proven end-to-end**: a full OIDC Authorization Code +
+   PKCE flow driven programmatically (Keycloak login form submission →
+   callback → `backstageIdentity.token`) against the real `demo-approver`
+   Keycloak user, run from inside the cluster (`oc exec` into the agent
+   pod, same pre-existing external-DNS workaround this project already
+   has for the approver-ui per `DEC-074` — not a new gap). Four real
+   config gaps were found and fixed live in getting here (all recorded
+   in `PINS.md` and this entry's own commit history): `scope` →
+   `additionalScopes`, missing `app`/`backend.baseUrl`/`cors.origin`,
+   missing `auth.session.secret`, and `environment: development` →
+   `production` + `signIn.resolvers` with
+   `dangerouslyAllowSignInWithoutUserInCatalog: true` (sandbox-scope
+   decision — no user/group ingestion configured; re-entry point is the
+   Keycloak catalog-backend plugin if that's ever wanted). Each fix
+   landed in the committed ConfigMap before taking effect, after the
+   very first fix attempt was live-patched and silently reverted by
+   ArgoCD's own `selfHeal: true` within about a minute — the single
+   biggest recurring lesson of this phase, documented in `PINS.md` and
+   not repeated after that point.
+5. **`catalog-info.yaml` visible** — F1's own smoke test: a real gap
+   found live, distinct from all the auth-flow gaps above. The location
+   registered and the URL was independently confirmed network-reachable
+   from inside the pod (`curl` returned a clean `200`), yet every
+   catalog-processor read attempt failed with Backstage's own `UrlReader`
+   security guard (`NotAllowedError ... backend.reading.allow`) — a
+   security check orthogonal to network reachability, not a symptom of
+   it. Fixed by adding `backend.reading.allow` for
+   `raw.githubusercontent.com`. Re-verified live after the fix: the
+   `golden-path-agent` `Component` entity now resolves via
+   `/api/catalog/entities/by-name/component/default/golden-path-agent`,
+   with `backstage.io/managed-by-location` correctly pointing at F1's
+   own public raw URL.
+6. **Resource utilization**: `backstage` pod ~86m CPU / ~931Mi memory,
+   its Postgres ~12m CPU / ~267Mi memory — comfortably inside the
+   headroom `PINS.md`'s F0 row already confirmed, no budget risk.
+
+**Deviations from F0's own research, named explicitly**: none material —
+every F0 finding (install mode, Route/Ingress toggle, external-DB
+support) held as researched; the gaps above were all *new*, live-only
+findings F0's own static research could not have surfaced (session
+secret, `scope` rejection, `UrlReader` allowlist), consistent with this
+project's own "verification by execution, not documentation" discipline
+holding up again.
+
+**Two items intentionally left open, named rather than silently
+dropped**: full portal exposure toward `OBJ-01` (this stand-up proves the
+platform is live and reachable; broader owner/team-facing rollout is a
+separate later decision) and `SysR-P-F-13`/`OS-09`'s second-team
+acceptance echo, which this project still cannot self-certify (`DEC-091`
+already named both; restated here as still open, not newly discovered).
+
+**Full evidence**: `reports/phase-f-f4-verification.md`.
+
+**Verdict**: STOP 5's bar — "the owner could open the portal URL and log
+in" — is met with execution evidence, not a claim. Per the owner's own
+pre-authorization, proceeding directly into F5 (Template/Scaffolder
+authoring) in this same pass.
