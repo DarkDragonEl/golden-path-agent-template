@@ -19,7 +19,10 @@
 # for every Subscription on this shared cluster, confirmed via
 # catalog-operator's own logs and matching Red Hat KB 7052456 exactly.
 # Not this project's resource to fix. D2 actually proceeded via
-# pipelines/bootstrap/keycloak-operator-upstream/ (the Keycloak project's
+# platform/bootstrap/keycloak-operator-upstream/ (moved here from
+# pipelines/bootstrap/ at Phase G's G1, DECISIONS.md DEC-098/DEC-099 --
+# identity infrastructure is now Platform Foundation, not per-agent
+# pipeline scaffolding) (the Keycloak project's
 # own OLM-free kustomize install, pinned to tag 26.7.2) instead -- kept
 # here, committed, deliberately NOT deleted from Git, as documented tech
 # debt: migrate to rhbk-operator via this file once the shared cluster's

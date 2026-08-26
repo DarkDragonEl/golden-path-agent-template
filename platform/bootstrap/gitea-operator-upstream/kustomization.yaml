@@ -1,0 +1,107 @@
+# Phase G, Stage 1 (DECISIONS.md DEC-098/DEC-099). Git hosting for
+# scaffolded project repositories -- Platform Foundation infrastructure.
+#
+# Superseding note: an earlier version of this file used a plain OLM
+# Subscription (CatalogSource `redhat-rhpds-gitea` + Subscription in
+# `openshift-operators`). That path got permanently stuck: the
+# Subscription never resolved an InstallPlan (`ResolutionFailed`/
+# `CatalogSourcesUnhealthy`) despite the CatalogSource being confirmed
+# `READY` with correct served content for 5+ minutes straight -- a stuck
+# internal resolver cache in the cluster-wide `catalog-operator` pod
+# (openshift-operator-lifecycle-manager), not a config error on this
+# project's side. Restarting that pod is the standard fix, but it is
+# shared, cluster-wide control-plane infrastructure affecting every
+# tenant on this lab cluster -- this project's own precedent (`DEC-055`:
+# a different tenant's broken CatalogSource poisoned OLM resolution
+# cluster-wide; response was "not this project's resource to fix," not
+# "fix it ourselves") rules out touching it unilaterally. Abandoned in
+# favor of this file: `rhpds/gitea-operator`'s own `config/default`
+# kustomize path (`Makefile`'s `install`/`deploy` targets, read directly
+# before this file was authored) -- a plain, namespace-scoped kustomize
+# apply, zero dependency on OLM/openshift-marketplace/catalog-operator at
+# all. Exactly the shape `pipelines/bootstrap/keycloak-operator-upstream/
+# kustomization.yaml` already established for `DEC-056`'s identical
+# problem class (rhbk-operator's own OLM Subscription blocked by the same
+# kind of shared-cluster catalog issue) -- same reasoning applies
+# directly here, not just by analogy.
+#
+# Image pin: `config/manager/kustomization.yaml` at commit
+# `77cdc2b884c160663f7ef0b9040c35898d3ebcce` (tag `v2.3.2`) already pins
+# `quay.io/rhpds/gitea-operator:v2.3.2` explicitly (not `:latest`).
+# Resolved to a digest via `skopeo inspect docker://quay.io/rhpds/
+# gitea-operator:v2.3.2` (verified live 2026-08-26) --
+# `sha256:ec115feaa606459300c33f8aecd751d637217185e5e9087513f0280768695
+# 613` -- consistent with this project's own digest-pinning discipline
+# (PINS.md's Phase E `traces-http` sidecar row is the established
+# precedent for pinning a digest even when upstream ships a tag).
+#
+# RBAC narrowing (a real, deliberate deviation from upstream, matching
+# `keycloak-operator-upstream`'s own house style): upstream's
+# `config/rbac/role_binding.yaml` binds `manager-role` (secrets, pods,
+# deployments, serviceaccounts, pvcs, configmaps, services, routes, and
+# the Gitea CR itself -- every one of them a namespaced-kind resource,
+# confirmed by reading `config/rbac/role.yaml` and the CRD's own
+# `scope: Namespaced`) via a **ClusterRoleBinding** -- full cluster-wide
+# write access to core resources across every namespace on this shared
+# lab cluster, a materially broader grant than `keycloak-operator-
+# upstream`'s own single narrow ClusterRoleBinding (read-only on
+# `config.openshift.io/ingresses`). Deleted that ClusterRoleBinding here
+# (`delete-manager-crb.yaml`, `$patch: delete`) and replaced it with a
+# namespace-scoped RoleBinding (`rolebinding-manager.yaml`) referencing
+# the same ClusterRole as a template -- the exact "ClusterRole template +
+# namespaced RoleBinding" pattern `keycloak-operator-upstream` already
+# uses for the rest of its own rules, and the same effective permissions
+# the operator actually needs (it only ever manages resources inside the
+# one namespace where its own `Gitea` CR lives). `metrics-auth-role`'s
+# own ClusterRoleBinding is left untouched -- confirmed via
+# `config/rbac/metrics_auth_role.yaml` that it only grants `create` on
+# `tokenreviews`/`subjectaccessreviews`, the standard kube-rbac-proxy
+# metrics-auth pattern, which is genuinely cluster-scoped by resource
+# type (no namespace concept exists for either) and grants no access to
+# any workload data -- narrowing it further isn't possible or meaningful.
+#
+# WATCH_NAMESPACE: confirmed live via `gh api` against
+# `operator-framework/operator-sdk`'s own docs
+# (`website/content/en/docs/building-operators/ansible/reference/
+# scaffolding.md`) that ansible-operator's `WATCH_NAMESPACE` env var
+# defaults to unset = watch all namespaces; `config/manager/manager.yaml`
+# does not set it. Added here via the standard downward-API pattern
+# (`fieldRef: metadata.namespace`) so the operator's own controller cache
+# is scoped to its own namespace too, not just the RBAC -- belt-and-
+# braces, the same operator-sdk-documented mechanism Keycloak's own
+# upstream base uses its own equivalent env var for
+# (`QUARKUS_OPERATOR_SDK_CONTROLLERS_*_NAMESPACES=JOSDK_WATCH_CURRENT`).
+#
+# `namespace:` below overrides the upstream base's own hardcoded
+# `namespace: gitea-operator` -- verified by rendering before applying
+# (`oc kustomize`, not assumed): kustomize's namespace transform
+# correctly rewrites every namespaced resource and every RoleBinding/
+# ClusterRoleBinding ServiceAccount subject namespace here (unlike
+# `keycloak-operator-upstream`'s own base, this one needed no manual
+# subject-namespace patch).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: golden-path-agent-gitea
+
+resources:
+  - github.com/rhpds/gitea-operator/config/default?ref=v2.3.2
+  - rolebinding-manager.yaml
+
+images:
+  - name: quay.io/rhpds/gitea-operator
+    digest: sha256:ec115feaa606459300c33f8aecd751d637217185e5e9087513f0280768695613
+
+patches:
+  - path: delete-manager-crb.yaml
+  - target:
+      kind: Deployment
+      name: gitea-operator-controller-manager
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: WATCH_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace

@@ -1,0 +1,20 @@
+# Phase G, Stage 1 (DECISIONS.md DEC-098/DEC-099). One-time backup/
+# restore exercise for Gitea's own data PVC, per G1's own DoD ("Gitea's
+# own data-volume backup/restore exercised once, live") -- the platform
+# now operates a Git service, and this project's own precedent
+# (Gitea data-volume risk named explicitly in the kickoff draft) is:
+# prove restore before anything depends on it, not after. Uses the
+# cluster's existing CSI RBD VolumeSnapshotClass (`ocs-external-
+# storagecluster-rbdplugin-snapclass`, confirmed present live) rather
+# than a manual tar-based backup -- the actual mechanism a real recovery
+# would use. This manifest is a one-shot probe artifact, not a recurring
+# backup schedule (out of scope for this session).
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: golden-path-agent-gitea-backup-probe
+  namespace: golden-path-agent-gitea
+spec:
+  volumeSnapshotClassName: ocs-external-storagecluster-rbdplugin-snapclass
+  source:
+    persistentVolumeClaimName: golden-path-agent-gitea-pvc

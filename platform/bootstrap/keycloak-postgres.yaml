@@ -16,7 +16,9 @@
 # OpenShift postgresql S2I image's own required env vars).
 #
 # Same manual, human-applied bootstrap discipline as
-# pipelines/bootstrap/namespaces.yaml/rbac.yaml/keycloak-operator.yaml --
+# pipelines/bootstrap/namespaces.yaml/rbac.yaml and this file's own
+# sibling keycloak-operator.yaml (both now under platform/bootstrap/,
+# Phase G G1, DEC-098/DEC-099) --
 # namespace-scoped only, no cluster-scoped grant. Per the owner's own
 # instruction: prepared now, applied only once the D2 design STOP is
 # past and the owner has authorized moving into implementation.
