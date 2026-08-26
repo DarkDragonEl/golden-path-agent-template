@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Document ID | SRS-APR |
-| Version | 0.1 (Draft — Checkpoint B0-a) |
+| Version | 0.3 (Draft, amended) |
 | Conformance | ISO/IEC/IEEE 29148 §9.5 (SRS content), tailored per §0.1 |
 | Derivation basis | SyRS-AGP-001 v0.1 (frozen) — SysR-P-F-08, SysR-P-F-09, SysR-P-USE-01, SysR-P-IF-05/06, SysR-P-SEC-01/02/03/05/06, SysR-P-INFO-03, SysR-P-POL-01 |
 | Classification | Organization-agnostic blueprint; no proprietary content; no product names in normative text |
@@ -17,6 +17,7 @@
 |---|---|---|---|
 | 0.1 | 2026-08-13 | Delivery agent (Phase B0) | Initial derivation from SyRS-AGP-001 v0.1, following the skeleton pattern at `SRS-APR_skeleton.md`. Submitted at Checkpoint B0-a. |
 | 0.2 | 2026-08-21 | Owner review, Checkpoint B0-b | All 4 PROPOSED items resolved (F-04 jointly with `srs/SRS-AGT.md`'s F-04, F-07, SEC-02, SEC-04); SRS-APR-IF-05 (terminal-state proposal query) added, closing FIND-004. See `DECISIONS.md` DEC-008. |
+| 0.3 | 2026-08-26 | Phase G kickoff (G0) | Added SRS-APR-QUAL-02 (held, never auto-approved, on shared-service unavailability), extending SRS-APR-SEC-01's fail-closed guarantee to the shared-approval-service consumption boundary introduced by DECISIONS.md DEC-098. Purely additive; no existing requirement text changed. |
 
 ### Associated Documents
 
@@ -107,6 +108,9 @@ Out of scope for this item: the agent's drafting logic (SRS-AGT), the write exec
 - **SRS-APR-QUAL-01 — Non-developer approver usability.** A pilot approver with no software-development background shall be able to complete an approve-or-reject decision using only the decision surface (SRS-APR-IF-02) and the decision context it presents (SRS-APR-F-05), without consulting any system outside the approval interface and the audit record, and without prior training beyond a single walkthrough.
   *Trace:* SysR-P-USE-01. *Verification:* D (approver walkthrough in staging, per SysR-P-USE-01).
 
+- **SRS-APR-QUAL-02 — Held, never auto-approved, when the shared service is unreachable.** When any consumer (an agent workload or another platform component) cannot reach the approval service, or receives no response within its own configured request timeout, that consumer shall treat the affected action as held: it shall not synthesize a locally-assumed `approved` decision, shall not reuse a prior decision for a different proposal, and shall not release execution by any path that bypasses SRS-APR-IF-02's decision surface. This is a consumer-side extension of SRS-APR-SEC-01's fail-closed guarantee to the shared-service boundary introduced once the approval service is consumed by more than one agent/tool workload (`DECISIONS.md` DEC-098) rather than co-located with a single agent's own deployment; it composes with, and does not replace, the independent per-agent write kill switch already required by SysR-P-OPS-03 — together the two form a two-level fail-safe: SysR-P-OPS-03's operator-triggered, per-agent switch, and this requirement's automatic, consumer-side default the moment the shared gate itself is unreachable, requiring no operator action for that specific case.
+  *Trace:* SysR-P-SEC-05, SysR-P-OPS-03 (by extension — the independent-kill-switch principle this requirement's second level composes with). *Verification:* T (fault injection: block network access from ≥2 distinct consumer workloads to the approval service; confirm zero execution release from either, and confirm SysR-P-OPS-03's own kill switch is not required to achieve that outcome), D.
+
 - **Performance.** *Not applicable — tailored out.* No component-specific latency or throughput target is set for this blueprint's demo tier; the only platform-level performance requirement bearing on this component is the one-hour local-start budget (SysR-P-PERF-01), which is a whole-golden-path measure, not an approval-service-specific one.
 
 ## 6. Verification *(consolidated)*
@@ -132,6 +136,7 @@ Out of scope for this item: the agent's drafting logic (SRS-AGT), the write exec
 | SRS-APR-SEC-03 | I, T | Phase B identity-spoofing test (needed) |
 | SRS-APR-SEC-04 | I, T | Phase B immutability test (needed) |
 | SRS-APR-QUAL-01 | D | Phase D approver walkthrough |
+| SRS-APR-QUAL-02 | T, D | Phase G consumer-side fault-injection test (needed; executable once a second consumer exists, G3+) |
 
 "Needed" marks a Phase B verification artifact that does not yet exist — listed for `tools/trace-check`'s check (d), which activates once Phase B produces tests.
 
@@ -158,8 +163,9 @@ Out of scope for this item: the agent's drafting logic (SRS-AGT), the write exec
 | SRS-APR-SEC-03 | SysR-P-IF-05, SysR-P-SEC-02 | I, T |
 | SRS-APR-SEC-04 | SysR-P-SEC-06, SysR-P-SEC-01 | I, T |
 | SRS-APR-QUAL-01 | SysR-P-USE-01 | D |
+| SRS-APR-QUAL-02 | SysR-P-SEC-05, SysR-P-OPS-03 (ref.) | T, D |
 
-**SysR coverage.** SRS-APR requirements trace to: SysR-P-F-08, SysR-P-F-09, SysR-P-USE-01, SysR-P-IF-05, SysR-P-IF-06, SysR-P-SEC-01, SysR-P-SEC-02, SysR-P-SEC-05, SysR-P-SEC-06, SysR-P-INFO-03. This is informative; `tools/trace-check` (Phase B0, check (b)) is the authoritative validator once built.
+**SysR coverage.** SRS-APR requirements trace to: SysR-P-F-08, SysR-P-F-09, SysR-P-USE-01, SysR-P-IF-05, SysR-P-IF-06, SysR-P-SEC-01, SysR-P-SEC-02, SysR-P-SEC-05, SysR-P-SEC-06, SysR-P-INFO-03, SysR-P-OPS-03. This is informative; `tools/trace-check` (Phase B0, check (b)) is the authoritative validator once built.
 
 **Orphan check (manual, this checkpoint).** Every SysR ID cited above was confirmed present in `SyRS-AGP-001_EN.md` §4.1/§5/§7/§12/§13 by direct reading during derivation (see `reports/feature-phase-b0-srs.md`).
 

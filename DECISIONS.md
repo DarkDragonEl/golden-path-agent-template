@@ -7381,3 +7381,139 @@ click-through — not just this session's own scripted proxies for them.
 `reports/phase-f-f4-verification.md` and `reports/phase-f-f5-
 verification.md` should be read alongside this entry; a follow-up pass
 should fold this entry's evidence into both reports directly.
+
+## DEC-098 — Phase G kickoff: agent-project template decomposed into a
+Platform Foundation, a Tools Template, and a slimmed Agent Template;
+Gitea adopted as Git provider; three images and two repos per project
+confirmed (documentation only, nothing built)
+
+**Context**: Phase F closed at `DEC-095`, amended by `DEC-096`/`DEC-097`.
+Two acceptance items remain explicitly open and are untouched by this
+entry: `SysR-P-F-13`/`OS-09` (a second team instantiating unassisted —
+"this project cannot self-certify that," `DEC-091`/`DEC-093`/`DEC-095`)
+and `OBJ-01`'s full portal exposure. This entry is documentation-only:
+no code, image, Containerfile, pipeline, or cluster change lands here —
+that begins at G1.
+
+**Naming, chosen to avoid two real collisions, not just one.** The
+working name "Layer 0/1/2" used during this session's own discussion
+collides with this log's own prior, unrelated use of "Layer 1"/"Layer 2"
+for the async human-approval handoff's `ResumeRequest` body split
+(`DEC-045`, `DEC-049`). The natural fallback, "Tier 0/1/2," also
+collides — `Annex_A_Open_Items_EN.md` OI-03's "three-tier identity/policy
+framing" and `E2E_DEMO_PLAN.md`'s "Independence tier 1/2" already own
+that word with different meanings. Adopting proper nouns instead of an
+ordinal scheme sidesteps both: **Platform Foundation** (identity,
+telemetry, the approval service, Git hosting, model routes, GitOps
+machinery, RHDH itself — shared, not produced per instantiation),
+**Tools Template** (an independently instantiable template producing its
+own MCP-server artifact), **Agent Template** (the slimmed template that
+remains after the tool server and the approval service move out of it).
+
+**Decision — approval service becomes a Platform Foundation component,
+not a per-agent-bundled one.** Today one Containerfile bundles `agent/`,
+`mcp_server/`, `approval_service/`, `policy/` into one image with three
+runtime roles dispatched by `entrypoint.sh`'s positional `$1` (`DEC-047`
+named approval "the third role, same pattern as mcp before it"). Once
+more than one Agent Template instance exists, a per-agent-bundled
+approval service means N independent approval workflows — inconsistent
+with `srs/SRS-APR.md` §0.2's own scope statement ("the enforcement point
+for the MVP's defining objective," OBJ-05: human approval for *every*
+external write). Approval moves to the Platform Foundation as a shared
+singleton serving every Agent Template instance. `CLAUDE.md`'s "one
+immutable artifact" rule (line 31) is restated as **one immutable
+artifact per component** — three components (agent, tools/MCP,
+approval), owner-confirmed this session, each with its own
+Containerfile/pipeline/promotion; approval's image now lives in the
+Platform Foundation's own lifecycle, not a template output at all.
+
+**Decision — new fail-closed requirement for the now-shared approval
+service.** `SRS-APR-SEC-01` already requires fail-closed behavior for
+the service's *own* internal errors, dependency failures, and
+undecidable states (`srs/SRS-APR.md` line 93). It does not name the
+failure class introduced by sharing: a *consumer* (an Agent Template
+instance) unable to reach the now-out-of-process service at all. New
+requirement `SRS-APR-QUAL-02` (added by this entry, see below) closes
+that gap: any consumer unable to reach or get a decision from the shared
+service must hold the action, never locally synthesize approval. This
+composes with the existing, independent per-agent write kill switch
+(`SysR-P-OPS-03`) as a two-level fail-safe: level 1 is `SysR-P-OPS-03`'s
+operator-triggered, per-agent disable; level 2 is the new requirement's
+automatic, consumer-side default the instant the shared gate itself is
+unreachable — no operator action needed for that specific case.
+
+**Decision — Git provider: in-cluster Gitea, pinned.** `rhpds/gitea-
+operator` — real, active (pushed 2026-04-23), OLM-deployable
+(`oc apply -k .../OLMDeploy`), CRD `pfe.rhpds.com/v1` kind `Gitea`,
+declarative admin/user provisioning. **Pin: `v2.3.2`, commit
+`77cdc2b884c160663f7ef0b9040c35898d3ebcce`, verified live 2026-08-26.**
+This is the Platform Foundation's Git-hosting component, stood up in G1,
+not this entry. This session's owner answer is the actual first sign-off
+on this choice.
+
+**Decision — three images, not one** (owner, this session): agent, MCP/
+tools, approval, each its own Containerfile/pipeline/promotion. "One
+immutable artifact" → "one immutable artifact per component."
+
+**Decision — two repositories per scaffolded project, not one** (owner,
+this session): a source+pipeline repo and a separate GitOps repo — this
+supersedes an earlier draft's one-repo recommendation and instead
+matches, exactly, the verified pattern in `redhat-ai-dev/ai-lab-template`
+(`templates/chatbot/template.yaml`, commit
+`d9327328debf2d7b9cebd02ca289f68d9a971f4c`: `publish-github` for
+`${{ parameters.repoName }}` plus a separate `publish-github-gitops` for
+`${{ parameters.repoName }}-gitops`, each with its own `catalog:register`)
+and `redhat-developer/red-hat-developer-hub-software-templates`
+(`templates/github/argocd/template.yaml`, same shape). `docs/template-
+nine-output-mapping.md`'s "GitOps configuration" row becomes an output of
+the *second* repo once a future phase implements this — not touched by
+this entry.
+
+**Correction to evidence framing — no verified reference gates ArgoCD
+provisioning behind a PR.** Every real template checked
+(`ai-lab-template`, `red-hat-developer-hub-software-templates`) calls
+`argocd:create-resources` directly against the just-published GitOps
+repo, no approval gate. The one PR-gated step found
+(`templates/github/sdlc-app/template.yaml`) gates a namespace-approval
+repo, not a GitOps-repo-before-sync flow. An earlier draft attributed a
+PR-gate pattern to "governance-oriented implementations" — **no such
+example was found.** If this project still wants a gate before ArgoCD
+provisions (consistent with its own approve-every-write posture), the
+phase that implements onboarding must record it as a **deliberate
+divergence**, not cite a precedent that doesn't exist. This entry fixes
+the citation; it does not decide that phase.
+
+**Other corrected citations, so downstream phases aren't built on wrong
+references:**
+- General fail-closed is `SRS-APR-SEC-01` (line 93), not `SRS-APR-F-03`
+  (line 48, which is specifically expiry-without-execution).
+- Annex A `OI-04` (`Annex_A_Open_Items_EN.md` lines 60-68, 81) is
+  **portal-first with direct/CLI instantiation as the demo fallback**,
+  not "CLI-first" — `CLAUDE.md` line 15's own shorthand is an imprecise
+  gloss, pre-existing, not fixed by this entry, not propagated here.
+- RRT row 13 (`SyRS-AGP-001-RRT_Realization_Table.md`, RHDH) stays
+  RHDH-specific; rows 14 (Tekton, `SysR-P-F-05/06/07`) and 15 (ArgoCD,
+  `SysR-P-IF-07`/`SysR-P-OPS-02`) are separate, pre-existing rows, not
+  bundled with row 13. None of the three is edited by this entry — see
+  the new rows 24/25 recorded separately in the RRT.
+
+**What this entry does NOT decide — named so nothing reads as settled
+that isn't:**
+- No code/image/manifest change of any kind (that starts at G1).
+- Gitea is pinned, not stood up (G1).
+- The Tools Template does not yet exist as a separate artifact (G2).
+- The Agent Template is not yet slimmed (G3).
+- The two-repo-per-project scaffolding is not yet implemented (G4).
+- Whether ArgoCD provisioning gets a PR gate, and its shape, is open.
+- Multi-team concurrent demo is a separate, later item — not to be
+  conflated with `SysR-P-F-13`/`OS-09`'s one-time second-team-
+  instantiates-unassisted acceptance event, which stays open regardless.
+- `OI-04`'s fallback trigger stays unarmed — still no demo date; the
+  owner reconfirmed this again this session. Do not invent one, do not
+  re-ask, per `DEC-092`.
+- The exact `ai-rhdh-installer` ref for G1 (release tag `v0.11.0` vs.
+  HEAD `6dd5aed6dfba3799f839e8c7a90345e1e55463e6`) is left to G1 — both
+  are pre-staged in `PINS.md` below.
+
+**Status**: Decided (owner-approved, this session). Nothing built.
+Next: G1 (Gitea + Platform Foundation stand-up).

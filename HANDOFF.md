@@ -2,7 +2,7 @@
 
 **Rewritten again, this time closing out Phase F in full** (F0 through
 F5, on top of the OTel fix + F0–F3 the prior rewrite already covered).
-`DECISIONS.md` (currently through `DEC-097`; `DEC-096` belongs to a
+`DECISIONS.md` (currently through `DEC-098`; `DEC-096` belongs to a
 concurrent parallel-workspace thread, `feature/phase-e-live-chat-
 verification`, not this one) is the authoritative, complete,
 chronological record of every decision this project has made — this
@@ -95,6 +95,25 @@ Template wired to F2/F3's own `skeleton/`.
   later decision) — same item `DEC-091` already named; (2) `SysR-P-F-13`
   /`OS-09`'s second-team acceptance — this project still cannot
   self-certify that.
+- **`DEC-098` (Phase G, step G0 — decision record + requirement amendment,
+  documentation only, nothing built).** The agent-project template is
+  decomposed into three named components — a Platform Foundation (shared
+  identity, telemetry, approval service, Git hosting, model routes, GitOps
+  machinery, RHDH itself), a Tools Template (independent MCP-server
+  artifact), and a slimmed Agent Template — owner-confirmed this session:
+  three images (agent/MCP/approval, not one), two repositories per
+  scaffolded project (source+pipeline, and a separate GitOps repo,
+  matching the verified `redhat-ai-dev/ai-lab-template` pattern), and
+  in-cluster Gitea (`rhpds/gitea-operator`, pinned `v2.3.2`) as Git
+  provider. `SysR-P-F-01` amended (`SyRS-AGP-001_EN.md` v0.2) to add a
+  separate tools-template output and a no-bundling clause for both the
+  tool server and the approval service; new `SRS-APR-QUAL-02` requirement
+  (`srs/SRS-APR.md` v0.3) extends fail-closed behavior to the shared
+  approval service's now-remote consumers. RRT rows 24/25 pin Gitea and
+  `redhat-ai-dev/ai-rhdh-installer`. The `OI-04` fallback trigger stays
+  unarmed — still no demo date, reconfirmed this session, per `DEC-092`.
+  Next: G1 (stand up Gitea, extract the Platform Foundation) — a separate
+  phase, its own STOP, not started here.
 
 **OTel collector fix + Phase F0–F3** (prior session, still current —
 detail below unchanged):
@@ -402,7 +421,7 @@ changed something.)
 ## Pointers
 
 - `DECISIONS.md` — the complete, authoritative decision history,
-  `DEC-001` through `DEC-091`. Always read the tail before starting new
+  `DEC-001` through `DEC-098`. Always read the tail before starting new
   work in a fresh session.
 - `PINS.md` — every pinned component version, with the live-verification
   date and source. Has a "Phase E — Shared showcase cluster" section and

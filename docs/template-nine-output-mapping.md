@@ -9,6 +9,13 @@ This table maps each of those nine outputs to its concrete location in
 `skeleton/`. Any output without a location below is a real gap, not a
 footnote — there are none as of this pass.
 
+**Note (`DEC-098`, 2026-08-26):** `SysR-P-F-01` was amended by the Phase G
+kickoff decision to split template instantiation into an agent template
+(outputs 1-4 and 6-9 below) and a separate tools template (output 5, MCP
+tool skeleton — moves to the new template once implemented, G3/G4). This
+mapping still describes the current, not-yet-split `skeleton/` tree
+accurately; it will be re-partitioned when G2-G4 land, not rewritten now.
+
 | # | `SysR-P-F-01` output | Skeleton location | Notes |
 |---|---|---|---|
 | 1 | Agent source scaffold | `skeleton/agent/`, `skeleton/approval_service/` | Full application source, copied verbatim except identity literals (`OTEL_SERVICE_NAME`, `AGENT_WORKLOAD_ID`, OIDC client IDs in `config.py`). Domain-specific logic (`agent/prompts/`, `agent/retrieval_client.py::retrieve()`) is intentionally untouched by F2 — that's `TODO_DOMAIN.md`'s own, separate axis (domain customization, not identity parameterization), carried into the skeleton unchanged. |

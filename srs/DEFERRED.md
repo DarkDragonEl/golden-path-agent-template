@@ -29,7 +29,7 @@ Format: `- **SysR-ID** — one-line reason.`
 Realized directly by this repository's own scaffold, not by an agent-time
 component.
 
-- **SysR-P-F-01** — Template instantiation (IDP + CLI scaffolding of a new agent project) is platform template-tooling, not a requirement of any running agent-time component; out of the five-document deliverable scope.
+- **SysR-P-F-01** — Template instantiation (IDP + CLI scaffolding of a new agent project, and, per `DECISIONS.md` `DEC-098`, a separate tools template scaffolding an independent MCP-server project) is platform template-tooling, not a requirement of any running agent-time component; out of the five-document deliverable scope.
 - **SysR-P-F-02** — Local development environment (starting the local corpus/retrieval/mock-tool/model-endpoint stack together) is platform launch-configuration orchestration (`scripts/dev.sh`, `Makefile` targets), not a single component's own requirement; each service it starts (`SRS-RET`, `SRS-MIT`, `SRS-AGT`) already specifies its own local-dev-compatible behavior individually.
 - **SysR-P-F-04** — Contract parity across environments is a cross-cutting property spanning every phase-one contract (model, tool, retrieval, policy, config) collectively; each component's own SRS document already specifies its contract in protocol-surface terms (never environment-specific), which is what makes parity possible, but the aggregate parity guarantee itself has no single owning component.
 - **SysR-P-F-06** — Single immutable artifact promotion (one OCI image per change set, promoted unchanged via GitOps) is platform build/release mechanics, not a requirement any of the five components implements themselves.
