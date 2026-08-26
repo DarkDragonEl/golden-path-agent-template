@@ -12,21 +12,31 @@ make up-offline
 ```
 
 This runs `scripts/dev.sh up --offline`, which sets `AGENT_MODEL_MODE=fake`
-and `MCP_MODE=mock`, builds the image once, and starts all three roles as
-plain containers (`podman run` / `docker run` — auto-detected, no compose
-dependency of any kind) on a shared network so each can reach the others
-by name. No model endpoint and no network access are required for the
-agent to answer a read-only query — the mock tool call happens in-process
-(see `mcp_server/client.py`); the separate mcp container exists for
-architectural parity with the real deployment shape, not because offline
-mode needs it running for reads. The approval container, unlike mcp, is
-not optional even offline: any `--write`/`"write": true` request submits
-a real proposal to it (`agent/approval_client.py::submit_proposal`), so
-without it a write request fails immediately with
+and builds and starts all **three independently-built images** —
+`Containerfile.agent`, `Containerfile.mcp`, `Containerfile.approval`, the
+post-G2 three-image split (`DECISIONS.md` `DEC-098`/`DEC-099`) — as
+separate containers (`podman run` / `docker run` — auto-detected, no
+compose dependency of any kind), plus a local OTel Collector container,
+all on one shared network so each can reach the others by name.
+
+`MCP_MODE` is always `live` here, offline or not — the agent always calls
+the real, separately-running `mcp` container over HTTP; there is no
+in-process mock path in this topology (`Containerfile.agent` deliberately
+excludes `mcp_server/server.py`, so the in-process fallback would
+`ImportError` if selected). This closes a gap `DEC-096` found: an earlier
+default silently routed tool calls in-process and never actually
+exercised the standalone `mcp` container at all. `AGENT_MODEL_MODE=fake`
+is the thing `--offline` actually changes: no model endpoint and no
+network access are required for any query, since it's the model call that
+gets faked, not the tool call. The approval container is not optional
+either way: any `--write`/`"write": true` request submits a real proposal
+to it (`agent/approval_client.py::submit_proposal`), so without it a
+write request fails immediately with
 `fallback_reason: approval_service_failure:ConnectError`.
 
-`Ctrl-C` stops and removes all three containers and the network. `make down`
-does the same without starting anything first.
+`Ctrl-C` stops and removes all four containers (agent, mcp, approval,
+otel-collector) and the network. `make down` does the same without
+starting anything first.
 
 ### Why no docker-compose
 
@@ -105,9 +115,11 @@ rather than hanging).
 ## Running for real (live model)
 
 Edit `.env` — `MODEL_API_BASE_URL`, `MODEL_NAME` — to point at an
-OpenAI-compatible endpoint, then `make up` (no `--offline`). `MCP_MODE`
-can stay `mock` even in live-model mode; it only controls whether tool
-calls go through the real MCP server container or the in-process mock.
+OpenAI-compatible endpoint, then `make up` (no `--offline`). `scripts/
+dev.sh` always forces `MCP_MODE=live` for both `make up` and `make
+up-offline` (see the Quickstart section above) — there is no dev-loop
+path left that talks to an in-process mock tool; only the model call
+itself switches between fake and live.
 
 ## Tests
 
