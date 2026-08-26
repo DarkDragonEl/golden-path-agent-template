@@ -8276,3 +8276,70 @@ for these entities regardless.
 **Status**: `DEC-106`'s one open item is closed. G5's platform catalog
 model is live, fully linked, and verified against the actual database
 state, not assumed from a successful `apply`.
+
+## DEC-108 — DEC-104's eval-harness gap closed per DEC-105: domain eval
+now runs against an in-process eval-only fixture, decoupled from the
+real MCP server; the network-fault fidelity complement is authored in
+the MCP_MODE=live integration suite
+
+**Context**: `DEC-105` assigned implementation back to the G3+G4 stream.
+This entry records that work as done and verified live, not just
+attempted.
+
+**What changed**: a new `eval/mock_itsm_fixture.py` duplicates
+`mcp_server/itsm_store.py`'s search/create_request logic and seed data
+(byte-for-byte identical, a same-PR sync rule stated in both files) —
+deliberately, per `DEC-105`'s own ruling that this must be a decoupled
+copy, never a shared import (the Agent Template cannot import the Tools
+Template's own package at all). Its `eval_call_tool()` is the test-only
+MCP client stub, patched onto `agent.nodes.tool_invoke.call_tool` and
+`agent.nodes.human_approval.call_tool` for the duration of every domain
+eval case in `eval/domain_executor.py` — fault injection
+(`_apply_fault`'s timeout/error scenarios) now patches the fixture's own
+methods, never touching the real, deployed server at all. The real
+server's own `_simulate_error` guarantee and `server.py`'s refusal to
+expose it as a tool parameter are untouched, exactly as `DEC-105`
+required. Only `skeleton/eval/*` needed this fix — the top-level
+project's own `eval/` still has the full `mcp_server/` package in its
+source checkout, so its domain eval was never actually broken by G2's
+split; the gap was specific to what a newly-scaffolded project's own
+repo would contain.
+
+**A second, independent instance of the same structural gap found live,
+not assumed**: `eval/executor.py` (the EXAMPLE-*.yaml harness-mechanics
+path, a separate code path from `domain_executor.py`) had the identical
+missing-`call_tool`-patch problem, undiscovered by `DEC-104`'s own
+original finding since its failure symptom was different (a wrong
+behavioral result, not an `ImportError`, because of test-file execution
+order and a shared process-wide `MCP_MODE` env var). Fixed identically.
+
+**Verified live, not just unit-tested**: the full rendered Agent
+Template's test suite went from 84/95 (11 failing/excluded, `DEC-104`'s
+own finding) to 95/95. `eval-fast`: 2/2. `eval-domain`, run with this
+project's own real dev-model credentials (not fake/offline):
+**60/62 passed, gate verdict PASS**, tolerated failures `ITR-004`/
+`TSEL-004` (named, dated 2026-08-21) — an exact match to G2's own
+pre-split baseline. This is the real proof `DEC-105`'s architecture
+works, not an assumption resting on unit tests alone.
+
+**Explicit complement, not optional (`DEC-105`'s own condition)**:
+neither `mcp-operational-test.yaml` nor `security-tests.yaml` covers
+this — both test the NetworkPolicy boundary against an unauthorized
+caller, never the authorized agent's own behavior when MCP is genuinely
+unreachable. Added `kill-mcp-connectivity-check` to `operational-
+tests.yaml` (both the top-level project's own copy and `skeleton/`'s
+template copy): a throwaway clone (same label-merge pattern already
+proven correct for `kill-primary-fallback-check`/`DEC-101`) with
+`MCP_TOOL_ENDPOINT` overridden to an unreachable address — a genuine
+network fault, not simulated. Verifies the request completes well under
+30s (bounded by `TOOL_TIMEOUT_SECONDS`, not hung), the real fallback
+escalation message appears, and `fallback_reason` correctly attributes
+it to a tool error. Authored and YAML-validated by the worktree stream;
+live-cluster verification is the coordinating session's own follow-up
+(no cluster access in that stream's scope).
+
+**Status**: `DEC-104`'s gap is closed. Domain eval, the EXAMPLE-*.yaml
+harness-mechanics suite, and the three previously-failing test files all
+verified live against the actual rendered, split Agent Template.
+Live-cluster verification of `kill-mcp-connectivity-check` itself is the
+coordinating session's next step.
