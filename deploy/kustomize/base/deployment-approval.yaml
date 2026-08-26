@@ -10,6 +10,18 @@ metadata:
   name: golden-path-agent-approval
 spec:
   replicas: 1
+  strategy:
+    # Real gap found live (Stage 1/G2, promoting the approval image
+    # independently for the first time): the default RollingUpdate
+    # strategy schedules the new pod before killing the old one, which
+    # deadlocks against this Deployment's ReadWriteOnce state PVC (a new
+    # pod on a different node can't attach a volume still attached to the
+    # old one, and the old pod is never killed because the new one can
+    # never become Ready without it). Recreate is the standard fix for a
+    # single-replica Deployment on an RWO volume -- terminates the old pod
+    # first. No new availability trade-off beyond what replicas: 1 already
+    # has.
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: golden-path-agent
