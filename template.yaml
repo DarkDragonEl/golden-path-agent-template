@@ -198,7 +198,18 @@ spec:
       action: catalog:register
       input:
         repoContentsUrl: ${{ steps['publish-source'].output.repoContentsUrl }}
-        catalogInfoPath: /catalog-info.yaml
+        # NOTE (G6 Path A landing, live-verified): a LEADING slash here
+        # drives @backstage/integration's defaultScmResolveUrl into its
+        # parseGitUrlSafe-based branch, which mis-computes the repo-root
+        # path for a bare (no-file-path) Gitea ".../src/branch/main/"
+        # repoContentsUrl and drops the branch segment entirely (confirmed
+        # by reading defaultScmResolveUrl in @backstage/integration's
+        # helpers.cjs.js on the live pod, and by ruling out Gitea itself --
+        # both repos independently confirmed via Gitea's API to have
+        # default_branch=main and a real main branch). A relative path
+        # with no leading slash takes the plain `new URL(url, base)`
+        # branch instead, which resolves correctly.
+        catalogInfoPath: catalog-info.yaml
   output:
     links:
       - title: Source+pipeline repository
