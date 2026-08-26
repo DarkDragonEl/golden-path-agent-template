@@ -1,0 +1,37 @@
+# Phase G, Stage 3 (DECISIONS.md DEC-098/DEC-099/DEC-110/DEC-118, G6 Path
+# A landing). Before this file, the Backstage CR's own
+# `dynamicPluginsConfigMapName` was unset, so the RHDH Operator generated
+# this ConfigMap's content automatically -- this is the first time this
+# project customizes RHDH's dynamic-plugin set at all. Taking over means
+# taking over the *whole* list, not just adding one entry: `includes:
+# [dynamic-plugins.default.yaml]` pulls in RHDH's own base/default set,
+# and the two Lightspeed entries below are carried forward unchanged
+# (DEC-092/PINS.md: RHDH 1.10 bundles Developer Lightspeed by default;
+# this project's own stance has always been to leave it inert, not
+# extend it -- dropping these two entries here would be a real,
+# accidental behavior change, not a no-op).
+#
+# The scaffolder-backend-module-gitea entry is the one new plugin this
+# file exists to add: real, live-verified end-to-end (DEC-118) -- a
+# genuine Scaffolder task run through this exact package reference
+# created a real repo in Gitea with real content. Pinned by digest
+# (image-registry.openshift-image-registry.svc:5000, this project's own
+# internal registry -- self-contained, no external plugin-registry
+# dependency), not a floating tag.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: golden-path-agent-rhdh-dynamic-plugins
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+data:
+  dynamic-plugins.yaml: |
+    includes:
+      - dynamic-plugins.default.yaml
+    plugins:
+      - package: oci://registry.access.redhat.com/rhdh/red-hat-developer-hub-backstage-plugin-lightspeed:{{inherit}}
+        disabled: false
+      - package: oci://registry.access.redhat.com/rhdh/red-hat-developer-hub-backstage-plugin-lightspeed-backend:{{inherit}}
+        disabled: false
+      - package: oci://image-registry.openshift-image-registry.svc:5000/golden-path-agent-rhdh/backstage-plugin-scaffolder-backend-module-gitea@sha256:e335af032bc97a1e46c4099e7ae4657c7eea38e94902066484278f5557ad3cb8
+        disabled: false

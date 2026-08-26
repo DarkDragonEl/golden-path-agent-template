@@ -24,7 +24,29 @@
 # three keys (OIDC_CLIENT_ID/CLIENT_SECRET/METADATA_URL) become env vars
 # the oidc-app-config.yaml ConfigMap (this directory) substitutes via
 # Backstage's own ${VAR} syntax -- never a plaintext secret in the
-# ConfigMap.
+# ConfigMap. golden-path-agent-rhdh-gitea-scaffolder-secret (DEC-118, G6
+# Path A landing) does the identical job for integrations.gitea's own
+# write credential in catalog-locations-config.yaml.
+#
+# dynamicPluginsConfigMapName (DEC-118) -- previously unset, so the
+# Operator generated this ConfigMap's content automatically; pointing it
+# at dynamic-plugins-config.yaml (this directory) is the first time this
+# project customizes RHDH's dynamic-plugin set, adding a live-verified
+# publish:gitea Scaffolder action.
+#
+# extraFiles (DEC-118) -- the plugin-loading init container's own skopeo
+# call needs two things a normal kubelet-mediated image pull already gets
+# for free: the cluster's own internal-registry CA (config-service-
+# cabundle, mounted for every container via containers: ["*"] since the
+# init container is a different container than the main one the CA fix
+# alone didn't cover) and a registry pull credential (golden-path-agent-
+# rhdh-registry-auth -- provisioned by provision-identity-secrets.sh, see
+# that script's own comment for a real, named durability caveat). The
+# secret mount is deliberately whole-volume (no `key:` field) rather than
+# a subPath mount -- a real gap found live: subPath mounts fail with
+# "Not a directory" when the parent path doesn't already exist in the
+# base image, and cannot create missing multi-level parent directories
+# the way a whole-volume mount can.
 apiVersion: rhdh.redhat.com/v1alpha5
 kind: Backstage
 metadata:
@@ -42,6 +64,18 @@ spec:
     extraEnvs:
       secrets:
         - name: golden-path-agent-rhdh-oidc-secret
+        - name: golden-path-agent-rhdh-gitea-scaffolder-secret
+    dynamicPluginsConfigMapName: golden-path-agent-rhdh-dynamic-plugins
+    extraFiles:
+      mountPath: /etc/containers/certs.d/image-registry.openshift-image-registry.svc:5000
+      configMaps:
+        - name: config-service-cabundle
+          key: service-ca.crt
+          containers: ["*"]
+      secrets:
+        - name: golden-path-agent-rhdh-registry-auth
+          mountPath: /opt/app-root/src/.config/containers
+          containers: ["*"]
   database:
     enableLocalDb: false
     authSecretName: golden-path-agent-rhdh-db-secret
