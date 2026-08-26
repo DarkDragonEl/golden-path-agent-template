@@ -84,7 +84,7 @@ images:
   # themselves are new.
   - name: golden-path-agent
     newName: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent
-    digest: sha256:335293a62ef8ab943e287ca6cc57e08c0b1fd5a9d9d30bde43aaf455c363dfc7
+    digest: sha256:70563b839b3aebe8cad25a8544a544e063bbae9ad376fbb542c75a5c9061d1cd
   - name: golden-path-agent-mcp
     newName: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent-mcp
     digest: sha256:d9932b1c1f80642c74880362b838e2dc1163c0654b68050d555f9c2a0b435247
