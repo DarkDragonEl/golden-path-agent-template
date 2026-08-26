@@ -102,8 +102,28 @@ data:
         - host: golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io
     catalog:
       locations:
+        # Phase H3b (DEC-114 onward, DEC-121 follow-up). Real gap found
+        # live via a real browser TechDocs check (the exact class of
+        # check DEC-094/DEC-097 already established a scripted call
+        # can't substitute for -- third confirmation of that lesson):
+        # "FetchUrlReader does not implement readTree". Root cause read
+        # directly from this pod's own GithubUrlReader.cjs.js: its
+        # predicate is `url.host === integration.config.host`, exact
+        # string equality -- registering this Component from
+        # raw.githubusercontent.com (below, since F1/DEC-087) never
+        # matches the `github.com` integration.github entry already
+        # configured, so techdocs-ref: dir:.'s derived URL fell through
+        # to the generic FetchUrlReader, which has no readTree at all.
+        # This is the identical bug class F5 already found and fixed for
+        # fetch:template's own relative-URL resolution (this file's own
+        # comment above) -- same fix applies: register via a
+        # github.com/blob/main URL, which GithubUrlReader's predicate
+        # does match, instead of raw.githubusercontent.com. No new
+        # integration, no new Secret -- reuses the same no-token
+        # `integrations.github` entry fetch:template already proved
+        # works unauthenticated against this public repo.
         - type: url
-          target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/catalog-info.yaml
+          target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/catalog-info.yaml
         - type: url
           target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/template.yaml
         - type: url
