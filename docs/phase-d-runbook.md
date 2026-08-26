@@ -16,7 +16,7 @@ oc apply -f pipelines/bootstrap/namespaces.yaml
 # 2. rhbk-operator -- the one flagged cluster-scoped step in the whole
 #    Phase D plan (CRD registration). OperatorGroup/Subscription
 #    themselves are namespace-scoped.
-oc apply -f pipelines/bootstrap/keycloak-operator.yaml
+oc apply -f platform/bootstrap/keycloak-operator.yaml
 
 # Wait for the CSV to succeed before anything depends on the CRDs it registers:
 oc get csv -n golden-path-agent-keycloak -w
@@ -32,7 +32,7 @@ oc create secret generic golden-path-agent-keycloak-db-secret \
   --from-literal=POSTGRESQL_DATABASE=keycloak
 
 # 4. Postgres (plain Deployment+PVC, no new operator -- PINS.md).
-oc apply -f pipelines/bootstrap/keycloak-postgres.yaml
+oc apply -f platform/bootstrap/keycloak-postgres.yaml
 oc rollout status deployment/golden-path-agent-keycloak-db -n golden-path-agent-keycloak
 ```
 

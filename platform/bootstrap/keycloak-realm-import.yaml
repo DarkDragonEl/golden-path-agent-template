@@ -5,8 +5,9 @@
 #
 # Deliberately secret-free: no client `secret` field, no user
 # `credentials` block, anywhere in this file. Client secrets are
-# provisioned entirely post-apply by
-# pipelines/bootstrap/provision-identity-secrets.sh, via Keycloak's own
+# provisioned entirely post-apply by this file's own sibling
+# platform/bootstrap/provision-identity-secrets.sh (moved here from
+# pipelines/bootstrap/ at Phase G's G1, DEC-098/DEC-099), via Keycloak's own
 # admin-API "regenerate client secret" endpoint -- chosen over this
 # CRD's `spec.placeholders` import-time substitution mechanism
 # specifically because it gives ONE code path for both a fresh

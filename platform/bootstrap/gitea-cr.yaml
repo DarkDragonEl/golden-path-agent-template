@@ -1,0 +1,30 @@
+# Phase G, Stage 1 (DECISIONS.md DEC-098/DEC-099). The Gitea instance
+# itself -- one shared Platform Foundation instance, not per-agent-
+# project. Admin password via a Secret (giteaAdminPasswordSecretName),
+# never plaintext in Git -- same convention already established for
+# Keycloak/RHDH (this directory's own sibling keycloak-cr.yaml,
+# deploy/kustomize/overlays/rhdh/postgres.yaml). The Secret itself is
+# created out-of-band (same "values never in Git" discipline as this
+# directory's own sibling provision-identity-secrets.sh), not committed
+# here.
+#
+# giteaSsl: true matches this cluster's own established pattern of every
+# other externally-reachable service in this project going through a
+# native Route with the cluster's trusted wildcard cert (RHDH's own
+# Route, DEC-094; Keycloak's own Route, DEC-097) -- confirmed the
+# operator's own Route support (config/rbac/role.yaml grants route.
+# openshift.io/routes) before relying on it.
+apiVersion: pfe.rhpds.com/v1
+kind: Gitea
+metadata:
+  name: golden-path-agent-gitea
+  namespace: golden-path-agent-gitea
+spec:
+  giteaImageTag: 1.25.5.2
+  giteaImagePullPolicy: IfNotPresent
+  giteaSsl: true
+  giteaVolumeSize: 4Gi
+  postgresqlVolumeSize: 4Gi
+  giteaAdminUser: golden-path-agent-admin
+  giteaAdminEmail: golden-path-agent-admin@example.com
+  giteaAdminPasswordSecretName: golden-path-agent-gitea-admin-password

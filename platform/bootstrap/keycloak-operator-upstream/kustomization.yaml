@@ -1,5 +1,7 @@
 # Phase D, D2 entry gate (DECISIONS.md DEC-055/DEC-056). rhbk-operator's
-# own OLM Subscription (pipelines/bootstrap/keycloak-operator.yaml) is
+# own OLM Subscription (this file's own sibling
+# platform/bootstrap/keycloak-operator.yaml, moved here from
+# pipelines/bootstrap/ at Phase G's G1, DEC-098/DEC-099) is
 # blocked -- not by this project, by a different tenant's broken
 # CatalogSource poisoning OLM's cluster-wide resolution (DEC-055,
 # Red Hat KB 7052456). Unblock: the Keycloak project's own upstream,

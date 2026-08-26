@@ -81,7 +81,7 @@ State plainly, on a slide, not glossed over — verbatim from
   OI-03's "explicitly deferred" tier. Say so on a slide; don't fake it.
 - **ESO/Vault secrets integration** — deferred phase-two, per
   `docs/security-identity.md` and `PINS.md`.
-  `pipelines/bootstrap/provision-identity-secrets.sh`'s own header
+  `platform/bootstrap/provision-identity-secrets.sh`'s own header
   comment calls itself "the demo-scale realization" of what a real
   ESO/Vault integration would do continuously — that framing is
   walkthrough material, not a caveat to hide.

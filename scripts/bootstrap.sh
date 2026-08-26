@@ -165,24 +165,24 @@ fi
 log "=== step 3/9: keycloak ==="
 KEYCLOAK_PATH="olm"
 if ! ensure_operator golden-path-agent-keycloak "rhbk-operator" \
-    pipelines/bootstrap/keycloak-operator.yaml \
+    platform/bootstrap/keycloak-operator.yaml \
     rhbk-operator.v26.6.6-opr.1 300; then
   log "rhbk-operator OLM path did not reach Succeeded in time -- falling back to upstream kustomize (DEC-056 precedent)"
   KEYCLOAK_PATH="upstream-kustomize"
-  oc apply -k pipelines/bootstrap/keycloak-operator-upstream/
+  oc apply -k platform/bootstrap/keycloak-operator-upstream/
 fi
 log "keycloak operator install path used this run: $KEYCLOAK_PATH"
-oc apply -f pipelines/bootstrap/keycloak-postgres.yaml
-oc apply -f pipelines/bootstrap/keycloak-cr.yaml
-oc apply -f pipelines/bootstrap/keycloak-realm-import.yaml
+oc apply -f platform/bootstrap/keycloak-postgres.yaml
+oc apply -f platform/bootstrap/keycloak-cr.yaml
+oc apply -f platform/bootstrap/keycloak-realm-import.yaml
 
 log "=== step 4/9: cluster-tier otel collector ==="
-oc apply -f pipelines/bootstrap/otel-collector.yaml
+oc apply -f platform/bootstrap/otel-collector.yaml
 
 if [ "$WITH_RHDH" = "true" ]; then
   log "=== step 4b/9 (--with-rhdh, Phase F4, DEC-092): RHDH operator + Postgres secret ==="
   ensure_operator openshift-operators "RHDH" \
-    pipelines/bootstrap/rhdh-operator.yaml \
+    platform/bootstrap/rhdh-operator.yaml \
     rhdh-operator.v1.10.3 300
   # Real gap found live (Phase F4): the RHDH Operator's external-DB secret
   # needs both the OpenShift postgresql S2I image's own env vars
@@ -243,7 +243,7 @@ while true; do
 done
 
 log "=== step 5/9: identity secrets (idempotent by regeneration -- DEC-059) ==="
-./pipelines/bootstrap/provision-identity-secrets.sh
+./platform/bootstrap/provision-identity-secrets.sh
 
 log "=== step 6/9: manual secret + config check ==="
 # Real gap found live: provision-identity-secrets.sh (step 5) creates
