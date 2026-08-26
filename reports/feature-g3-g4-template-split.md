@@ -2,9 +2,132 @@
 
 Branch: `feature/g3-g4-template-split` (git worktree, not merged, not
 pushed). Per `DEC-099`'s single-governance-owner rule, this branch does
-**not** touch `DECISIONS.md`/`HANDOFF.md`/`PINS.md` — the drafted decision
-entry is at the bottom of this report for the coordinating session to
+**not** touch `DECISIONS.md`/`HANDOFF.md`/`PINS.md` — drafted decision
+entries are at the bottom of this report for the coordinating session to
 land at merge.
+
+## FOLLOW-UP (this revision) — DEC-104's eval-harness gap closed per
+DEC-105's ruling
+
+`DEC-104` escalated the eval-harness/`mcp_server.itsm_store` coupling
+named in this report's original revision (below). `DEC-105` decided: move
+the mock ITSM store logic into an eval-only fixture, decoupled from the
+real MCP server; domain eval's fault injection runs against it via a
+test-only MCP client stub; the real server's own `_simulate_error`
+guarantee stays exactly as it is. Assigned back to this stream. Status:
+**done, verified live, closing the gap for real** — see the final status
+table immediately below, superseding the original revision's "NOT
+DONE"/"significant gap" rows for this specific item.
+
+| DEC-105 task | Status |
+|---|---|
+| Move the mock ITSM store logic (incl. `_simulate_error` semantics) into a new eval-only fixture | **DONE** — `eval/mock_itsm_fixture.py`, an intentional, documented duplicate of `mcp_server/itsm_store.py` (seed data byte-for-byte identical, same-PR sync rule stated explicitly in both files) |
+| Update `domain_executor.py` to use a test-only MCP client stub instead of patching the real module | **DONE** — `eval_call_tool()` in the new fixture module, patched onto both `agent.nodes.tool_invoke.call_tool` and `agent.nodes.human_approval.call_tool` for the duration of each domain case |
+| Re-verify `test_dec009_route_assertion.py`/`test_gate_tolerance.py`/`test_eval_harness_smoke.py` pass against the split Agent Template | **DONE, verified live** — all three pass; full suite went from 84/95 (11 excluded/failing before this fix) to **95/95** |
+| Run the actual domain eval suite and confirm the same pass/fail verdict shape as before the split | **DONE, verified live, with a real model** — `eval-fast`: 2/2. `eval-domain` (real credentials from this project's own `.env`, not a mock/fake run): **60/62 passed, gate verdict PASS**, the same two named/dated known-gap tolerances (`ITR-004`, `TSEL-004`, since 2026-08-21) as G2's own pre-split baseline report recorded — an exact match, not just a plausible one |
+| Explicit complement: a genuine network-level fault case in the `MCP_MODE=live` integration/live-validation suite | **DONE, authored** (not live-cluster-verified — out of this session's own scope, same limitation as every other pipeline/deploy-manifest change in this report). No existing case covered this (`mcp-operational-test.yaml`/`security-tests.yaml` only test the NetworkPolicy boundary against an *unauthorized* caller, never the *authorized* agent's own behavior when MCP is genuinely unreachable) — added a new `kill-mcp-connectivity-check` step to `operational-tests.yaml`, in both the top-level project's own copy and `skeleton/`'s template copy, mirroring the already-proven `kill-primary-fallback-check` throwaway-clone pattern |
+
+### What changed, in detail
+
+**`eval/mock_itsm_fixture.py` (new)**: `MockItsmFixture` class + seed data,
+copied from `mcp_server/itsm_store.py` deliberately (DEC-105 forbids a
+shared import — the Agent Template cannot import the Tools Template's own
+package at all), with a prominent same-PR sync-rule comment in both files.
+Unlike the real store, `_simulate_error` staying reachable here is
+correct and intentional — this class is eval-tooling only, never shipped
+in `mcp_server/` or any rendered project. `eval_call_tool(tool_name,
+arguments, timeout=...)` is the test-only MCP client stub: same call
+signature as the real `mcp_server/client.py::call_tool` (a drop-in
+`patch(..., side_effect=eval_call_tool)` target, not a call-site rewrite),
+dispatching to the fixture for `itsm_search_records`/`itsm_create_request`
+and returning the same placeholder marker for `placeholder_lookup`/
+`placeholder_write_action`.
+
+**`eval/domain_executor.py`**: `import mcp_server.itsm_store` removed
+entirely. `_apply_fault`'s `tool_timeout`/`tool_error` branch now patches
+the fixture's own `search`/`create_request` methods instead of the real
+store's. **The actual dispatch fix, not just the fault-injection
+mechanism**: `agent.nodes.tool_invoke.call_tool` and
+`agent.nodes.human_approval.call_tool` are now explicitly patched to
+`eval_call_tool` for every domain case, not just fault scenarios — this
+is what actually makes tool calls work at all in the split Agent
+Template's eval harness (previously, only `MCP_MODE`'s env-var-driven
+branching decided this, which the real `call_tool`'s own "mock" path
+can no longer satisfy since `server.py` isn't bundled here).
+
+**`eval/executor.py` (EXAMPLE-*.yaml harness-mechanics, a *separate* code
+path from `domain_executor.py` — found live, not assumed)**: the exact
+same structural gap existed here too and was not part of `DEC-104`'s
+original finding — `test_eval_harness_smoke.py`'s two tests
+(EXAMPLE-001/002) still failed after the `domain_executor.py` fix alone,
+with a *different* symptom (a wrong behavioral outcome, not an
+`ImportError`, since some other test module's own `MCP_MODE=live`
+`setdefault` had already won process-wide by the time this file's tests
+ran). Same fix applied: `call_tool` patched at both node-import
+boundaries for the duration of each EXAMPLE case.
+
+**`eval/domain_scorer.py`**: same import swap, same `list_records` call
+retargeted to the fixture.
+
+**`operational-tests.yaml` (both the top-level project's own copy and
+`skeleton/`'s template copy) — new `kill-mcp-connectivity-check` step**:
+a throwaway clone of the standing agent Deployment (same
+label-merge-not-replace pattern already proven correct for
+`kill-primary-fallback-check`/`DEC-101`) with `MCP_TOOL_ENDPOINT`
+overridden to an unreachable address (`http://mcp-endpoint.invalid:8081`)
+— a genuine network-level fault (DNS/connection failure), not a
+simulated one. Verifies three things together: the request completes
+well under 30s (bounded by `TOOL_TIMEOUT_SECONDS=10` plus round-trip
+margin, not hung), `final_output` contains the real fallback escalation
+message, and `fallback_reason` correctly attributes it to a tool error
+specifically (`tool_error:...`), not a different failure class.
+**Design choice, stated explicitly**: chose an unreachable-endpoint env
+override over literally killing the mcp pod or editing a live
+`NetworkPolicy` — functionally equivalent (a real network-level failure
+either way) but fully isolated to a disposable clone, whereas the other
+two approaches would affect the standing deployment other stages in the
+same `PipelineRun` still depend on.
+
+### Live verification performed (this revision)
+
+1. Re-rendered the Agent Template fresh (three iterations, the first two
+   against stale/mid-edit renders that gave misleading results — the
+   final one against the actual post-fix `skeleton/`).
+2. Full `pytest` run inside `python:3.12-slim`: **95/95 passed** (up from
+   84/95 excluding-3-known-failures in the original revision, and up from
+   an initial 5 failures + 2 collection errors on this report's very
+   first real run before any fix landed).
+3. `make eval-fast`-equivalent (`AGENT_MODEL_MODE=fake python -m eval.cli
+   run --all`) against the rendered project: **2/2 cases passed**.
+4. `make eval-domain`-equivalent (`python -m eval.cli run --domain`)
+   against the rendered project, **using this project's own real `.env`
+   model credentials** (the shared dev `LITELLM_URL` endpoint,
+   `AGENT_MODEL_MODE=live` — not a fake/offline run): **60/62 passed,
+   gate verdict PASS**, tolerated failures `ITR-004`/`TSEL-004` (both
+   named, dated `2026-08-21`) — an exact match to G2's own pre-split
+   baseline report, the actual proof this decision works, not just unit
+   tests passing.
+5. `tools/verify_skeleton.py` re-run after all changes: both templates
+   still `PASS` (179 files for the Agent Template, up one from the new
+   fixture file; 38 for the Tools Template, unchanged).
+6. Both new `operational-tests.yaml` files validated for YAML syntax;
+   **not** live-cluster-verified (no cluster access in this session's own
+   scope, same limitation as this report's original revision) — named
+   here, not silently assumed passing.
+7. All scratch render directories and temp files cleaned up after
+   verification.
+
+### What still isn't done (unchanged from the original revision, restated
+for completeness)
+
+Cross-template `NetworkPolicy` admission for `operational-tests.yaml`'s
+fallback-demo clone; per-project CI bootstrap scope; `tools/
+instantiate_agent_project.py` not extended for the Tools Template; a full
+`skeleton/docs/*.md` narrative pass. None of these were in `DEC-105`'s own
+assigned scope for this revision.
+
+## Original session report (Stage 2 / G3+G4 core split) — historical,
+preserved for continuity
 
 ## Status: core split complete and functionally verified live; one
 significant, unresolved gap named explicitly (the eval harness)
@@ -332,4 +455,72 @@ live. STOP 5/6 (per the original phase design's own numbering) are not
 yet declared cleared -- the eval-harness gap above is significant enough
 that this entry recommends treating it as a precondition for declaring
 either template "done," not a footnote to note in passing.
+```
+
+## Drafted decision entry, this revision (numbered as a placeholder --
+land at the coordinating session's own next available `DEC-NNN`)
+
+```
+## DEC-1xx — DEC-104's eval-harness gap closed per DEC-105: domain eval
+now runs against an in-process eval-only fixture, decoupled from the
+real MCP server; the network-fault fidelity complement is authored in
+the MCP_MODE=live integration suite
+
+**Context**: DEC-105 assigned implementation back to the G3+G4 stream.
+This entry records that work as done and verified live, not just
+attempted.
+
+**What changed**: a new `eval/mock_itsm_fixture.py` duplicates
+`mcp_server/itsm_store.py`'s search/create_request logic and seed data
+(byte-for-byte identical, a same-PR sync rule stated in both files) --
+deliberately, per DEC-105's own ruling that this must be a decoupled
+copy, never a shared import (the Agent Template cannot import the Tools
+Template's own package at all). Its `eval_call_tool()` is the test-only
+MCP client stub, patched onto `agent.nodes.tool_invoke.call_tool` and
+`agent.nodes.human_approval.call_tool` for the duration of every domain
+eval case in `eval/domain_executor.py` -- fault injection
+(`_apply_fault`'s timeout/error scenarios) now patches the fixture's own
+methods, never touching the real, deployed server at all. The real
+server's own `_simulate_error` guarantee and `server.py`'s refusal to
+expose it as a tool parameter are untouched, exactly as DEC-105 required.
+
+**A second, independent instance of the same structural gap found live,
+not assumed**: `eval/executor.py` (the EXAMPLE-*.yaml harness-mechanics
+path, a separate code path from `domain_executor.py`) had the identical
+missing-call_tool-patch problem, undiscovered by DEC-104's own original
+finding since its failure symptom was different (a wrong behavioral
+result, not an ImportError, because of test-file execution order and a
+shared process-wide MCP_MODE env var). Fixed identically.
+
+**Verified live, not just unit-tested**: the full rendered Agent
+Template's test suite went from 84/95 (11 failing/excluded, DEC-104's own
+finding) to 95/95. `eval-fast`: 2/2. `eval-domain`, run with this
+project's own real dev-model credentials (not fake/offline):
+**60/62 passed, gate verdict PASS**, tolerated failures ITR-004/TSEL-004
+(named, dated 2026-08-21) -- an exact match to G2's own pre-split
+baseline. This is the real proof DEC-105's architecture works, not an
+assumption resting on unit tests alone.
+
+**Explicit complement, not optional (DEC-105's own condition)**: neither
+`mcp-operational-test.yaml` nor `security-tests.yaml` covers this --
+both test the NetworkPolicy boundary against an unauthorized caller,
+never the authorized agent's own behavior when MCP is genuinely
+unreachable. Added `kill-mcp-connectivity-check` to `operational-
+tests.yaml` (both the top-level project's own copy and skeleton/'s
+template copy): a throwaway clone (same label-merge pattern already
+proven correct for kill-primary-fallback-check/DEC-101) with
+MCP_TOOL_ENDPOINT overridden to an unreachable address -- a genuine
+network fault, not simulated. Verifies the request completes well under
+30s (bounded by TOOL_TIMEOUT_SECONDS, not hung), the real fallback
+escalation message appears, and fallback_reason correctly attributes it
+to a tool error. Authored and YAML-validated; **not live-cluster-verified
+this session** (no cluster access in this stream's own scope) -- named
+plainly, not silently assumed passing.
+
+**Status**: DEC-104's gap is closed. Domain eval, the EXAMPLE-*.yaml
+harness-mechanics suite, and the three previously-failing test files all
+verified live against the actual rendered, split Agent Template. The one
+remaining open item is live-cluster verification of the new
+kill-mcp-connectivity-check step itself -- a live-cluster session's own
+job, not this stream's.
 ```

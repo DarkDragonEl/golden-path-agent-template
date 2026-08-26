@@ -17,6 +17,7 @@ from unittest.mock import patch
 from agent import approval_client
 from agent.graph import build_graph
 from .fake_approval_client import FakeApprovalService
+from .mock_itsm_fixture import eval_call_tool
 
 # The case file's own `decision:` field is the verb a human approver
 # submits (SRS-APR-IF-02's own ProposalDecision.decision vocabulary,
@@ -66,9 +67,18 @@ def execute_case(case) -> ExecutionTrace:
     # reachable, exactly like eval/domain_executor.py's own
     # _FakeApprovalService (mirrored here, not reimplemented, via the
     # same eval/fake_approval_client.py).
+    #
+    # Phase G, Stage 2 (DEC-098/DEC-099/DEC-105): call_tool is patched at
+    # both node-import boundaries too, same reasoning as
+    # domain_executor.py's own identical patch -- this repo never bundles
+    # mcp_server/server.py, so the real call_tool's "mock" branch would
+    # ImportError, and MCP_MODE=live has no reachable endpoint in a
+    # hermetic unit-test run.
     fake_approval = FakeApprovalService()
     with patch("agent.approval_client.submit_proposal", side_effect=fake_approval.submit_proposal), patch(
         "agent.approval_client.get_proposal", side_effect=fake_approval.get_proposal
+    ), patch("agent.nodes.tool_invoke.call_tool", side_effect=eval_call_tool), patch(
+        "agent.nodes.human_approval.call_tool", side_effect=eval_call_tool
     ):
         if case.steps:
             for step in case.steps:
