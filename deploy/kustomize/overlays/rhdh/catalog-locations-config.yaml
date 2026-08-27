@@ -88,6 +88,20 @@ metadata:
 # not something to register from this repo's own source tree; they prove
 # out for real only once G6's publish flow actually scaffolds and pushes
 # a real instance.
+#
+# Phase G, Stage 3 (DEC-098/DEC-099/DEC-110/DEC-118, G6 Path A landing).
+# `username`/`password` added to the `gitea` integration -- read-only use
+# (above) needed neither; the real `template.yaml`'s new `publish:gitea`
+# step needs write access, and `getGiteaRequestOptions` (`@backstage/
+# integration`, read directly at DEC-118's pinned ref before assuming
+# this) authenticates exactly this way: `password` is Gitea's own
+# convention for "API token here," not a literal password. Values
+# substituted via Backstage's own ${VAR} syntax from
+# golden-path-agent-rhdh-gitea-scaffolder-secret (provision-identity-
+# secrets.sh) -- never a literal in this ConfigMap, same pattern as the
+# OIDC secret's own fields. This is the exact `golden-path-agent-
+# scaffolder` machine-account token G1 already proved live to actual
+# destruction (DEC-100) -- not a new credential.
 data:
   app-config.catalog.yaml: |
     backend:
@@ -100,6 +114,8 @@ data:
         - host: github.com
       gitea:
         - host: golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io
+          username: ${GITEA_SCAFFOLDER_USERNAME}
+          password: ${GITEA_SCAFFOLDER_TOKEN}
     catalog:
       locations:
         # Phase H3b (DEC-114 onward, DEC-121 follow-up). Real gap found

@@ -11,4 +11,5 @@ resources:
   - oidc-app-config.yaml
   - catalog-locations-config.yaml
   - techdocs-app-config.yaml
+  - dynamic-plugins-config.yaml
   - backstage.yaml
