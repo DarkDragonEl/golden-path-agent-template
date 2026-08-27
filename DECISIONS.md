@@ -9515,3 +9515,35 @@ baseline.
 copied into any `Containerfile`, so this qualifies for `CLAUDE.md`'s
 docs/non-image-tooling exception, no PR needed. `reports/
 feature-h4b-scripts-pipelines-comments.md` has full per-file detail.
+
+## DEC-127 — H4b: comment slimming landed for agent/, mcp_server/,
+approval_service/ (image-baked directories), all three live pipelines
+green
+
+**Decision:** applied `docs/code-comment-policy.md`'s rule to all 72
+census hits across `agent/`, `mcp_server/`, `approval_service/` (21
+files): category-(b) narrative slimmed to a ≤3-line current-fact +
+`DEC-NNN` pointer; category-(c) items re-pointed at their H4a-migrated
+new home (e.g. `agent/cli.py`'s docstring now cites `DEC-096`, not the
+original `DEC-008/049`). Category-(a) comments untouched. Two drive-by
+corrections found and fixed beyond the mapping table:
+`approval_service/schemas.py`'s `evidence_refs` docstring citation
+(`DEC-045`→`DEC-046`) and a stale, self-contradicting paragraph in
+`approval_service/api.py`'s module docstring.
+
+**Evidence:** every diff hunk reviewed as comment/docstring-only;
+`py_compile` clean on all 21 files; `make test` 253/1 skipped and `make
+eval-fast` 2/2, both unchanged from baseline. Per `CLAUDE.md`'s
+image-baked-directory rule (these three are copied into
+`Containerfile.agent`/`.mcp`/`.approval`), landed via `feature/
+h4b-code-comments` → PR #17 → all three live pipelines triggered against
+the branch: **agent (13/13 tasks), mcp, and approval all Succeeded**,
+zero errors. PR #17 merged (`b4a5761`); the pipelines' own
+`open-promotion-pr` output (PRs #18/#19/#20, one per component) reviewed
+and merged as the pipeline's own sanctioned automated output, per the
+`DEC-101` boundary.
+
+**Status:** All of H4b's comment-slimming work is now landed —
+`scripts/`/`pipelines/` (`DEC-126`), `deploy/`/`platform/` (pending, in
+progress), and this entry's three directories. `reports/
+feature-h4b-code-comments.md` has full per-file detail.
