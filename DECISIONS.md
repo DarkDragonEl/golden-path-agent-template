@@ -9593,3 +9593,95 @@ across all 7 census directories (`agent`, `mcp_server`,
 item's content lives verifiably in `DECISIONS.md` (H4a), and every
 category-(a) comment is untouched. Phase H (`DEC-114` through this
 entry) is complete pending the owner's final STOP 4 sign-off.
+
+## DEC-129 — Phase H (Documentation & DX hardening) closed: STOP 4,
+full mission ledger
+
+**Ambiguity going in:** the repo had rigorous engineering forensics
+(`DEC`-traceable comments, this very log, phase runbooks) but no
+executive/didactic layer — no self-contained `README.md`, no docs
+information architecture, no generated API reference, no live TechDocs,
+and 353 `DEC-`-citing code comments of unverified quality, some possibly
+carrying history that existed nowhere else.
+
+**What moved where, by wave:**
+- **H0** (audit, read-only): `reports/docs-audit.md` and `reports/
+  docs-terms-sheet.md` — full markdown inventory, link audit (found
+  clean — zero broken in-repo links, contrary to the mission's own
+  assumption), structure audit (19 real top-level directories vs. 7 the
+  old `README.md` documented), and the complete 353-hit comment census
+  (not sampled) finding 35 genuine category-(c) items, not the zero an
+  earlier partial sample suggested.
+- **H1/H2/H3a** (Wave β, `DEC-115`–`117`): `README.md` rewritten
+  end-to-end (Mermaid architecture diagram, real repo map, working
+  Quickstarts A/B, `scripts/install.sh`); `docs/provenance.md` split
+  out; `docs/` reorganized into a Diátaxis hub with `docs/glossary.md`,
+  `docs/naming-conventions.md`, `docs/access-and-credentials.md`, and
+  14 new per-directory `README.md`s; 13 Python modules gained
+  docstrings. Landed by a second, independently-running coordinating
+  session that picked up this mission concurrently — reconciled without
+  redoing completed work (`DEC-115`'s own account).
+- **H4a** (comment-census migration, `DEC-119`, `DEC-125`): all 35
+  category-(c) findings migrated into `DECISIONS.md` as addenda before
+  any comment was slimmed — including reconstructing a `DEC-040` that
+  was cited in code but never actually committed to this log, and
+  correcting a real 12-hour production outage that had been
+  misattributed to an unrelated entry (`DEC-085`→`DEC-119`).
+- **H3b** (Wave γ, `DEC-120`–`124`): `mkdocs.yml` pinned to exactly what
+  RHDH's live bundled generator has installed (found via `oc exec`,
+  not assumed — no `mkdocstrings` there, so the mission brief's literal
+  plugin list would have broken live generation); `mkdocs.local.yml` +
+  `docs/reference/api.md` for a fuller local-only preview; live TechDocs
+  wiring via GitOps; a non-blocking `lychee` link-check CI stage. **Real
+  bug caught only by the owner's own browser check, twice** (`DEC-122`,
+  `DEC-124`): a `GithubUrlReader` host-match failure
+  (`raw.githubusercontent.com` vs. the configured `github.com`
+  integration) that no scripted check could have found, since every
+  API call in this deployment's `auth.environment: production` posture
+  requires real credentials scripting can't obtain. Fixed, then swept
+  repo-wide and pre-emptively fixed three more dormant instances of the
+  identical pattern in `platform/catalog/*`'s own locations.
+- **H4b** (comment slimming, `DEC-126`–`128`): every category-(b)/(c)
+  comment across all 7 census directories slimmed to a ≤3-line
+  current-fact + `DEC-NNN` pointer, corrected to cite the real migrated
+  home where H4a moved it. Category-(a) invariants and operator-facing
+  warnings (rotation warnings, the auto-sync-freeze guard, live
+  re-verification TODOs) kept fully intact, per policy.
+- **Pre-tasks along the way**: `state/README.md` (a gap from the
+  dual-session H2 collision) and a `tools/README.md` factual correction
+  (`DEC-125`).
+
+**The comment policy adopted:** `docs/code-comment-policy.md` — three
+categories (a: keep, b: slim to a pointer, c: migrate to `DECISIONS.md`
+before slimming), plus per-file-type verification requirements
+(rendered-output diffing for kustomize trees, parsed-structure diffing
+for standalone YAML, the image-baked-directory branch+CI distinction).
+
+**Tooling pinned:** `PINS.md`'s new Phase H section — `mkdocs` `1.6.0`,
+`mkdocs-techdocs-core` `1.6.1`, `mkdocs-material` `9.7.1` (all pinned to
+match RHDH's live generator, not PyPI's latest), `mkdocstrings`/
+`mkdocstrings-python` `1.0.6`/`2.0.7` (local-preview only), `lychee`
+`v0.24.2`.
+
+**A methodological finding worth naming on its own:** this mission
+independently reproduced, three separate times (`DEC-094`, `DEC-097`,
+then `DEC-122`/`DEC-124` here), the same lesson — a scripted backend
+check and a real browser/credentialed check are not interchangeable
+evidence, and in an `auth.environment: production` deployment, entire
+classes of bug (reader/host-matching, auth-flow, anything gated by real
+credentials) are structurally invisible to automation. On contradictory
+evidence between the two (the Fastly-CDN-cache incident mid-mission),
+the resolution pattern that worked was to escalate to the authoritative
+source (a direct API query) rather than re-assert — worth carrying
+forward as its own standing practice, distinct from the browser-vs-
+script lesson itself.
+
+**Status:** Phase H is closed. `README.md`, `docs/`, the live TechDocs
+page, and every code comment in scope are done, owner-verified where a
+browser check was the only real proof available, and self-consistently
+cross-referenced. `HANDOFF.md` consolidated. No open items carried
+forward from this mission except what's explicitly named in `reports/
+docs-audit.md`'s own "flagged, not fixed" list (already out of scope by
+design) and the `.claude/worktrees/` cleanup already-merged worktrees
+still sitting on disk — cosmetic, not functional, left for the owner's
+own housekeeping.
