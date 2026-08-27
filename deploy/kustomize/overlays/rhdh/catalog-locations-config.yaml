@@ -144,9 +144,17 @@ data:
           target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/template.yaml
         - type: url
           target: https://golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io/golden-path-agent-admin/golden-path-agent-template/src/branch/main/template.yaml
+        # Phase H3b follow-up (DEC-122's raw-URL sweep): pre-emptively
+        # switched these three from raw.githubusercontent.com to the
+        # github.com/blob/main shape, matching the catalog-info.yaml/
+        # template.yaml fix above -- none of these three carried a
+        # techdocs-ref annotation at the time of this sweep, so the bug
+        # was dormant, not live, but it's the identical landmine one
+        # techdocs-ref line away from reproducing DEC-122 verbatim. Fixed
+        # now rather than left for whoever adds that annotation next.
         - type: url
-          target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/platform/catalog/system.yaml
+          target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/platform/catalog/system.yaml
         - type: url
-          target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/platform/catalog/approval-service.yaml
+          target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/platform/catalog/approval-service.yaml
         - type: url
-          target: https://raw.githubusercontent.com/DarkDragonEl/golden-path-agent-template/main/platform/catalog/model-routes.yaml
+          target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/platform/catalog/model-routes.yaml
