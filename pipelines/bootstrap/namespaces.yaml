@@ -1,23 +1,9 @@
-# Phase C, Step C1a (DECISIONS.md DEC-023/DEC-024), extended at Step C4
-# (DEC-021) for golden-path-agent-demo-prod. Applied once, by a human, as a
-# deliberate bootstrap step -- not by the pipeline itself, and not by
-# ArgoCD either (demo-prod's own Application deliberately sets
-# CreateNamespace=false, same reasoning as pilot-prod's existing stub --
-# see deploy/argocd/apps/demo-prod.yaml). All three namespaces are
-# pre-created here, not created/destroyed per PipelineRun or per sync,
-# specifically because the pipeline's own ServiceAccount (rbac.yaml, this
-# directory) is granted NO cluster-scoped permissions at all (no
-# ClusterRoleBinding, no cluster-admin, per the owner's explicit
-# constraint) -- and creating/deleting a Namespace object is an inherently
-# cluster-scoped action that a namespace-scoped Role/RoleBinding cannot
-# grant (Kubernetes RBAC's `create` verb also does not support
-# `resourceNames` restriction, since the object doesn't exist yet at
-# authorization-check time -- there is no narrower grant available for
-# "create only this one namespace"). The "ephemeral" property of
-# ephemeral-test is preserved at the resource level instead: the pipeline's
-# deploy-ephemeral/destroy-ephemeral stages create and delete the
-# Deployments/Services/ConfigMaps inside this standing namespace on every
-# run, never the namespace itself.
+# Phase C (DEC-023/DEC-024/DEC-021). Applied once, by a human -- the
+# pipeline's own ServiceAccount has no cluster-scoped permissions (no
+# ClusterRoleBinding, ever), and creating/deleting a Namespace is
+# inherently cluster-scoped. "Ephemeral" is preserved at the resource
+# level instead: deploy-ephemeral/destroy-ephemeral churn the Deployments/
+# Services/ConfigMaps inside this standing namespace, never the namespace.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -38,36 +24,19 @@ metadata:
   name: golden-path-agent-demo-prod
   labels:
     app.kubernetes.io/part-of: golden-path-agent
-    # Real gap found live on the showcase cluster (Phase E, DEC-078
-    # onward): OpenShift GitOps's default ClusterRole for the ArgoCD
-    # application controller only grants get/list/watch on core
-    # resources cluster-wide -- write access to a target namespace
-    # requires opting it in via this label, which triggers the GitOps
-    # operator's own controller to create a namespace-scoped RoleBinding
-    # automatically. The SNO's GitOps operator was pre-installed by
-    # prior, unrelated work before this project ever touched it
-    # (docs/environments.md) and evidently carried a broader default (an
-    # older operator version's blanket admin ClusterRoleBinding, most
-    # likely) -- this label was never needed there and so was never
-    # written down anywhere in this project until the first genuine
-    # from-scratch GitOps install actually exercised the gap.
-    # golden-path-agent-ephemeral-test deliberately does NOT get this
-    # label -- it is pipeline-managed (direct oc apply), never
-    # ArgoCD-synced, per docs/environments.md's ownership model.
+    # DEC-078/DEC-080: ArgoCD's default cluster-wide ClusterRole only
+    # grants get/list/watch -- write access needs this label, which
+    # triggers the GitOps operator to create a namespace-scoped
+    # RoleBinding automatically. golden-path-agent-ephemeral-test does
+    # NOT get this label -- pipeline-managed (oc apply), never
+    # ArgoCD-synced.
     argocd.argoproj.io/managed-by: openshift-gitops
 ---
-# Phase D, D2 entry gate (DECISIONS.md DEC-053). A fifth, separate
-# namespace for Keycloak + its own Postgres -- not folded into
-# golden-path-agent-demo-prod or any existing namespace. rhbk-operator's
-# only supported install modes are OwnNamespace/SingleNamespace (PINS.md,
-# verified live) -- it needs one namespace it owns outright, and Keycloak
-# itself is platform identity infrastructure, not part of this project's
-# own promoted image/environments (deploy/kustomize/), so it does not
-# belong inside any of those three. Same manual, human-applied bootstrap
-# discipline as the three namespaces above -- flagged explicitly per the
-# owner's kickoff instruction, since creating a Namespace is itself a
-# cluster-scoped action no namespace-scoped Role can grant (see this
-# file's own header comment).
+# Phase D (DEC-053/DEC-054). A separate namespace for Keycloak + its own
+# Postgres -- rhbk-operator's only supported install modes are
+# OwnNamespace/SingleNamespace (PINS.md), and Keycloak is platform
+# identity infrastructure, not part of this project's own promoted
+# image/environments. Same manual bootstrap discipline as above.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -75,16 +44,10 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
 ---
-# Phase D4 entry gate (DECISIONS.md DEC-068). A sixth namespace for the
-# cluster-tier OTel Collector -- platform observability infrastructure,
-# not part of this project's own promoted image/environments, same
-# reasoning as golden-path-agent-keycloak's own separate namespace above.
-# Reachable cross-namespace from ephemeral-test/demo-prod/golden-path-agent-keycloak
-# (no NetworkPolicy restricts egress from any of those pods today, and
-# none is added restricting ingress here either -- mirrors Keycloak's own
-# precedent of no NetworkPolicy, both being shared platform infra reachable
-# from anywhere in this project's own namespaces, a deliberate choice
-# stated explicitly, not an oversight).
+# Phase D4 (DEC-068). Platform observability infrastructure, same
+# reasoning as golden-path-agent-keycloak's own namespace. No
+# NetworkPolicy, deliberately -- mirrors Keycloak's own precedent, both
+# being shared platform infra reachable from anywhere in this project.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -92,28 +55,10 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
 ---
-# Phase F4 (DECISIONS.md DEC-087/DEC-092). A seventh namespace for RHDH
-# (Internal Developer Portal) and its own dedicated Postgres -- platform
-# dev-tooling infrastructure, not part of this project's own promoted
-# image/environments, same reasoning as golden-path-agent-keycloak/-otel's
-# own separate namespaces above. The RHDH Operator's own Subscription is
-# cluster-scoped (openshift-operators, AllNamespaces-only install mode,
-# PINS.md Phase F) -- this namespace holds only the namespace-scoped
-# `Backstage` CR instance and its Postgres, matching the operator/instance
-# split already established for Pipelines/GitOps (cluster operator,
-# project-owned instances). Same manual, human-applied bootstrap
-# discipline as every other namespace in this file.
-#
-# Real gap found live: unlike golden-path-agent-keycloak/-otel (applied
-# via oc apply directly, not ArgoCD), this namespace's own Postgres/
-# Backstage CR ARE GitOps-managed (DEC-087's own GitOps-wiring decision)
-# -- without this label, the ArgoCD application-controller's own
-# ClusterRole grants only get/list/watch cluster-wide (the exact gap
-# golden-path-agent-demo-prod's own label comment already names), so its
-# first sync attempt failed outright ("services is forbidden... cannot
-# create resource"). Added after hitting this live, not preemptively --
-# golden-path-agent-ephemeral-test deliberately still does NOT get this
-# label, same reasoning as that namespace's own comment below.
+# Phase F4 (DEC-087/DEC-092/DEC-093). RHDH's namespace -- platform
+# dev-tooling, same reasoning as keycloak/-otel above. Unlike those two,
+# its Postgres/Backstage CR ARE GitOps-managed, so it needs the same
+# write-access label demo-prod's own comment explains (DEC-078/DEC-080).
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -122,13 +67,10 @@ metadata:
     app.kubernetes.io/part-of: golden-path-agent
     argocd.argoproj.io/managed-by: openshift-gitops
 ---
-# Phase G, Stage 1 held tail (DECISIONS.md DEC-098/DEC-099, unblocked by
-# DEC-101). An eighth namespace for the approval service, extracted out
-# of golden-path-agent-demo-prod into its own Platform Foundation home --
-# a shared singleton, not scoped to one agent project, same reasoning as
-# golden-path-agent-keycloak/-otel/-rhdh's own separate namespaces above.
-# GitOps-managed (deploy/argocd/apps/approval.yaml), so it needs the same
-# write-access label those namespaces' own comments already explain.
+# Phase G, Stage 1 (DEC-098/DEC-099/DEC-101/DEC-103). The approval
+# service's Platform Foundation home, extracted out of demo-prod -- a
+# shared singleton, not scoped to one agent project. GitOps-managed,
+# needs the same write-access label the namespaces above already explain.
 apiVersion: v1
 kind: Namespace
 metadata:

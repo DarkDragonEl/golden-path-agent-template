@@ -1,12 +1,7 @@
-# Phase C, Step C1a (DECISIONS.md DEC-023/DEC-024). Least-privilege RBAC
-# for the CI pipeline's ServiceAccount, per the owner's explicit binding
-# constraint: strictly within the golden-path-agent-* namespace prefix,
-# create/delete only on workload resources this project owns, image push
-# only to this project's own ImageStream, no ClusterRole, no
-# ClusterRoleBinding, no cluster-admin -- regardless of what the operator's
-# own session credentials would permit. See namespaces.yaml's header for
-# why namespace lifecycle itself is deliberately NOT one of this
-# ServiceAccount's grants.
+# Phase C (DEC-023/DEC-024). Least-privilege RBAC for the CI pipeline's
+# ServiceAccount: strictly within golden-path-agent-*, no ClusterRole, no
+# ClusterRoleBinding, no cluster-admin, ever. Namespace lifecycle itself
+# is deliberately not one of its grants -- see namespaces.yaml's header.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -77,22 +72,10 @@ roleRef:
   name: system:image-builder
   apiGroup: rbac.authorization.k8s.io
 ---
-# DECISIONS.md DEC-030: pipelines-scc, granted narrowly the same way as
-# system:image-builder above (a namespace-scoped RoleBinding to a
-# ClusterRole that itself only grants `use` on this one, specifically-
-# named SCC -- pipelines-scc-clusterrole's own rule is
-# resourceNames:[pipelines-scc], not a blanket SCC grant). Needed
-# specifically because the container-build stage now references the
-# OpenShift Pipelines operator's own pre-built `buildah` Task
-# (openshift-pipelines namespace, referenced via the cluster resolver),
-# which itself requires SETFCAP -- confirmed this is genuinely required,
-# not a repeat of the speculative grant DEC-029 correctly removed: an
-# extensive investigation (DEC-030) found that plain restricted-v2 (no
-# subuid/subgid ranges, no added capabilities) cannot run a real rootless
-# buildah build at all, cascading through five distinct failures: this is
-# Red Hat's own purpose-built SCC for exactly this scenario ("a close
-# replica of anyuid... for pipeline builds"), narrowly scoped to SETFCAP
-# only, not privileged or a blanket anyuid grant.
+# DEC-030: pipelines-scc, granted narrowly (resourceNames:[pipelines-scc],
+# not a blanket SCC grant) -- plain restricted-v2 cannot run a real
+# rootless buildah build (DEC-029/DEC-030's investigation), and this is
+# Red Hat's own purpose-built SCC for that, scoped to SETFCAP only.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -130,10 +113,8 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
     verbs: ["get", "list", "create", "update", "patch", "delete"]
-    # DEC-031: deploy/kustomize/base/ingress.yaml is a real managed
-    # resource in the rendered overlay -- missed in the original grant,
-    # confirmed live (deploy-ephemeral/destroy-ephemeral both hit
-    # "cannot get/delete resource ingresses").
+    # DEC-031: missed in the original grant, confirmed live
+    # ("cannot get/delete resource ingresses").
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
@@ -161,17 +142,13 @@ rules:
     resources: ["pods/exec"]
     verbs: ["create"]
     # DEC-033: security-tests.yaml/operational-tests.yaml both oc exec
-    # into the deployed agent pod to drive its real HTTP surface from
-    # inside the pod network -- confirmed live: missing this returned
-    # Forbidden on both Tasks. This is exec into this project's own
-    # deployed pods only, scoped to this one namespace.
+    # into the deployed agent pod -- confirmed live: missing this
+    # returned Forbidden on both Tasks.
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["get", "list", "create", "update", "patch", "delete"]
-    # Phase D, D1 contracts STOP (DEC-045): new resource kind for this
-    # project -- approval-service's SQLite persistence
-    # (pvc-approval.yaml, SRS-APR-DATA-01) is the first PVC
-    # deploy-ephemeral/destroy-ephemeral need to manage.
+    # DEC-045: approval-service's SQLite persistence (pvc-approval.yaml,
+    # SRS-APR-DATA-01) is the first PVC this project needs to manage.
 ---
 # Cross-namespace RoleBinding: lives in golden-path-agent-ephemeral-test,
 # grants only within this namespace, to a ServiceAccount whose home
@@ -194,18 +171,10 @@ roleRef:
   name: golden-path-agent-ci-deploy-role
   apiGroup: rbac.authorization.k8s.io
 ---
-# DECISIONS.md DEC-032. Cross-namespace image *pull*, the other direction
-# from system:image-builder above (which grants the pipeline's own
-# ServiceAccount push rights) -- the deployed agent pod runs as its OWN
-# ServiceAccount (golden-path-agent, deploy/kustomize/base/serviceaccount.yaml),
-# in golden-path-agent-ephemeral-test, pulling an image that lives in
-# golden-path-agent-ci's ImageStream. OpenShift does not allow
-# cross-namespace image pulls by default; confirmed live:
-# "authentication required" / ImagePullBackOff on the deployed pod.
-# system:image-puller is the standard, narrowly-scoped built-in role for
-# exactly this ("Grants the right to pull images from within a project").
-# This RoleBinding lives in golden-path-agent-ci (the source namespace,
-# where read access is being granted), not golden-path-agent-ephemeral-test.
+# DEC-032. Cross-namespace image pull: OpenShift disallows it by
+# default, confirmed live (ImagePullBackOff, "authentication required").
+# system:image-puller is the standard built-in role for this; lives in
+# golden-path-agent-ci (the source namespace granting read access).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -220,46 +189,34 @@ subjects:
   - kind: ServiceAccount
     name: golden-path-agent
     namespace: golden-path-agent-demo-prod
-    # Step C4 (DEC-042): demo-prod's own pods hit the identical
-    # cross-namespace image-pull gap ephemeral-test's own pods did
-    # (DEC-032) -- a RoleBinding's subject list is scoped per (SA,
-    # namespace) pair, so demo-prod needed its own entry added here, not
-    # inherited from ephemeral-test's.
+    # DEC-042: a RoleBinding's subject list is scoped per (SA, namespace)
+    # pair, so demo-prod needs its own entry, not inherited from
+    # ephemeral-test's (DEC-032).
   - kind: ServiceAccount
     name: golden-path-agent-approval
     namespace: golden-path-agent-ephemeral-test
-    # Phase D, D1 contracts STOP (DEC-045): approval-service runs the
-    # identical image, hits the identical cross-namespace pull gap, in
-    # both namespaces it's deployed to -- added now, alongside the
-    # rest of D1's RBAC diff, not discovered live later.
+    # DEC-045: approval-service hits the identical cross-namespace pull
+    # gap (DEC-032), in both namespaces it's deployed to.
   - kind: ServiceAccount
     name: golden-path-agent-approval
     namespace: golden-path-agent-approval
-    # Phase G, Stage 1 held tail (DEC-098/DEC-099, unblocked by DEC-101):
-    # the approval service moved to its own Platform Foundation
-    # namespace -- this entry replaces the old golden-path-agent-demo-
-    # prod one below (removed, that workload no longer runs there),
-    # hitting the identical cross-namespace pull gap live on the very
-    # first apply (confirmed: "authentication required" ImagePullBackOff,
-    # same as every other entry in this list originally found).
+    # DEC-103: the approval service moved to its own Platform Foundation
+    # namespace -- replaces the old demo-prod entry, same cross-namespace
+    # pull gap (DEC-032).
   - kind: ServiceAccount
     name: golden-path-agent-mcp
     namespace: golden-path-agent-ephemeral-test
-    # Phase D2 (DEC-061): the agent/mcp ServiceAccount split -- mcp now
-    # runs under its own identity, hitting the identical cross-namespace
-    # pull gap every other role here already needed a subject entry for.
+    # DEC-061: the agent/mcp ServiceAccount split -- mcp runs under its
+    # own identity, same cross-namespace pull gap.
   - kind: ServiceAccount
     name: golden-path-agent-mcp
     namespace: golden-path-agent-demo-prod
   - kind: ServiceAccount
     name: default
     namespace: golden-path-agent-otel
-    # Phase D4 (DEC-068): the OTel Collector's own traces-http sidecar
-    # reuses this project's own image (no new entrypoint.sh role needed
-    # for a generic `python3 -m http.server`) -- runs as the namespace's
-    # default ServiceAccount (no dedicated one created for a single,
-    # generic sidecar container), hits the identical cross-namespace
-    # pull gap every other role here already needed a subject entry for.
+    # DEC-068: the OTel Collector's traces-http sidecar reuses this
+    # project's own image, runs as the namespace default ServiceAccount
+    # (no dedicated one for a single sidecar), same pull gap.
 roleRef:
   kind: ClusterRole
   name: system:image-puller

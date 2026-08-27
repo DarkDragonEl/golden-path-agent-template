@@ -1,9 +1,6 @@
-# Phase G, G2 (DECISIONS.md DEC-098/DEC-099). Lean, mcp-specific
-# operational gate for the independently-built/promoted MCP image --
-# security-tests.yaml's own rest-zero-mutation-check is agent-specific
-# (drives the agent's /invoke), so it stays on the agent pipeline
-# unchanged; this Task carries only the two checks that genuinely
-# exercise the freshly-built MCP image itself.
+# Phase G, G2 (DEC-098/DEC-099). Two checks against the freshly-built MCP
+# image only -- security-tests.yaml's zero-mutation-check is agent-
+# specific (drives /invoke) and stays on the agent pipeline.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:

@@ -1,12 +1,8 @@
-# Phase G, G2 (DECISIONS.md DEC-098/DEC-099): the MCP tool server's own
-# independent build/test/promote pipeline -- Layer-1/Tools-Template
-# proof-of-independence in miniature, ahead of G3's actual separate
-# template. Gate set: the full unit-test suite (still valuable -- a
-# schema/store change here can break agent-side contracts pytest already
-# covers) plus mcp-operational-test.yaml's own two checks against the
-# freshly-deployed pod. eval-gate-*/policy-validate/operational-tests
-# (agent-reasoning- and model-fallback-specific) do not apply here and
-# stay agent-pipeline-only.
+# Phase G, G2 (DEC-098/DEC-099): the MCP tool server's own independent
+# build/test/promote pipeline. Gate set: full unit-test suite +
+# mcp-operational-test.yaml's two checks -- agent-reasoning-specific
+# gates (eval-gate-*/policy-validate/operational-tests) stay
+# agent-pipeline-only, they don't apply here.
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:

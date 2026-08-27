@@ -1,15 +1,8 @@
-# Phase C, Step C1b. SysR-P-F-05(4) operational tests: a live kill-primary
-# fallback trigger, mirroring the demo DEC-020 already ran manually and
-# locally (this session's own Checkpoint B2 exit verification) -- now
-# automated against the real cluster.
-#
-# Scope note: this checks fallback *behavior* (the call still succeeds
-# despite a broken primary route) functionally, not via an exported OTel
-# trace -- the cluster-tier OTel Collector Operator (PINS.md: pinned,
-# available in-cluster, not yet installed) isn't wired into this
-# ephemeral deployment yet. That's a real, separately-tracked gap, not a
-# silent scope cut -- see the Phase C report/DEC-025 for the explicit
-# note on what's deferred and why.
+# Phase C, Step C1b. SysR-P-F-05(4): a live kill-primary fallback
+# trigger, mirroring DEC-020's manual demo, automated against the real
+# cluster. Checks fallback behavior functionally, not via an exported
+# OTel trace (the cluster-tier Collector isn't wired into ephemeral-test
+# yet -- a named, tracked gap, DEC-025).
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -33,32 +26,13 @@ spec:
         NS=golden-path-agent-ephemeral-test
         NAME=golden-path-agent-fallback-demo
 
-        # Throwaway Deployment, separate from the standing ephemeral-test
-        # Deployment other stages depend on -- deliberately broken primary,
-        # correct fallback (from the same real secret/config the standing
-        # deployment uses).
-        # DEC-098/DEC-099 (G2): real gap found live, fixed here -- flipping
-        # ephemeral-test's MCP_MODE to live (required by the split agent
-        # image) turned this clone's tool call into a genuine network
-        # request for the first time ever. It then hung until timeout, in
-        # two rounds: (1) this clone's labels used to fully replace
-        # app.kubernetes.io/name and app.kubernetes.io/component (dropping
-        # both) -- silently irrelevant under MCP_MODE=mock (no network call
-        # ever made), a real, blocking bug now that one is; (2) the first
-        # fix's own hardcoded label set still didn't merge, so it also
-        # dropped app.kubernetes.io/part-of -- injected into every rendered
-        # resource, including this NetworkPolicy's own ingress selector, by
-        # kustomize's commonLabels transformer, not visible in the raw
-        # source file. Fix (both rounds, now merge-based so it stays
-        # correct if commonLabels gains more keys later): keep the source
-        # Deployment's own rendered labels and only override component to a
-        # distinct value (agent-fallback-demo) -- deliberately NOT
-        # component=agent, which would make this pod a subset-match for
-        # the standing agent Deployment's own selector and risk its
-        # ReplicaSet adopting this throwaway pod as one of its own.
-        # golden-path-agent-mcp-restrict gets a second, narrowly-scoped
-        # ingress rule (deploy/kustomize/base/networkpolicy.yaml) allowing
-        # exactly this component value, nothing broader.
+        # Throwaway Deployment, separate from the standing one -- broken
+        # primary, correct fallback. Labels: MERGE into the source
+        # Deployment's own rendered labels (never replace wholesale, which
+        # silently drops kustomize's commonLabels-injected keys the
+        # NetworkPolicy selector needs). component=agent-fallback-demo,
+        # deliberately NOT component=agent -- avoids ReplicaSet adoption
+        # by the standing agent Deployment's own selector (DEC-101).
         oc get deployment golden-path-agent -n "$NS" -o json \
           | python3 -c "
         import json, sys
@@ -132,21 +106,12 @@ spec:
         NS=golden-path-agent-ephemeral-test
         NAME=golden-path-agent-mcp-unreachable-demo
 
-        # Phase G, Stage 2 (DEC-098/DEC-099/DEC-104/DEC-105): the
-        # complement DEC-105 requires -- domain eval's own fault
-        # injection moved to an in-process, eval-only fixture (never
-        # touching the real, deployed MCP server), so the network-level
-        # fidelity that gives up must be proven honestly here instead,
-        # against the real split architecture. This is a genuine network
-        # fault (an unreachable DNS name, real connection failure), not a
-        # simulated one -- MCP_TOOL_ENDPOINT is the one env var overridden
-        # (mirrors kill-primary-fallback-check's own MODEL_API_BASE_URL
-        # override above, same throwaway-clone pattern, same
-        # merge-not-replace label fix already proven correct there and in
-        # DEC-101) rather than a live NetworkPolicy edit or killing the
-        # standing mcp pod -- both would affect the standing deployment
-        # other stages in this same PipelineRun still depend on; this
-        # clone is fully isolated and self-cleans.
+        # DEC-105's own network-fault complement, proven live here: a
+        # genuine network fault (unreachable DNS, real connection
+        # failure), not simulated -- same isolated throwaway-clone +
+        # merge-not-replace label pattern as kill-primary-fallback-check
+        # above (DEC-101), never touching the standing deployment other
+        # stages still depend on.
         oc get deployment golden-path-agent -n "$NS" -o json \
           | python3 -c "
         import json, sys

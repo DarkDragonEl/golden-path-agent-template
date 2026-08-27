@@ -67,14 +67,9 @@ up() {
     echo "[dev.sh] live mode: reads MODEL_API_BASE_URL/MODEL_NAME from .env"
     [ -f .env ] && . ./.env
   fi
-  # DEC-098/DEC-099 (G2): MCP_MODE is always live now, offline or not --
-  # a real mcp container is started either way (below), and the split
-  # agent image (Containerfile.agent) deliberately excludes
-  # mcp_server/server.py, so MCP_MODE=mock's in-process fallback
-  # (`from . import server`) would ImportError. This closes the exact
-  # gap DEC-096 found: the default here used to silently route tool
-  # calls in-process, so `make up`/`make up-offline` were never actually
-  # exercising the separately-running mcp container at all.
+  # MCP_MODE is always live, offline or not -- Containerfile.agent
+  # excludes mcp_server/server.py, so MCP_MODE=mock's in-process fallback
+  # would ImportError (DEC-098/DEC-099, closing the gap DEC-096 found).
   MCP_MODE=live
 
   "$ENGINE" build -t "$AGENT_IMAGE" -f Containerfile.agent .
@@ -87,19 +82,15 @@ up() {
     -e MCP_HOST=0.0.0.0 -e MCP_PORT=8081 \
     "$MCP_IMAGE" >/dev/null
 
-  # R4/DEC-020 (plan-B6 closure): a real local OTel Collector so telemetry
-  # actually fires on every run instead of silently no-op'ing -- started
-  # before the agent so OTEL_EXPORTER_OTLP_ENDPOINT below can point at it
-  # by container name on the shared network. Spans land in this
-  # container's stdout (`podman logs golden-path-otel-collector-dev`).
+  # R4/DEC-020: a real local OTel Collector, started before the agent so
+  # OTEL_EXPORTER_OTLP_ENDPOINT below can address it by container name.
   "$ENGINE" run -d --name "$OTEL_NAME" --network "$NETWORK" -p "4318:4318" \
     -v "$(pwd)/deploy/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:Z" \
     "$OTEL_COLLECTOR_IMAGE" >/dev/null
 
-  # Phase D's third role (DEC-047) -- without this, any write-classified
-  # query fails immediately: the agent's own APPROVAL_SERVICE_ENDPOINT
-  # default (http://localhost:8082) points at nothing inside its own
-  # container network namespace.
+  # Without this, any write-classified query fails immediately -- the
+  # agent's APPROVAL_SERVICE_ENDPOINT default points nowhere inside its
+  # own container network namespace otherwise (DEC-047, DEC-096).
   "$ENGINE" run -d --name "$APPROVAL_NAME" --network "$NETWORK" -p "${APPROVAL_HOST_PORT}:8082" \
     -e OTEL_EXPORTER_OTLP_ENDPOINT="http://${OTEL_NAME}:4318" \
     "$APPROVAL_IMAGE" >/dev/null
