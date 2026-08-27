@@ -9446,3 +9446,44 @@ TechDocs wiring are all done and owner-verified. Phase H's remaining
 work is H4b (comment slimming), gated on Stage 2 (closed, `DEC-109`),
 H3a (merged, `DEC-115`), and H4a (complete, addenda + `DEC-040` +
 `DEC-119` all landed) — all three conditions now satisfied.
+
+## DEC-125 — H4b pre-task: state/README.md gap closed, comment-slimming
+policy written, an H2 documentation inconsistency corrected
+
+**Finding:** two independent H2 streams ran concurrently (the same
+dual-coordinating-session situation `DEC-115`'s own history note
+covers) — the content actually merged as `DEC-116` (docs hub, per-
+directory READMEs, the two credential scripts tracked and linked) came
+from one stream, but `reports/feature-h2-docs-ia.md` as committed
+documents the *other* stream's own experience, which hit a real sandbox
+gap (couldn't access untracked files across a `git worktree`) and
+explicitly declined to fabricate what it couldn't find. Net effect:
+`tools/README.md` still claimed the two credential scripts were "not
+yet tracked" (false — confirmed live via `git ls-files`), and
+`state/README.md` — a deliverable both streams' own scope called for —
+was simply missing from the final merge.
+
+**Decision:** added `state/README.md` (documents `state/approval/`'s
+SQLite DB and the currently-unconsumed `AGENT_STATE_DIR`), narrowed
+`.gitignore` to `state/* + !state/README.md` (the existing
+`corpus/seed/*.md` precedent); fixed `tools/README.md`'s stale claim;
+added a coordinating-session note to the top of
+`reports/feature-h2-docs-ia.md` pointing at this entry, without
+rewriting that stream's own accurate account of its own experience.
+Wrote `docs/code-comment-policy.md`: the three-category rule (a: keep,
+b: slim to a pointer, c: migrate to `DECISIONS.md` before slimming) H4b
+applies, plus per-file-type verification requirements (rendered-output
+diffing for kustomize YAML, parsed-structure diffing for standalone
+Tekton YAML, the image-baked-vs-not branch/PR distinction). Linked from
+`docs/README.md` and both `mkdocs` navs; `mkdocs build --strict`
+re-verified green with the new page included.
+
+**Evidence:** `git check-ignore -v state/README.md` /
+`state/approval/test.db` confirmed the narrowed `.gitignore` tracks the
+former and still ignores the latter; `git ls-files` confirmed both
+credential scripts genuinely are tracked.
+
+**Status:** H4b's own three preconditions (Stage 2 closed, H3a merged,
+H4a complete) were already satisfied before this entry; this was
+cleanup the owner asked for as an explicit pre-task. H4b's actual
+comment-slimming work starts next.
