@@ -3,64 +3,38 @@ kind: Kustomization
 
 namespace: golden-path-agent-ephemeral-test
 
-# DECISIONS.md DEC-031: namespace.yaml is intentionally not a managed
-# resource here anymore (DEC-024's own design, only now actually
-# implemented) -- the Namespace is bootstrapped once, out-of-band
-# (pipelines/bootstrap/namespaces.yaml), and this project's pipeline
-# ServiceAccount has no RBAC to manage Namespace objects at all
-# (deliberately, no cluster-scoped grant). Confirmed live: applying/
-# deleting a rendered manifest that still included the Namespace object
-# hit "cannot get/delete resource namespaces" on every deploy-ephemeral/
-# destroy-ephemeral run. The file itself (namespace.yaml) is kept in this
-# directory as documentation of the namespace's own metadata, just no
-# longer referenced from `resources:`.
+# DEC-031/DEC-024: namespace.yaml is intentionally not a managed
+# resource here -- bootstrapped once out-of-band, no cluster-scoped RBAC
+# to manage Namespace objects. Confirmed live: including it hit "cannot
+# get/delete resource namespaces" on every deploy/destroy-ephemeral run.
 resources:
   - ../../base
-  # DECISIONS.md DEC-063: the approval-service manifests are now part of
-  # ../../base's own resources: directly (promoted at the D2 cutover,
-  # DEC-046's sequencing rule) -- the separate DEC-050 nested-kustomization
-  # reference this line used to carry is retired; ../../base alone
-  # already includes them. AUTH_MODE stays "none" here (this overlay
-  # never overrides it) -- ephemeral-test's own pipeline gate keeps
-  # exercising the real approval service with AUTH_MODE=none, per the
-  # owner's own D2 execution instruction ("AUTH_MODE=oidc everywhere
-  # beyond ephemeral-test's own gate").
+  # DEC-063: approval-service manifests are part of ../../base's own
+  # resources: directly (DEC-050's nested kustomization retired). Stays
+  # AUTH_MODE=none here, per the owner's own D2 execution instruction.
 
 configMapGenerator:
   - name: golden-path-agent-config
     behavior: merge
     literals:
       - MODEL_API_BASE_URL=http://dev-model-endpoint.example.com/v1 # TODO(platform): real dev model endpoint
-      - MODEL_NAME=placeholder-model # DEC-031: declared here (even though
-        # it equals base's own default) so `kustomize edit set configmap`
-        # has an existing literal to override at apply-time -- that
-        # command can only update a key already present in this file, not
-        # any key in the merged/generated ConfigMap overall. Confirmed by
-        # reproducing the failure locally before trusting the live fix:
-        # "key 'MODEL_NAME' not found in resource".
+      - MODEL_NAME=placeholder-model # DEC-031: declared here so
+        # `kustomize edit set configmap` has an existing literal to
+        # override at apply-time -- it can't add a new key.
       - MODEL_FALLBACK_API_BASE_URL=http://dev-model-endpoint.example.com/v1 # TODO(platform): real fallback model endpoint
       - MODEL_FALLBACK_NAME=placeholder-fallback-model # DEC-035: same
-        # pre-existing-literal requirement as MODEL_NAME above, for the
-        # same kustomize edit set configmap constraint -- fallback route
-        # was never wired into the K8s-deployed config path at all before
-        # DEC-035; SysR-P-F-12/CLAUDE.md's "one model route + one
-        # fallback" is a hard scope requirement.
+        # pre-existing-literal requirement as MODEL_NAME above --
+        # SysR-P-F-12's "one model route + one fallback" is a hard
+        # scope requirement.
       - DATA_SOURCE_BINDING=synthetic
       - APPROVAL_MODE=required
-      # DEC-098/DEC-099 (G2, three-image split): flipped from "mock" to
-      # "live". The split agent image (Containerfile.agent) deliberately
-      # excludes mcp_server/server.py -- MCP_MODE=mock's call_tool()
-      # branch does `from . import server`, which would ImportError with
-      # this image. This also closes the exact gap DEC-096 named: mock
-      # mode routes tool calls in-process, so ephemeral-test's own
-      # security-tests/operational-tests/mcp-operational-test gates were
-      # never actually proving the deployed agent and MCP pods talk to
-      # each other over the network -- they were proving the agent talks
-      # to itself.
+      # DEC-101: flipped to "live" -- Containerfile.agent excludes
+      # mcp_server/server.py, so MCP_MODE=mock's in-process fallback
+      # would ImportError. Also closes DEC-096's gap: mock mode meant
+      # these gates never proved agent<->MCP pods talk over network.
       - MCP_MODE=live
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://golden-path-agent-otel-collector.golden-path-agent-otel.svc.cluster.local:4318 # DEC-071:
-        # the cluster-tier collector (DEC-068), reachable cross-namespace --
-        # same internal Service DNS pattern as OIDC_ISSUER_URL/MCP_TOOL_ENDPOINT.
+        # cluster-tier collector (DEC-068), reachable cross-namespace.
   - name: golden-path-agent-approval-config
     behavior: merge
     literals:

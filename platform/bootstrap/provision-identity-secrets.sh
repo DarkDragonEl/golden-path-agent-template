@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Phase D, D2 (DECISIONS.md DEC-059). Scripted, committed, idempotent
-# secret-provisioning mechanism -- the owner's own explicit directive:
-# "scripted provisioning, committed mechanism, never-committed values."
+# DEC-059: scripted, committed, idempotent secret-provisioning
+# mechanism -- the owner's own explicit directive: "scripted
+# provisioning, committed mechanism, never-committed values."
 #
 # WHAT THIS SIMULATES, STATED FOR THE WALKTHROUGH: in a real enterprise
 # deployment, an ESO (external-secrets.io)/Vault integration -- already
@@ -28,20 +28,14 @@
 # written to a file, no `set -x` anywhere in this script (would dump
 # variable values, including these, to stderr).
 #
-# WHY `oc exec` FOR THE KEYCLOAK ADMIN-API CALLS: this script runs on an
-# operator's own machine, outside the cluster network -- it cannot reach
-# Keycloak's internal Service DNS directly, and (DEC-057) there is no
-# working external Ingress route yet ("no external HTTP routing this
-# milestone," same accepted limitation as every other Ingress in this
-# project). Reuses this session's own already-established, already-
-# proven pattern (DECISIONS.md DEC-034/DEC-052): `oc exec -i <pod> --
-# python3 -`, targeting the Postgres pod already guaranteed to exist in
-# golden-path-agent-keycloak by the entry gate (DEC-057) -- no new pod
-# spun up, no dependency on the agent already being deployed.
+# WHY `oc exec`: this script runs outside the cluster network and
+# cannot reach Keycloak's internal Service DNS directly, and (DEC-057)
+# no external Ingress route exists yet. Reuses the DEC-034/DEC-052
+# pattern: `oc exec -i <pod> -- python3 -` against the Postgres pod
+# already guaranteed to exist by the DEC-057 entry gate.
 #
-# Requires: oc (logged in, correct cluster context), python3 available
-# locally is NOT required -- only inside the exec'd pod, which already
-# has it (confirmed DEC-057).
+# Requires: oc only -- python3 is needed inside the exec'd pod, not
+# locally (confirmed DEC-057).
 set -euo pipefail
 
 NS_KEYCLOAK=golden-path-agent-keycloak
@@ -54,14 +48,9 @@ ADMIN_USER=$(oc get secret golden-path-agent-keycloak-admin -n "$NS_KEYCLOAK" -o
 ADMIN_PASS=$(oc get secret golden-path-agent-keycloak-admin -n "$NS_KEYCLOAK" -o jsonpath='{.data.password}' | base64 -d)
 
 # --- Step 1: regenerate the two workload clients' secrets -----------------
-# Always regenerate via Keycloak's own admin-API "regenerate client
-# secret" endpoint (POST .../client-secret) -- chosen over the
-# KeycloakRealmImport CRD's spec.placeholders import-time substitution
-# mechanism specifically because this ONE call works identically whether
-# the client was created two seconds ago or two months ago: one code
-# path for both a fresh environment and rotation, not two mechanisms to
-# keep in sync (DECISIONS.md DEC-058's own header comment records the
-# same reasoning).
+# DEC-058: always regenerate via Keycloak's admin-API "regenerate client
+# secret" endpoint, not the CRD's spec.placeholders mechanism -- one
+# code path for both a fresh environment and rotation.
 read -r APPROVAL_SECRET MCP_SECRET <<EOF
 $(oc exec -i -n "$NS_KEYCLOAK" "$PG_POD" -- python3 - "$ADMIN_USER" "$ADMIN_PASS" "$REALM" <<'PYEOF'
 import json, sys, urllib.request, urllib.parse
@@ -184,20 +173,12 @@ unset DEMO_APPROVER_PASS DEMO_USER_PASS
 echo "provisioned demo user passwords in ${NS_KEYCLOAK}/golden-path-agent-demo-users"
 echo "(retrieve for a live walkthrough with: oc get secret golden-path-agent-demo-users -n ${NS_KEYCLOAK} -o jsonpath='{.data.demo-approver-password}' | base64 -d)"
 
-# --- Step 4: RHDH's own OIDC client (Phase F4, DECISIONS.md DEC-092) ------
-# Real gap found live: KeycloakRealmImport is a one-shot Job-based import
-# -- re-applying the CR with a client added to spec.realm.clients does NOT
-# create it live once the import has already reported Done=True (the
-# operator does not reconcile spec changes against an already-completed
-# import). golden-path-agent-rhdh is declared in
-# keycloak-realm-import.yaml for a FRESH environment's own first-ever
-# import (where it creates cleanly, in the same pass as the other three
-# clients) -- but on an already-provisioned realm, it needs this
-# create-if-missing step instead, unlike the two workload clients above
-# which always already exist by the time this script runs. Same
-# regenerate-via-admin-API pattern either way, so provisioning a fresh
-# environment and rotating an existing one stay the same code path here
-# too, once the client itself exists.
+# --- Step 4: RHDH's own OIDC client (DEC-092) ------
+# DEC-092: KeycloakRealmImport is a one-shot Job-based import --
+# re-applying the CR with a client added does NOT create it once
+# Done=True. Fresh environments get it via keycloak-realm-import.yaml
+# directly; an already-provisioned realm needs this create-if-missing
+# step instead.
 NS_RHDH=golden-path-agent-rhdh
 
 RHDH_CLIENT_EXISTS=$(oc exec -i -n "$NS_KEYCLOAK" "$PG_POD" -- python3 - "$ADMIN_USER" "$ADMIN_PASS" "$REALM" <<'PYEOF'
@@ -276,14 +257,11 @@ if oc get secret golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" >/dev/null 2>&
   oc patch secret golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" --type merge \
     -p "{\"data\":{\"OIDC_CLIENT_SECRET\":\"$(printf '%s' "$RHDH_OIDC_SECRET" | base64 -w0)\"}}" >/dev/null
 else
-  # SESSION_SECRET is generated only here, at first creation -- unlike
-  # OIDC_CLIENT_SECRET (safe to rotate every run), regenerating it on an
-  # existing environment would invalidate every active user session. Real
-  # gap found live (F4, DEC-092): omitting it entirely produces
-  # "Authentication failed, authentication requires session support" on
-  # the very first login attempt -- Backstage's OIDC strategy needs this
-  # even though it otherwise uses cookie-based state, not a full
-  # express-session store.
+  # DEC-092 (addendum): SESSION_SECRET is generated only here, at first
+  # creation -- regenerating it on an existing environment would
+  # invalidate every active session, unlike OIDC_CLIENT_SECRET. Omitting
+  # it entirely produces "Authentication failed, authentication requires
+  # session support" on the first login attempt.
   oc create secret generic golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" \
     --from-literal=OIDC_CLIENT_ID=golden-path-agent-rhdh \
     --from-literal=OIDC_CLIENT_SECRET="$RHDH_OIDC_SECRET" \

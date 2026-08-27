@@ -1,9 +1,6 @@
-# Phase G, Stage 2 (DECISIONS.md DEC-098/DEC-099, G5). The approval
-# service as a shared Platform Foundation Component (DEC-098's decision:
-# a singleton serving every Agent Template instance, not bundled per
-# agent) plus its real interface contract as a catalog API, sourced from
-# srs/SRS-APR.md (the actual normative document, not invented) and
-# cross-checked against approval_service/api.py's real route paths.
+# DEC-098: the approval service as a shared Platform Foundation
+# Component (a singleton, not bundled per agent) plus its real interface
+# contract as a catalog API, sourced from srs/SRS-APR.md.
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:

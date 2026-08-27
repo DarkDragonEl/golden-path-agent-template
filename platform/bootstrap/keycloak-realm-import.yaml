@@ -1,24 +1,11 @@
-# Phase D, D2 (DECISIONS.md DEC-058). The realm content the owner's
-# design-STOP review approved: one realm, one approval-approver role,
-# three clients, two test users. Schema confirmed against the live CRD
-# (`oc explain keycloakrealmimport.spec.realm[...]`) before writing.
+# DEC-058: one realm, one approval-approver role, three clients, two
+# test users. Schema confirmed against the live CRD, not guessed.
 #
-# Deliberately secret-free: no client `secret` field, no user
-# `credentials` block, anywhere in this file. Client secrets are
-# provisioned entirely post-apply by this file's own sibling
-# platform/bootstrap/provision-identity-secrets.sh (moved here from
-# pipelines/bootstrap/ at Phase G's G1, DEC-098/DEC-099), via Keycloak's own
-# admin-API "regenerate client secret" endpoint -- chosen over this
-# CRD's `spec.placeholders` import-time substitution mechanism
-# specifically because it gives ONE code path for both a fresh
-# environment (client just created, no secret yet) and rotation (client
-# already exists) -- see that script's own header for the full
-# reasoning. Test-user passwords are set the same way, via the admin
-# API's reset-password endpoint, after this import completes -- a
-# realm-import has no clean way to embed a real Keycloak-format password
-# hash without either committing a plaintext value or hand-replicating
-# Keycloak's own PBKDF2 hash format, neither of which this project will
-# do.
+# DEC-098/DEC-099: deliberately secret-free -- client secrets and
+# test-user passwords are both provisioned post-apply by
+# provision-identity-secrets.sh via Keycloak's admin API (one code path
+# for both fresh-environment and rotation), not this CRD's
+# `spec.placeholders` mechanism.
 apiVersion: k8s.keycloak.org/v2beta1
 kind: KeycloakRealmImport
 metadata:
@@ -36,10 +23,10 @@ spec:
         - name: approval-approver
           description: "Authorized to decide (approve/reject) pending write proposals -- SRS-APR-SEC-02."
     clients:
-      # Agent workload -> approval-service (submit proposal, IF-05 query).
-      # Never assigned approval-approver -- this is what makes the named
-      # negative test possible: correct by omission, nothing to
-      # misconfigure to "block" it (DECISIONS.md DEC-054's design note).
+      # DEC-054 (addendum): agent workload -> approval-service. Never
+      # assigned approval-approver -- correct by omission, nothing to
+      # misconfigure to "block" it, which is what makes the negative
+      # test possible.
       - clientId: golden-path-agent-approval-workload
         protocol: openid-connect
         publicClient: false
@@ -106,15 +93,11 @@ spec:
         protocol: openid-connect
         publicClient: true
         standardFlowEnabled: true
-        # DEC-058: also enabling Resource Owner Password (direct grant)
-        # on this SAME client -- deliberately, for D2's own verification
-        # test only (no browser available to drive real Authorization
-        # Code + PKCE from this environment). Still a real login (the
-        # demo-approver's actual username+password against Keycloak,
-        # reflecting their real identity/role), not an admin-tooling
-        # shortcut -- but D3's real UI will use Authorization Code+PKCE
-        # exclusively, never this grant. Flagged explicitly, not a silent
-        # scope addition.
+        # DEC-058: also enables Resource Owner Password (direct grant) on
+        # this same client, deliberately, for D2's own verification test
+        # only (no browser available there) -- still a real login, not
+        # an admin-tooling shortcut. D3's real UI uses Authorization
+        # Code+PKCE exclusively, never this grant.
         directAccessGrantsEnabled: true
         redirectUris:
           - "*" # TODO(D3): tighten to the real UI's callback URL once it exists -- wildcard only acceptable at this demo/verification stage
@@ -140,13 +123,12 @@ spec:
               access.token.claim: "true"
               id.token.claim: "false"
               userinfo.token.claim: "false"
-      # Phase F4 (DECISIONS.md DEC-087/DEC-092). RHDH's own sign-in --
-      # confidential client, standard Authorization Code flow (Backstage's
-      # backend OIDC plugin handles the token exchange server-side with
-      # this client secret, unlike golden-path-agent-approver-ui's public
-      # PKCE-only shape above -- a genuinely distinct trust surface,
-      # dev-tooling sign-in vs. end-user approval auth, DEC-087 item 2).
-      # Same realm reused, no second realm, per that same decision.
+      # DEC-092 (addendum): RHDH's own sign-in -- confidential client,
+      # standard Authorization Code flow (Backstage's backend OIDC
+      # plugin handles the exchange server-side), a genuinely distinct
+      # trust surface from golden-path-agent-approver-ui's public
+      # PKCE-only shape above -- dev-tooling sign-in vs. end-user
+      # approval auth. Same realm reused, no second realm.
       - clientId: golden-path-agent-rhdh
         protocol: openid-connect
         publicClient: false
@@ -165,20 +147,12 @@ spec:
         webOrigins:
           - "*" # TODO(F4 follow-up): same deferral as redirectUris above
     users:
-      # DEC-058 (owner requirement): at minimum one user with the
-      # approver role, one without -- the wrong-role 403 negative test
-      # needs a real, authenticated-but-unauthorized human token, not
-      # just the agent's own workload token.
-      #
-      # email/firstName/lastName/emailVerified are NOT cosmetic here --
-      # found live, the hard way: without them, Keycloak's declarative
-      # User Profile feature refuses the direct-grant (Resource Owner
-      # Password) login this realm's own verification path uses
-      # (`golden-path-agent-approver-ui`'s directAccessGrantsEnabled),
-      # with "Account is not fully set up" -- confirmed by reproducing it
-      # live, then fixing it live via the admin API before writing the
-      # fix back here, per this project's own verify-before-trust
-      # discipline. Synthetic values only (CLAUDE.md).
+      # DEC-058: at minimum one user with the approver role, one without
+      # -- the wrong-role 403 negative test needs a real human token.
+      # email/firstName/lastName/emailVerified are NOT cosmetic: without
+      # them, Keycloak's User Profile feature refuses direct-grant login
+      # with "Account is not fully set up". Synthetic values only
+      # (CLAUDE.md).
       - username: demo-approver
         enabled: true
         email: demo-approver@example.invalid

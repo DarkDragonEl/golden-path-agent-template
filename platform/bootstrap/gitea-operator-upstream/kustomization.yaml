@@ -1,39 +1,16 @@
-# Phase G, Stage 1 (DECISIONS.md DEC-098/DEC-099). Git hosting for
-# scaffolded project repositories -- Platform Foundation infrastructure.
+# DEC-098/DEC-099: Git hosting for scaffolded project repositories --
+# Platform Foundation infrastructure.
 #
-# Superseding note: an earlier version of this file used a plain OLM
-# Subscription (CatalogSource `redhat-rhpds-gitea` + Subscription in
-# `openshift-operators`). That path got permanently stuck: the
-# Subscription never resolved an InstallPlan (`ResolutionFailed`/
-# `CatalogSourcesUnhealthy`) despite the CatalogSource being confirmed
-# `READY` with correct served content for 5+ minutes straight -- a stuck
-# internal resolver cache in the cluster-wide `catalog-operator` pod
-# (openshift-operator-lifecycle-manager), not a config error on this
-# project's side. Restarting that pod is the standard fix, but it is
-# shared, cluster-wide control-plane infrastructure affecting every
-# tenant on this lab cluster -- this project's own precedent (`DEC-055`:
-# a different tenant's broken CatalogSource poisoned OLM resolution
-# cluster-wide; response was "not this project's resource to fix," not
-# "fix it ourselves") rules out touching it unilaterally. Abandoned in
-# favor of this file: `rhpds/gitea-operator`'s own `config/default`
-# kustomize path (`Makefile`'s `install`/`deploy` targets, read directly
-# before this file was authored) -- a plain, namespace-scoped kustomize
-# apply, zero dependency on OLM/openshift-marketplace/catalog-operator at
-# all. Exactly the shape `pipelines/bootstrap/keycloak-operator-upstream/
-# kustomization.yaml` already established for `DEC-056`'s identical
-# problem class (rhbk-operator's own OLM Subscription blocked by the same
-# kind of shared-cluster catalog issue) -- same reasoning applies
-# directly here, not just by analogy.
-#
-# Image pin: `config/manager/kustomization.yaml` at commit
-# `77cdc2b884c160663f7ef0b9040c35898d3ebcce` (tag `v2.3.2`) already pins
-# `quay.io/rhpds/gitea-operator:v2.3.2` explicitly (not `:latest`).
-# Resolved to a digest via `skopeo inspect docker://quay.io/rhpds/
-# gitea-operator:v2.3.2` (verified live 2026-08-26) --
-# `sha256:ec115feaa606459300c33f8aecd751d637217185e5e9087513f0280768695
-# 613` -- consistent with this project's own digest-pinning discipline
-# (PINS.md's Phase E `traces-http` sidecar row is the established
-# precedent for pinning a digest even when upstream ships a tag).
+# DEC-100 (addendum): superseded an earlier plain-OLM-Subscription
+# design -- it never resolved an InstallPlan (`ResolutionFailed`/
+# `CatalogSourcesUnhealthy`) despite a confirmed-`READY` CatalogSource, a
+# stuck resolver cache in the cluster-wide `catalog-operator` pod, not a
+# config error here (same "not this project's resource to fix" class as
+# DEC-055). Uses `rhpds/gitea-operator`'s own `config/default` kustomize
+# path instead -- zero OLM dependency, same shape DEC-056 already
+# established for the identical problem class. Image pinned to digest
+# `sha256:ec115feaa606459300c33f8aecd751d637217185e5e9087513f0280768695613`
+# (tag `v2.3.2`), verified live via `skopeo inspect`.
 #
 # RBAC narrowing (a real, deliberate deviation from upstream, matching
 # `keycloak-operator-upstream`'s own house style): upstream's

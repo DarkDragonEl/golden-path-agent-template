@@ -1,10 +1,6 @@
-# Phase C, Step C4 (DECISIONS.md DEC-021). Auto-sync is deliberately ON
-# here (unlike pilot-prod's existing stub) -- the digest-promotion PR
-# merge (Step C3) is this environment's own human gate, per DEC-021's own
-# kickoff decision ("auto-sync on, since the PR-merge is the human gate").
-# Once merged, ArgoCD picks up the promoted digest with no further manual
-# apply step -- that is the whole point of the GitOps promotion model this
-# phase demonstrates.
+# DECISIONS.md DEC-021. Auto-sync deliberately ON (unlike pilot-prod's
+# stub) -- the promotion-PR merge is this environment's own human gate;
+# once merged, ArgoCD picks up the promoted digest with no manual apply.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

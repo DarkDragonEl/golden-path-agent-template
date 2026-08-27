@@ -1,16 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# DECISIONS.md DEC-031: externalsecret.yaml (an ExternalSecret stub) is no
-# longer a managed resource here -- the Phase C plan's secret-handling
-# decision (DEC-024) uses a plain Secret, manually provisioned out-of-band
-# (docs/phase-c-runbook.md §2), never applied by Kustomize/the pipeline.
-# A stub Secret object here (unlike the old ExternalSecret, which only
-# ever *referenced* material, never contained it) would risk `oc apply`
-# overwriting the real, manually-created secret's data with placeholder
-# content -- the safe fix is not declaring it as a managed resource at
-# all. deployment-agent.yaml's envFrom.secretRef still references
-# golden-path-agent-secrets by name; nothing here needs to create it.
+# DEC-031/DEC-024: no ExternalSecret/Secret stub managed here -- the
+# real Secret is manually provisioned out-of-band (docs/phase-c-runbook.md
+# §2); a stub here would risk `oc apply` overwriting its real data.
 resources:
   - deployment-agent.yaml
   - deployment-mcp.yaml
@@ -22,19 +15,10 @@ resources:
   - configmap.yaml
   - networkpolicy.yaml
   - pdb.yaml
-  # Phase D2 cutover (DECISIONS.md DEC-063): the approval-service
-  # manifests, promoted from the ephemeral-test-only nested kustomization
-  # (deploy/kustomize/base/approval/, DEC-050) into base/ directly, per
-  # DEC-046's own sequencing rule -- this is the one commit that also
-  # flips AUTH_MODE=oidc (demo-prod overlay) and adds the mechanical
-  # demo-prod assertion, all together, atomically. Flattened rather than
-  # kept as a nested kustomization: DEC-050's whole reason for the
-  # nesting was working around kustomize's file-reference restriction
-  # from ephemeral-test's overlay -- base/kustomization.yaml is these
-  # files' own directory, so no such restriction applies here, and
-  # flattening also means deployment-approval.yaml is now visible to
-  # this file's own images: transform below, retiring DEC-050's separate
-  # base/approval/kustomization.yaml images: stanza entirely.
+  # DEC-063: approval-service manifests, promoted into base/ directly
+  # from the ephemeral-test-only nested kustomization (DEC-050) --
+  # flattened since base/ is these files' own directory, no longer
+  # needing DEC-050's file-reference-restriction workaround.
   - serviceaccount-approval.yaml
   - configmap-approval.yaml
   - pvc-approval.yaml
@@ -48,24 +32,11 @@ commonLabels:
   app.kubernetes.io/name: golden-path-agent
   app.kubernetes.io/part-of: golden-path-agent
 
-# CI/CD promotion updates only the matching entry's digest field — each
-# of the three components below is now an independently built, promoted,
-# and digest-pinned artifact (DEC-098/DEC-099, G2 three-image split),
-# superseding the prior single shared-image design. `newName` resolved
-# to the real value at Step C4 (DECISIONS.md DEC-042) -- not a
-# placeholder needing anonymization: this is OpenShift's own standard,
-# predictable internal registry service DNS name (present on every
-# OpenShift cluster) plus this project's own namespace, already public
-# throughout this repo's committed RBAC/pipeline manifests. Unlike the
-# model endpoint (a real external hostname, never committed), this value
-# discloses nothing beyond what's already committed elsewhere.
-# `ephemeral-test`'s own pipeline-injected digest overrides these
-# `newName`s too via `kustomize edit set image` (DEC-031, extended by G2
-# to update only the one entry under test per run) -- unaffected by this
-# change, since it always fully replaces both fields at apply-time for
-# whichever image name it targets. open-promotion-pr.yaml's promotion
-# edit is now range-scoped per image name (G2) so promoting one
-# component never touches the other two's committed digest here.
+# DEC-098/DEC-099: three independently built/promoted/digest-pinned
+# artifacts. `newName` (DEC-042) is OpenShift's own predictable internal
+# registry DNS, not a secret. `ephemeral-test`'s pipeline-injected digest
+# overrides these via `kustomize edit set image` (DEC-031), range-scoped
+# per image name so promoting one component never touches the others.
 images:
   # One-time manual bootstrap (G2 post-merge, real gap found live): the
   # placeholder digest above pre-dates the split and only ever existed in

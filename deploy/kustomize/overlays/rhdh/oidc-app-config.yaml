@@ -1,13 +1,9 @@
-# Phase F4 (DECISIONS.md DEC-087/DEC-092). RHDH's own sign-in via the
-# existing golden-path-agent-keycloak realm (DEC-087 item 2 -- no second
-# realm). Values pulled from golden-path-agent-rhdh-oidc-secret via
-# Backstage's own ${VAR} env-var substitution (spec.application.extraEnvs
-# .secrets on the Backstage CR makes every key in that Secret available as
-# an env var) -- never a plaintext secret in this ConfigMap.
-#
-# Exactly one data entry, per the operator's own documented merge-order
-# constraint (docs/configuration.md: "Each app-config ConfigMap must
-# contain exactly one data entry").
+# DEC-092 (addendum): RHDH's own sign-in via the existing golden-path-
+# agent-keycloak realm, no second realm. Values pulled from
+# -oidc-secret via Backstage's ${VAR} env-var substitution. Exactly one
+# data entry per ConfigMap, per the operator's own documented
+# merge-order constraint ("Each app-config ConfigMap must contain
+# exactly one data entry").
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15,37 +11,18 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
 data:
-  # Real gap found live (F4, DEC-092): this RHDH version's oidc auth
-  # provider rejects the `scope` key outright ("no longer supports the
-  # 'scope' configuration option") -- confirmed by the backend actually
-  # failing to start with that exact error before this was changed to
-  # `additionalScopes`. Not assumed from docs (which still show `scope`
-  # in some published examples) -- caught only by running it.
-  # Real gap found live (F4, DEC-092): without app/backend.baseUrl set,
-  # Backstage defaults to its own internal http://localhost:7007 --
-  # every OIDC redirect_uri (and the frontend's own asset/API URLs) came
-  # back pointing at that unreachable-from-outside address. PUBLIC_URL
-  # is this showcase cluster's own live Ingress hostname -- kept out of
-  # git entirely (CLAUDE.md anonymity rule), same reasoning as the
-  # Ingress's own host field and the Keycloak client's wildcarded
-  # redirectUris; lives only in golden-path-agent-rhdh-oidc-secret,
-  # applied out-of-band. This one entry now covers both baseUrl and
-  # auth config (not "exactly one *topic* per entry", just one file --
-  # the operator's own constraint is about ConfigMap objects, not about
-  # how many top-level app-config keys one file's content may have).
+  # DEC-093 (addendum): this RHDH version's oidc provider rejects the
+  # `scope` key outright ("no longer supports the 'scope' configuration
+  # option") -- use `additionalScopes` instead. Without app/backend.
+  # baseUrl set, Backstage defaults to internal http://localhost:7007,
+  # breaking every OIDC redirect_uri. PUBLIC_URL (this cluster's live
+  # Ingress hostname) is kept out of git (CLAUDE.md anonymity rule),
+  # lives only in -oidc-secret.
   app-config.oidc.yaml: |
-    # Real gap found live (F4, DEC-092/DEC-094): signInPage is a TOP-LEVEL
-    # config key (a sibling of app/backend/auth/catalog), not a sub-key of
-    # auth: -- nesting it under auth: (as an earlier version of this file
-    # did) leaves the backend OIDC flow fully functional (proven by a
-    # direct API call to /api/auth/oidc/start) while the frontend's own
-    # "Select a sign-in method" page silently falls back to RHDH's
-    # bundled example GitHub provider, since it never learns which
-    # provider to treat as the sign-in page's own selection. Only found
-    # by actually opening the portal in a real browser -- every prior
-    # check in this phase used a scripted backend-only API call, which
-    # cannot see this gap because the backend flow it drives works either
-    # way.
+    # DEC-094: signInPage is a TOP-LEVEL config key, not a sub-key of
+    # auth: -- nesting it under auth: leaves the backend OIDC flow
+    # working while the frontend silently falls back to RHDH's bundled
+    # GitHub provider. Only found by opening the portal in a real browser.
     signInPage: oidc
     app:
       baseUrl: ${PUBLIC_URL}
@@ -61,15 +38,11 @@ data:
       # a no-auth guest bypass.
       environment: production
       session:
-        # Real gap found live (F4, DEC-092): omitting this produces
-        # "Authentication failed, authentication requires session
-        # support" on the very first /api/auth/oidc/start request --
-        # Backstage's OIDC strategy needs a session secret configured
-        # even though it otherwise uses cookie-based state, not a full
-        # express-session store. Value lives in
-        # golden-path-agent-rhdh-oidc-secret's own SESSION_SECRET key,
-        # generated the same way as every other secret in this project
-        # (openssl rand, never committed).
+        # DEC-093 (addendum): omitting this produces "Authentication
+        # failed, authentication requires session support" on the first
+        # /api/auth/oidc/start request -- needed even though the OIDC
+        # strategy otherwise uses cookie-based state, not express-session.
+        # Value lives in -oidc-secret's SESSION_SECRET key.
         secret: ${SESSION_SECRET}
       providers:
         oidc:
@@ -81,15 +54,11 @@ data:
               - profile
               - email
             prompt: consent
-            # Sandbox-scope decision, owner-directed (DEC-092): no user/
-            # group ingestion is configured for this catalog (only F1's
-            # own Component entity exists, zero User entities) --
-            # dangerouslyAllowSignInWithoutUserInCatalog lets a real
-            # Keycloak-authenticated identity sign in without first
-            # existing as a catalog User. Re-entry point if user/group
-            # ingestion is ever wanted: the Keycloak catalog-backend
-            # plugin, not this flag -- this flag stays a demo-scope
-            # shortcut, not a permanent posture.
+            # DEC-092: sandbox-scope, owner-directed -- no user/group
+            # ingestion configured (zero User entities), so this lets a
+            # real Keycloak identity sign in without a catalog User.
+            # Re-entry point if ingestion is ever wanted: the Keycloak
+            # catalog-backend plugin, not this flag.
             signIn:
               resolvers:
                 - resolver: preferredUsernameMatchingUserEntityName

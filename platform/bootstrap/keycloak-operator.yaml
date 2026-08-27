@@ -1,34 +1,15 @@
-# Phase D, D2 entry gate (DECISIONS.md DEC-053). The one flagged
-# cluster-scoped step in the whole Phase D plan: CRD registration
-# (keycloaks.k8s.keycloak.org, keycloakrealmimports.k8s.keycloak.org) is
-# structurally cluster-scoped for any operator install, unavoidable
-# regardless of which Keycloak realization was picked (PINS.md's own
-# research note). The OperatorGroup/Subscription objects themselves are
-# namespace-scoped to golden-path-agent-keycloak (no AllNamespaces --
-# rhbk-operator does not support it, per PINS.md); OLM's own CSV would
-# additionally have created a cluster-scoped ClusterRole/ClusterRoleBinding
-# for the operator's own runtime permissions (not inspected at the time
-# this comment was first written -- corrected here for honesty: DEC-056
-# found the functionally-equivalent upstream manifests DO carry exactly
-# one such ClusterRoleBinding, read-only `config.openshift.io/ingresses`
-# access, which OLM's CSV almost certainly needs too).
+# DEC-053: CRD registration is structurally cluster-scoped for any
+# operator install. OperatorGroup/Subscription are namespace-scoped (no
+# AllNamespaces -- unsupported). DEC-056 found the functionally-
+# equivalent upstream manifests carry exactly one ClusterRoleBinding,
+# read-only `config.openshift.io/ingresses`.
 #
-# BLOCKED LIVE (DECISIONS.md DEC-055/DEC-056), NOT applied to the
-# cluster: a different tenant's broken CatalogSource
-# (nousie-docling-catalog) poisons OLM's cluster-wide package resolution
-# for every Subscription on this shared cluster, confirmed via
-# catalog-operator's own logs and matching Red Hat KB 7052456 exactly.
-# Not this project's resource to fix. D2 actually proceeded via
-# platform/bootstrap/keycloak-operator-upstream/ (moved here from
-# pipelines/bootstrap/ at Phase G's G1, DECISIONS.md DEC-098/DEC-099 --
-# identity infrastructure is now Platform Foundation, not per-agent
-# pipeline scaffolding) (the Keycloak project's
-# own OLM-free kustomize install, pinned to tag 26.7.2) instead -- kept
-# here, committed, deliberately NOT deleted from Git, as documented tech
+# BLOCKED LIVE (DEC-055/DEC-056), NOT applied: a different tenant's
+# broken CatalogSource poisons OLM's cluster-wide resolution (Red Hat KB
+# 7052456) -- not this project's resource to fix. D2 proceeded via
+# keycloak-operator-upstream/ instead. Kept committed as documented tech
 # debt: migrate to rhbk-operator via this file once the shared cluster's
-# catalog is healthy. The CRD group (k8s.keycloak.org) is identical
-# either way, so that migration only swaps the operator, never the
-# Keycloak/KeycloakRealmImport CRs built against it.
+# catalog is healthy (the CRD group is identical either way).
 #
 # Applied manually, by a human with cluster-admin-adjacent access, same
 # category as pipelines/bootstrap/namespaces.yaml/rbac.yaml -- never by

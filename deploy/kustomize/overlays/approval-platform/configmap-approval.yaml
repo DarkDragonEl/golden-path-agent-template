@@ -1,12 +1,7 @@
-# Copied from deploy/kustomize/base/configmap-approval.yaml (Phase G,
-# Stage 1 held tail, DEC-098/DEC-099/DEC-101) and adjusted for this
-# overlay's own single deployment target -- a standalone Platform
-# Foundation singleton, not layered across ephemeral-test/demo-prod like
-# base's own copy is. AUTH_MODE=oidc and the real cluster OTel endpoint
-# are baked in directly here (rather than left "none"/empty for a
-# demo-prod-style overlay to override), since this overlay only ever has
-# one target: the shared, already-OIDC-cut-over production instance
-# (DEC-063's own D2 binding requirement, carried forward unchanged).
+# DEC-101: copied from base/configmap-approval.yaml, adjusted for this
+# overlay's single Platform Foundation target -- AUTH_MODE=oidc and the
+# real OTel endpoint baked in directly (DEC-063), not left for an
+# overlay to override, since this target is always the same instance.
 apiVersion: v1
 kind: ConfigMap
 metadata:

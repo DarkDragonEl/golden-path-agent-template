@@ -1,19 +1,8 @@
-# Phase C, Step C4 (DECISIONS.md DEC-021/DEC-040). DELIBERATELY NOT part
-# of deploy/argocd/apps/ -- the owner's own resolution of the open
-# question DEC-039/the C3/C4 STOP flagged. golden-path-agent-ephemeral-test
-# is pipeline-managed, not GitOps-managed: deploy-ephemeral's whole
-# purpose is applying a specific *unpromoted* digest for the duration of
-# one PipelineRun's own gate stages. If this Application ever synced --
-# automatically (selfHeal reverting the pipeline's own direct apply back
-# to whatever main last promoted) or even just manually (a stray UI sync
-# stomping a live in-progress test) -- it would fight that mechanism.
-# This file is a real, dry-run-validated scaffold for a *future*
-# GitOps-synced ephemeral-test path (one that doesn't yet exist -- it
-# would need its own digest-injection story compatible with ArgoCD sync,
-# not the pipeline's current apply-time kustomize edit), kept out of the
-# app-of-apps root's actual sync target on purpose. See
-# docs/environments.md's ownership-model line for the one-sentence
-# version of this same rule.
+# DECISIONS.md DEC-040. DELIBERATELY NOT part of deploy/argocd/apps/ --
+# golden-path-agent-ephemeral-test is pipeline-managed (deploy-ephemeral
+# applies an unpromoted digest per PipelineRun), not GitOps-managed; a
+# real, dry-run-validated scaffold for a future GitOps-synced path, kept
+# out of the app-of-apps root's sync target on purpose.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

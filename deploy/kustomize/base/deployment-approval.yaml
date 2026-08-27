@@ -1,9 +1,6 @@
-# DEC-098/DEC-099 (G2): own independently-built/promoted image and own
-# Tekton pipeline, superseding this file's original design (a role of
-# the one shared golden-path-agent image, promoted for free by Phase C's
-# single pipeline). CLAUDE.md's "one immutable artifact" rule now reads
-# as "one immutable artifact per component" -- applied consistently,
-# not special-cased.
+# DEC-098/DEC-099: own independently-built/promoted image and Tekton
+# pipeline -- CLAUDE.md's "one immutable artifact" rule now reads as
+# "one immutable artifact per component".
 apiVersion: apps/v1
 kind: Deployment
 metadata:

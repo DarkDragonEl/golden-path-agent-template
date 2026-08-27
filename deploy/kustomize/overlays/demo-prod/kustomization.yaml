@@ -9,20 +9,11 @@ namespace: golden-path-agent-demo-prod
 resources:
   - ../../base
 
-# Phase G, Stage 1 held tail (DECISIONS.md DEC-098/DEC-099, unblocked by
-# DEC-101). The approval service moves out of this per-project namespace
-# into the Platform Foundation (deploy/kustomize/overlays/approval-
-# platform/, its own ArgoCD Application, golden-path-agent-approval
-# namespace) as a shared singleton. base/'s own approval resources stay
-# in base/ unchanged -- ephemeral-test still needs its own throwaway
-# instance for isolated per-promotion-candidate testing (that overlay's
-# own comment says so explicitly) -- so they are deleted here, per
-# overlay, rather than removed from base/ itself. No data migration: the
-# old demo-prod approval instance's SQLite state is demo-scope-only
-# (synthetic corpus, CLAUDE.md), not preserved -- the new Platform
-# Foundation instance starts fresh, and G1's own STOP-3 DoD item
-# (restart-persistence/expiry re-verification) exercises that fresh
-# state directly rather than assuming continuity with the old one.
+# DEC-103: the approval service moves out of this namespace into the
+# Platform Foundation (overlays/approval-platform/) as a shared singleton
+# -- deleted here via `patches:` rather than removed from base/, since
+# ephemeral-test still needs its own throwaway instance. No data
+# migration: the old SQLite state is demo-scope-only, not preserved.
 patches:
   - path: delete-approval-serviceaccount.yaml
   - path: delete-approval-configmap.yaml
@@ -37,67 +28,27 @@ configMapGenerator:
   - name: golden-path-agent-config
     behavior: merge
     literals:
-      - MCP_MODE=live # DEC-063: revises DEC-021's own "same as
-        # ephemeral-test" framing, at the network-topology axis only --
-        # the mock ITSM *data* stays synthetic regardless of this value
-        # (itsm_search_records/itsm_create_request never branch on
-        # MCP_MODE at all, CLAUDE.md's synthetic-data-only rule is
-        # unaffected either way). What this flips is whether the agent
-        # calls MCP in-process (mock) or over real HTTP to the
-        # separately-deployed mcp pod (live) -- required for
-        # MCP_AUTH_MODE=oidc below to mean anything: enforcement on a
-        # call that never leaves the process isn't enforcement.
+      - MCP_MODE=live # DEC-063: revises DEC-021's "same as ephemeral-test"
+        # framing at the network-topology axis only -- mock ITSM data
+        # stays synthetic regardless. Flips agent->MCP from in-process to
+        # real HTTP, required for MCP_AUTH_MODE=oidc below to mean anything.
       - AGENT_OIDC_MODE=oidc # DEC-063
       - MCP_AUTH_MODE=oidc # DEC-063
       - APPROVAL_MODE=required
       - DATA_SOURCE_BINDING=synthetic # CLAUDE.md: synthetic corpus only,
         # never real client/organization data, in any promoted environment.
-      # DECISIONS.md DEC-035/DEC-039: MODEL_API_BASE_URL, MODEL_NAME,
-      # MODEL_FALLBACK_API_BASE_URL, and MODEL_FALLBACK_NAME are
-      # deliberately NOT overridden here, unlike ephemeral-test's overlay.
-      # ephemeral-test's real values are injected transiently at apply-time
-      # by the pipeline's own deploy-ephemeral Task (a one-shot `oc apply`,
-      # never reconciled again). demo-prod has no such injection point --
-      # it is synced by ArgoCD with syncPolicy.automated.selfHeal: true,
-      # which would continuously stomp any manually-applied override of a
-      # Kustomize-managed ConfigMap key straight back to whatever is
-      # committed here. Since the real endpoint can never be committed to
-      # this public repo (base/configmap.yaml's own placeholder is the
-      # committed value), these four keys are instead provisioned via a
-      # THIRD copy of the golden-path-agent-secrets Secret, in this
-      # namespace, alongside MODEL_API_KEY -- a Secret is never
-      # Kustomize/ArgoCD-managed (same established reasoning as
-      # base/kustomization.yaml's own comment on why externalsecret.yaml
-      # was dropped rather than replaced with a stub Secret). Kubernetes'
-      # own envFrom ordering (deployment-agent.yaml lists
-      # secretRef AFTER configMapRef) means the Secret's real values
-      # correctly shadow this ConfigMap's inherited base placeholders at
-      # the container level -- no code or manifest mechanism needed beyond
-      # that ordering, which already exists. See docs/phase-c-runbook.md's
-      # demo-prod bootstrap section for the exact manual provisioning step
-      # -- this is the config-contract completeness lesson (DEC-035)
-      # applied to a GitOps-synced environment: every required key IS
-      # declared (by base/configmap.yaml, DEC-035's own fix), and this
-      # comment states exactly where each demo-prod-specific real value
-      # actually comes from, so it is never silent.
+      # DEC-041 (addendum): MODEL_API_BASE_URL/NAME/FALLBACK_* are NOT
+      # overridden here -- ArgoCD's selfHeal would stomp a committed
+      # placeholder override, and the real value can't be committed. They
+      # come from a third golden-path-agent-secrets Secret copy instead;
+      # envFrom's secretRef-after-configMapRef ordering (deployment-
+      # agent.yaml) makes the Secret's real values shadow these
+      # placeholders. See docs/phase-c-runbook.md for the manual step.
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://golden-path-agent-otel-collector.golden-path-agent-otel.svc.cluster.local:4318 # DEC-071:
-        # the cluster-tier collector (DEC-068) -- this is Checkpoint D's
-        # own live-trace target environment.
-      - APPROVAL_SERVICE_ENDPOINT=http://golden-path-agent-approval.golden-path-agent-approval.svc.cluster.local:8082 # Phase G,
-        # Stage 1 held tail (DEC-098/DEC-099/DEC-101): base/configmap.yaml's
-        # own default is the bare in-namespace name
-        # (http://golden-path-agent-approval:8082) -- correct for
-        # ephemeral-test, which still deploys its own throwaway approval
-        # instance in the same namespace as the agent under test, but
-        # wrong here: the approval service now lives in its own
-        # Platform Foundation namespace (golden-path-agent-approval),
-        # not golden-path-agent-demo-prod. Contract unchanged
-        # (SRS-APR-IF-* schemas are endpoint-agnostic) -- this is
-        # configuration only, no code change, same pattern the
-        # OTEL_EXPORTER_OTLP_ENDPOINT override above already establishes.
-        # golden-path-agent-approval-config itself (the ConfigMap the
-        # approval service's own container reads) no longer deploys here
-        # at all -- see this file's own `patches:` above.
+        # the cluster-tier collector (DEC-068).
+      - APPROVAL_SERVICE_ENDPOINT=http://golden-path-agent-approval.golden-path-agent-approval.svc.cluster.local:8082 # DEC-101:
+        # base/configmap.yaml's bare in-namespace default is wrong here --
+        # approval now lives in its own Platform Foundation namespace.
 
 replicas:
   - name: golden-path-agent
