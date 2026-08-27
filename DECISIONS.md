@@ -9233,3 +9233,64 @@ final "open the portal, see the rendered docs" confirmation
 (`STOP 3`'s own bar) is left to the owner's real browser session, or a
 follow-up session that invests in replicating `DEC-118`'s OIDC-simulation
 technique if fully automated proof is wanted instead.
+
+## DEC-122 — Phase H3b: real browser TechDocs check caught a genuine bug
+the scripted 401-blocked path couldn't — readTree host mismatch, fixed
+
+**Ambiguity:** `DEC-121` closed with the config wiring live-verified via
+logs but the actual browser render unconfirmed. The owner's own re-check
+came back with a real failure: `"Failed to build the docs page ...
+FetchUrlReader does not implement readTree"`.
+
+**Finding:** read `GithubUrlReader.cjs.js` directly from the live pod's
+own `node_modules` before assuming anything (this project's own
+established discipline, `DEC-100`'s `parseGiteaUrl` precedent). Its
+reader-selection predicate is `url.host === integration.config.host` —
+exact string equality, confirmed from source, not inferred. The
+`golden-path-agent` Component is registered from
+`raw.githubusercontent.com` (`catalog-locations-config.yaml`, `DEC-087`);
+`integrations.github` only lists `github.com`. `techdocs-ref: dir:.`'s
+derived URL therefore never matches any configured integration, so
+Backstage fell back to the generic `FetchUrlReader`, which has no
+`readTree` implementation at all — a **host mismatch, not a missing
+credential**, and not what this entry's own `DEC-121` predecessor or the
+owner's initial hypothesis (a missing Gitea/GitHub token) assumed. This
+is the identical bug class `PINS.md`'s own F5 row already documents for
+`fetch:template`'s relative-URL resolution — the second time this exact
+project has hit it.
+
+**Decision:** changed the Component's registered location in
+`catalog-locations-config.yaml` from the `raw.githubusercontent.com` URL
+to `https://github.com/DarkDragonEl/golden-path-agent-template/blob/
+main/catalog-info.yaml` — the identical shape `template.yaml`'s own
+already-working location entry uses. No new `integrations` entry, no new
+Secret: reuses the existing no-token `integrations.github` entry
+`fetch:template` already proved works unauthenticated against this
+public repo.
+
+**Evidence:** `oc kustomize` validated the render before committing.
+Landed on `main` (`5f07b0f`), which then merged live, in this same
+shared checkout, with a concurrent G6 landing commit already in flight
+(`87a5a47`) — the two touched different sections of the same file
+(`catalog.locations` vs. the `gitea:` integration block) and resolved
+cleanly; re-verified `oc kustomize` still renders correctly post-merge.
+Forced an ArgoCD refresh; the corrected ConfigMap content confirmed live
+inside the running pod. Attempted to verify the actual generation
+end-to-end via script: every catalog/techdocs API call, including plain
+`GET`s, returns `401` (`auth.environment: production`); checked for a
+`backend.auth.keys` service-to-service shortcut — not configured in this
+deployment (only the Lightspeed plugin's unrelated token-encryption
+warning references it). No shortcut available without either real OIDC
+credentials or reproducing `DEC-118`'s own non-trivial simulated-login
+flow, which is not yet documented anywhere reusable.
+
+**Status:** Fix committed and live; the identical constraint `DEC-121`
+already flagged (no scripted path to the final generation log line)
+still applies, unchanged by this fix. **This is the third empirical
+confirmation, in this project's own history, of the `DEC-094`/`DEC-097`
+principle that a scripted backend check is not equivalent evidence to a
+real browser open** — the first two found sign-in-page and TLS/redirect
+bugs; this one found a reader-selection bug the auth wall itself
+prevented any script from ever exercising. Handed back to the owner for
+the real browser re-check, which is the only reliable oracle here, not a
+gap in this session's own diligence.
