@@ -1,28 +1,8 @@
-# Phase F4 (DECISIONS.md DEC-087/DEC-092). Registers F1's own
-# catalog-info.yaml (repo root, DEC-087) into RHDH's live catalog --
-# without this, F1's Component sits committed but never actually
-# ingested. A public GitHub raw URL, same anonymity posture already
-# established for every other reference to this repo's own public slug
-# throughout this project (DEC-082's sweep already covers it).
-#
-# Separate ConfigMap from golden-path-agent-rhdh-oidc-config -- one data
-# entry per ConfigMap (the operator's own documented constraint),
-# referenced as a second entry in the Backstage CR's own
-# appConfig.configMaps list, not merged into the OIDC one.
-#
-# Real gap found live (F4, DEC-092): the location registered and
-# processed fine (confirmed via pod-network curl to the same URL
-# succeeding, and the location entity itself being created), but every
-# read attempt failed with "NotAllowedError: Reading from '...' is not
-# allowed. You may need to configure an integration for the target host,
-# or add it to the configured list of allowed hosts at
-# 'backend.reading.allow'" -- this is Backstage's own UrlReader security
-# guard, unrelated to network reachability or DNS, and it rejects any
-# host not explicitly allow-listed regardless of the URL being public.
-# backend.reading.allow merges with the oidc ConfigMap's own backend.*
-# keys (baseUrl, cors.origin) -- confirmed live, Backstage's config
-# merge is per-key-path, not whole-object-replace, so both survive in
-# the same running config.
+# DEC-093 (addendum): registers F1's catalog-info.yaml into RHDH's live
+# catalog. backend.reading.allow guards against Backstage's own
+# UrlReader NotAllowedError -- any host not allow-listed is refused
+# regardless of the URL being public. Separate ConfigMap from
+# -oidc-config; its backend.* keys merge per-key-path, confirmed live.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -30,64 +10,23 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
 #
-# Phase F5 (DEC-087 item 1): a second location entry registers
-# template.yaml (repo root) alongside F1's own Component -- a distinct
-# entity kind (Template, not Component) from a distinct file, kept as
-# its own locations entry rather than merged into catalog-info.yaml's
-# own content.
+# DEC-095: second location entry registers template.yaml -- a distinct
+# entity kind (Template) needs integrations.github for fetch:template's
+# relative `url: ./skeleton` resolution, distinct from backend.reading.
+# allow's generic exact-URL guard.
 #
-# Real gap found live (F5): backend.reading.allow (above) is enough for
-# a generic exact-URL fetch, but fetch:template's own *relative* URL
-# resolution (this Template's own `url: ./skeleton` step, resolved
-# against the Template entity's own GitHub-hosted location) needs a
-# matching integrations.github entry -- without it, the scaffolder task
-# fails outright with "InputError: No integration found for location
-# ...", confirmed by actually running the Template (not assumed).
-# No token: this is a public repo and only unauthenticated reads are
-# needed here; GitHub's own unauthenticated API rate limit is more than
-# sufficient for this sandbox's own render volume.
+# DEC-100 (addendum): third location entry additionally registers the
+# same Template from the internal Gitea mirror -- needs `integrations.
+# gitea`, not `integrations.github` (a first attempt guessed wrong).
+# Confirmed via `@backstage/integration`'s own `parseGiteaUrl` source
+# directly: expects `https://<host>/<owner>/<repo>/src/branch/<ref>/
+# <path>`. No token: public repo, unauthenticated reads only.
 #
-# Phase G, Stage 1 (DEC-098/DEC-099/DEC-100). Third location entry:
-# the same Template, additionally registered from the internal Gitea
-# mirror (golden-path-agent-admin/golden-path-agent-template, stood up
-# in G1) -- proves the Platform Foundation's own Git hosting can serve
-# as a template source, ahead of any future decision to make it primary.
-# GitHub-hosted locations above are untouched; this is additive, not a
-# replacement.
-#
-# First attempt at this (this same G1 session) tried mimicking Gitea via
-# a second `integrations.github` entry with an explicit `apiBaseUrl` --
-# wrong integration key entirely. Backstage has a genuine, first-class
-# Gitea integration in `@backstage/integration` core (`GiteaIntegration`,
-# not a dynamic plugin -- so the missing scaffolder-backend-module-gitea
-# dynamic plugin this session found live in `dynamic-plugins-root` is
-# irrelevant here). Confirmed by reading `packages/integration/src/
-# gitea/core.ts`'s own `parseGiteaUrl` before writing this: it expects
-# exactly `https://<host>/<owner>/<repo>/src/branch/<ref>/<path>` --
-# which is the same URL shape this session's own live probe already
-# used, so that guess was right; only the integration key (`github`
-# instead of `gitea`) was wrong. Same two-gate pattern F5 already
-# documented for GitHub applies here too: `integrations.gitea` for
-# fetch:template's relative-URL resolution, `backend.reading.allow` for
-# the catalog's own generic UrlReader guard -- both needed, neither
-# alone is sufficient (confirmed by F5's own history, not re-derived).
-# No `password` (token) field: this Gitea repo is public and only
-# unauthenticated reads are needed for template *loading* -- same
-# posture as the GitHub entries above. Add one (referencing a Secret,
-# never a literal value here) only if a live read genuinely fails auth.
-#
-# Phase G, Stage 2 (DEC-098/DEC-099, G5 registration). Three more
-# location entries: G5's own locally-designed platform catalog model
-# (`platform/catalog/{system,approval-service,model-routes}.yaml`),
-# committed but never registered live until now -- same
-# `raw.githubusercontent.com` host already allow-listed above, no new
-# `backend.reading.allow`/`integrations` entry needed. Deliberately NOT
-# registered here: `skeleton/catalog-info.yaml` and `skeleton-tools/
-# catalog-info.yaml` -- those are template *output* (rendered into a
-# scaffolded project's own repo, `${{ values.x }}` placeholders and all),
-# not something to register from this repo's own source tree; they prove
-# out for real only once G6's publish flow actually scaffolds and pushes
-# a real instance.
+# DEC-102: three more locations register G5's platform catalog model
+# (platform/catalog/{system,approval-service,model-routes}.yaml) --
+# same already-allow-listed host, no new config needed. Deliberately
+# NOT registered: skeleton/'s and skeleton-tools/' own catalog-info.yaml
+# templates, which are scaffolder output, not this repo's own entities.
 #
 # Phase G, Stage 3 (DEC-098/DEC-099/DEC-110/DEC-118, G6 Path A landing).
 # `username`/`password` added to the `gitea` integration -- read-only use

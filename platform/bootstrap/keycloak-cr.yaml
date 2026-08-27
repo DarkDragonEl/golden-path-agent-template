@@ -1,8 +1,6 @@
-# Phase D, D2 (DECISIONS.md DEC-057). The Keycloak instance itself --
-# implementation, gated behind the D2 design STOP the owner already
-# reviewed and approved. Schema fields confirmed against the live CRD
-# (`oc explain keycloak.spec[...]`, DEC-056's operator) before writing
-# this, not guessed from memory or upstream docs alone.
+# DEC-057: the Keycloak instance itself. Schema fields confirmed
+# against the live CRD (`oc explain keycloak.spec[...]`, DEC-056's
+# operator), not guessed.
 #
 # Deliberately no TLS/Route at this layer -- matches every other Ingress
 # in this project (deploy/kustomize/base/ingress.yaml/ingress-approval.yaml's
@@ -14,10 +12,8 @@
 # whatever host actually reached it, the same way the other two
 # Ingresses never hardcode a host).
 #
-# Credentials: golden-path-agent-keycloak-db-secret (DEC-054, Postgres)
-# and golden-path-agent-keycloak-admin (this step) are both plain
-# Secrets, manually provisioned out-of-band, never committed -- the
-# established pattern, not a new mechanism.
+# DEC-054: both credential Secrets (db-secret, admin) are plain
+# Secrets, manually provisioned out-of-band, never committed.
 apiVersion: k8s.keycloak.org/v2beta1
 kind: Keycloak
 metadata:

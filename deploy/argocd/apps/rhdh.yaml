@@ -1,7 +1,6 @@
-# Phase F4 (DECISIONS.md DEC-087/DEC-092). Auto-sync on, matching
-# demo-prod's own precedent (this repo's commit is the human gate, same
-# as demo-prod's promotion-PR-merge reasoning) -- no separate promotion
-# step exists for RHDH, so there is no other gate to defer to.
+# DECISIONS.md DEC-092. Auto-sync on, matching demo-prod's precedent --
+# no separate promotion step exists for RHDH; this repo's commit is the
+# human gate.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

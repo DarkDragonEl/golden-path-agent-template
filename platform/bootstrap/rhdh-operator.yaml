@@ -1,22 +1,12 @@
-# Phase F4 (DECISIONS.md DEC-087/DEC-092). RHDH's own OperatorHub
-# packagemanifest supports only the AllNamespaces install mode (PINS.md
-# Phase F, DEC-085, confirmed live via packagemanifest before this file
-# was authored) -- the exact same class as openshift-pipelines-operator-rh/
-# openshift-gitops-operator (pipelines-operator.yaml/gitops-operator.yaml,
-# this directory), unlike rhbk-operator's OwnNamespace/SingleNamespace.
-# This goes into openshift-operators, the cluster's own pre-existing
-# AllNamespaces OperatorGroup (global-operators) -- no new OperatorGroup
-# needed, same pattern as those two files, and reuses
-# scripts/bootstrap.sh's existing wait_for_csv/approve_pending_installplan
-# mechanism (DEC-080) rather than introducing a second operator-install
-# path. Applied manually by a human with cluster-admin-adjacent access,
-# never by the CI pipeline's own ServiceAccount -- same as every other
-# cluster-scoped action in this directory.
+# DEC-092: RHDH's OperatorHub packagemanifest supports only AllNamespaces
+# install (confirmed live via packagemanifest) -- goes into
+# openshift-operators, reusing scripts/bootstrap.sh's existing
+# wait_for_csv/approve_pending_installplan mechanism (DEC-080). Applied
+# manually, never by the CI pipeline's ServiceAccount.
 #
-# Note (owner-directed, DEC-092): AllNamespaces means this operator is
-# visible to every tenant on this shared cluster once installed, the same
-# precedent already accepted for Pipelines/GitOps -- not a new exposure
-# class this project is introducing.
+# DEC-092 (addendum): AllNamespaces means this operator is visible to
+# every tenant on this shared cluster -- the same precedent already
+# accepted for Pipelines/GitOps, not a new exposure class.
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:

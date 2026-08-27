@@ -29,14 +29,12 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              policy-group.network.openshift.io/ingress: ""   # TODO(D1
-              # implementation): this is the standard OpenShift SDN/OVN
-              # convention for "traffic from the router" -- VERIFY against
-              # this specific cluster live (oc get namespace
-              # openshift-ingress --show-labels or equivalent) before
-              # relying on it, per this project's own "verify, don't
-              # assume" discipline (DEC-023's pattern) -- do not trust this
-              # label is correct on this cluster without checking.
+              policy-group.network.openshift.io/ingress: ""   # DEC-023
+              # (addendum): standard OpenShift SDN/OVN "traffic from the
+              # router" convention. STILL OPEN -- VERIFY against this
+              # specific cluster live (oc get namespace openshift-ingress
+              # --show-labels) before relying on it; do not trust this
+              # label is correct on a new cluster without checking.
       ports:
         - port: 8082
           protocol: TCP

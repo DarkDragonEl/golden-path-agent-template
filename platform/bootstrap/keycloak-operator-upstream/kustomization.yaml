@@ -1,13 +1,7 @@
-# Phase D, D2 entry gate (DECISIONS.md DEC-055/DEC-056). rhbk-operator's
-# own OLM Subscription (this file's own sibling
-# platform/bootstrap/keycloak-operator.yaml, moved here from
-# pipelines/bootstrap/ at Phase G's G1, DEC-098/DEC-099) is
-# blocked -- not by this project, by a different tenant's broken
-# CatalogSource poisoning OLM's cluster-wide resolution (DEC-055,
-# Red Hat KB 7052456). Unblock: the Keycloak project's own upstream,
-# OLM-free install path -- a plain kustomize remote base, pinned to an
-# exact tag, applied directly. Namespace-scoped, never touches
-# openshift-marketplace, no OLM resolver dependency at all.
+# DEC-055/DEC-056: rhbk-operator's OLM Subscription (keycloak-
+# operator.yaml) is blocked by a different tenant's broken CatalogSource
+# poisoning OLM's cluster-wide resolution (Red Hat KB 7052456). Unblock:
+# the Keycloak project's own upstream, OLM-free kustomize install path.
 #
 # Fetched and READ in full before being trusted here (this project's own
 # "verify, don't assume" discipline) -- the upstream base

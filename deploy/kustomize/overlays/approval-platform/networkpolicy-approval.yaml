@@ -1,18 +1,7 @@
-# Copied from deploy/kustomize/base/networkpolicy-approval.yaml (Phase G,
-# Stage 1 held tail, DEC-098/DEC-099) and adjusted for cross-namespace
-# access -- base's own version only ever allowed same-namespace traffic
-# (a bare `podSelector: {}` with no sibling `namespaceSelector` matches
-# same-namespace pods only, per NetworkPolicy's own spec), which was
-# correct when the agent and approval service shared one namespace but
-# is now wrong: the agent calling in stays in golden-path-agent-demo-prod
-# while approval lives here. Scoped to this project's own
-# `app.kubernetes.io/part-of: golden-path-agent` namespace label (already
-# applied to every namespace this project owns, pipelines/bootstrap/
-# namespaces.yaml) rather than naming golden-path-agent-demo-prod
-# specifically -- single-tenant demo scope for now; G7's future
-# multi-tenant fan-out will need to revisit this same label-based
-# approach once more than one agent project's namespace exists and needs
-# distinguishing (out of scope here, named so it isn't silent).
+# DEC-098/DEC-099: copied from base/, adjusted for cross-namespace
+# access (approval now lives in its own namespace). Scoped by this
+# project's `part-of: golden-path-agent` namespace label, single-tenant
+# for now -- G7's multi-tenant fan-out will need to revisit this.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

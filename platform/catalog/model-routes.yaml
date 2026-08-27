@@ -1,14 +1,7 @@
-# Phase G, Stage 2 (DECISIONS.md DEC-098/DEC-099, G5). Model routes as
-# catalog Resources, with their OpenAI-compatible contract as a shared
-# API, and fallback + reason-code metadata attached -- this is the
-# phase-two AI Routing Grid's plug point (CLAUDE.md's scope guard: rules-
-# based routing with reason codes only, no semantic routing built here).
-# Verified against the real implementation (agent/model_client.py,
-# agent/config.py) and its normative requirement (srs/SRS-AGT.md
-# SRS-AGT-IF-02) -- deliberately does NOT hardcode a model name/endpoint
-# in the catalog entity, since SRS-AGT-IF-01 forbids hardcoding either
-# in agent source; the route identity is stable, the model behind it is
-# injected configuration and can change without touching this entity.
+# DEC-098: model routes as catalog Resources, with their OpenAI-
+# compatible contract as a shared API. Deliberately does NOT hardcode a
+# model name/endpoint (SRS-AGT-IF-01) -- route identity is stable, the
+# model behind it is injected configuration.
 apiVersion: backstage.io/v1alpha1
 kind: API
 metadata:

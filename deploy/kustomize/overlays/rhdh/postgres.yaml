@@ -1,34 +1,18 @@
-# Phase F4 (DECISIONS.md DEC-087/DEC-092). RHDH's own dedicated Postgres --
-# a separate instance from Keycloak's own DB (owner directive, DEC-087),
-# same plain Deployment+PVC pattern as pipelines/bootstrap/keycloak-
-# postgres.yaml (no new operator; PINS.md: OpenShift's built-in
-# openshift/postgresql:15-el9 ImageStream, already S2I/restricted-v2-shaped).
+# DEC-087: RHDH's own dedicated Postgres, separate from Keycloak's own
+# DB, same plain Deployment+PVC pattern (no new operator). GitOps-managed
+# (unlike Keycloak's manual bootstrap), since RHDH's Backstage CR is
+# GitOps-managed too. Credentials: a plain Secret
+# (golden-path-agent-rhdh-db-secret), manually provisioned, never committed.
 #
-# Unlike Keycloak's own Postgres (a manual bootstrap step, out-of-band),
-# this one is GitOps-managed -- owner directive, DEC-087's "new Argo CD
-# Application under deploy/argocd/apps/ tracking deploy/kustomize/overlays/
-# rhdh/" -- since RHDH's own Backstage CR is also GitOps-managed here, and
-# a Postgres its CR depends on belongs in the same sync unit.
-#
-# Credentials: a plain Secret (golden-path-agent-rhdh-db-secret), manually
-# provisioned out-of-band, never committed -- same established pattern as
-# golden-path-agent-secrets/golden-path-agent-keycloak-db-secret.
-#
-# REQUIRED MANUAL STEP, found live (F4, DEC-092): RHDH creates one
-# Postgres database per backend plugin at startup (e.g.
-# backstage_plugin_search, backstage_plugin_events, ...), not just the
-# single POSTGRESQL_DATABASE this S2I image provisions by default -- the
-# app user needs CREATEDB or every plugin fails ("permission denied to
-# create database"). The S2I image's own `postgres` superuser is
-# reachable with no password from inside the pod (confirmed live), so
-# after this Deployment is Running:
+# REQUIRED MANUAL STEP (DEC-093 addendum): RHDH creates one Postgres
+# database per backend plugin at startup, not just this S2I image's
+# default single database -- the app user needs CREATEDB or every plugin
+# fails ("permission denied to create database"). Run once, after this
+# Deployment is Running (scripts/bootstrap.sh's --with-rhdh does not
+# automate this):
 #   oc exec -n golden-path-agent-rhdh <pg-pod> -- \
 #     psql -U postgres -d postgres -c "ALTER ROLE rhdh CREATEDB;"
-# scripts/bootstrap.sh's own --with-rhdh block does not automate this
-# (it runs before GitOps has created this Deployment at all) -- run once,
-# by hand, the first time this Postgres instance is created on a cluster;
-# the grant lives in the role itself (PVC-backed), so it survives pod
-# restarts and does not need repeating after that.
+# The grant lives in the role itself -- survives pod restarts.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

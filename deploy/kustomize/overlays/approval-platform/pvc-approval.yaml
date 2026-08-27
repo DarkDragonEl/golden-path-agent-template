@@ -1,9 +1,6 @@
-# SRS-APR-DATA-01 (restart survival) -- SQLite on a PVC, per the Phase D
-# plan's D1 persistence decision (reuses the already-solved
-# restricted-v2/arbitrary-non-root-UID fights this image's own
-# Containerfile already fixed, DEC-026-034 -- a Postgres route would be a
-# new instance of that same class of fight). New resource kind for this
-# project; RWO, small -- demo-scale, one proposal in flight at a time.
+# SRS-APR-DATA-01 (restart survival) -- SQLite on a PVC, reusing the
+# restricted-v2/arbitrary-non-root-UID fights already solved (DEC-026-034)
+# rather than opening a new one with Postgres. RWO, small -- demo-scale.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

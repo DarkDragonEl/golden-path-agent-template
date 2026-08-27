@@ -1,9 +1,6 @@
-# Phase G, Stage 1 held tail (DECISIONS.md DEC-098/DEC-099, unblocked by
-# DEC-101). The approval service's own Application, mirroring
-# rhdh.yaml's shape exactly -- auto-sync on, same reasoning: no separate
-# promotion step exists for this Platform Foundation singleton the way
-# demo-prod's own promotion-PR-merge gate exists for the agent/mcp
-# images (this repo's own commit is the human gate here too).
+# DECISIONS.md DEC-101. Platform Foundation singleton's own Application
+# (mirrors rhdh.yaml) -- auto-sync on, since no separate promotion step
+# exists for it; this repo's own commit is the human gate.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

@@ -1,9 +1,6 @@
-# Phase G, Stage 2 (DECISIONS.md DEC-098/DEC-099, G5). The Platform
-# Foundation as a Backstage/RHDH System entity -- the grouping node the
-# catalog graph hangs off of: platform -> tools -> agents. Local design
-# only this session (not yet registered in RHDH's live catalog.locations
-# -- see reports/feature-g5-catalog-model.md for why that's deliberately
-# deferred).
+# DEC-098: the Platform Foundation as a Backstage/RHDH System entity --
+# the grouping node the catalog graph hangs off of: platform -> tools ->
+# agents. Registered live in RHDH's catalog.locations (DEC-102).
 apiVersion: backstage.io/v1alpha1
 kind: System
 metadata:

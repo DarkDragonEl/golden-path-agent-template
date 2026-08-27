@@ -1,27 +1,14 @@
-# Phase D, D2 entry gate (DECISIONS.md DEC-053). Keycloak's own
-# database -- a plain Deployment+PVC, no new operator (the Phase D plan's
-# own D2 decision). PINS.md: image is OpenShift's built-in
-# openshift/postgresql:15-el9 ImageStream tag, referenced via the
-# internal registry's stable service DNS -- already S2I/OpenShift-
-# runtime-shaped (arbitrary non-root UID support built in), so this
-# avoids a second, independent instance of the restricted-v2 SCC fight
-# class deploy/Containerfile already had to solve once for this
-# project's own image (DEC-026-034).
+# DEC-053: Keycloak's own database, plain Deployment+PVC, no new
+# operator. OpenShift's built-in openshift/postgresql:15-el9 ImageStream
+# is already S2I-shaped, avoiding a second restricted-v2 SCC fight
+# (DEC-026-034).
 #
-# Credentials: a plain Secret, manually provisioned out-of-band, never
-# committed -- the same established pattern as golden-path-agent-secrets
-# (docs/phase-c-runbook.md Sec.2, DECISIONS.md DEC-024's secret-handling
-# decision), applied here rather than inventing a new mechanism. Expected
-# keys: POSTGRESQL_USER, POSTGRESQL_PASSWORD, POSTGRESQL_DATABASE (the
-# OpenShift postgresql S2I image's own required env vars).
+# DEC-024: credentials are a plain Secret, manually provisioned, never
+# committed. Expected keys: POSTGRESQL_USER/PASSWORD/DATABASE.
 #
-# Same manual, human-applied bootstrap discipline as
-# pipelines/bootstrap/namespaces.yaml/rbac.yaml and this file's own
-# sibling keycloak-operator.yaml (both now under platform/bootstrap/,
-# Phase G G1, DEC-098/DEC-099) --
-# namespace-scoped only, no cluster-scoped grant. Per the owner's own
-# instruction: prepared now, applied only once the D2 design STOP is
-# past and the owner has authorized moving into implementation.
+# DEC-098/DEC-099: same manual, human-applied bootstrap discipline as
+# namespaces.yaml/rbac.yaml -- namespace-scoped only, no cluster-scoped
+# grant.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
