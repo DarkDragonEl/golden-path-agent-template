@@ -2,7 +2,7 @@
 
 **Rewritten again, this time closing out Phase F in full** (F0 through
 F5, on top of the OTel fix + F0–F3 the prior rewrite already covered).
-`DECISIONS.md` (currently through `DEC-109`; `DEC-096` belongs to a
+`DECISIONS.md` (currently through `DEC-123`; `DEC-096` belongs to a
 concurrent parallel-workspace thread, `feature/phase-e-live-chat-
 verification`, not this one) is the authoritative, complete,
 chronological record of every decision this project has made — this
@@ -228,6 +228,38 @@ Template wired to F2/F3's own `skeleton/`.
 
 **Stage 2 (G3/G4/G5) is now fully complete.** Per `DEC-099`'s stage
 table, G6 (publish + automatic onboarding) is next.
+
+**G6 (publish + automatic onboarding) is now complete on both required
+paths** (`DECISIONS.md` `DEC-110`–`DEC-113`, `DEC-118`, `DEC-123`).
+A feasibility check found the original draft's assumption — that Gitea
+Scaffolder support was a stock RHDH dynamic plugin — was false for this
+RHDH version; two paths were pursued in parallel:
+- **Path B (CLI-first, `SysR-P-F-01`(b))**: `tools/gitea_publish.py`
+  publishes two real repos (source+pipeline, and a separate `-gitops`
+  repo) to the Platform Foundation's Gitea instance, live-verified for
+  both templates, including a full pass making the rendered GitOps/
+  promotion-PR content genuinely Gitea-aware (`DEC-111`/`DEC-112`) —
+  it had been silently hardcoded to GitHub since before Gitea existed.
+- **Path A (portal wizard, `SysR-P-F-01`(a))**: a real Gitea Scaffolder
+  dynamic plugin was built from upstream Backstage core using RHDH's own
+  first-party `rhdh-dynamic-plugin-factory` tool (the same mechanism
+  RHDH's own maintainers used for the bundled GitHub/GitLab modules),
+  wired into the live `Backstage` CR, and proven end-to-end — a real
+  Scaffolder task, through RHDH's actual authenticated API, creates two
+  real Gitea repos with real content and registers a real catalog entry
+  (`DEC-118` spiked it live-patched; `DEC-123` committed the same wiring
+  to Git and re-verified against the committed state, resolving one more
+  real bug along the way — `catalog:register`'s `catalogInfoPath` must
+  not carry a leading slash against a bare Gitea URL). **`STOP 8`** (the
+  original design's own "owner runs the real browser wizard" moment) is
+  restored — CLI-first is not superseded, both paths are normatively
+  required in parallel per `SysR-P-F-01`.
+- Landing this touched the same `deploy/kustomize/overlays/rhdh/`
+  files a concurrent Phase H (TechDocs) stream was also touching —
+  reconciled cleanly via a real three-way merge (one list-append
+  conflict in `kustomization.yaml`, resolved by keeping both entries;
+  verified via a full render, not just the absence of conflict markers).
+- Per `DEC-099`'s stage table, G7 (multi-team demonstration) is next.
 
 **Open items, deferred (owner-reviewed, low priority, no dedicated work
 until named):**
@@ -548,7 +580,7 @@ changed something.)
   (`DEC-114` onward). Read these before touching `README.md`, `docs/`,
   or adding Python docstrings.
 - `DECISIONS.md` — the complete, authoritative decision history,
-  `DEC-001` through `DEC-109`. Always read the tail before starting new
+  `DEC-001` through `DEC-123`. Always read the tail before starting new
   work in a fresh session.
 - `PINS.md` — every pinned component version, with the live-verification
   date and source. Has a "Phase E — Shared showcase cluster" section and
