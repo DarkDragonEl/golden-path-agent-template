@@ -9397,3 +9397,52 @@ G6's design as originally envisioned — the CLI-first fallback (`DEC-110`/
 `DEC-111`/`DEC-112`) remains fully valid and necessary in parallel, per
 `SysR-P-F-01`'s own co-equal (a)/(b) requirement, not retired by this
 entry. G6's publish mechanism is now complete on both required paths.
+
+## DEC-124 — Phase H, Wave γ (H3b) formally closed: owner's real browser
+check confirms the TechDocs page renders; repo-wide raw-URL sweep done
+
+**Finding:** the owner re-ran the real browser check `DEC-122` asked
+for, against the live RHDH dev hub. **It passed** — the docs render for
+`component:default/golden-path-agent`. This is the actual close of
+`STOP 3`; `DEC-121`/`DEC-122`'s own scripted-verification-only evidence
+was necessary but, per this project's own repeatedly-proven principle,
+not sufficient on its own.
+
+**Ledger entry, as requested:** this is the **third** time in this
+project's history a real browser check caught what a scripted one could
+not (`DEC-094`, `DEC-097`, now `DEC-122`) — and the third time the same
+scripted check subsequently confirmed the fix once made, which is exactly
+the complementary relationship these two verification modes have: script
+for regression-proofing after the fact, browser for the one class of bug
+(auth flows, reader/host-matching, anything gated by real credentials) a
+script structurally cannot exercise in this project's own `auth.
+environment: production` posture.
+
+**Follow-up swept before starting H4b**, per the owner's own instinct
+that `catalog-info.yaml`'s bug might not be unique: `grep`'d the whole
+repo (`skeleton/`, `skeleton-tools/`, `template.yaml`, `platform/`,
+`tools/gitea_publish.py`, and G6's own active/merged work) for
+`raw.githubusercontent.com`, Gitea `/raw/`-shaped URLs, and any catalog-
+location-construction code. Found and fixed three more dormant instances
+of the identical pattern — `platform/catalog/{system,approval-service,
+model-routes}.yaml`'s own registered locations (G5) — pre-emptively
+switched to the `github.com/blob/main` shape before anyone adds a
+`techdocs-ref` to them and rediscovers this from scratch. Checked and
+confirmed clean, no action needed: `skeleton/`'s and `skeleton-tools/`'s
+own `catalog-info.yaml` templates carry no `techdocs-ref` and construct
+no raw URLs at all, and `template.yaml`'s `catalog:register` step sources
+its `repoContentsUrl` from `publish:gitea`'s own action output (properly
+Gitea-integration-shaped), not a hand-built raw URL — **G6's onboarding
+flow does not propagate this bug into future scaffolded repos**, contrary
+to the concern that prompted the sweep. Full grep output and per-hit
+classification: this session's own transcript (not written to a separate
+report file, since every hit resolved to either "already fixed," "fixed
+now," or "verified not applicable").
+
+**Status:** Wave γ (H3b) is closed. `docs/reference/api.md`,
+`docs/techdocs-preview.md`, `mkdocs.yml`/`mkdocs.local.yml`,
+`PINS.md`'s Phase H pins, the `lychee` link-check stage, and the live
+TechDocs wiring are all done and owner-verified. Phase H's remaining
+work is H4b (comment slimming), gated on Stage 2 (closed, `DEC-109`),
+H3a (merged, `DEC-115`), and H4a (complete, addenda + `DEC-040` +
+`DEC-119` all landed) — all three conditions now satisfied.
