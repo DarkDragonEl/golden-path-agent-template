@@ -9544,6 +9544,52 @@ and merged as the pipeline's own sanctioned automated output, per the
 `DEC-101` boundary.
 
 **Status:** All of H4b's comment-slimming work is now landed —
-`scripts/`/`pipelines/` (`DEC-126`), `deploy/`/`platform/` (pending, in
-progress), and this entry's three directories. `reports/
+`scripts/`/`pipelines/` (`DEC-126`), `deploy/`/`platform/` (`DEC-128`,
+next entry), and this entry's three directories. `reports/
 feature-h4b-code-comments.md` has full per-file detail.
+
+## DEC-128 — H4b: comment slimming landed for deploy/ and platform/ —
+all H4b work now complete
+
+**Decision:** applied `docs/code-comment-policy.md`'s rule to 85 comment
+blocks across 46 files in `deploy/` and `platform/` (the two directories
+with the heaviest category-(c) load from H4a's census — 13 and 8 items
+respectively). Category-(c) pointers corrected per H4a's mapping table,
+including both phantom-`DEC-040` citations (`deploy/argocd/
+application-root.yaml`, `application-ephemeral-test.yaml`) and the
+`platform/bootstrap/otel-collector.yaml` misattribution (`DEC-085`→
+`DEC-119`, with an explicit "not DEC-085, a prior mis-citation corrected
+there" note left in the comment itself). Category-(a) comments —
+including the two operator-facing warnings this scope specifically
+needed to preserve (the live SDN-ingress-label re-verification TODO in
+`networkpolicy-approval.yaml`, and the required `CREATEDB` step in
+`postgres.yaml`) — kept fully intact. Two false-positive census hits
+(Backstage `description:` fields containing the literal string "DEC-",
+not actual comments) correctly identified and left untouched.
+
+**Evidence:** rendered-output diff (`oc kustomize`, byte-identical) for
+all 7 `deploy/kustomize` overlays + `base/`, and both `platform/
+bootstrap/*-operator-upstream/` kustomizations — **independently
+re-verified by the coordinating session** against the correct
+pre-merge baseline (`ad74890`, not H4b's own start point, since three
+promotion PRs legitimately changed `deploy/kustomize/base/
+kustomization.yaml`'s pinned digests in between): all identical except
+the `rhdh` overlay, which showed a raw-text diff purely because
+`oidc-app-config.yaml`'s edits sit inside a ConfigMap's `|` block-scalar
+(opaque string content to `oc kustomize`'s own YAML parser, comments and
+all) — re-verified via nested-YAML nested-parse equality (`EQUAL`).
+Parsed-YAML structural equality independently re-confirmed for all 11
+standalone `platform/` manifests. `bash -n` clean. `make test`: 254
+passed (0 skipped here vs. 1 skipped in the stream's own sandbox run —
+environment-dependent, not a regression: same total, and comment-only
+changes cannot affect test logic).
+
+**Status:** Merged directly to `main` (`5abc011`) — neither directory is
+image-baked, qualifying for `CLAUDE.md`'s docs/non-image-tooling
+exception. **This closes all of H4b** — every category-(b)/(c) comment
+across all 7 census directories (`agent`, `mcp_server`,
+`approval_service`: `DEC-127`; `scripts`, `pipelines`: `DEC-126`;
+`deploy`, `platform`: this entry) is now slimmed, every category-(c)
+item's content lives verifiably in `DECISIONS.md` (H4a), and every
+category-(a) comment is untouched. Phase H (`DEC-114` through this
+entry) is complete pending the owner's final STOP 4 sign-off.
