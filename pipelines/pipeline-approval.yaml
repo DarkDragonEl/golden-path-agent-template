@@ -1,12 +1,8 @@
-# Phase G, G2 (DECISIONS.md DEC-098/DEC-099): the approval service's own
-# independent build/test/promote pipeline -- it moves fully to a
-# Platform-Foundation-owned lifecycle at G1's held tail (DEC-099's
-# merge-order rule); this pipeline is what makes that possible by giving
-# it its own image in the first place. Gate set: full unit-test suite +
-# approval-operational-test.yaml's two checks. A full SRS-APR-IF-01/IF-02
-# round trip is NOT exercised here (would need OIDC credentials minted
-# for this Task -- not wired up this session, named as a real gap, not
-# silently assumed covered).
+# Phase G, G2 (DEC-098/DEC-099/DEC-101): the approval service's own
+# independent build/test/promote pipeline. Gate set: full unit-test suite
+# + approval-operational-test.yaml's two checks -- a full SRS-APR-IF-01/
+# IF-02 round trip is NOT exercised (would need OIDC credentials minted
+# for this Task; a named gap, not assumed covered).
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:

@@ -1,10 +1,7 @@
-# Phase G, G2 (DECISIONS.md DEC-098/DEC-099): the agent's own independent
+# Phase G, G2 (DEC-098/DEC-099/DEC-101): the agent's own independent
 # build/test/promote pipeline, split out of the original single
-# golden-path-agent-ci Pipeline (Phase C, DEC-025). Keeps the full gate
-# set the monolithic pipeline always ran for the agent's own reasoning
-# quality and behavior (unit-tests, eval-gate-offline/live, policy-
-# validate, security-tests, operational-tests) -- none of those gates
-# were ever mcp/approval-specific, so none move.
+# golden-path-agent-ci Pipeline (DEC-025). Keeps the full gate set -- none
+# of these were ever mcp/approval-specific, so none moved elsewhere.
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:

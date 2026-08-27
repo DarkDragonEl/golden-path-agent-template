@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
-# Phase E, E1 (DECISIONS.md DEC-078 onward). Scripted replay of the manual
-# bootstrap sequence docs/phase-c-runbook.md established by hand on the
-# SNO, extended here with two operator Subscriptions
-# (pipelines/bootstrap/pipelines-operator.yaml, gitops-operator.yaml)
-# neither the SNO nor any prior phase ever had to author, since those
-# operators were always pre-installed there by other work before this
-# project touched it (docs/environments.md). This is the actual
-# from-scratch operator-bootstrap leg Phase E exists to prove.
+# Phase E, E1 (DECISIONS.md DEC-078). Scripted replay of the manual
+# bootstrap sequence (docs/phase-c-runbook.md), extended with two
+# operator Subscriptions this cluster needs from scratch (DEC-078).
 #
 # Never runs `oc login` -- credential handling stays the owner's own
 # one-time step; this script assumes KUBECONFIG already points at an
@@ -35,15 +30,10 @@ auto-sync and resurrecting DEC-078's original cross-cluster-promotion
 hazard via a routine maintenance command. Pass --reenable-sync only if
 you deliberately intend to reverse that specific cluster's freeze.
 
---with-rhdh (Phase F4, DEC-092): also installs the RHDH Operator
-(cluster-scoped, openshift-operators, AllNamespaces -- visible to every
-tenant on a shared cluster, same precedent as Pipelines/GitOps) and
-provisions its dedicated Postgres credentials Secret. Opt-in, unlike the
-golden-path-agent-rhdh namespace and Keycloak client (provisioned
-unconditionally below, matching every other platform-infra namespace in
-this file) -- the operator install specifically has a real, cluster-wide
-cost/visibility a plain namespace or Keycloak client does not, so it is
-not forced onto every fresh-cluster bootstrap by default.
+--with-rhdh (DEC-092): opt-in RHDH Operator install (cluster-scoped,
+AllNamespaces) plus its Postgres credentials Secret -- opt-in because it
+carries real cluster-wide visibility cost a plain namespace/client does
+not.
 USAGE
   exit 1
 }
@@ -69,16 +59,10 @@ log() { echo "[bootstrap.sh $(date -u '+%H:%M:%S')] $*"; }
 log "target: $(oc whoami --show-server) as $(oc whoami)"
 
 approve_pending_installplan() {
-  # $1 = namespace, $2 = exact CSV name to match. installPlanApproval:
-  # Manual (this project's own "pin exact versions, no silent
-  # auto-upgrade" discipline, PINS.md) means even the FIRST install of a
-  # pinned startingCSV sits in RequiresApproval until explicitly patched
-  # -- not previously exercised in this project, since Keycloak's OLM
-  # path was always blocked earlier by DEC-055's poisoned catalog on the
-  # SNO before it ever got this far. Safe precisely because the
-  # InstallPlan's own CSV is checked against the pinned value before
-  # patching -- never approves a plan for anything other than the exact
-  # version this project committed.
+  # $1 = namespace, $2 = exact CSV name. installPlanApproval: Manual
+  # (PINS.md's pin discipline) means even a first install sits in
+  # RequiresApproval -- only ever approves the plan matching the exact
+  # pinned CSV (DEC-055).
   local ns="$1" csv="$2" plan approved
   plan=$(oc get installplan -n "$ns" -o jsonpath="{.items[?(@.spec.clusterServiceVersionNames[0]=='$csv')].metadata.name}" 2>/dev/null || echo "")
   [ -n "$plan" ] || return 0
@@ -134,18 +118,11 @@ log "=== step 2/9: namespaces + rbac ==="
 oc apply -f pipelines/bootstrap/namespaces.yaml
 oc apply -f pipelines/bootstrap/rbac.yaml
 
-# Real gap found live this run, not documented anywhere before now:
-# keycloak-cr.yaml's own header comment names golden-path-agent-keycloak-db-secret
-# and golden-path-agent-keycloak-admin as "manually provisioned out-of-band" --
-# docs/phase-d-runbook.md only ever wrote down the db-secret's creation
-# command; the admin secret's was never captured anywhere in this
-# project's docs (only referenced, never shown). Both are required
-# BEFORE keycloak-postgres.yaml/keycloak-cr.yaml apply, or the Postgres
-# and Keycloak pods immediately hit CreateContainerConfigError. Create-once
-# semantics here (unlike provision-identity-secrets.sh's own
-# regenerate-every-run downstream credentials, DEC-059) -- regenerating
-# either of these after Postgres/Keycloak already trust the existing
-# value would break a live instance, not just rotate a credential.
+# Both secrets required BEFORE keycloak-postgres.yaml/keycloak-cr.yaml
+# apply, or those pods hit CreateContainerConfigError. Create-once, not
+# regenerate-every-run like DEC-059's downstream credentials --
+# regenerating either after Keycloak trusts it would break a live
+# instance, not just rotate a credential (DEC-059).
 if ! oc get secret golden-path-agent-keycloak-db-secret -n golden-path-agent-keycloak >/dev/null 2>&1; then
   log "creating golden-path-agent-keycloak-db-secret (first time on this cluster)"
   oc create secret generic golden-path-agent-keycloak-db-secret \
@@ -281,10 +258,9 @@ if [ "$NEEDS_MANUAL" = "true" ]; then
 before demo-prod can sync a working pod and before deploy-ephemeral can
 run (docs/phase-c-runbook.md S2 and S2b have the exact commands).
 
-S3 (golden-path-agent-github-token, open-promotion-pr's PAT) is optional
--- NOTE (DEC-078): this session's Option 2 does not grant this cluster's
-pipeline promotion authority over the shared main digest pin regardless
-of whether that secret exists; any resulting PR gets closed unmerged.
+S3 (golden-path-agent-github-token) is optional -- DEC-078: this
+cluster's pipeline never gets promotion authority over the shared main
+digest pin regardless; any resulting PR is closed unmerged.
 
 Re-run this script with the same kubeconfig once the items above exist
 -- every step above is idempotent and will skip straight through.
@@ -294,13 +270,10 @@ fi
 log "model-endpoint secret and CI config present, continuing"
 
 log "=== step 7/9: pipeline + task definitions ==="
-# Real gap found live: applying pipelines/pipeline.yaml and
-# pipelines/tasks/*.yaml was never written down anywhere in this
-# project's docs or scripts -- on the SNO this was evidently done ad hoc
-# during Phase C's own live session and never captured. Without this, a
-# PipelineRun fails immediately with CouldntGetPipeline.
-# DEC-098/DEC-099 (G2): the single golden-path-agent-ci Pipeline is
-# retired -- apply all three independent component Pipelines instead.
+# Without this apply, a PipelineRun fails with CouldntGetPipeline
+# (DEC-078). DEC-098/DEC-099 (G2): the single golden-path-agent-ci
+# Pipeline is retired -- apply all three independent component
+# Pipelines instead.
 oc apply -f pipelines/pipeline-agent.yaml -n golden-path-agent-ci
 oc apply -f pipelines/pipeline-mcp.yaml -n golden-path-agent-ci
 oc apply -f pipelines/pipeline-approval.yaml -n golden-path-agent-ci

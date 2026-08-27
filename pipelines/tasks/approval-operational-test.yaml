@@ -1,11 +1,6 @@
-# Phase G, G2 (DECISIONS.md DEC-098/DEC-099). Lean, approval-specific
-# operational gate for the independently-built/promoted approval-service
-# image. Two checks only -- a full SRS-APR-IF-01/IF-02 propose-then-decide
-# round trip against ephemeral-test would need OIDC credentials minted for
-# this Task, which this session did not wire up (a real gap, named here
-# rather than silently assumed covered, not fixed in this pass): this Task
-# proves the freshly-deployed pod is reachable and healthy and that its
-# NetworkPolicy binding took effect, not full contract behavior.
+# Phase G, G2 (DEC-098/DEC-099). Two checks only: reachability + health
+# and NetworkPolicy binding -- a full SRS-APR-IF-01/IF-02 round trip
+# would need OIDC credentials this Task doesn't have (a named gap).
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:

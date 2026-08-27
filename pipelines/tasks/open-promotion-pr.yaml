@@ -24,16 +24,10 @@ spec:
       description: Full pushed image reference including digest.
     - name: commit-sha
       type: string
-    # DEC-098/DEC-099 (G2, three-image split): three independent
-    # PipelineRuns can promote off the same commit-sha (each pipeline
-    # fires on the same push). `image-name` scopes the digest edit to
-    # exactly one of the three `images:` entries in
-    # deploy/kustomize/base/kustomization.yaml -- a blind, unscoped sed
-    # (this Task's original single-image behavior) would match and
-    # corrupt all three digest lines at once now that there's more than
-    # one. `component` disambiguates the promotion branch name so three
-    # concurrent promotions off one commit never collide on
-    # `promote/<sha>`.
+    # DEC-098/DEC-099/DEC-101: `image-name` scopes the digest edit to
+    # exactly one of the three `images:` entries -- an unscoped sed would
+    # corrupt all three. `component` disambiguates the promotion branch
+    # name so three concurrent promotions never collide.
     - name: image-name
       type: string
       description: "The kustomize images[].name key to update: golden-path-agent | golden-path-agent-mcp | golden-path-agent-approval"
@@ -72,15 +66,9 @@ spec:
         git checkout -b "$BRANCH"
         git add deploy/kustomize/base/kustomization.yaml
         git commit -m "Promote $(params.commit-sha): $(params.image-ref)"
-        # DEC-037: GitHub's git-over-HTTPS smart endpoint does not accept
-        # a bare `Authorization: Bearer` header for git push -- confirmed
-        # live ("could not read Username for 'https://github.com'", git
-        # falling back to an interactive credential prompt with no TTY
-        # available). The URL-embedded-credential form below is GitHub's
-        # own documented mechanism for PAT-based git push and is
-        # recognized immediately, no credential helper needed. Still
-        # never echoed -- only ever appears as a command argument, same
-        # handling this Task's own header comment already commits to.
+        # DEC-037: bare `Authorization: Bearer` fails for git push over
+        # HTTPS (confirmed live) -- URL-embedded-credential is GitHub's
+        # documented PAT mechanism instead. Never echoed.
         git push "https://x-access-token:${GITHUB_TOKEN}@github.com/DarkDragonEl/golden-path-agent-template.git" "$BRANCH"
         echo "$BRANCH" > $(workspaces.source.path)/.promotion-branch
 

@@ -1,21 +1,12 @@
-# Phase C, Step C1b. SysR-P-F-05(3) security tests, against the actually-
-# deployed pods (unlike eval-gate-live -- see that Task's own header for
-# why). Three checks:
-#   1. REST zero-mutation check: a write-shaped /invoke against the real
-#      deployed agent, rejected via /approvals/{id}/resume, confirmed
-#      against /records -- the exact pattern Checkpoint B2's own live
-#      verification used locally (DECISIONS.md DEC-020), now automated.
-#   2. Disallowed-egress proof: this Task's own pod (labeled neither
-#      component: agent nor anything the existing NetworkPolicy
-#      whitelists) attempts to reach the MCP pod's port 8081 directly and
-#      MUST be blocked -- confirming deploy/kustomize/base/networkpolicy.yaml
-#      actually enforces what it claims, not just that it exists. The
-#      legitimate zero-mutation check above instead execs into the agent
-#      pod itself (which the NetworkPolicy does permit), matching how a
-#      real client would actually be allowed to reach it.
-#   3. Secret scan: a plain grep for obvious credential patterns in the
-#      checked-out source and the built image's SBOM -- no new scanner
-#      tool introduced for this demo-scope milestone.
+# Phase C, Step C1b. SysR-P-F-05(3), against the actually-deployed pods
+# (unlike eval-gate-live). Three checks:
+#   1. REST zero-mutation check: write-shaped /invoke rejected via
+#      /approvals/{id}/resume, confirmed against /records (DEC-020).
+#   2. Disallowed-egress proof: this Task's own (unlabeled) pod must be
+#      blocked reaching the MCP pod directly -- proves the NetworkPolicy
+#      actually enforces, not just exists.
+#   3. Secret scan: a plain grep for credential patterns in source + SBOM
+#      -- no new scanner tool for this demo-scope milestone.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -54,19 +45,14 @@ spec:
         #!/bin/sh
         set -eu
         NS=golden-path-agent-ephemeral-test
-        # DEC-033: the real label (deploy/kustomize/base/deployment-agent.yaml)
-        # is the prefixed app.kubernetes.io/component, not the short form --
-        # confirmed live: the short form matched zero pods.
+        # DEC-033: the real label is the prefixed app.kubernetes.io/
+        # component, not the short form -- confirmed live (short form
+        # matched zero pods).
         AGENT_POD=$(oc get pod -n "$NS" -l app.kubernetes.io/component=agent -o jsonpath='{.items[0].metadata.name}')
 
-        # DEC-034: the whole check runs as ONE python3 script, piped via
-        # stdin (oc exec -i ... -- python3 -), executed INSIDE the agent
-        # pod -- not curl. The agent's own image (python:3.12-slim-based,
-        # per Containerfile) has no curl at all; confirmed live
-        # ("executable file `curl` not found"). Python's stdlib
-        # urllib.request needs no extra dependency assumption. Piping via
-        # stdin (not `python3 -c "..."`) avoids shell-quoting a script
-        # containing JSON/curly braces through oc exec's own arg parsing.
+        # DEC-034: python3 via stdin, not curl -- the agent image has no
+        # curl (confirmed live). Stdin avoids shell-quoting JSON/braces
+        # through oc exec's own arg parsing.
         oc exec -i -n "$NS" "$AGENT_POD" -- python3 - <<'PYEOF'
         import json
         import urllib.request
