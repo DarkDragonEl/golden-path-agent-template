@@ -56,16 +56,10 @@ class InvokeRequest(BaseModel):
 
 
 class ResumeRequest(BaseModel):
-    """Phase D (DECISIONS.md DEC-045/DEC-049): deliberately empty. A
-    resume call carries no claims, only a trigger -- the decision outcome
-    and the arguments to execute come exclusively from the approval
-    service's own IF-05 terminal-state query
-    (agent/approval_client.py::resolve_and_resume), never from this
-    request body. This is the Layer 1/Layer 2 split DEC-045's design
-    settled on: who/what triggers a resume check (Layer 2, unconstrained)
-    is a separate question from what the resume handler does when called
-    (Layer 1, DEC-008-governed -- always re-fetch, never trust a caller-
-    supplied decision)."""
+    """Deliberately empty (DEC-045's Layer 1/Layer 2 split): the decision
+    and arguments to execute come only from the approval service's own
+    IF-05 terminal-state query (approval_client.py::resolve_and_resume),
+    never from this request body (DEC-008)."""
 
 
 def _initial_state(session_id: str, request_id: str, req: InvokeRequest) -> dict:
@@ -93,19 +87,11 @@ def _public_view(state: dict) -> dict:
 
 
 def _auto_approve(thread_config: dict, result: dict) -> dict:
-    """Dev-only convenience (config.AUTO_APPROVE_IN_DEV) so a caller of
-    /invoke doesn't need a second HTTP round-trip to /resume for a
-    write-classified request -- relocated here from the Phase B2 interim
-    mechanism's own human_approval_node (DECISIONS.md DEC-049). Bypasses
-    the real approval service entirely for this path -- no proposal this
-    submitted is ever actually decided there. Never set true in
-    staging/pilot-prod/demo-prod overlay configmaps.
-
-    Still two internal graph.invoke() calls, not one -- interrupt_before
-    is unconditional at the graph level (a real finding from this
-    redesign, DEC-049), so there is no way to skip the pause itself; this
-    only avoids the caller needing a second HTTP request to clear it.
-    """
+    """Dev-only convenience (config.AUTO_APPROVE_IN_DEV, DEC-049): bypasses
+    the real approval service entirely for this path. **Never set true in
+    staging/pilot-prod/demo-prod overlay configmaps.** Still two internal
+    graph.invoke() calls, not one -- interrupt_before is unconditional at
+    the graph level, so there is no way to skip the pause itself."""
     drafted = result.get("drafted_action") or {}
     _graph.update_state(
         thread_config,
@@ -145,10 +131,8 @@ def approver_ui_config():
 @app.post("/invoke")
 def invoke(req: InvokeRequest):
     session_id = req.session_id or str(uuid.uuid4())
-    # R4/DEC-020: a fresh id per API call, distinct from session_id (which
-    # can span multiple calls -- an /invoke followed by a later /resume) --
-    # SRS-AGT-IF-08's "request and session identifiers" as two separate
-    # correlation keys, not one doing double duty.
+    # DEC-020: fresh per call, distinct from session_id (SRS-AGT-IF-08's
+    # two separate correlation keys).
     request_id = str(uuid.uuid4())
     thread_config = {"configurable": {"thread_id": session_id}}
     with _tracer.start_as_current_span("agent.invoke"):

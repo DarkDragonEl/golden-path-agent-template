@@ -5,9 +5,8 @@ agent/nodes/*.py receives the accumulated state dict and returns only the
 subset of keys it updates, which LangGraph merges into the run's
 checkpointed state rather than requiring each node to return the full
 state. ToolCallRecord and ModelCallRecord are the per-call telemetry
-shapes appended to state["tool_calls"] / state["model_calls"] (R4/DEC-020:
-SRS-AGT-IF-08's "every policy decision" / "token consumption" surfaced per
-call, not just as a final summary). See each field's own inline comment for
+shapes appended to state["tool_calls"] / state["model_calls"] (DEC-020:
+per-call, not just a final summary). See each field's own inline comment for
 the specific node that sets it and the DEC it traces to — notably
 DEC-008/DEC-009/DEC-049 governing approved_action/drafted_action/
 model_calls.
@@ -22,8 +21,7 @@ class ToolCallRecord(TypedDict):
     result: Optional[dict]
     error: Optional[str]
     classification: str  # "read" | "write" -- agent/policy.py::classify_action's result
-    # (R4/DEC-020: SRS-AGT-IF-08 "every policy decision" -- surfaced in telemetry per call,
-    # not just the final approve/reject outcome).
+    # DEC-020: surfaced per call, not just the final approve/reject outcome.
 
 
 class ModelCallRecord(TypedDict):
@@ -51,12 +49,10 @@ class AgentState(TypedDict, total=False):
     retrieved_docs: list
     reasoning_steps: int
     selected_tool: Optional[dict]  # {tool_name, arguments} or None -- set by decide_node
-    model_calls: list[ModelCallRecord]  # DEC-009 compensating control's source of truth -- one
-    # entry per model call this turn (decide, and generate when reached); see
-    # eval/domain_scorer.py::check_dec009_route_assertion. AgentState has no reducer
-    # annotations, so model_route/model_route_reason_code below are last-write-wins scalars
-    # and would silently hide an earlier call's route once a turn makes more than one --
-    # this list is what makes both calls' routing independently verifiable.
+    model_calls: list[ModelCallRecord]  # DEC-009/DEC-020 compensating control -- one
+    # entry per model call this turn; model_route/reason_code below are last-write-wins
+    # scalars that would hide an earlier call's route otherwise. See
+    # eval/domain_scorer.py::check_dec009_route_assertion.
     model_route: Optional[str]  # "primary" | "fallback" | "none" -- last call only, convenience
     model_route_reason_code: Optional[str]  # ditto, last call only
     tool_calls: list[ToolCallRecord]
@@ -68,10 +64,8 @@ class AgentState(TypedDict, total=False):
     # submission time. Kept ONLY for audit/evidence display (what was proposed); never read by the
     # execution path (human_approval_node) again after submission -- see approved_action below.
     approved_action: Optional[dict]  # {tool_name, arguments, proposal_id, approver_id, decided_at}
-    # -- set ONLY by resolve_and_resume, ONLY from the approval service's IF-05 response body,
-    # immediately before graph.invoke(None, ...). human_approval_node reads this field, never
-    # drafted_action -- this is the structural (not comment-only) enforcement of DEC-008's "execute
-    # exactly the arguments returned by the terminal-state query, never a locally cached copy."
+    # -- set ONLY by resolve_and_resume from the approval service's IF-05 response. Structural
+    # enforcement of DEC-008: never drafted_action, never a locally cached copy.
     approval_decision: Optional[Literal["approved", "rejected", "expired"]]  # the approval
     # service's own state vocabulary (schemas.py's ProposalState), not the caller's verb -- this
     # is a recorded OUTCOME, sourced from resolve_and_resume, never a client-supplied command.

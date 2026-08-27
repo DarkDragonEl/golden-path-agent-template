@@ -87,13 +87,9 @@ class PlaceholderLookupOutput(BaseModel):
 
 
 class PlaceholderWriteActionInput(BaseModel):
-    """Phase C (agent/policy.py DEC-023): eval/cases/EXAMPLE-002.yaml's
-    write-classified fixture migrated off placeholder_lookup's legacy
-    write:true argument flag onto this dedicated tool name instead — write
-    is now signaled by which tool is called, never by an argument
-    (SRS-MIT-IF-03), same as every real domain tool. placeholder_lookup
-    itself is unchanged (CONTRACT-FROZEN) and keeps its own write field for
-    whatever else may still reference it; this tool never sets or reads it.
-    """
+    """DEC-023: write is signaled by which tool is called, never an
+    argument (SRS-MIT-IF-03), same as every real domain tool.
+    placeholder_lookup stays CONTRACT-FROZEN; this tool never sets or
+    reads its write field."""
 
     query: str

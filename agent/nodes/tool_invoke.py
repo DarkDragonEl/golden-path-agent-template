@@ -75,12 +75,9 @@ def tool_invoke_node(state):
         }
 
     # Write-classified (SRS-AGT-F-04, SRS-MIT-SEC-01): draft only, then
-    # submit a proposal to the standalone approval service (Phase D,
-    # DECISIONS.md DEC-008/DEC-049). This node never invokes a
-    # write-classified tool -- human_approval_node is the sole invoker,
-    # and only once agent/approval_client.py::resolve_and_resume's IF-05
-    # query reports `approved`, executing exactly the arguments THAT
-    # query returns (approved_action), never this node's own drafted copy.
+    # submit a proposal (DEC-008/DEC-049). human_approval_node is the sole
+    # invoker, executing only approved_action, never this node's drafted
+    # copy.
     tool_calls = tool_calls + [
         {
             "tool_name": tool_name,
@@ -92,16 +89,10 @@ def tool_invoke_node(state):
     ]
     drafted_action = {"tool_name": tool_name, "arguments": arguments}
 
-    # evidence_refs: SRS-APR-IF-01 defines this as retrieval citations
-    # and/or tool-call record IDs from the initiating run. DEC-013's
-    # decide-then-retrieve reordering means retrieve_node is never
-    # reached on a tool-selected turn (state["retrieved_docs"] is always
-    # empty here, by this graph's own topology) -- so retrieval citations
-    # can never populate this list for a write-classified proposal today.
-    # An empty list is a legitimate value at the schema layer (DEC-046),
-    # not a bug; a richer evidence trail (e.g. citing an earlier
-    # itsm_search_records call's own record IDs) is real, deferred scope,
-    # not built here.
+    # evidence_refs (SRS-APR-IF-01): always empty here -- retrieve_node is
+    # never reached on a tool-selected turn (DEC-013). Legitimate at the
+    # schema layer (DEC-046), not a bug; a richer evidence trail is
+    # deferred scope.
     evidence_refs: list[str] = []
 
     try:

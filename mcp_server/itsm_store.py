@@ -22,13 +22,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 def _plural_tolerant_variants(needle: str) -> list[str]:
-    """R2 remedy (DEC-014, ITR-001): a real ITSM search box would reasonably
-    tolerate a trailing-s mismatch between a caller's phrasing and a
-    record's stored text (e.g. "CI pipelines" vs. "CI pipeline execution
-    failing...") without doing full stemming -- this is store behavior
-    justified by the store's own intent (a naive exact-substring match is
-    stricter than a real search box), not a fix bent to match a specific
-    eval outcome. Returns the needle plus a single trailing-s variant."""
+    """DEC-014: tolerates a trailing-s mismatch between a caller's phrasing
+    and a record's stored text, without full stemming. Returns the needle
+    plus a single trailing-s variant."""
     if needle.endswith("s") and len(needle) > 3:
         return [needle, needle[:-1]]
     return [needle, needle + "s"]
@@ -38,16 +34,9 @@ _STATUS_SEPARATOR_RE = re.compile(r"[-_\s]+")
 
 
 def _normalize_status(status: str) -> str:
-    """R2 remedy (DEC-018/DEC-019, ITR-004): a real ITSM search box's status
-    filter would reasonably treat "in-progress", "in_progress", and
-    "in progress" as the same value -- separator choice and case are
-    formatting, not a distinct status. Generalized from DEC-018's
-    hyphen-only fix after a third, space-separated variant surfaced in the
-    DEC-018 re-baseline -- this collapses any run of hyphen/underscore/
-    whitespace into one canonical separator and lowercases, covering the
-    whole class of separator-formatting choices at once rather than
-    patching one variant at a time. Store behavior justified by the
-    store's own intent, not by the eval outcome."""
+    """DEC-018/DEC-019: treats "in-progress"/"in_progress"/"in progress" as
+    the same value -- collapses any run of hyphen/underscore/whitespace
+    into one canonical separator and lowercases."""
     return _STATUS_SEPARATOR_RE.sub("_", status.strip().lower())
 
 

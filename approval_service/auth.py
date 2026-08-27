@@ -126,16 +126,11 @@ _DEV_CALLER_IDENTITY = "dev-caller"
 
 
 def get_authenticated_caller(request: Request) -> str:
-    """SRS-APR-SEC-03's identity-propagation requirement, applied to the
-    three endpoints DEC-069 found running with no auth check at all under
-    AUTH_MODE=oidc (create_proposal, list_pending_proposals, get_proposal)
-    -- fail-closed (SEC-01) demands SOME authenticated caller, but none of
-    these three are role-gated the way decide_proposal is: IF-04/IF-05 are
-    legitimately called by both the agent's own workload token and, for
-    D3's UI, a human approver's token, and neither needs the approver role
-    just to read. Identity+audience only, mirrors mcp_server/auth.py's own
-    get_authenticated_caller exactly (same rationale: this service's own
-    equivalent, no role concept for these three routes)."""
+    """SRS-APR-SEC-03 identity-propagation, applied to the three endpoints
+    DEC-069 found with no auth check at all under AUTH_MODE=oidc
+    (create_proposal, list_pending_proposals, get_proposal) -- identity+
+    audience only, no role check, mirrors mcp_server/auth.py's function of
+    the same name."""
     if config.AUTH_MODE == "none":
         return _DEV_CALLER_IDENTITY
 

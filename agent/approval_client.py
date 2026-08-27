@@ -1,15 +1,12 @@
 """Thin client the agent's tool_invoke/human_approval path uses to reach
-the standalone approval service (Phase D, DECISIONS.md DEC-008/DEC-045).
-Mirrors mcp_server/client.py's own shape -- the contract
+the standalone approval service (DEC-008/DEC-045). Mirrors
+mcp_server/client.py's own shape -- the contract
 (approval_service/schemas.py) is what's frozen, not this client.
 
-resolve_and_resume is the ONE place the "query the terminal state, decide
-whether to touch the graph, inject, resume" logic lives -- used by both
-agent/api.py's real /resume endpoint and, via a patched submit_proposal/
-get_proposal in tests, eval/domain_executor.py's own resume step. One
-executor for this logic, not two (matching the runbook's own
-"one executor built once" principle for the phase-two HTTP eval
-executor).
+resolve_and_resume is the ONE place the query-decide-inject-resume logic
+lives -- used by both agent/api.py's /resume endpoint and (via a patched
+submit_proposal/get_proposal in tests) eval/domain_executor.py's resume
+step. One executor, not two.
 """
 
 import httpx
@@ -94,14 +91,11 @@ def decide_proposal(proposal_id: str, decision: str, timeout: float = 10.0) -> d
 
 def resolve_and_resume(graph, thread_config: dict):
     """Query this session's pending proposal (SRS-APR-IF-05); if still
-    `pending`, return the graph's current state unchanged -- the graph is
-    NOT touched. If terminal, inject the outcome into graph state, using
-    ONLY the values this query just returned (DECISIONS.md DEC-008: never
-    a locally cached copy of the drafted arguments), then resume.
-
-    `graph.get_state(thread_config).values["proposal_id"]` is the
-    correlation key -- set by tool_invoke_node at submission time.
-    """
+    `pending`, the graph is NOT touched. If terminal, inject the outcome
+    using ONLY the values this query just returned (DEC-008: never a
+    locally cached copy), then resume. Correlation key:
+    `graph.get_state(thread_config).values["proposal_id"]`, set by
+    tool_invoke_node at submission time."""
     snapshot = graph.get_state(thread_config)
     proposal_id = snapshot.values.get("proposal_id")
     proposal = get_proposal(proposal_id)

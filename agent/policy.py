@@ -18,15 +18,9 @@ def check_step_limit(state: dict) -> None:
         )
 
 
-# Phase C (DEC-023): the legacy _LEGACY_WRITE_FLAG_TOOLS carve-out that
-# used to live here is retired. It existed only to let
-# eval/cases/EXAMPLE-002.yaml signal a write-classified call via a
-# `write: true` argument flag on placeholder_lookup, rather than by
-# calling a different tool -- exactly the pattern SRS-MIT-IF-03 bans for
-# the real tools ("read vs. write is signaled by which operation is
-# called, never by an argument flag"). EXAMPLE-002 now calls
-# placeholder_write_action (policy/approval_rules.yaml) instead, so every
-# tool call, with no exceptions, is classified purely by name.
+# DEC-023: every tool call is classified purely by name, no exceptions --
+# the retired _LEGACY_WRITE_FLAG_TOOLS carve-out used to signal a write
+# via an argument flag, the exact pattern SRS-MIT-IF-03 bans.
 
 
 def classify_action(tool_name: str, arguments: dict) -> str:
