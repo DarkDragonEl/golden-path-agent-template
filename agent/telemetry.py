@@ -2,13 +2,10 @@
 is unset — the OTel API always provides a working no-op tracer, so spans are
 just discarded locally instead of erroring.
 
-R4/DEC-020 (plan-B6 closure): every attribute/event set here is read-only
-with respect to model inputs -- this module only observes already-computed
-state and already-on-disk prompt files; it never alters the system prompt,
-user message, or `tools=` argument actually sent to the model. This is a
-hard constraint, not a style preference (see HANDOFF.md's R0 forward
-notes) -- changing that would make telemetry itself an undeclared
-DEC-012-style instrument change.
+DEC-020: every attribute/event set here is read-only with respect to
+model inputs -- this module only observes already-computed state and
+on-disk prompt files, never alters the system prompt, user message, or
+`tools=` argument actually sent to the model.
 """
 
 import hashlib
@@ -28,12 +25,9 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 
 def _prompt_version(filename: str) -> str:
-    """SRS-AGT-DATA-01: a short content hash, computed by reading the same
-    on-disk prompt file the agent already loads to build its calls -- never
-    embedded back into the prompt text itself (that would make prompt
-    versioning trigger DEC-012's re-baseline rule every time telemetry
-    changed). Out-of-band by construction: this hash reaches only the
-    telemetry span, never a message sent to the model."""
+    """SRS-AGT-DATA-01: a content hash of the on-disk prompt file, never
+    embedded back into the prompt text itself (DEC-012's re-baseline rule).
+    Out-of-band: reaches only the telemetry span, never the model."""
     path = _PROMPTS_DIR / filename
     try:
         return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
@@ -87,14 +81,10 @@ def record_invocation_span(state: dict, request_id: str | None = None, span=None
 
     span.set_attribute("session.id", state.get("session_id", ""))
     span.set_attribute("request.id", request_id or "")
-    # Phase D4 (DECISIONS.md DEC-071): the attribute-correlation mechanism
-    # the plan settled on for stitching a trace across the async approval
-    # gap -- session.id already covers the pre-proposal portion; proposal.id
-    # is what lets a query join this span to approval_service's own spans
-    # for the SAME proposal, once one exists for this run. Empty string
-    # (not omitted) when no proposal was ever drafted this turn -- a
-    # consistent, always-present attribute is easier to query than one
-    # that's sometimes absent.
+    # DEC-071: proposal.id lets a query join this span to approval_service's
+    # own spans for the SAME proposal, across the async approval gap.
+    # Empty string, not omitted, when no proposal was drafted this turn --
+    # a consistent, always-present attribute is easier to query.
     span.set_attribute("proposal.id", state.get("proposal_id") or "")
     span.set_attribute("user.id", state.get("user_id", ""))
     span.set_attribute("workload.id", config.AGENT_WORKLOAD_ID)
@@ -103,13 +93,10 @@ def record_invocation_span(state: dict, request_id: str | None = None, span=None
     span.set_attribute("prompt.decide_version", _DECIDE_PROMPT_VERSION)
     span.set_attribute("prompt.generate_version", _GENERATE_PROMPT_VERSION)
 
-    # SysR-P-F-12 / SRS-AGT-IF-02: routing decision + reason code, for
-    # EVERY model call this turn -- state["model_calls"] (DEC-013's
-    # decide/generate split can make two calls per turn) is the source of
-    # truth; one event per call, not the last-write-wins scalar fields
-    # below, which stay only as a last-call convenience (matching
-    # eval/domain_scorer.py's own DEC-009 compensating-control fix -- the
-    # route-coverage gap this closes on the telemetry side).
+    # SysR-P-F-12/SRS-AGT-IF-02: state["model_calls"] is the source of truth
+    # for routing/reason code, one event per call (DEC-013's decide/generate
+    # split can make two) -- the scalar fields below are last-call
+    # convenience only (DEC-009/DEC-020).
     for call in state.get("model_calls", []):
         span.add_event(
             "model_call",

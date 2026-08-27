@@ -1,24 +1,12 @@
-"""Approval service -- SRS-APR's standalone realization (Phase D, DEC-008).
-
-Contracts-STOP artifact (DEC-045): endpoint signatures + schemas only.
-Route bodies are deliberately NotImplementedError stubs -- business logic
-(storage, expiry scanner, auth dependency) is D1's implementation step,
-which comes after this contract is reviewed, per the owner's own staged
-sequence.
+"""Approval service -- SRS-APR's standalone realization (DEC-008).
 
 Never issues the literal tool-contract call itself (SRS-APR-F-04) -- the
-agent is the sole invoker (DECISIONS.md DEC-008). This service's job is
-exactly: intake, decide, expose.
+agent is the sole invoker (DEC-008). This service's job is exactly:
+intake, decide, expose.
 
-D1 implementation note (DEC-046 closed this STOP): route bodies below are
-now real. Telemetry (SRS-APR-IF-03) is realized via structured `logging`,
-not an OTel span/TracerProvider -- this service's frozen config.py
-contract carries no OTEL_EXPORTER_OTLP_ENDPOINT/OTEL_SERVICE_NAME fields
-(unlike agent/config.py), so standing up a second OTel exporter here would
-mean extending a contract file this implementation step is not authorized
-to change. A structured, correlated log line is the minimal faithful
-realization at this scope; wiring a real OTel exporter is a natural
-follow-up once this service's own config contract grows those fields.
+Telemetry (SRS-APR-IF-03) is realized via structured `logging`, not an
+OTel span/TracerProvider (DEC-046) -- this service's config.py contract
+carries no OTEL_* fields, unlike agent/config.py.
 """
 
 import logging
@@ -78,17 +66,10 @@ async def _lifespan(app: FastAPI):
 
 app = FastAPI(title="golden-path-approval-service", lifespan=_lifespan)
 
-# Phase D3: the approver UI (agent/static/approver_ui.html) is served from
-# the agent's own origin but calls this service's DIFFERENT origin directly
-# (direct-to-service, not proxied through the agent) -- browsers refuse a
-# cross-origin fetch without CORS headers, so this is required for that
-# page to work at all. allow_origins=["*"] is acceptable here: this is a
-# demo-scope internal system with no real external hostname, and the actual
-# security boundary is the required bearer-token auth already enforced on
-# every route below (DEC-069) -- CORS is a browser-enforced same-origin
-# convenience, not a substitute for authentication, and a permissive CORS
-# origin doesn't weaken it: a malicious page on another origin still cannot
-# forge a valid Keycloak-signed token.
+# The approver UI calls this service's different origin directly, needing
+# CORS. allow_origins=["*"] is acceptable: the real security boundary is
+# the bearer-token auth enforced on every route below (DEC-069/DEC-072) --
+# CORS doesn't substitute for or weaken it.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -149,17 +130,12 @@ def healthz():
 @app.post("/proposals", response_model=ProposalCreated, status_code=201)
 def create_proposal(body: ProposalCreate, request: Request) -> ProposalCreated:
     """SRS-APR-IF-01/F-01. Caller: agent workload identity only (SEC-03).
-    DEC-069: requires SOME authenticated, correctly-audienced caller (not
-    role-gated -- there is no role for "is a legitimate workload," only
-    for "is an approver") -- found running with no auth check at all,
-    fail-open under AUTH_MODE=oidc, contradicting SEC-01. `initiating_user_id`
-    itself stays client-supplied (the pre-existing, separately-tracked
-    gap: no end-user login flow exists for whoever originates a query to
-    the agent's own /invoke -- out of D2's scope, not newly introduced or
-    newly fixed here).
-    A replayed idempotency_key for the same originating_session_id
-    returns the existing proposal's current state instead of creating a
-    duplicate (SRS-APR-F-07)."""
+    DEC-069: requires SOME authenticated, correctly-audienced caller, not
+    role-gated. `initiating_user_id` stays client-supplied (no end-user
+    login flow exists upstream -- out of D2's scope). A replayed
+    idempotency_key for the same originating_session_id returns the
+    existing proposal's state instead of creating a duplicate
+    (SRS-APR-F-07)."""
     get_authenticated_caller(request)
     with _tracer.start_as_current_span("approval.create_proposal"):
         record = _store.create_proposal(
@@ -234,9 +210,8 @@ def list_pending_proposals(
 ) -> list[ProposalSummary]:
     """SRS-APR-IF-04/F-06. Lists proposals currently `pending`, filterable
     by session/request id; full decision-context fields per F-05.
-    DEC-069: requires an authenticated caller (identity+audience, no role
-    check -- both the agent's own workload token and an approver's own
-    token are legitimate callers here)."""
+    DEC-069: authenticated caller required, no role check -- agent
+    workload and approver tokens both legitimate."""
     get_authenticated_caller(request)
     with _tracer.start_as_current_span("approval.list_pending_proposals") as span:
         span.set_attribute("session.id", originating_session_id or "")

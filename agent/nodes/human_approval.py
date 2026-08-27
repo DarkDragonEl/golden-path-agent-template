@@ -1,24 +1,16 @@
 """The human-approval (HITL) gate. Functional control flow — not a TODO.
 
-The graph is compiled with interrupt_before=["human_approval"], so execution
-actually pauses before this node runs whenever tool_invoke sets
-pending_approval=True. Resuming is agent/approval_client.py::resolve_and_resume's
-job (called from agent/api.py's POST /approvals/{session_id}/resume) — it
-queries the approval service's own terminal-state (SRS-APR-IF-05), and
-only if that query reports a terminal state does it inject
-approved_action/approval_decision into checkpointed state and call
-graph.invoke(None, thread_config). This node never sees a client-supplied
-decision (DECISIONS.md DEC-008/DEC-049) — it only ever reads what
-resolve_and_resume already validated against the service.
+The graph is compiled with interrupt_before=["human_approval"], pausing
+before this node whenever tool_invoke sets pending_approval=True.
+approval_client.py::resolve_and_resume injects approved_action/
+approval_decision from the approval service's own terminal-state query
+before resuming -- this node never sees a client-supplied decision
+(DEC-008/DEC-049).
 
-Phase D graduation from Phase B2's interim mechanism: this node is still
-the sole invoker of a write-classified tool call, and only when
-approved_action is set (SRS-AGT-F-04, SRS-MIT-SEC-01 — tool_invoke_node
-never calls a write-classified tool itself, it only drafts and submits).
-On approval, the tool is invoked with exactly the arguments in
-approved_action — set by resolve_and_resume from the approval service's
-own IF-05 response, never from drafted_action (the node's own earlier
-draft, kept only for audit display) or any other cached copy.
+Sole invoker of a write-classified tool call (SRS-AGT-F-04,
+SRS-MIT-SEC-01), only when approved_action is set -- exactly the
+arguments from resolve_and_resume's own IF-05 response, never
+drafted_action (kept only for audit display).
 """
 
 from .. import config

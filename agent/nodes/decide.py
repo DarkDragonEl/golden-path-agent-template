@@ -8,14 +8,11 @@ model_calls, selected_tool). On total model failure it returns
 fallback_reason instead of selected_tool, which agent/routers.py's
 decide_after_decide routes to "fallback" (SysR-A-F-05/SysR-P-F-12).
 
-DEC-013 candidate (decide-then-retrieve reordering): this node sees only
-the user query and TOOL_SCHEMAS, deliberately no retrieved corpus context,
-so citation instructions can no longer compete with tool-calling
-instructions for the model's attention (DEC-012's diagnosed root cause). In
-config.AGENT_MODEL_MODE == "fake" mode it reproduces the pre-Phase-B3
-deterministic dispatch (state["write_requested"] selects between
-placeholder_lookup and placeholder_write_action, DEC-023) so
-eval/cases/EXAMPLE-*.yaml's frozen harness-mechanics fixtures keep passing.
+DEC-013: sees only the query and TOOL_SCHEMAS, deliberately no retrieved
+corpus context (DEC-012's root cause). In config.AGENT_MODEL_MODE ==
+"fake" mode, state["write_requested"] selects between placeholder_lookup
+and placeholder_write_action (DEC-023) so eval/cases/EXAMPLE-*.yaml's
+harness-mechanics fixtures keep passing.
 """
 
 from pathlib import Path

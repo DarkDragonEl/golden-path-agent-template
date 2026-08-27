@@ -201,19 +201,11 @@ class ApprovalStore:
     ) -> dict[str, Any] | None:
         """The ONE atomic write path for approve/reject *and* expiry
         (SEC-04) -- pass `decision="expired"`, `decided_by=None`,
-        `decided_at=None` for the expiry case (DEC-046: an expired
-        proposal's `decided_by`/`decided_at` stay `None`, since no
-        approver ever decided it).
-
-        A single `UPDATE ... WHERE proposal_id = ? AND state = 'pending'`
-        inside a transaction; SQLite's own file-level write lock (the
-        `busy_timeout` set in `_connection`) serializes concurrent
-        callers rather than erroring, so exactly one UPDATE ever affects a
-        row for a given proposal (SRS-APR-F-02's atomicity). Returns the
-        updated record if this call won; `None` if the proposal was not
-        `pending` at UPDATE time (already decided/expired, or never
-        existed) -- the caller lost the race, or came late.
-        """
+        `decided_at=None` for expiry (DEC-046: an expired proposal's
+        decided_by/decided_at stay None). One `UPDATE ... WHERE state =
+        'pending'` per connection, SQLite's own `busy_timeout` serializing
+        concurrent callers (SRS-APR-F-02). Returns the updated record, or
+        `None` if the proposal wasn't `pending` at UPDATE time."""
         with self._connection() as conn:
             cursor = conn.execute(
                 """UPDATE proposals
@@ -228,14 +220,11 @@ class ApprovalStore:
 
 class ExpiryScanner:
     """SRS-APR-F-03 -- in-process asyncio background task, started from
-    the FastAPI app's lifespan (api.py). `sweep()` is a plain synchronous
-    method that does one pass; it is called both by `start()` (the
-    mandatory immediate pass required by DEC-046 -- catching proposals
-    that were already overdue when the previous process died, not just
-    ones that go overdue after this process comes up) and, repeatedly, by
-    the periodic loop `start()` also launches. There is exactly one place
-    expiry-detection logic lives.
-    """
+    the FastAPI app's lifespan (api.py). `sweep()` does one pass; called
+    both by `start()`'s mandatory immediate pass (DEC-046: catches
+    proposals already overdue when the previous process died) and by the
+    periodic loop `start()` also launches -- one place expiry-detection
+    logic lives."""
 
     def __init__(
         self, store: ApprovalStore, timeout_seconds: int, poll_interval_seconds: float = 30.0

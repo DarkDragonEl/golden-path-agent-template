@@ -18,12 +18,10 @@ class ProposalCreate(BaseModel):
     """SRS-APR-IF-01. Missing required field -> the endpoint returns 422
     and creates no record (SRS-APR-F-01).
 
-    evidence_refs is required (no default) -- DEC-045's contracts-STOP
-    correction: F-01 lists evidence references among the required intake
-    fields, so an *absent* field must reject. An *empty* list is a
-    separate, allowed question at this layer (F-01 governs presence, not
-    whether a zero-citation write is ever legitimate -- that's eval-
-    territory, not intake-schema territory)."""
+    evidence_refs is required (no default, DEC-046): F-01 requires the
+    field present, but an *empty* list is a separate, allowed question --
+    presence is schema-territory, zero-citation legitimacy is eval-
+    territory."""
 
     action_type: str
     target_system_id: str

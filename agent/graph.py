@@ -25,14 +25,10 @@ def build_graph():
     """decide -> (tool_invoke -> (human_approval -> respond|fallback) | respond) |
                   (retrieve -> generate -> respond|fallback) | fallback
 
-    DEC-013 candidate (decide-then-retrieve reordering): `decide` sees only
-    the user query + both tool schemas + tool-selection/refusal/injection
-    instructions -- no corpus context, no citation instructions -- so
-    citation guidance can no longer compete with and beat tool-calling
-    instructions for the model's attention (DEC-012's diagnosed root
-    cause). Only the "no tool needed" branch retrieves; the retrieved
-    context and citation instructions are `generate`'s job alone, in a
-    second, separate model call made with no tool schemas at all.
+    DEC-013: `decide` sees only the query + both tool schemas, no corpus/
+    citation context (DEC-012's root cause). Only the "no tool needed"
+    branch retrieves; `generate` alone handles retrieved context, in a
+    separate model call with no tool schemas.
 
     Compiled with interrupt_before=["human_approval"] so a consequential
     (write-classified) tool call actually pauses the graph rather than

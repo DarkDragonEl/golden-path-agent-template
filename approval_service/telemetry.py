@@ -1,12 +1,8 @@
-"""OpenTelemetry tracing for approval_service -- Phase D4 (DECISIONS.md
-DEC-071), closing api.py's own earlier note that a real OTel exporter was
-deferred until this service's config contract grew the two fields it
-needs (OTEL_EXPORTER_OTLP_ENDPOINT/OTEL_SERVICE_NAME, config.py). Mirrors
+"""OpenTelemetry tracing for approval_service (DEC-071). Mirrors
 agent/telemetry.py's init/tracer pattern exactly -- same safe-no-op
 behavior when the endpoint is unset, same OTLP/HTTP exporter, same
-explicit /v1/traces suffix (agent/telemetry.py's own comment records
-why: the exporter only auto-appends the per-signal path when it resolves
-the endpoint itself, not when passed explicitly).
+explicit /v1/traces suffix (see agent/telemetry.py for why the suffix
+must be explicit).
 """
 
 from opentelemetry import trace

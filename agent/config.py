@@ -72,15 +72,12 @@ MODEL_FALLBACK_NAME = _env("MODEL_FALLBACK_NAME")
 MCP_TOOL_ENDPOINT = _env("MCP_TOOL_ENDPOINT", "http://localhost:8081")
 MCP_MODE = _env("MCP_MODE", "mock")  # mock | live
 
-# Approval-service contract (Phase D, DECISIONS.md DEC-008/DEC-045/DEC-049).
-# No mock/live toggle here, unlike MCP_TOOL_ENDPOINT above -- unlike the
-# mock ITSM tool (simple synchronous functions with an obvious in-process
-# equivalent), approval_service has real state-machine/atomicity behavior
-# already covered by its own test suite (tests/test_approval_service.py);
-# duplicating that here would risk drifting out of sync with the real
-# service. Contexts that must not depend on a live approval_service (the
-# eval harness) patch agent.approval_client's functions directly instead
-# -- see eval/domain_executor.py's _FakeApprovalService.
+# Approval-service contract (DEC-008/DEC-045/DEC-049). No mock/live toggle
+# here, unlike MCP_TOOL_ENDPOINT above -- approval_service has real
+# state-machine/atomicity behavior already covered by its own test suite.
+# Contexts that must not depend on a live approval_service (eval) patch
+# agent.approval_client's functions directly -- see
+# eval/domain_executor.py's _FakeApprovalService.
 APPROVAL_SERVICE_ENDPOINT = _env("APPROVAL_SERVICE_ENDPOINT", "http://localhost:8082")
 
 # Agent workload OIDC identity (Phase D2). AGENT_OIDC_MODE=none mirrors
@@ -106,17 +103,10 @@ AGENT_CORPUS_DIR = _env("AGENT_CORPUS_DIR", "./corpus/seed")
 AGENT_STATE_DIR = _env("AGENT_STATE_DIR", "./state")
 # SRS-RET-IF-01 (resolved): top_k default is config-sourced, not hardcoded.
 RETRIEVAL_TOP_K = _env_int("RETRIEVAL_TOP_K", "retrieval_top_k", 5)
-# Structural mitigation for a Phase B4 live-testing finding: draft_request
-# and tool_selection failed their thresholds decisively (measured, not
-# assumed -- reports/feature-phase-b-golden-path.md) when the full
-# RETRIEVAL_TOP_K passages were injected into the reasoning call verbatim
-# -- a detailed procedure document in context reliably out-competed the
-# tool schemas for the model's attention. state["retrieved_docs"] still
-# carries the full RETRIEVAL_TOP_K set (citation assembly, future
-# consumers); only agent/nodes/generate.py's own context construction caps
-# how much of it actually reaches the model (DEC-013 candidate: this
-# capping is a secondary mitigation now that agent/nodes/decide.py never
-# sees retrieved context at all -- see DECISIONS.md DEC-012/DEC-013).
+# DEC-010: caps how much of RETRIEVAL_TOP_K's full passage set actually
+# reaches the reasoning call -- state["retrieved_docs"] still carries the
+# full set (citation assembly); only agent/nodes/generate.py's context
+# construction applies this cap.
 REASONING_CONTEXT_TOP_K = _env_int("REASONING_CONTEXT_TOP_K", "reasoning_context_top_k", 3)
 REASONING_EXCERPT_CHARS = _env_int("REASONING_EXCERPT_CHARS", "reasoning_excerpt_chars", 400)
 
@@ -126,18 +116,10 @@ MAX_REASONING_STEPS = _env_int("MAX_REASONING_STEPS", "max_reasoning_steps", 5)
 TOOL_TIMEOUT_SECONDS = float(_env_str("TOOL_TIMEOUT_SECONDS", "tool_timeout_seconds", 10))
 TOOL_RETRY_LIMIT = _env_int("TOOL_RETRY_LIMIT", "tool_retry_limit", 2)
 
-# R3 remedy (DEC-015): neither temperature nor seed was pinned before this --
-# the model client relied entirely on the endpoint's own default sampling.
-# A live audit found this was the dominant source of the residual pass-to-
-# pass tool-calling/narration variance (DEC-012/DEC-013/DEC-014's noise
-# categories): the same decide-shaped call, unpinned, alternated between a
-# real tool_calls response and prose narration across repeated calls;
-# pinned (temperature=0, seed=42), 3/3 repeated calls returned an identical
-# tool_calls response. Both values are env/policy-bundle overridable per
-# this file's own convention -- not because a different temperature is
-# expected to be needed, but because every other operating parameter here
-# already is, and pinning determinism should not be the one hardcoded
-# exception.
+# DEC-015: temperature/seed pinned (0/42) after a live audit found unpinned
+# sampling was the dominant source of residual tool-calling/narration
+# variance. Env/policy-bundle overridable, matching every other operating
+# parameter in this file.
 MODEL_TEMPERATURE = _env_int("MODEL_TEMPERATURE", "model_temperature", 0)
 MODEL_SEED = _env_int("MODEL_SEED", "model_seed", 42)
 APPROVAL_MODE = _env_str("APPROVAL_MODE", "approval_mode", "required")  # required | auto
@@ -154,11 +136,10 @@ DEFAULT_TOOL_CLASSIFICATION = _APPROVAL_RULES_BUNDLE.get("default_classification
 # Telemetry
 OTEL_EXPORTER_OTLP_ENDPOINT = _env("OTEL_EXPORTER_OTLP_ENDPOINT")
 OTEL_SERVICE_NAME = _env("OTEL_SERVICE_NAME", "golden-path-agent")
-# R4/DEC-020: SRS-AGT-IF-08 "the agent's workload identity", distinct from
-# OTEL_SERVICE_NAME (an OTel resource-attribute convention) even though
-# they share a default -- this names the actual runtime identity
-# (deploy/kustomize/base/serviceaccount.yaml's ServiceAccount), which can
-# diverge from the OTel service name in a future environment.
+# DEC-020: SRS-AGT-IF-08's workload identity, distinct from OTEL_SERVICE_NAME
+# despite sharing a default -- names the real ServiceAccount
+# (deploy/kustomize/base/serviceaccount.yaml), which can diverge from the
+# OTel service name in a future environment.
 AGENT_WORKLOAD_ID = _env("AGENT_WORKLOAD_ID", "golden-path-agent")
 
 # Ports
