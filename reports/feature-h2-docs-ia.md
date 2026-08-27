@@ -1,6 +1,21 @@
 # Phase H2 — docs/ information architecture, naming conventions,
 glossary, credentials doc
 
+**Coordinating-session note (Phase H4b pre-task, DEC-124 follow-up):**
+two independent H2 streams ran concurrently (two coordinating sessions
+both executing Phase H after `DEC-114`'s announcement). This report
+documents this particular stream's own experience, including the
+credential-script access gap below — but the content actually merged to
+`main` as `DEC-116` came from the *other* stream, which did successfully
+copy and track both credential scripts (confirmed live: `git ls-files
+tools/provision-demo-credentials.sh tools/get-test-user-credential.sh`
+both return a match, and `docs/access-and-credentials.md` links both).
+`state/README.md` was a casualty of the hybrid merge — genuinely missing
+until this pre-task added it. Kept this report as-is below rather than
+rewritten, since it's an accurate record of what *this* stream
+experienced; just don't take its "not yet tracked" framing as current
+truth for the scripts.
+
 Worktree: `.claude/worktrees/agent-abf6d7fd7e593a530`. Branch: see
 "Branch-name collision" below — could not be renamed to
 `feature/h2-docs-ia` as instructed; work is committed on this worktree's

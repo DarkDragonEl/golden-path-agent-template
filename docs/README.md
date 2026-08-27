@@ -69,6 +69,9 @@ Look up a fact.
   pipeline/task names, branch conventions, eval case IDs, and
   `DEC-NNN`/`OI-NN`/requirement IDs, with real examples and known
   deviations.
+- **[Code comment policy](code-comment-policy.md)** — the three-category
+  rule (keep / slim-to-pointer / migrate-then-slim) applied repo-wide to
+  every `DEC-NNN`-citing comment.
 - **[Pinned versions and sources (`PINS.md`)](https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/PINS.md)** — every
   pinned component version, commit, and the date it was last verified
   live.

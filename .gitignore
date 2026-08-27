@@ -2,7 +2,8 @@ __pycache__/
 *.pyc
 .venv/
 .env
-state/
+state/*
+!state/README.md
 eval/results/*.json
 reports/trace-check.json
 *.kubeconfig

@@ -57,6 +57,7 @@ nav:
       - Evaluation: evaluation.md
       - Glossary: glossary.md
       - Naming conventions: naming-conventions.md
+      - Code comment policy: code-comment-policy.md
       - Template nine-output mapping: template-nine-output-mapping.md
   - Explanation:
       - Architecture: architecture.md
