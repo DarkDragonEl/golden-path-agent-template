@@ -14,18 +14,26 @@ touched it.
 
 ## Where this is — most recent session first
 
-**Phase H (Documentation & DX hardening) kicked off** (`DECISIONS.md`
-`DEC-114`), by a separate coordinating session, running **concurrently**
-with G6 below — file ownership stays partitioned (see `DEC-114` for the
-exact claims), so this is not a conflict. H0's audit is complete
-(`reports/docs-audit.md`, `reports/docs-terms-sheet.md`); Wave-β worktree
-streams (`feature/h1-readme-rewrite`, `feature/h2-docs-ia`,
-`feature/h3a-python-docstrings`) and H4a (comment-census migration into
-`DECISIONS.md`) are running. Wave γ (TechDocs/mkdocs) is held until H2
-merges and re-checks this log's tail for a G6 conflict on
-`catalog-info.yaml`/`template.yaml` before touching either. This
-paragraph is added without altering anything below it — the G6 narrative
-that follows is that coordinating session's own and is left as-is.
+**Phase H (Documentation & DX hardening) complete** (`DECISIONS.md`
+`DEC-114` through `DEC-128`), run concurrently with G6 below — file
+ownership stayed partitioned throughout, confirmed no real conflict.
+Two coordinating sessions independently ran H1/H2/H3a at one point
+(`DEC-115`/`116`/`117` document which one's content actually landed);
+reconciled without redoing completed work. Summary of what shipped:
+`README.md` full rewrite, `docs/` reorganized into a Diátaxis hub (16 →
+20+ pages, 14 new per-directory `README.md`s), 13 Python modules gained
+docstrings, 37 code-comment findings migrated into `DECISIONS.md`
+(`DEC-040` reconstructed, `DEC-119` corrected a real misattributed
+incident), live TechDocs wired into RHDH and owner-verified in a real
+browser (`DEC-124`; one real bug — a `raw.githubusercontent.com`/
+`github.com` reader host-mismatch — caught only by that browser check,
+`DEC-122`, with a repo-wide sweep finding and pre-emptively fixing three
+more dormant instances), and every category-(b)/(c) comment across all
+7 census directories slimmed to a `DEC-NNN` pointer (`DEC-126`–`128`).
+`docs/code-comment-policy.md` documents the policy for future sessions.
+Full ledger: `DECISIONS.md` `DEC-114`–`DEC-128`. This paragraph is added
+without altering anything below it — the G6 narrative that follows is
+that coordinating session's own and is left as-is.
 
 **Phase F4–F5 complete** (`DECISIONS.md` `DEC-092`–`DEC-095`,
 amended by `DEC-097`;
