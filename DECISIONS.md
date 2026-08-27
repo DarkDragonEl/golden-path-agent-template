@@ -9487,3 +9487,31 @@ credential scripts genuinely are tracked.
 H4a complete) were already satisfied before this entry; this was
 cleanup the owner asked for as an explicit pre-task. H4b's actual
 comment-slimming work starts next.
+
+## DEC-126 — H4b: comment slimming landed for scripts/ and pipelines/
+(non-image directories)
+
+**Decision:** applied `docs/code-comment-policy.md`'s rule to every
+category-(b)/(c) comment in `scripts/` and `pipelines/` (20 files):
+category-(b) narrative slimmed to a ≤3-line current-fact + `DEC-NNN`
+pointer; category-(c) items (only `pipelines/pipeline-mcp.yaml:1-9` in
+this scope, per H4a's census) re-pointed at their real migrated home.
+Three pointers also corrected mid-pass to the number H4a's mapping table
+actually shows, not what the original comment cited:
+`pipelines/pipeline-mcp.yaml` → `DEC-099`, `pipelines/bootstrap/
+rbac.yaml`'s approval-namespace entry → `DEC-103`, `pipelines/tasks/
+operational-tests.yaml`'s two label-merge blocks → `DEC-101`. Category-
+(a) comments and already-minimal one-liners untouched.
+
+**Evidence:** every touched file structurally diffed via `PyYAML` (parse
+before/after, assert equality) rather than trusting the raw text diff —
+6 files had edits inside `script: |` blocks (opaque strings to a YAML
+parser), separately diffed those script bodies and confirmed every
+changed line is a `#` comment or blank. `bash -n` clean on both touched
+`.sh` files. `make test`: 253 passed, 1 skipped, unchanged from
+baseline.
+
+**Status:** Merged directly to `main` (`57118bf`) — neither directory is
+copied into any `Containerfile`, so this qualifies for `CLAUDE.md`'s
+docs/non-image-tooling exception, no PR needed. `reports/
+feature-h4b-scripts-pipelines-comments.md` has full per-file detail.
