@@ -125,10 +125,13 @@ infrastructure work begins, not after.
 | In-cluster Git hosting | `rhpds/gitea-operator` | `v2.3.2`, commit `77cdc2b884c160663f7ef0b9040c35898d3ebcce` | community (Red Hat Portfolio Marketing / rhpds org) | 2026-08-26 | https://github.com/rhpds/gitea-operator | OLM-deployable (`oc apply -k .../OLMDeploy`), CRD `pfe.rhpds.com/v1` kind `Gitea`, declarative admin/user provisioning, password via Secret. Stood up at G1, not this entry. |
 | Combined RHDH + GitOps + Pipelines bootstrap | `redhat-ai-dev/ai-rhdh-installer` Helm charts | Release `v0.11.0` (commit `cfcdfe96765a634d8f532b0125bd4fc6ccb0b7ca`) or HEAD `6dd5aed6dfba3799f839e8c7a90345e1e55463e6` (2026-05-29) | community | 2026-08-26 | https://github.com/redhat-ai-dev/ai-rhdh-installer | Enables RHDH's "AI Software Templates" capability. G1 decides release-tag vs. HEAD at execution time; this project's own Phase F4 already installed RHDH/GitOps/Pipelines individually (`DEC-092`-`DEC-094`) without this installer — G1 evaluates whether adopting it now is worth the churn on an already-working install. |
 
-## Phase G, Stage 3 — G6 Path A spike (Gitea Scaffolder dynamic plugin)
+## Phase G, Stage 3 — G6 Path A (Gitea Scaffolder dynamic plugin), landed
 
-Per `DECISIONS.md` `DEC-113`. Pins verified live before the plugin build,
-not after.
+Per `DECISIONS.md` `DEC-113`/`DEC-118`/`DEC-123`. Pins verified live
+before the plugin build, not after; re-confirmed live again (image still
+resolves, plugin still builds/loads, works against the real two-repo
+publish flow) when this was landed for real in `template.yaml` and the
+live `Backstage` CR — no longer a spike.
 
 | Component | Realization | Channel/Version | Support level | Verified date | Source URL | Notes |
 |---|---|---|---|---|---|---|

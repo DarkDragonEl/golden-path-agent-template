@@ -9294,3 +9294,106 @@ bugs; this one found a reader-selection bug the auth wall itself
 prevented any script from ever exercising. Handed back to the owner for
 the real browser re-check, which is the only reliable oracle here, not a
 gap in this session's own diligence.
+
+## DEC-123 — G6 Path A landed for real: DEC-118's spike wiring committed
+to Git, re-verified live end-to-end against the committed state; STOP 8
+(owner runs the real browser wizard) is restored to G6's design
+
+**Context**: `DEC-118` proved the Gitea Scaffolder dynamic plugin works
+end-to-end, but every change was a direct, uncommitted cluster edit that
+ArgoCD's `selfHeal` would eventually revert. This entry lands the same
+wiring for real, committed to Git, and re-verifies it against the
+committed state rather than trusting the spike's own live-patch proof.
+
+**What changed**: `deploy/kustomize/overlays/rhdh/dynamic-plugins-config.yaml`
+(new ConfigMap — takes over RHDH's full dynamic-plugin list, preserving
+the two existing Lightspeed entries unchanged per `DEC-092`'s own
+leave-it-inert stance, and adding the one new, live-verified
+`scaffolder-backend-module-gitea` plugin pinned by digest to this
+cluster's own internal registry); the `Backstage` CR's
+`dynamicPluginsConfigMapName` (previously unset) now points at it, plus
+a new `extraFiles` block mounting the internal registry's CA and a pull
+credential into the plugin-loading init container (a real gap found
+live: a `subPath` secret mount fails with "Not a directory" against a
+non-existent parent path and must be a whole-volume mount instead).
+`integrations.gitea` gains `username`/`password` fields in the committed
+`catalog-config` ConfigMap, substituted via Backstage's own `${VAR}`
+syntax from a new `golden-path-agent-rhdh-gitea-scaffolder-secret`
+(`platform/bootstrap/provision-identity-secrets.sh`) — never a literal
+value in Git, same pattern as the existing OIDC secret fields. The real
+`template.yaml` gains a `RepoUrlPicker`-driven `repoUrl` parameter
+(replacing the old, purely-informational `repoOwner`/`repoName` fields)
+and **two** `publish:gitea` steps, resolving the two-repo design question
+`DEC-118` left open: the GitOps repo (`deploy/`'s own subtree, published
+first) and the source+pipeline repo (`deploy/` removed via `fs:delete`
+before this second publish, so it isn't duplicated into both repos) —
+matching G6 Path B's own already-proven two-repo shape exactly, plus a
+`catalog:register` step wiring the result into the live catalog.
+
+**A second real bug, distinct from the spike's own findings, found and
+fixed during this landing**: `catalog:register`'s `catalogInfoPath` must
+not carry a leading slash against a bare Gitea `repoContentsUrl` (no file
+path, just `.../src/branch/main/`) — a leading slash drives
+`@backstage/integration`'s generic `defaultScmResolveUrl` helper into its
+`parseGitUrlSafe`-based branch, which mis-computes the repo root and
+drops the `main` branch segment entirely, producing a `400` on every
+registration attempt. Root-caused by reading the actual compiled source
+off the live pod (not guesswork), after first ruling out both Gitea
+itself and the `publish:gitea` step's own output value. Fix: drop the
+leading slash (`catalogInfoPath: catalog-info.yaml`).
+
+**Verified live, full loop, against the committed state — not the
+spike's own live-patched proof**: a real Scaffolder task completed all
+five steps against a throwaway Gitea-hosted copy of the template (worked
+around Backstage's own same-name entity-merging behavior, per `DEC-103`,
+by using a distinct throwaway name — the real `template.yaml`'s own
+production use is unaffected). Two real Gitea repos were created with
+the correct content split (source has no `deploy/`; the GitOps repo is
+exactly the former `deploy/` subtree) — verified via Gitea's contents
+API, not trusted from the task's own status. A real
+`component:default/g6-land-test-run3` catalog entity was registered with
+the correct source-location — verified via RHDH's own catalog API.
+
+**New infrastructure finding for the record**: this cluster's ArgoCD
+reasserts `selfHeal: true` on the `golden-path-agent-rhdh` Application
+on a roughly 1–3 minute cadence even when explicitly patched off,
+independent of the app-of-apps root's own pause state — the mechanism
+isn't fully isolated; worked around during testing via a live,
+non-GitOps catalog-location registration rather than fighting the
+ConfigMap directly. Flagged for whoever next needs a real testing window
+against a GitOps-managed RHDH resource — expect this reassertion, don't
+assume a one-time patch-and-pause holds.
+
+**Cleanup, confirmed complete**: all five throwaway Gitea repos deleted;
+all four dynamic (non-committed) catalog locations used for testing
+deleted, cascaded entity cleanup confirmed via `404`; `selfHeal` restored
+to `true` on both Applications; the live cluster confirmed reconciled
+back to the git-committed baseline, no test state left behind; all
+credential-bearing `/tmp` files and worktree scratch scripts removed.
+One residual, unrelated fact recorded for the record: the Gitea admin
+account's password was already broken (`401`) before this session
+touched it — reset with `--must-change-password=false`; there is no
+prior value to restore, and the live `golden-path-agent-gitea-admin-password`
+Secret is the source of truth going forward, not any previously-known
+value.
+
+**Verification**: `tools/verify_skeleton.py` clean on both templates;
+full suite 253 passed/1 skipped, matching baseline; `oc kustomize` on the
+full `rhdh` overlay renders cleanly with both this entry's changes and
+the concurrent Phase H3b (TechDocs) work coexisting correctly — confirmed
+by direct inspection of the rendered `Backstage` CR, not just the absence
+of merge-conflict markers, since both sessions touched
+`backstage.yaml`/`kustomization.yaml` (non-overlapping list entries;
+`kustomization.yaml`'s own resource-list conflict was the one hunk
+needing manual reconciliation, resolved by keeping both entries).
+
+**`PINS.md`'s Phase G/G6 section and RRT row 26 updated** to record this
+as landed, not just spiked; row 26 explicitly notes `SysR-P-F-01`(b)'s
+CLI path (`DEC-111`) remains normatively required in parallel, not
+superseded by this row's own now-proven status.
+
+**Status**: `STOP 8` (owner runs the real browser wizard) is restored to
+G6's design as originally envisioned — the CLI-first fallback (`DEC-110`/
+`DEC-111`/`DEC-112`) remains fully valid and necessary in parallel, per
+`SysR-P-F-01`'s own co-equal (a)/(b) requirement, not retired by this
+entry. G6's publish mechanism is now complete on both required paths.
