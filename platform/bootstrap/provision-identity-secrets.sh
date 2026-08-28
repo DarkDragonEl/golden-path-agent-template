@@ -286,16 +286,29 @@ echo "provisioned RHDH OIDC client secret in ${NS_RHDH}/golden-path-agent-rhdh-o
 NS_GITEA=golden-path-agent-gitea
 GITEA_SCAFFOLDER_USERNAME=$(oc get secret golden-path-agent-gitea-scaffolder-token -n "$NS_GITEA" -o jsonpath='{.data.username}' | base64 -d)
 GITEA_SCAFFOLDER_TOKEN=$(oc get secret golden-path-agent-gitea-scaffolder-token -n "$NS_GITEA" -o jsonpath='{.data.token}' | base64 -d)
+# GITEA_HOST (DEC-131): the Gitea Route's own live hostname, queried here
+# rather than hardcoded -- this cluster's apps domain is environment
+# config, not a committed value. Only one Route exists in this namespace
+# (the auto-created Gitea Route, DEC-100), so the first item is
+# unambiguous. Consumed the same way as the two credential fields above:
+# via Backstage's ${VAR} syntax in catalog-locations-config.yaml, never a
+# literal in that ConfigMap.
+GITEA_HOST=$(oc get route -n "$NS_GITEA" -o jsonpath='{.items[0].spec.host}')
+if [ -z "$GITEA_HOST" ]; then
+  echo "FAIL: no Route found in ${NS_GITEA} -- Gitea must be live before RHDH's catalog config can resolve GITEA_HOST" >&2
+  exit 1
+fi
 if oc get secret golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" >/dev/null 2>&1; then
   oc patch secret golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" --type merge \
-    -p "{\"data\":{\"GITEA_SCAFFOLDER_USERNAME\":\"$(printf '%s' "$GITEA_SCAFFOLDER_USERNAME" | base64 -w0)\",\"GITEA_SCAFFOLDER_TOKEN\":\"$(printf '%s' "$GITEA_SCAFFOLDER_TOKEN" | base64 -w0)\"}}" >/dev/null
+    -p "{\"data\":{\"GITEA_SCAFFOLDER_USERNAME\":\"$(printf '%s' "$GITEA_SCAFFOLDER_USERNAME" | base64 -w0)\",\"GITEA_SCAFFOLDER_TOKEN\":\"$(printf '%s' "$GITEA_SCAFFOLDER_TOKEN" | base64 -w0)\",\"GITEA_HOST\":\"$(printf '%s' "$GITEA_HOST" | base64 -w0)\"}}" >/dev/null
 else
   oc create secret generic golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" \
     --from-literal=GITEA_SCAFFOLDER_USERNAME="$GITEA_SCAFFOLDER_USERNAME" \
-    --from-literal=GITEA_SCAFFOLDER_TOKEN="$GITEA_SCAFFOLDER_TOKEN" >/dev/null
+    --from-literal=GITEA_SCAFFOLDER_TOKEN="$GITEA_SCAFFOLDER_TOKEN" \
+    --from-literal=GITEA_HOST="$GITEA_HOST" >/dev/null
 fi
-unset GITEA_SCAFFOLDER_USERNAME GITEA_SCAFFOLDER_TOKEN
-echo "provisioned RHDH's copy of the Gitea scaffolder credential in ${NS_RHDH}/golden-path-agent-rhdh-gitea-scaffolder-secret"
+unset GITEA_SCAFFOLDER_USERNAME GITEA_SCAFFOLDER_TOKEN GITEA_HOST
+echo "provisioned RHDH's copy of the Gitea scaffolder credential + live GITEA_HOST in ${NS_RHDH}/golden-path-agent-rhdh-gitea-scaffolder-secret"
 
 # Phase G, Stage 3 (G6 Path A landing). RHDH's plugin-loading init
 # container needs its own registry pull credential (a real gap found live
