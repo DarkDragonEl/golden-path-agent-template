@@ -4,15 +4,15 @@ from mcp_server.client import call_tool
 
 
 def tool_invoke_node(state):
-    """No hardcoded tool selection here (Phase B3 retired it) -- decide_node
+    """No hardcoded tool selection here -- decide_node
     is solely responsible for deciding what state["selected_tool"] is, for
     both live mode (the model's real tool_calls) and fake/offline mode (a
-    reproduction of the pre-B3 legacy dispatch, kept only so
+    reproduction of the legacy dispatch, kept only so
     eval/cases/EXAMPLE-*.yaml's frozen fixtures keep passing). This node's
     job is purely execution-timing: read-classified now, write-classified
     drafted only.
 
-    Precondition (DEC-013 candidate: decide-then-retrieve reordering):
+    Precondition (decide-then-retrieve reordering):
     state["selected_tool"] is never None here -- the graph's
     decide_after_decide router sends that case to retrieve/generate
     instead. The "plain answer" branch this node used to own now belongs
@@ -54,8 +54,8 @@ def tool_invoke_node(state):
         }
 
     # Write-classified (SRS-AGT-F-04, SRS-MIT-SEC-01): draft only, then
-    # submit a proposal to the standalone approval service (Phase D,
-    # DECISIONS.md DEC-008/DEC-049). This node never invokes a
+    # submit a proposal to the standalone approval service. This node
+    # never invokes a
     # write-classified tool -- human_approval_node is the sole invoker,
     # and only once agent/approval_client.py::resolve_and_resume's IF-05
     # query reports `approved`, executing exactly the arguments THAT
@@ -72,12 +72,12 @@ def tool_invoke_node(state):
     drafted_action = {"tool_name": tool_name, "arguments": arguments}
 
     # evidence_refs: SRS-APR-IF-01 defines this as retrieval citations
-    # and/or tool-call record IDs from the initiating run. DEC-013's
+    # and/or tool-call record IDs from the initiating run. The
     # decide-then-retrieve reordering means retrieve_node is never
     # reached on a tool-selected turn (state["retrieved_docs"] is always
     # empty here, by this graph's own topology) -- so retrieval citations
     # can never populate this list for a write-classified proposal today.
-    # An empty list is a legitimate value at the schema layer (DEC-046),
+    # An empty list is a legitimate value at the schema layer,
     # not a bug; a richer evidence trail (e.g. citing an earlier
     # itsm_search_records call's own record IDs) is real, deferred scope,
     # not built here.

@@ -1,7 +1,7 @@
 """Category-aware graph driving for eval/cases/domain/*.yaml.
 
-Distinct from eval/executor.py (EXAMPLE-*.yaml harness-mechanics only,
-DEC-005). Domain cases don't declare a `mode` field (eval/schema.json)
+Distinct from eval/executor.py (EXAMPLE-*.yaml harness-mechanics only).
+Domain cases don't declare a `mode` field (eval/schema.json)
 -- AGENT_MODEL_MODE is an environment-level setting, not per-case. Most
 categories only produce meaningful (non-vacuous) results in live mode,
 since FakeModelClient has no real reasoning/tool-selection/citation
@@ -40,7 +40,7 @@ class DomainExecutionTrace:
 def _initial_state(session_id: str, case) -> dict:
     return {
         "session_id": session_id,
-        "request_id": f"{session_id}-req",  # Phase D/DEC-049: agent/api.py's own equivalent is a
+        "request_id": f"{session_id}-req",  # agent/api.py's own equivalent is a
         # fresh uuid per API call; a case-derived value is fine here since one case makes one call.
         "user_id": "eval-harness",
         "input_query": case.input["query"],
@@ -55,14 +55,13 @@ def _initial_state(session_id: str, case) -> dict:
 
 @contextlib.contextmanager
 def _apply_fault(fault: str | None, fault_params: dict | None):
-    """operational category fault injection. Phase G, Stage 2
-    (DEC-098/DEC-099/DEC-104/DEC-105): store/model-client faults are
+    """operational category fault injection: store/model-client faults are
     applied by temporarily patching the eval-only fixture's bound
     methods (mock_itsm_fixture.py) -- restored automatically on exit.
     This never touches the real Tools Template's own server/store at
     all (the Agent Template cannot even import that package); the real
     server's own _simulate_error hook and its refusal to expose it as a
-    tool parameter are unrelated to this and unchanged (DEC-105)."""
+    tool parameter are unrelated to this and unchanged."""
     fault_params = fault_params or {}
 
     if fault in ("tool_timeout", "tool_error"):
@@ -115,8 +114,8 @@ def execute_domain_case(case) -> DomainExecutionTrace:
     # the primary check, not the agent's self-report) need a before-
     # snapshot. Queried directly against the store, not via REST -- same
     # underlying state, without build_app()'s once-per-process session-
-    # manager constraint (found in Phase B1) complicating a harness that
-    # runs many cases in one process.
+    # manager constraint complicating a harness that runs many cases in
+    # one process.
     trace.request_ids_before = {
         r["record_id"] for r in itsm_fixture.list_records(record_type="request")
     }
@@ -126,20 +125,19 @@ def execute_domain_case(case) -> DomainExecutionTrace:
     injection_source = case.input.get("injection_source")
     injection_payload = case.input.get("injection_payload")
 
-    # Phase D/DEC-049: tool_invoke_node's write branch now submits a real
-    # proposal to the standalone approval service over HTTP -- domain
-    # eval runs must never depend on one being reachable (this is what
-    # makes eval-gate-offline/eval-gate-live able to run without standing
-    # up approval_service, exactly as before this graduation). Always
-    # active for every case, not fault-conditional like _apply_fault
-    # above, since any write-classified case needs it, not just specific
-    # fault scenarios.
-    # Phase G, Stage 2 (DEC-098/DEC-099/DEC-105): the split Agent Template
-    # never bundles mcp_server/server.py, so the real call_tool's own
-    # "mock" in-process branch (`from . import server`) would ImportError
-    # -- every domain eval run patches both call sites to this eval-only
-    # stub instead, for the same reason submit_proposal/get_proposal are
-    # already patched to a fake below (no live services in this harness).
+    # tool_invoke_node's write branch submits a real proposal to the
+    # standalone approval service over HTTP -- domain eval runs must never
+    # depend on one being reachable (this is what makes
+    # eval-gate-offline/eval-gate-live able to run without standing up
+    # approval_service). Always active for every case, not
+    # fault-conditional like _apply_fault above, since any write-classified
+    # case needs it, not just specific fault scenarios.
+    # The split Agent Template never bundles mcp_server/server.py, so the
+    # real call_tool's own "mock" in-process branch (`from . import
+    # server`) would ImportError -- every domain eval run patches both call
+    # sites to this eval-only stub instead, for the same reason
+    # submit_proposal/get_proposal are already patched to a fake below (no
+    # live services in this harness).
     fake_approval = FakeApprovalService()
     with patch("agent.approval_client.submit_proposal", side_effect=fake_approval.submit_proposal), patch(
         "agent.approval_client.get_proposal", side_effect=fake_approval.get_proposal
@@ -189,7 +187,7 @@ def execute_domain_case(case) -> DomainExecutionTrace:
         if case.category == "unauthorized_write":
             scenario = case.input.get("approval_scenario")
             if scenario in ("rejected", "expired") and state.get("pending_approval"):
-                # Phase D/DEC-049: the real resume path is
+                # The real resume path is
                 # agent/approval_client.py::resolve_and_resume -- it
                 # queries the (patched, fake) approval service's own
                 # terminal-state and only then touches the graph, exactly

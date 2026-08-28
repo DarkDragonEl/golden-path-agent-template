@@ -1,7 +1,7 @@
 # Tool-name classification taxonomy, loaded by agent/config.py and
-# consumed by agent/policy.py::classify_action() (Phase B2 — replaces the
-# arguments.get("write") flag this file's earlier placeholder text
-# described). See srs/SRS-AGT.md's SRS-AGT-SEC-03 for the fail-closed
+# consumed by agent/policy.py::classify_action() -- replaces the
+# arguments.get("write") flag approach used earlier. See srs/SRS-AGT.md's
+# SRS-AGT-SEC-03 for the fail-closed
 # rationale behind default_classification.
 rules:
   - tool_name: itsm_search_records
@@ -10,16 +10,16 @@ rules:
     classification: write
   - tool_name: placeholder_lookup
     classification: read  # eval/cases/EXAMPLE-001.yaml harness fixture, not
-    # domain content (see eval/README.md, DECISIONS.md DEC-005) — explicit
+    # domain content (see eval/README.md) — explicit
     # here so SEC-03's fail-closed default doesn't route its read call to
-    # approval. Unconditional now — Phase C retired the legacy write:true
+    # approval. Unconditional now — the legacy write:true
     # argument carve-out that used to override this entry for EXAMPLE-002
-    # (DECISIONS.md DEC-023); that fixture calls placeholder_write_action
+    # was retired; that fixture calls placeholder_write_action
     # instead, below.
   - tool_name: placeholder_write_action
     classification: write  # eval/cases/EXAMPLE-002.yaml's write-classified
     # fixture, migrated off placeholder_lookup's retired write:true
-    # argument flag onto this dedicated tool name (DEC-023) — write is
+    # argument flag onto this dedicated tool name — write is
     # signaled by which tool is called, never by an argument, same as
     # every real domain tool.
 

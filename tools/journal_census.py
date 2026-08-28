@@ -96,6 +96,11 @@ ALLOWLIST_PATHS: dict[tuple[str, str], str] = {
         "in this code, not build-session narrative about how this repo "
         "itself was developed. -- I3, 2026-08-28."
     ),
+    ("skeleton/eval/reporter.py", "WORKTREE"): (
+        "Same git-worktree-state meaning as the main-tree eval/reporter.py "
+        "entry above -- this file is its skeleton counterpart. -- I4, "
+        "2026-08-28."
+    ),
 }
 
 # (path prefix, pattern name) -> dated reason.

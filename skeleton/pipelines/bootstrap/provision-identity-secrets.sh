@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Phase D, D2 (DECISIONS.md DEC-059). Scripted, committed, idempotent
-# secret-provisioning mechanism -- the owner's own explicit directive:
-# "scripted provisioning, committed mechanism, never-committed values."
+# Scripted, committed, idempotent secret-provisioning mechanism:
+# scripted provisioning, committed mechanism, never-committed values.
 #
 # WHAT THIS SIMULATES, STATED FOR THE WALKTHROUGH: in a real enterprise
 # deployment, an ESO (external-secrets.io)/Vault integration -- already
@@ -18,8 +17,8 @@
 # IDEMPOTENT BY DESIGN, NOT BY DETECTION: every run regenerates fresh
 # values for everything it manages -- there is no "only if missing"
 # branch. This makes "rotate an existing environment" and "provision a
-# fresh one" the exact same code path (what Phase E's showcase-cluster
-# replay will run) rather than two behaviors to keep in sync by hand.
+# fresh one" the exact same code path, rather than two behaviors to
+# keep in sync by hand.
 #
 # VALUES NEVER IN GIT, MECHANISM ALWAYS IN GIT: every secret value below
 # is generated or fetched at runtime, inside this script or inside a
@@ -30,18 +29,16 @@
 #
 # WHY `oc exec` FOR THE KEYCLOAK ADMIN-API CALLS: this script runs on an
 # operator's own machine, outside the cluster network -- it cannot reach
-# Keycloak's internal Service DNS directly, and (DEC-057) there is no
-# working external Ingress route yet ("no external HTTP routing this
-# milestone," same accepted limitation as every other Ingress in this
-# project). Reuses this session's own already-established, already-
-# proven pattern (DECISIONS.md DEC-034/DEC-052): `oc exec -i <pod> --
-# python3 -`, targeting the Postgres pod already guaranteed to exist in
-# ${{ values.name }}-keycloak by the entry gate (DEC-057) -- no new pod
-# spun up, no dependency on the agent already being deployed.
+# Keycloak's internal Service DNS directly, and there is no working
+# external Ingress route (same limitation as every other Ingress in
+# this project). Uses `oc exec -i <pod> -- python3 -`, targeting the
+# Postgres pod already guaranteed to exist in
+# ${{ values.name }}-keycloak -- no new pod spun up, no dependency on
+# the agent already being deployed.
 #
 # Requires: oc (logged in, correct cluster context), python3 available
 # locally is NOT required -- only inside the exec'd pod, which already
-# has it (confirmed DEC-057).
+# has it.
 set -euo pipefail
 
 NS_KEYCLOAK=${{ values.name }}-keycloak
@@ -60,8 +57,7 @@ ADMIN_PASS=$(oc get secret ${{ values.name }}-keycloak-admin -n "$NS_KEYCLOAK" -
 # mechanism specifically because this ONE call works identically whether
 # the client was created two seconds ago or two months ago: one code
 # path for both a fresh environment and rotation, not two mechanisms to
-# keep in sync (DECISIONS.md DEC-058's own header comment records the
-# same reasoning).
+# keep in sync.
 read -r APPROVAL_SECRET MCP_SECRET <<EOF
 $(oc exec -i -n "$NS_KEYCLOAK" "$PG_POD" -- python3 - "$ADMIN_USER" "$ADMIN_PASS" "$REALM" <<'PYEOF'
 import json, sys, urllib.request, urllib.parse
@@ -105,7 +101,7 @@ EOF
 
 # --- Step 2: write the two client secrets into every consuming namespace --
 # ${{ values.name }}-secrets already exists in each of these namespaces
-# (docs/phase-c-runbook.md Sec.2, Phase C) with MODEL_API_KEY/MCP_AUTH_TOKEN
+# (docs/phase-c-runbook.md Sec.2) with MODEL_API_KEY/MCP_AUTH_TOKEN
 # keys -- `oc patch --type merge` on .data only touches the keys listed
 # below, leaving those alone. If the Secret does not exist yet in a given
 # namespace (a genuinely fresh environment, this bootstrap step run before

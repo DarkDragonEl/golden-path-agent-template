@@ -12,43 +12,41 @@ data:
   MODEL_FALLBACK_API_BASE_URL: "http://localhost:11434/v1"
   MODEL_FALLBACK_NAME: "placeholder-fallback-model"
   AGENT_MODEL_MODE: "live"
-  MCP_TOOL_ENDPOINT: "${{ values.mcpEndpoint }}" # Phase G, DEC-098/DEC-099:
-  # no longer a same-project Service-DNS derivation -- mcp is now an
-  # independent Tools Template instance, wherever mcpEndpoint (a required
-  # scaffold parameter) points. This image's own MCP_MODE is fixed to
-  # "live" at build time (Containerfile ENV) -- there is no in-process
-  # fallback to mock, since server.py isn't bundled here at all.
-  APPROVAL_SERVICE_ENDPOINT: "${{ values.approvalServiceEndpoint }}" # Phase G,
-  # DEC-098/DEC-099: no longer a same-project Service-DNS derivation --
-  # the approval service is now a shared Platform Foundation singleton
-  # (DEC-098's own architecture decision), consumed via config only, per
+  MCP_TOOL_ENDPOINT: "${{ values.mcpEndpoint }}" # not a same-project
+  # Service-DNS derivation -- mcp is an independent Tools Template
+  # instance, wherever mcpEndpoint (a required scaffold parameter)
+  # points. This image's own MCP_MODE is fixed to "live" at build time
+  # (Containerfile ENV) -- there is no in-process fallback to mock,
+  # since server.py isn't bundled here at all.
+  APPROVAL_SERVICE_ENDPOINT: "${{ values.approvalServiceEndpoint }}" # not a
+  # same-project Service-DNS derivation -- the approval service is a
+  # shared Platform Foundation singleton, consumed via config only, per
   # the amended SysR-P-F-01. approvalServiceEndpoint is a required
   # scaffold parameter, not derivable from this project's own name.
-  AGENT_OIDC_MODE: "none" # Phase D2/DEC-062: none | oidc, mirrors AUTH_MODE's
-  # own convention -- explicit here even though agent/config.py's own
+  AGENT_OIDC_MODE: "none" # none | oidc, mirrors AUTH_MODE's own
+  # convention -- explicit here even though agent/config.py's own
   # default is already "none", matching how MCP_MODE/AUTH_MODE(approval)
   # are already declared explicitly rather than left implicit.
-  OIDC_ISSUER_URL: "${{ values.oidcIssuerUrl }}" # Phase G, DEC-098/DEC-099:
-  # no longer a same-project realm derivation -- identity is now a shared
-  # Platform Foundation realm (one realm for every scaffolded project,
-  # DEC-098's own architecture), whose URL genuinely cannot be derived
-  # from this project's own name. oidcIssuerUrl is a scaffold-time
-  # parameter (defaulting to a placeholder needing operator input) until
-  # G5's catalog model gives this a real, discoverable source.
-  APPROVAL_OIDC_CLIENT_ID: "${{ values.name }}-approval-workload" # DEC-062: not
+  OIDC_ISSUER_URL: "${{ values.oidcIssuerUrl }}" # not a same-project realm
+  # derivation -- identity is a shared Platform Foundation realm (one
+  # realm for every scaffolded project), whose URL genuinely cannot be
+  # derived from this project's own name. oidcIssuerUrl is a
+  # scaffold-time parameter (defaulting to a placeholder needing
+  # operator input) until a real, discoverable source is catalogued.
+  APPROVAL_OIDC_CLIENT_ID: "${{ values.name }}-approval-workload" # not
   # secret, identical everywhere -- the realm's own client id.
-  MCP_OIDC_CLIENT_ID: "${{ values.name }}-mcp-workload" # DEC-062: same reasoning.
-  APPROVAL_OIDC_CLIENT_SECRET: "not-needed" # DEC-062: safe placeholder, mirrors
+  MCP_OIDC_CLIENT_ID: "${{ values.name }}-mcp-workload" # same reasoning.
+  APPROVAL_OIDC_CLIENT_SECRET: "not-needed" # safe placeholder, mirrors
   # MODEL_API_KEY's own "not-needed" convention -- demo-prod's real value
   # comes from ${{ values.name }}-secrets instead (KNOWN_SECRET_SHADOWED),
-  # provisioned by pipelines/bootstrap/provision-identity-secrets.sh
-  # (DEC-059), never committed here.
-  MCP_AUTH_TOKEN: "not-needed" # DEC-062: same mechanism/reasoning as
+  # provisioned by pipelines/bootstrap/provision-identity-secrets.sh,
+  # never committed here.
+  MCP_AUTH_TOKEN: "not-needed" # same mechanism/reasoning as
   # APPROVAL_OIDC_CLIENT_SECRET above -- this key already carried this
-  # exact placeholder value in the manually-provisioned Secret since
-  # Phase C (docs/phase-c-runbook.md); now also declared here so the
-  # config-contract completeness check (DEC-044) sees it everywhere,
-  # Secret-shadowed in demo-prod the identical way MODEL_FALLBACK_* is.
+  # exact placeholder value in the manually-provisioned Secret; now also
+  # declared here so the config-contract completeness check sees it
+  # everywhere, Secret-shadowed in demo-prod the identical way
+  # MODEL_FALLBACK_* is.
   POLICY_BUNDLE_REF: "policy/baseline_policy.yaml"
   DATA_SOURCE_BINDING: "none"
   MODEL_TEMPERATURE: "0"

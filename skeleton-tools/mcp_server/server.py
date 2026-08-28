@@ -5,8 +5,8 @@ named `mcp` at the repo root would shadow the installed `mcp` SDK package
 (the `from mcp.server.fastmcp import FastMCP` import below would resolve to
 itself instead of the real library). Keep this name.
 
-REST/MCP coexistence: confirmed via a minimal probe (Phase B kickoff, Task
-1 prerequisite) that the pinned `mcp` SDK (1.x) supports mounting
+REST/MCP coexistence: confirmed via a minimal probe that the pinned `mcp`
+SDK (1.x) supports mounting
 `FastMCP.streamable_http_app()` as an ASGI sub-app under a parent FastAPI
 app on one port, provided the parent's lifespan explicitly enters the
 sub-app's own lifespan context (its session manager otherwise never
@@ -20,8 +20,8 @@ ITSM tools below — it is still load-bearing for
 `eval/cases/EXAMPLE-001.yaml` (the harness-mechanics smoke fixture,
 explicitly never treated as domain content per SRS-EVH-F-03) and for
 `agent/nodes/tool_invoke.py`'s current hardcoded tool call. Retiring it
-from the agent's active path is Phase B2 work (the write-gating
-restructure), not this one.
+from the agent's active path is future write-gating-restructure work,
+not this one.
 """
 
 import os
@@ -55,7 +55,7 @@ def placeholder_lookup(query: str, write: bool = False) -> dict:
     Interface (PlaceholderLookupInput/Output) is stable; do not change
     lightly. Superseded, for the ITSM domain, by itsm_search_records /
     itsm_create_request below — kept only for eval/cases/EXAMPLE-001.yaml
-    and the agent's not-yet-updated tool_invoke node (Phase B2).
+    and the agent's not-yet-updated tool_invoke node.
     """
     validated = PlaceholderLookupInput(query=query, write=write)
     mcp_mode = os.environ.get("MCP_MODE", "mock")
@@ -69,7 +69,7 @@ def placeholder_lookup(query: str, write: bool = False) -> dict:
 
 @mcp.tool()
 def placeholder_write_action(query: str) -> dict:
-    """Phase C: eval/cases/EXAMPLE-002.yaml's dedicated write-classified
+    """eval/cases/EXAMPLE-002.yaml's dedicated write-classified
     fixture tool -- placeholder_lookup's legacy write:true argument-flag
     carve-out (agent/policy.py) is retired; this tool's own name is now
     what signals write, per policy/approval_rules.yaml, matching how every
@@ -119,13 +119,11 @@ def itsm_create_request(
 ) -> dict:
     """Draft a new ITSM service request. Write (SRS-MIT-IF-03).
 
-    Interim Phase B1 state, deliberately not yet gated here: this tool is
-    reachable and directly callable with no approval check in front of it.
-    That is expected and correct for B1 — SRS-MIT-SEC-01's no-bypass
-    guarantee is enforced by the agent's policy layer plus the approval
-    flow (Phase B2's write-gating restructure), never by this MCP tool
-    interface itself. Do not read this ungated window as the intended end
-    state; it closes in B2.
+    Deliberately not gated here: this tool is reachable and directly
+    callable with no approval check in front of it. SRS-MIT-SEC-01's
+    no-bypass guarantee is enforced by the agent's policy layer plus the
+    approval flow, never by this MCP tool interface itself -- gating
+    belongs at the agent layer, by design, not here.
     """
     validated = ItsmCreateRequestInput(
         short_description=short_description,

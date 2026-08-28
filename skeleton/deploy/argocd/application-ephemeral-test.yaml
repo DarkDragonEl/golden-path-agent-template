@@ -1,6 +1,4 @@
-# Phase C, Step C4 (DECISIONS.md DEC-021/DEC-040). DELIBERATELY NOT part
-# of deploy/argocd/apps/ -- the owner's own resolution of the open
-# question DEC-039/the C3/C4 STOP flagged. ${{ values.name }}-ephemeral-test
+# DELIBERATELY NOT part of deploy/argocd/apps/. ${{ values.name }}-ephemeral-test
 # is pipeline-managed, not GitOps-managed: deploy-ephemeral's whole
 # purpose is applying a specific *unpromoted* digest for the duration of
 # one PipelineRun's own gate stages. If this Application ever synced --

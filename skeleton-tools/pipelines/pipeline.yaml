@@ -1,10 +1,10 @@
-# Phase G, Stage 2 (DEC-098/DEC-099). This template's own independent
-# build/test/promote pipeline -- the Tools Template is a standalone
-# artifact from the start, not carved out of a combined repo after the
-# fact. Gate set: unit tests plus mcp-operational-test.yaml's two checks
-# against the freshly-deployed pod. No eval-gate/policy-validate/
-# security-tests -- those are agent-reasoning-specific and belong to the
-# Agent Template's own pipeline, not this one.
+# This template's own independent build/test/promote pipeline -- the
+# Tools Template is a standalone artifact, separate from the Agent
+# Template's own repo. Gate set: unit tests plus
+# mcp-operational-test.yaml's two checks against the freshly-deployed
+# pod. No eval-gate/policy-validate/security-tests -- those are
+# agent-reasoning-specific and belong to the Agent Template's own
+# pipeline, not this one.
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:

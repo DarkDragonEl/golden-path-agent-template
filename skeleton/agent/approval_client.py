@@ -1,5 +1,5 @@
 """Thin client the agent's tool_invoke/human_approval path uses to reach
-the standalone approval service (Phase D, DECISIONS.md DEC-008/DEC-045).
+the standalone approval service.
 Mirrors mcp_server/client.py's own shape -- the contract
 (approval_service/schemas.py) is what's frozen, not this client.
 
@@ -67,10 +67,26 @@ def submit_proposal(
 def get_proposal(proposal_id: str, timeout: float = 10.0) -> dict:
     """SRS-APR-IF-05. Terminal-state query -- the ONLY source of truth
     for a decided proposal's outcome and, for `approved`, its unmodified
-    `action_arguments`. DECISIONS.md DEC-008: the caller must execute
+    `action_arguments`. The caller must execute
     exactly what this returns, never a locally cached copy."""
     response = httpx.get(
         f"{config.APPROVAL_SERVICE_ENDPOINT}/proposals/{proposal_id}", headers=_auth_headers(), timeout=timeout
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def decide_proposal(proposal_id: str, decision: str, timeout: float = 10.0) -> dict:
+    """SRS-APR-IF-02. Records a human decision on the standalone approval
+    service. Only agent/cli.py's own --decision convenience path calls
+    this directly, standing in for a real approver hitting the approval
+    service's own API/UI -- resolve_and_resume remains the only path that
+    turns a decision into graph/tool-execution state."""
+    response = httpx.post(
+        f"{config.APPROVAL_SERVICE_ENDPOINT}/proposals/{proposal_id}/decision",
+        json={"decision": decision},
+        headers=_auth_headers(),
+        timeout=timeout,
     )
     response.raise_for_status()
     return response.json()
@@ -80,7 +96,7 @@ def resolve_and_resume(graph, thread_config: dict):
     """Query this session's pending proposal (SRS-APR-IF-05); if still
     `pending`, return the graph's current state unchanged -- the graph is
     NOT touched. If terminal, inject the outcome into graph state, using
-    ONLY the values this query just returned (DECISIONS.md DEC-008: never
+    ONLY the values this query just returned (never
     a locally cached copy of the drafted arguments), then resume.
 
     `graph.get_state(thread_config).values["proposal_id"]` is the

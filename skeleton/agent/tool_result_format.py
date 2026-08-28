@@ -4,15 +4,14 @@ Not a model call: a tool-call branch (the one this module formats for)
 never needs a second call to produce its final_output -- the deterministic
 mapping here is sufficient, and the domain eval cases (result_contains-
 style assertions) only need the relevant fact substrings present, not
-fluent prose. (The DEC-013 candidate's `generate` node does make a genuine
+fluent prose. (The `generate` node does make a genuine
 second model call, but only on the separate no-tool/knowledge-answer
 branch this module is never reached from -- SRS-AGT-F-03 constrains
-output-type cardinality per turn, not model-call cardinality; see
-DECISIONS.md DEC-012/DEC-013.) This is the fix for the gap flagged in the
-Phase B2 report ("human_approval_node's
-final_output formatting doesn't know itsm_create_request's output shape")
+output-type cardinality per turn, not model-call cardinality.) This fixes
+a gap where human_approval_node's
+final_output formatting didn't know itsm_create_request's output shape
 — it turns out the same gap also affects tool_invoke_node's own read
-path for itsm_search_records, found while live-smoke-testing Phase B3.
+path for itsm_search_records.
 """
 
 

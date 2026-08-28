@@ -25,7 +25,7 @@ IMAGE=${{ values.name }}:dev
 AGENT_NAME=${{ values.name }}-dev
 MCP_NAME=${{ values.name }}-mcp-dev
 OTEL_NAME=golden-path-otel-collector-dev
-# Pinned per PINS.md -- R4/DEC-020, plan-B6 closure. Core distribution
+# Pinned per PINS.md. Core distribution
 # (not -contrib): only the OTLP receiver + debug exporter are needed here.
 OTEL_COLLECTOR_IMAGE=otel/opentelemetry-collector:0.159.0
 
@@ -70,7 +70,7 @@ up() {
     -e MCP_MODE="${MCP_MODE:-mock}" -e MCP_HOST=0.0.0.0 -e MCP_PORT=8081 \
     "$IMAGE" mcp >/dev/null
 
-  # R4/DEC-020 (plan-B6 closure): a real local OTel Collector so telemetry
+  # A real local OTel Collector so telemetry
   # actually fires on every run instead of silently no-op'ing -- started
   # before the agent so OTEL_EXPORTER_OTLP_ENDPOINT below can point at it
   # by container name on the shared network. Spans land in this

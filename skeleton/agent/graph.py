@@ -15,12 +15,12 @@ def build_graph():
     """decide -> (tool_invoke -> (human_approval -> respond|fallback) | respond) |
                   (retrieve -> generate -> respond|fallback) | fallback
 
-    DEC-013 candidate (decide-then-retrieve reordering): `decide` sees only
+    decide-then-retrieve reordering: `decide` sees only
     the user query + both tool schemas + tool-selection/refusal/injection
     instructions -- no corpus context, no citation instructions -- so
     citation guidance can no longer compete with and beat tool-calling
-    instructions for the model's attention (DEC-012's diagnosed root
-    cause). Only the "no tool needed" branch retrieves; the retrieved
+    instructions for the model's attention. Only the "no tool needed"
+    branch retrieves; the retrieved
     context and citation instructions are `generate`'s job alone, in a
     second, separate model call made with no tool schemas at all.
 

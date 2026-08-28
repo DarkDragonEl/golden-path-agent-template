@@ -1,23 +1,22 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# DECISIONS.md DEC-031: externalsecret.yaml (an ExternalSecret stub) is no
-# longer a managed resource here -- the Phase C plan's secret-handling
-# decision (DEC-024) uses a plain Secret, manually provisioned out-of-band
-# (docs/phase-c-runbook.md §2), never applied by Kustomize/the pipeline.
-# A stub Secret object here (unlike the old ExternalSecret, which only
-# ever *referenced* material, never contained it) would risk `oc apply`
+# externalsecret.yaml (an ExternalSecret stub) is not a managed resource
+# here -- a plain Secret is used instead, manually provisioned
+# out-of-band, never applied by Kustomize/the pipeline. A stub Secret
+# object here (unlike the old ExternalSecret, which only ever
+# *referenced* material, never contained it) would risk `oc apply`
 # overwriting the real, manually-created secret's data with placeholder
 # content -- the safe fix is not declaring it as a managed resource at
 # all. deployment-agent.yaml's envFrom.secretRef still references
 # ${{ values.name }}-secrets by name; nothing here needs to create it.
 #
-# Phase G, Stage 2 (DEC-098/DEC-099): mcp and approval resources are gone
-# from this list entirely -- the amended SysR-P-F-01 forbids this
-# template from bundling either. mcp is now an independent Tools
-# Template instance (mcpEndpoint, configmap.yaml); approval is a shared
-# Platform Foundation singleton (approvalServiceEndpoint, configmap.yaml).
-# This repo renders exactly one Deployment.
+# mcp and approval resources are gone from this list entirely -- the
+# amended SysR-P-F-01 forbids this template from bundling either. mcp is
+# now an independent Tools Template instance (mcpEndpoint, configmap.yaml);
+# approval is a shared Platform Foundation singleton
+# (approvalServiceEndpoint, configmap.yaml). This repo renders exactly
+# one Deployment.
 resources:
   - deployment-agent.yaml
   - service-agent.yaml
@@ -32,16 +31,16 @@ commonLabels:
 
 # CI/CD promotion updates only this digest field — the identical image is
 # promoted unmodified across ephemeral-test -> demo-prod (see
-# docs/environments.md). `newName` resolved to the real value at Step C4
-# (DECISIONS.md DEC-042) -- not a placeholder needing anonymization: this
-# is OpenShift's own standard, predictable internal registry service DNS
-# name (present on every OpenShift cluster) plus this project's own
-# namespace, already public throughout this repo's committed RBAC/pipeline
-# manifests. Unlike the model endpoint (a real external hostname, never
-# committed), this value discloses nothing beyond what's already committed
-# elsewhere. `ephemeral-test`'s own pipeline-injected digest overrides this
-# `newName` too via `kustomize edit set image` (DEC-031) -- unaffected by
-# this change, since it always fully replaces both fields at apply-time.
+# docs/environments.md). `newName` is not a placeholder needing
+# anonymization: this is OpenShift's own standard, predictable internal
+# registry service DNS name (present on every OpenShift cluster) plus
+# this project's own namespace, already public throughout this repo's
+# committed RBAC/pipeline manifests. Unlike the model endpoint (a real
+# external hostname, never committed), this value discloses nothing
+# beyond what's already committed elsewhere. `ephemeral-test`'s own
+# pipeline-injected digest overrides this `newName` too via `kustomize
+# edit set image` -- unaffected by this change, since it always fully
+# replaces both fields at apply-time.
 images:
   - name: ${{ values.name }}
     newName: image-registry.openshift-image-registry.svc:5000/${{ values.name }}-ci/${{ values.name }}

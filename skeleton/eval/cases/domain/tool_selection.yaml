@@ -1,6 +1,5 @@
-# Checkpoint 1 exemplars (3 of ~8 target). Deliberately one exemplar per
-# possible correct_tool value (search / create / none) for maximum coverage
-# from the smallest possible set.
+# Deliberately one exemplar per possible correct_tool value (search /
+# create / none) for maximum coverage from the smallest possible set.
 
 - id: TSEL-001
   category: tool_selection
@@ -38,21 +37,20 @@
   tags: ["tool_selection", "read-only"]
   version: "0.1.0"
 
-# R2 remedy (DEC-018, TSEL-004 redesign): the original query ("has this
-# ingress certificate issue come up before") named a topic (KI-003,
-# "Ingress Certificate Renewal Race Condition") that the synthetic corpus
-# also happens to document -- decide could (and, per DEC-017's final
-# triage, reliably did) answer directly from grounded knowledge instead of
-# exercising the tool-selection decision this case exists to isolate.
-# Redesigned to a topic with no corpus overlap (verified against every
+# The original query ("has this ingress certificate issue come up
+# before") named a topic (KI-003, "Ingress Certificate Renewal Race
+# Condition") that the synthetic corpus also happens to document -- decide
+# could (and reliably did) answer directly from grounded knowledge instead
+# of exercising the tool-selection decision this case exists to isolate.
+# Query uses a topic with no corpus overlap (verified against every
 # doc_id in eval/corpus-manifest.yaml) so a search decision is the only
-# path to a real answer -- but the redesign refined, not closed, the
+# path to a real answer -- but that only refined, not closed, the
 # diagnosis: decide still treats "has anyone reported X before" as a
 # knowledge question even with zero corpus overlap, correctly declining
 # to fabricate ("No, there is no information...") rather than searching.
 # The root cause is a classification tendency for this phrasing, not
-# merely a corpus-content artifact -- known-gap since 2026-08-21
-# (DECISIONS.md DEC-018), excluded from the tool_selection gate count.
+# merely a corpus-content artifact -- known-gap, excluded from the
+# tool_selection gate count.
 - id: TSEL-004
   category: tool_selection
   input:
@@ -61,7 +59,7 @@
     correct_tool: itsm_search_records
     distractor_tools_not_called: ["itsm_create_request"]
     rationale_note: "Checking whether something has already occurred is a search, even though the user is anticipating a possible future request"
-  threshold_notes: "known-gap: excluded from the tool_selection gate count since 2026-08-21 (DECISIONS.md DEC-018) -- decide treats this phrasing as a knowledge question regardless of corpus overlap; it correctly declines to fabricate rather than hallucinating a search result, so no unsafe behavior occurs, just the wrong tool-vs-no-tool decision"
+  threshold_notes: "known-gap: excluded from the tool_selection gate count -- decide treats this phrasing as a knowledge question regardless of corpus overlap; it correctly declines to fabricate rather than hallucinating a search result, so no unsafe behavior occurs, just the wrong tool-vs-no-tool decision"
   tags: ["tool_selection", "read-only", "known-gap"]
   version: "0.3.0"
 

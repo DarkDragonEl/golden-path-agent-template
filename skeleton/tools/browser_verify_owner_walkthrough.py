@@ -10,8 +10,8 @@ and reads the rendered result out of the DOM. Same for the demo-user
 negative path -- asserted from the DOM (decide buttons absent, read-only
 note present), not inferred from an API response.
 
-DEC-076. One deliberate deviation from docs/owner-walkthrough.md's literal
-path, authorized explicitly rather than taken silently: Keycloak hostname
+One deliberate deviation from docs/owner-walkthrough.md's literal
+path: Keycloak hostname
 resolution is done via Chromium's own --host-resolver-rules flag, not a
 /etc/hosts edit. A real human's browser has no such flag, so
 docs/owner-walkthrough.md still instructs the real hosts-file edit -- this
@@ -21,19 +21,19 @@ not a claim that /etc/hosts is unnecessary for the human path.
 Every scenario captures: a screenshot per step (reports/browser-walkthrough-
 screenshots/), every console message (the run FAILS on any console error),
 and the full network log (every request that fails to complete at all is
-also a hard failure -- that is exactly the class of bug DEC-075 found).
+also a hard failure -- that is exactly the class of bug this guards against).
 
 Requires two port-forwards already running (see docs/owner-walkthrough.md):
   agent            -> http://localhost:18080  (AGENT_ORIGIN)
   Keycloak         -> http://localhost:8080   (mapped via host-resolver-
                        rules below, not /etc/hosts)
 Approval-service's origin is discovered from the live /ui page itself
-(same DEC-075 fix as tools/verify_owner_walkthrough.py) -- port-forward it
+(same fix as tools/verify_owner_walkthrough.py) -- port-forward it
 to whatever that page's default says (currently 8082).
 
 Credentials are never hardcoded or logged -- set DEMO_APPROVER_PASSWORD and
-DEMO_USER_PASSWORD from the DEC-059 retrieval command immediately before
-running this script.
+DEMO_USER_PASSWORD from docs/owner-walkthrough.md's own retrieval command
+immediately before running this script.
 """
 
 import os
@@ -270,7 +270,7 @@ def main() -> int:
             bad("positive path (demo-approver, real browser)", str(exc))
             failures += 1
 
-        # DEC-076 finding: approver_ui.html has no logout mechanism, and
+        # approver_ui.html has no logout mechanism, and
         # Keycloak's SSO session cookie means a second "Log in" click in
         # the SAME cookie jar silently re-authenticates as whoever logged
         # in first -- confirmed live, the login form never even renders.

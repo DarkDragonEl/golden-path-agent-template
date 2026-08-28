@@ -17,8 +17,8 @@ spec:
       serviceAccountName: ${{ values.name }}
       containers:
         - name: agent
-          # Phase G, Stage 2 (DEC-098/DEC-099): no positional-arg dispatch
-          # -- this repo's own image runs exactly one role.
+          # No positional-arg dispatch -- this repo's own image runs
+          # exactly one role.
           image: ${{ values.name }}
           ports:
             - name: http

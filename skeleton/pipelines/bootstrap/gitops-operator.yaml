@@ -1,8 +1,6 @@
-# Phase E, E1 entry gate (DECISIONS.md DEC-078 and onward). Same story as
-# pipelines-operator.yaml in this directory: OpenShift GitOps was already
-# installed on the SNO by prior, unrelated work; the showcase cluster has
-# it genuinely absent (verified live, PINS.md's Phase E section), so this
-# Subscription is a real, new bootstrap-from-Git action, not a formality.
+# Same story as pipelines-operator.yaml in this directory: this
+# Subscription provisions openshift-gitops-operator for a cluster where
+# it is not already installed cluster-wide.
 #
 # openshift-gitops-operator also only supports AllNamespaces install mode
 # (PINS.md, verified live) -- same openshift-operators / global-operators

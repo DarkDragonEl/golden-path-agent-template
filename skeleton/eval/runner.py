@@ -1,3 +1,15 @@
+"""Runs one eval case end-to-end and scores it: drives the case through
+eval/executor.py::execute_case to get a full ExecutionTrace, then applies
+eval/scorer.py::score_assertion to each declared assertion.
+
+run_case(case) contract: for a case with `steps` (a multi-step invoke/resume
+HITL flow), each step's assertions are scored against that step's own
+recorded state/latency; for a case without `steps` (a single-turn case),
+case.assertions are scored against the trace's final recorded state.
+Returns {"case_id", "passed", "results": [...]}, the per-case shape
+eval/reporter.py's write_report/print_summary consume.
+"""
+
 from .executor import execute_case
 from .scorer import score_assertion
 

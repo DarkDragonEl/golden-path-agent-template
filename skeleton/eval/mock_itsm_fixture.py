@@ -1,16 +1,14 @@
 """Eval-only mock ITSM fixture + test-only MCP client stub.
 
-Phase G, Stage 2 (DEC-098/DEC-099/DEC-104/DEC-105). This module is a
-deliberate, intentional duplicate of the Tools Template's own
-`mcp_server/itsm_store.py` search/create_request logic and seed data --
-NOT a shared import, by design. `DEC-105`'s own ruling: the domain eval
-harness's deterministic fault-injection needs (`_simulate_error`-style
-timeout/error scenarios) may not be satisfied by adding any
-fault-injection surface to the real, deployed MCP server, gated or
-otherwise -- "a config-gated fault-injection surface on the real MCP
-server would ship in every MCP server the platform ever scaffolds ...
-guarded only by an environment flag," which the owner ruled incoherent
-for a platform whose posture is structurally-gated writes, not
+This module is a deliberate, intentional duplicate of the Tools Template's
+own `mcp_server/itsm_store.py` search/create_request logic and seed data --
+NOT a shared import, by design. The domain eval harness's deterministic
+fault-injection needs (`_simulate_error`-style timeout/error scenarios)
+may not be satisfied by adding any fault-injection surface to the real,
+deployed MCP server, gated or otherwise -- "a config-gated fault-injection
+surface on the real MCP server would ship in every MCP server the platform
+ever scaffolds ... guarded only by an environment flag," which is
+incoherent for a platform whose posture is structurally-gated writes, not
 convention-gated ones. The real `mcp_server/itsm_store.py`'s own
 `_simulate_error` hook and `server.py`'s refusal to expose it as a tool
 parameter stay exactly as they are -- categorically unreachable via any
@@ -304,11 +302,11 @@ fixture = MockItsmFixture()
 
 
 def eval_call_tool(tool_name: str, arguments: dict, timeout: float = 10.0) -> dict:
-    """Test-only MCP client stub (DEC-105). Same dispatch shape as
+    """Test-only MCP client stub. Same dispatch shape as
     `mcp_server/client.py`'s own in-process "mock" branch used to have,
     but backed by `fixture` above instead of importing the real
     `mcp_server` package (which the split Agent Template cannot do at
-    all -- DEC-098). `timeout` is accepted, not used -- this call never
+    all). `timeout` is accepted, not used -- this call never
     actually blocks; kept for call-signature parity with the real
     `call_tool(tool_name, arguments, timeout=...)` so patching it in for
     `agent.nodes.tool_invoke.call_tool` / `agent.nodes.human_approval.call_tool`

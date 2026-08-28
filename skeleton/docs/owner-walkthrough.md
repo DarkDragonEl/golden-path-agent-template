@@ -1,21 +1,18 @@
-# Owner walkthrough — live approver UI click-through (Checkpoint D closure)
+# Owner walkthrough — live approver UI click-through
 
 ## What this is
 
-`SRS-APR-QUAL-01`'s non-developer walkthrough — the one item still open
-from Checkpoint D. Everything the UI itself calls has already been proven
-correct at the API level (`reports/checkpoint-d-run.md`,
-`reports/phase-d-owner-walkthrough-verification.md`, the latter driving
-the exact same Authorization Code + PKCE flow you're about to click
-through, scripted end-to-end against real `demo-prod`, `DEC-074`). This is
-your own click-through of that same flow in a real browser — completing
-it is what formally closes Checkpoint D.
+`SRS-APR-QUAL-01`'s non-developer walkthrough. Everything the UI itself
+calls has already been proven correct at the API level, using the exact
+same Authorization Code + PKCE flow you're about to click through against
+a real deployment. This is your own click-through of that same flow in a
+real browser.
 
 ## Pre-flight verification (already done — read this before you start)
 
 The first attempt at this walkthrough broke: login and submit worked, but
-the pending-proposal card never appeared. Root cause, found and fixed
-(`DEC-075`): the port-forward instructions below used to say local port
+the pending-proposal card never appeared. Root cause, found and fixed:
+the port-forward instructions below used to say local port
 `18082` for the approval-service; the page's own code only ever looks for
 it at `localhost:8082`. Nothing was listening on `8082`, so the page's
 poll loop retried silently forever with no visible error. This is now
@@ -30,12 +27,9 @@ live, end to end, against real `demo-prod`:
   `demo-user`, asserting the decide buttons are genuinely absent from the
   DOM and the read-only note genuinely renders — **9/9 scenarios PASS**,
   zero console errors, zero failed network requests, a screenshot captured
-  at every step (`DEC-076`).
+  at every step.
 - `demo-prod` confirmed clean of pending debris before and after every run
   above (`GET /proposals` → `[]`).
-- Full transcripts, screenshots, root-cause investigations, and evidence:
-  `reports/phase-d-owner-walkthrough-verification.md` (`DEC-075`/`DEC-076`
-  addenda) and `DECISIONS.md` `DEC-075`/`DEC-076`.
 
 **If you already had port-forward terminals open from an earlier attempt,
 restart the approval-service one using the corrected command in step 2
@@ -64,7 +58,7 @@ oc port-forward svc/${{ values.name }} 18080:8080 -n ${{ values.name }}-demo-pro
 
 # Terminal 2 — the approval-service (the UI's polling/decision calls).
 # The local port here MUST be 8082, not 18082 -- the page's own default
-# only looks for the approval service at localhost:8082 (DEC-075):
+# only looks for the approval service at localhost:8082:
 oc port-forward svc/${{ values.name }}-approval 8082:8082 -n ${{ values.name }}-demo-prod
 
 # Terminal 3 — Keycloak (needed for the login redirect itself):
@@ -85,8 +79,7 @@ echo "127.0.0.1 ${{ values.name }}-service.${{ values.name }}-keycloak.svc.clust
 
 This is safe and fully reversible — it only affects how your own machine
 resolves that one specific name, and only for as long as the line stays in
-`/etc/hosts`. Remove it when you're done (see Cleanup below). This exact
-mechanism is documented and verified in `DECISIONS.md` `DEC-074`.
+`/etc/hosts`. Remove it when you're done (see Cleanup below).
 
 ## Part 1 — the approver path (demo-approver)
 
@@ -114,7 +107,7 @@ mechanism is documented and verified in `DECISIONS.md` `DEC-074`.
    the page has no in-app log-out, and Keycloak keeps you signed in via a
    session cookie — clicking "Log in" again in the *same* window silently
    re-authenticates as whoever you already were, without ever showing a
-   login form (confirmed live, `DEC-076`). A private window gives you a
+   login form. A private window gives you a
    clean cookie jar, which is what actually lets you sign in as a
    different identity.
 2. Notice `demo-user` has no approver role — the UI marks this identity as
@@ -124,7 +117,7 @@ mechanism is documented and verified in `DECISIONS.md` `DEC-074`.
    Approve/Reject buttons** — instead a message stating you're not an
    approver for this proposal, read-only. This is enforced by the server,
    not just hidden in the page (`approval_service` returns `403` on a
-   decision attempt from this identity, per `DEC-069`'s fix) — the UI
+   decision attempt from this identity) — the UI
    simply reflects that.
 
 ## Cleanup
@@ -145,7 +138,6 @@ real human, in a real browser, driving the real Authorization Code + PKCE
 flow against a live deployment — approve creates a ticket, reject/refusal
 creates nothing, and role enforcement holds even when the UI itself is
 bypassed (confirmed independently in `reports/phase-d-owner-walkthrough-verification.md`).
-Completing this closes Checkpoint D.
 
 ## Troubleshooting
 

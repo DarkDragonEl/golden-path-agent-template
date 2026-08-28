@@ -7,19 +7,18 @@ convenience schema reproductions (e.g. srs/SRS-AGT.md §2's note on
 SRS-APR-IF-01/SRS-MIT-IF-02/03).
 
 Gap noted honestly, not glossed over: `srs/SRS-AGT.md`'s SRS-AGT-IF-04
-(resolved at Checkpoint B0-b, accepted as drafted) calls for treating
+calls for treating
 SRS-MIT-IF-01's tool-catalog metadata as the *runtime* source of truth for
 tool identity, via a real MCP client session — `mcp_server/client.py`
 does not implement the MCP protocol today (an in-process function call in
 mock mode, an ad hoc REST POST in live mode), so a genuine MCP
-`ClientSession`-based runtime lookup is out of Phase B3's scope. This
+`ClientSession`-based runtime lookup is out of scope for now. This
 static, same-PR-synced mirror is the interim realization; closing the gap
 for real is future work, not silently declared done.
 
 Empirically verified against the live MaaS (both `granite-3-2-8b-instruct`
-and `llama-scout-17b`) in the Phase B kickoff tool-calling spike —
-`tools/phase_b_tool_calling_spike.py` / `reports/phase-b-tool-calling-spike.md`
-— using this exact schema shape.
+and `llama-scout-17b`) via `tools/phase_b_tool_calling_spike.py`,
+using this exact schema shape.
 """
 
 TOOL_SCHEMAS = [

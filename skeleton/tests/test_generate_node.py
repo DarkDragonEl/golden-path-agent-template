@@ -1,4 +1,4 @@
-"""DEC-013 candidate (decide-then-retrieve reordering): generate_node is
+"""Under the decide-then-retrieve reordering, generate_node is
 the second, separate model call -- context + citation instructions, no
 tool schemas -- reached only on decide_node's "no tool needed" branch.
 """
@@ -119,7 +119,7 @@ def test_model_failure_sets_fallback_reason_and_appends_none_route_to_model_call
 
 def test_called_without_tools_kwarg(monkeypatch):
     # Regression guard: reintroducing TOOL_SCHEMAS here would resurrect
-    # DEC-012's exact failure mode inside generate instead of decide.
+    # the same failure mode inside generate instead of decide.
     stub = _StubClient(returns=("An answer.", [], "primary", "none", None, "granite-3-2-8b-instruct-20260101"))
     monkeypatch.setattr(generate_module, "get_model_client", lambda: stub)
 

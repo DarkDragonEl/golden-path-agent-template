@@ -3,7 +3,7 @@
 Throwaway probe script, not agent code (same status as
 tools/phase_b_tool_calling_spike.py and tools/diagnose_tool_call_raw_output.py).
 Runs the real graph (agent.graph.build_graph(), exactly as eval/domain_executor.py
-invokes it) for the firm-ceiling cases identified in DEC-012/DEC-013's 3-pass
+invokes it) for the firm-ceiling cases identified in an earlier 3-pass
 re-baseline, 2 reps each, and prints full state detail (selected_tool,
 tool_calls, retrieved_docs' doc_ids, final_output, pending_approval,
 approval_action) instead of just pass/fail -- so each case's actual failure

@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
-# Phase E, E1 (DECISIONS.md DEC-078 onward). Scripted replay of the manual
-# bootstrap sequence docs/phase-c-runbook.md established by hand on the
-# SNO, extended here with two operator Subscriptions
-# (pipelines/bootstrap/pipelines-operator.yaml, gitops-operator.yaml)
-# neither the SNO nor any prior phase ever had to author, since those
-# operators were always pre-installed there by other work before this
-# project touched it (docs/environments.md). This is the actual
-# from-scratch operator-bootstrap leg Phase E exists to prove.
+# Bootstraps a fresh OpenShift cluster from scratch: cluster operators
+# (pipelines/bootstrap/pipelines-operator.yaml, gitops-operator.yaml --
+# skipped automatically if a cluster already has them installed, see
+# docs/environments.md), Keycloak, identity secrets, pipeline/task
+# definitions, and the ArgoCD app-of-apps root.
 #
 # Never runs `oc login` -- credential handling stays the owner's own
 # one-time step; this script assumes KUBECONFIG already points at an
@@ -14,8 +11,8 @@
 #
 # Idempotent for every `oc apply`/`oc apply -k` step. NOT idempotent for
 # provision-identity-secrets.sh's own credential rotation (that script
-# regenerates every run by design, DEC-059) -- re-running this script
-# against an already-live cluster invalidates live Keycloak sessions.
+# regenerates every run by design) -- re-running this script against an
+# already-live cluster invalidates live Keycloak sessions.
 set -euo pipefail
 
 usage() {
@@ -26,14 +23,14 @@ Bootstraps the ${{ values.name }} blueprint onto a fresh OpenShift cluster
 from Git alone. The kubeconfig must already be authenticated (this script
 never runs `oc login`). Re-runnable: picks up where a prior run stopped.
 
-DEC-083 WARNING: if the target cluster's own ${{ values.name }}-root
+WARNING: if the target cluster's own ${{ values.name }}-root
 Application has had its auto-sync deliberately disabled (a single-
-active-cluster deprotection, e.g. the SNO after DEC-083), a plain re-run
-of this script will detect that live-only freeze and SKIP re-applying
+active-cluster deprotection), a plain re-run of this script will detect
+that live-only freeze and SKIP re-applying
 deploy/argocd/application-root.yaml, rather than silently re-enabling
-auto-sync and resurrecting DEC-078's original cross-cluster-promotion
-hazard via a routine maintenance command. Pass --reenable-sync only if
-you deliberately intend to reverse that specific cluster's freeze.
+auto-sync and resurrecting a cross-cluster-promotion hazard via a
+routine maintenance command. Pass --reenable-sync only if you
+deliberately intend to reverse that specific cluster's freeze.
 USAGE
   exit 1
 }
@@ -54,13 +51,10 @@ log "target: $(oc whoami --show-server) as $(oc whoami)"
 
 approve_pending_installplan() {
   # $1 = namespace, $2 = exact CSV name to match. installPlanApproval:
-  # Manual (this project's own "pin exact versions, no silent
-  # auto-upgrade" discipline, PINS.md) means even the FIRST install of a
-  # pinned startingCSV sits in RequiresApproval until explicitly patched
-  # -- not previously exercised in this project, since Keycloak's OLM
-  # path was always blocked earlier by DEC-055's poisoned catalog on the
-  # SNO before it ever got this far. Safe precisely because the
-  # InstallPlan's own CSV is checked against the pinned value before
+  # Manual (pin exact versions, no silent auto-upgrade -- see PINS.md)
+  # means even the FIRST install of a pinned startingCSV sits in
+  # RequiresApproval until explicitly patched. Safe precisely because
+  # the InstallPlan's own CSV is checked against the pinned value before
   # patching -- never approves a plan for anything other than the exact
   # version this project committed.
   local ns="$1" csv="$2" plan approved
@@ -127,7 +121,7 @@ oc apply -f pipelines/bootstrap/rbac.yaml
 # BEFORE keycloak-postgres.yaml/keycloak-cr.yaml apply, or the Postgres
 # and Keycloak pods immediately hit CreateContainerConfigError. Create-once
 # semantics here (unlike provision-identity-secrets.sh's own
-# regenerate-every-run downstream credentials, DEC-059) -- regenerating
+# regenerate-every-run downstream credentials) -- regenerating
 # either of these after Postgres/Keycloak already trust the existing
 # value would break a live instance, not just rotate a credential.
 if ! oc get secret ${{ values.name }}-keycloak-db-secret -n ${{ values.name }}-keycloak >/dev/null 2>&1; then
@@ -151,7 +145,7 @@ KEYCLOAK_PATH="olm"
 if ! ensure_operator ${{ values.name }}-keycloak "rhbk-operator" \
     pipelines/bootstrap/keycloak-operator.yaml \
     rhbk-operator.v26.6.6-opr.1 300; then
-  log "rhbk-operator OLM path did not reach Succeeded in time -- falling back to upstream kustomize (DEC-056 precedent)"
+  log "rhbk-operator OLM path did not reach Succeeded in time -- falling back to upstream kustomize"
   KEYCLOAK_PATH="upstream-kustomize"
   oc apply -k pipelines/bootstrap/keycloak-operator-upstream/
 fi
@@ -198,7 +192,7 @@ while true; do
   sleep 5; RI_WAITED=$((RI_WAITED + 5))
 done
 
-log "=== step 5/9: identity secrets (idempotent by regeneration -- DEC-059) ==="
+log "=== step 5/9: identity secrets (idempotent by regeneration) ==="
 ./pipelines/bootstrap/provision-identity-secrets.sh
 
 log "=== step 6/9: manual secret + config check ==="
@@ -238,9 +232,9 @@ before demo-prod can sync a working pod and before deploy-ephemeral can
 run (docs/phase-c-runbook.md S2 and S2b have the exact commands).
 
 S3 (${{ values.name }}-github-token, open-promotion-pr's PAT) is optional
--- NOTE (DEC-078): this session's Option 2 does not grant this cluster's
-pipeline promotion authority over the shared main digest pin regardless
-of whether that secret exists; any resulting PR gets closed unmerged.
+-- it does not grant this cluster pipeline promotion authority over the
+shared main digest pin regardless of whether that secret exists; any
+resulting PR gets closed unmerged.
 
 Re-run this script with the same kubeconfig once the items above exist
 -- every step above is idempotent and will skip straight through.
@@ -250,23 +244,19 @@ fi
 log "model-endpoint secret and CI config present, continuing"
 
 log "=== step 7/9: pipeline + task definitions ==="
-# Real gap found live: applying pipelines/pipeline.yaml and
-# pipelines/tasks/*.yaml was never written down anywhere in this
-# project's docs or scripts -- on the SNO this was evidently done ad hoc
-# during Phase C's own live session and never captured. Without this, a
-# PipelineRun fails immediately with CouldntGetPipeline.
+# Without this, a PipelineRun fails immediately with CouldntGetPipeline.
 oc apply -f pipelines/pipeline.yaml -n ${{ values.name }}-ci
 oc apply -f pipelines/tasks/ -n ${{ values.name }}-ci
 
 log "=== step 8/9: argocd app-of-apps root ==="
 oc apply -f deploy/argocd/project.yaml
 
-# DEC-083 guard: deploy/argocd/application-root.yaml and
+# Guard: deploy/argocd/application-root.yaml and
 # deploy/argocd/apps/demo-prod.yaml are single files every cluster
 # bootstraps identically from the same Git history -- a cluster-local
-# "deprotect this cluster's demo-prod" decision (DEC-083's SNO freeze)
-# is therefore necessarily a live-only patch, never a commit to those
-# shared files. That makes it silently reversible by a routine re-run of
+# "deprotect this cluster's demo-prod" decision is therefore necessarily
+# a live-only patch, never a commit to those shared files. That makes it
+# silently reversible by a routine re-run of
 # this exact step, on this exact cluster, unless guarded here: detect an
 # existing ${{ values.name }}-root Application whose own auto-sync is
 # already disabled live, and refuse to re-apply application-root.yaml
@@ -278,7 +268,7 @@ if [ "$ROOT_EXISTS" = "true" ]; then
   ROOT_AUTOMATED=$(oc get applications.argoproj.io ${{ values.name }}-root -n openshift-gitops \
     -o jsonpath='{.spec.syncPolicy.automated}' 2>/dev/null || echo "")
   if [ -z "$ROOT_AUTOMATED" ] && [ "$REENABLE_SYNC" != "true" ]; then
-    log "  ${{ values.name }}-root: auto-sync already disabled live on this cluster (DEC-083-style freeze) -- NOT re-applying deploy/argocd/application-root.yaml, which would silently restore automated:{prune:true,selfHeal:true} and resurrect DEC-078's cross-cluster-promotion hazard. Re-run with --reenable-sync if you deliberately intend to reverse this cluster's freeze."
+    log "  ${{ values.name }}-root: auto-sync already disabled live on this cluster -- NOT re-applying deploy/argocd/application-root.yaml, which would silently restore automated:{prune:true,selfHeal:true} and resurrect a cross-cluster-promotion hazard. Re-run with --reenable-sync if you deliberately intend to reverse this cluster's freeze."
   else
     oc apply -f deploy/argocd/application-root.yaml
   fi

@@ -3,7 +3,7 @@
 ${{ values.description }}
 
 Standalone MCP tool server, scaffolded from the Golden Path Agent
-blueprint's Tools Template (Phase G, Stage 2 -- DEC-098/DEC-099). This
+blueprint's Tools Template. This
 repo produces one independently-built, independently-promoted artifact:
 the tool server, nothing else. It has no agent and no approval-service
 code -- an Agent Template instance consumes this server's contract

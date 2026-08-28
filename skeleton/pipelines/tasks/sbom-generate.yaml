@@ -1,4 +1,4 @@
-# Phase C, Step C1b. SysR-P-PKG-02 -- an SBOM generated at build time,
+# SysR-P-PKG-02 -- an SBOM generated at build time,
 # associated with the image digest.
 apiVersion: tekton.dev/v1
 kind: Task
@@ -15,15 +15,13 @@ spec:
   workspaces:
     - name: source
   volumes:
-    # DEC-027: syft's own image-analysis machinery hardcodes some of its
-    # own /tmp usage regardless of $HOME/$XDG_CACHE_HOME -- and this
+    # syft's own image-analysis machinery hardcodes some of its own
+    # /tmp usage regardless of $HOME/$XDG_CACHE_HOME -- and this
     # image's own baked-in /tmp isn't world-writable under an arbitrary
-    # non-root UID (confirmed live: "mkdir /tmp/stereoscope-...: permission
-    # denied" even with HOME/XDG_CACHE_HOME redirected elsewhere). A
-    # emptyDir mounted directly at /tmp overrides the image's own
-    # permissions with a genuinely writable directory, verified locally
-    # (podman, simulated non-root UID, real SBOM produced, exit 0) before
-    # trusting it on a cluster run.
+    # non-root UID ("mkdir /tmp/stereoscope-...: permission denied" even
+    # with HOME/XDG_CACHE_HOME redirected elsewhere). An emptyDir
+    # mounted directly at /tmp overrides the image's own permissions
+    # with a genuinely writable directory.
     - name: syft-tmp
       emptyDir: {}
   steps:

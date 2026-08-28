@@ -43,7 +43,7 @@ class ExecutionTrace:
 def _initial_state(session_id: str, case) -> dict:
     return {
         "session_id": session_id,
-        "request_id": f"{session_id}-req",  # Phase D/DEC-049
+        "request_id": f"{session_id}-req",
         "user_id": "eval-harness",
         "input_query": case.input["query"],
         "write_requested": bool(case.input.get("write", False)),
@@ -61,14 +61,14 @@ def execute_case(case) -> ExecutionTrace:
     thread_config = {"configurable": {"thread_id": session_id}}
     trace = ExecutionTrace()
 
-    # Phase D/DEC-049: tool_invoke_node's write branch submits a real
+    # tool_invoke_node's write branch submits a real
     # proposal to the standalone approval service over HTTP -- the
     # EXAMPLE-*.yaml harness-mechanics suite must not depend on one being
     # reachable, exactly like eval/domain_executor.py's own
     # _FakeApprovalService (mirrored here, not reimplemented, via the
     # same eval/fake_approval_client.py).
     #
-    # Phase G, Stage 2 (DEC-098/DEC-099/DEC-105): call_tool is patched at
+    # call_tool is patched at
     # both node-import boundaries too, same reasoning as
     # domain_executor.py's own identical patch -- this repo never bundles
     # mcp_server/server.py, so the real call_tool's "mock" branch would

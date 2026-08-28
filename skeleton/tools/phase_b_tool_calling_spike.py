@@ -1,9 +1,9 @@
-"""Phase B kickoff, Task 1 — tool-calling spike + fallback selection.
+"""Tool-calling spike + fallback selection.
 
 Throwaway probe script, not agent code. Deliverable is the evidence and the
 decision (recorded in reports/phase-b-tool-calling-spike.md), not a module
 other code imports. Tool schemas below are transcribed field-for-field from
-srs/SRS-MIT.md's SRS-MIT-IF-02/IF-03 (approved, Checkpoint B0-a) — this is
+srs/SRS-MIT.md's SRS-MIT-IF-02/IF-03 — this is
 the authoritative source, not eval/README.md's provisional version.
 
 Usage: .venv/bin/python tools/phase_b_tool_calling_spike.py

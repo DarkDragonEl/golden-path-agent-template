@@ -23,7 +23,7 @@ For a live model endpoint, edit `.env` (`MODEL_API_BASE_URL`, `MODEL_NAME`)
 and run `make up` instead. Once live, `make eval` is the real promotion
 gate: `eval-fast`'s offline pair plus all 8 domain categories (62 cases)
 against the real model, scored under a deterministic-sampling gate
-contract (`DECISIONS.md` `DEC-017`) — domain categories need a live model
+contract — domain categories need a live model
 to be meaningful, since the fake client doesn't simulate real reasoning,
 tool selection, or citation.
 

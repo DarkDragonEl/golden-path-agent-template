@@ -1,31 +1,30 @@
-"""Phase B2 write-gating restructure — integration tests. Graduated to
-Phase D's standalone-approval-service model at DECISIONS.md DEC-049:
-human_approval_node now reads approved_action/approval_decision, both of
-which are only ever populated by agent/approval_client.py::resolve_and_resume
-from the approval service's own IF-05 response -- these unit tests
-construct that already-resolved state directly (simulating what
-resolve_and_resume would have injected), exercising the node's own
-execution behavior in isolation.
+"""Write-gating integration tests. human_approval_node reads
+approved_action/approval_decision, both of which are only ever populated
+by agent/approval_client.py::resolve_and_resume from the approval
+service's own IF-05 response -- these unit tests construct that
+already-resolved state directly (simulating what resolve_and_resume would
+have injected), exercising the node's own execution behavior in
+isolation.
 
-Per the kickoff design points: (1) DECISIONS.md DEC-008's arguments-sourcing
-condition -- the agent executes exactly the arguments the approval
-service's terminal-state query returned, never a locally cached draft;
-(2) the SRS-AGT-SEC-03 fail-closed default and its inverse test; (3) reject/
+Per the kickoff design points: (1) the arguments-sourcing condition --
+the agent executes exactly the arguments the approval service's
+terminal-state query returned, never a locally cached draft; (2) the
+SRS-AGT-SEC-03 fail-closed default and its inverse test; (3) reject/
 expiry/no-resume verified by asserting the tool-execution boundary
 (mcp_server.client.call_tool) is never invoked, not by trusting the
 agent's own final_state.
 
-Phase G, Stage 2 (DEC-098/DEC-099): rewritten from a live-store-round-trip
-shape (an in-process TestClient(build_app()) + REST /records introspection)
-to a mocked call_tool boundary. The Agent Template no longer bundles
-mcp_server's server implementation at all (only client.py -- the amended
-SysR-P-F-01 forbids bundling tool-server source), so an in-process
-FastAPI+MCP app is no longer something this repo's own test suite can
-construct. This is not a downgrade: DEC-008's actual invariant is "the
-agent calls the tool with exactly the approved arguments," which asserting
-directly on call_tool's own call arguments proves more precisely than a
-store round-trip ever did (the store's own create-request response never
-echoed the input fields back at all -- the original test's field-by-field
+Rewritten from a live-store-round-trip shape (an in-process
+TestClient(build_app()) + REST /records introspection) to a mocked
+call_tool boundary. The Agent Template no longer bundles mcp_server's
+server implementation at all (only client.py -- the amended SysR-P-F-01
+forbids bundling tool-server source), so an in-process FastAPI+MCP app is
+no longer something this repo's own test suite can construct. This is not
+a downgrade: the actual invariant under test is "the agent calls the tool
+with exactly the approved arguments," which asserting directly on
+call_tool's own call arguments proves more precisely than a store
+round-trip ever did (the store's own create-request response never echoed
+the input fields back at all -- the original test's field-by-field
 comparison depended on a *second*, separate GET, an indirect proxy for
 the same fact this file now asserts directly).
 """
@@ -41,7 +40,7 @@ from agent.nodes.human_approval import human_approval_node  # noqa: E402
 from agent.nodes.tool_invoke import tool_invoke_node  # noqa: E402
 
 
-# --- (1) DEC-008: arguments_executed == arguments_approved ---
+# --- (1) arguments_executed == arguments_approved ---
 
 
 def test_approve_invokes_with_exactly_the_persisted_approved_action_arguments():
@@ -107,7 +106,7 @@ def test_approve_reads_arguments_from_persisted_state_not_a_stale_local_copy():
 
 
 def test_execution_uses_approved_action_not_drafted_action_when_they_diverge():
-    # DEC-045's own mutated-draft regression test: drafted_action (what
+    # Mutated-draft regression test: drafted_action (what
     # tool_invoke_node originally proposed) and approved_action (what
     # resolve_and_resume's IF-05 query actually returned) deliberately
     # differ here -- a stronger proof than equality alone, since two
@@ -200,8 +199,8 @@ def test_no_resume_bypass_attempt_creates_no_new_request_record():
     # forces the approval path despite the caller's request to skip it, and
     # no decision is ever rendered -- human_approval_node is never even
     # invoked. tool_invoke_node's write branch (the draft step) must not
-    # call the tool-execution boundary by itself. Phase B3 retired
-    # tool_invoke_node's hardcoded dispatch -- it now reads
+    # call the tool-execution boundary by itself. tool_invoke_node's
+    # hardcoded dispatch was retired -- it now reads
     # state["selected_tool"], set by reason_node (real tool_calls in live
     # mode, a legacy simulation in fake mode) -- so this test drives the
     # real write-classified branch directly against the real
@@ -245,6 +244,6 @@ def test_unrecognized_tool_classifies_as_write_and_would_pause():
     # fails closed to "write", so a hypothetical call to it would take the
     # draft-and-pause branch, never the eager-execution one -- this is the
     # eval-set gap srs/SRS-AGT.md's own Verification table for SEC-03
-    # notes (no Phase A case exercises a classification-ambiguous action).
+    # notes (no eval case exercises a classification-ambiguous action).
     assert policy.classify_action("some_unrecognized_tool", {"anything": "here"}) == "write"
     assert policy.requires_approval("some_unrecognized_tool", {"anything": "here"}) is True

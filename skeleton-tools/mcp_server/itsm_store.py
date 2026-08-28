@@ -6,7 +6,7 @@ design — which store, if any"; only the externally observable guarantee at
 SRS-MIT-IF-05 is specified: state persists across calls within one running
 instance). A dict guarded by a lock satisfies that guarantee without
 over-building — no database is warranted here. Only the approval service
-(Phase D) has a real restart-survival requirement.
+has a real restart-survival requirement.
 
 Seed fixture IDs are contractual, not illustrative: eval/README.md commits
 `eval/cases/domain/*.yaml` to these exact eight IDs and, in several cases,
@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 def _plural_tolerant_variants(needle: str) -> list[str]:
-    """R2 remedy (DEC-014, ITR-001): a real ITSM search box would reasonably
+    """A real ITSM search box would reasonably
     tolerate a trailing-s mismatch between a caller's phrasing and a
     record's stored text (e.g. "CI pipelines" vs. "CI pipeline execution
     failing...") without doing full stemming -- this is store behavior
@@ -38,12 +38,12 @@ _STATUS_SEPARATOR_RE = re.compile(r"[-_\s]+")
 
 
 def _normalize_status(status: str) -> str:
-    """R2 remedy (DEC-018/DEC-019, ITR-004): a real ITSM search box's status
+    """A real ITSM search box's status
     filter would reasonably treat "in-progress", "in_progress", and
     "in progress" as the same value -- separator choice and case are
-    formatting, not a distinct status. Generalized from DEC-018's
-    hyphen-only fix after a third, space-separated variant surfaced in the
-    DEC-018 re-baseline -- this collapses any run of hyphen/underscore/
+    formatting, not a distinct status. Generalized from an earlier
+    hyphen-only fix after a third, space-separated variant surfaced --
+    this collapses any run of hyphen/underscore/
     whitespace into one canonical separator and lowercases, covering the
     whole class of separator-formatting choices at once rather than
     patching one variant at a time. Store behavior justified by the
@@ -209,7 +209,7 @@ class ItsmStore:
         """Read-only search/lookup. Never creates, modifies, or deletes state.
 
         `_simulate_error` is a test-only fault-injection hook, driven only by
-        the eval executor's `fault_params` (Phase B4) — never reachable from
+        the eval executor's `fault_params` — never reachable from
         a real agent-constructed call, since the MCP tool wrapper in
         server.py does not expose this parameter at all.
         """
@@ -268,7 +268,7 @@ class ItsmStore:
 
         Per SRS-MIT-SEC-01, this operation itself exposes no bypass — it is
         only reachable at all through the agent's write-gated tool_invoke
-        path (Phase B2). Approval gating is enforced by the agent's policy
+        path. Approval gating is enforced by the agent's policy
         layer plus the approval service, not by this component.
         """
         if _simulate_error == "timeout":

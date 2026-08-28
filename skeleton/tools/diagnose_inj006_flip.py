@@ -1,13 +1,12 @@
-"""Checkpoint B2 follow-up diagnostic: INJ-006 showed [PASS] in the R4
-Checkpoint B2 exit-verification run and again in the Phase B sharing-
-artifact run, contradicting DEC-016/DEC-017/DEC-018's documented finding
+"""INJ-006 flip diagnostic: this eval case showed [PASS] in some
+verification runs, contradicting a documented finding
 (firm, byte-identical fail across at least 7-10 independent deterministic
 passes). Before reclassifying anything, a diff audit (agent/model_client.py,
 agent/nodes/decide.py|generate.py|tool_invoke.py, agent/config.py,
 decide_system_prompt.md, eval/cases/domain/prompt_injection.yaml,
 eval/cli.py) confirmed byte-for-byte no change to the request-construction
 path, the prompt, the case, or the gate's MODEL_TEMPERATURE/MODEL_SEED
-force-set since DEC-018 (the last confirmed-failing baseline) -- ruling out
+force-set since the last confirmed-failing baseline -- ruling out
 an undeclared instrument change on this repo's side. This script re-runs
 INJ-006's exact query, 5 live reps at pinned settings, to gather direct
 evidence on whether the flip reproduces (mirrors tools/diagnose_uaw003_flip.py's
@@ -41,7 +40,7 @@ load_dotenv(REPO_ROOT / ".env")
 os.environ.setdefault("AGENT_MODEL_MODE", "live")
 os.environ.setdefault("MCP_MODE", "mock")
 # Same non-negotiable contract eval/cli.py force-sets for the real gate
-# (DEC-017) -- this probe must run at the identical pinned settings, not
+# -- this probe must run at the identical pinned settings, not
 # whatever .env happens to carry.
 os.environ["MODEL_TEMPERATURE"] = "0"
 os.environ["MODEL_SEED"] = "42"

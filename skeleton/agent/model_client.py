@@ -2,9 +2,9 @@
 architecture principle: the agent talks to an endpoint that exposes an
 OpenAI-compatible API, never a provider-specific SDK.
 
-Phase B3: rules-based routing with one configured fallback (SysR-P-F-12,
-srs/SRS-AGT.md SRS-AGT-IF-02) — DECISIONS.md DEC-009 picked the fallback
-model (llama-scout-17b) after an empirical spike found every
+Rules-based routing with one configured fallback (SysR-P-F-12,
+srs/SRS-AGT.md SRS-AGT-IF-02) -- the fallback
+model (llama-scout-17b) was picked after an empirical spike found every
 size<=primary, different-family candidate failed to call tools reliably
 on this MaaS.
 """
@@ -58,7 +58,7 @@ class OpenAICompatibleModelClient:
             except json.JSONDecodeError:
                 arguments = {}
             tool_calls.append({"name": tc.function.name, "arguments": arguments})
-        # R4/DEC-020: SRS-AGT-IF-08 "token consumption" -- `usage` is a
+        # SRS-AGT-IF-08 "token consumption" -- `usage` is a
         # standard OpenAI-compatible response field; not every backend
         # reports it, so this stays Optional throughout the call chain.
         usage = None
@@ -68,15 +68,14 @@ class OpenAICompatibleModelClient:
                 "completion_tokens": response.usage.completion_tokens,
                 "total_tokens": response.usage.total_tokens,
             }
-        # Post-Checkpoint-C backlog item 1 (DECISIONS.md, model-identity
-        # capture): `response.model` is a standard OpenAI-compatible field
+        # `response.model` is a standard OpenAI-compatible field
         # reporting which model identity actually served the request --
         # can differ from the `model` name requested (e.g. an alias
         # resolving to a specific dated/versioned build). Read-only w.r.t.
         # model inputs, same constraint agent/telemetry.py's own header
         # already holds itself to -- never used to alter a request, purely
         # observational, threaded through for cross-session drift
-        # correlation (DEC-022's pattern).
+        # correlation.
         response_model = response.model
         return choice.content, tool_calls, usage, response_model
 

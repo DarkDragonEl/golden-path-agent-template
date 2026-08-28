@@ -8,7 +8,7 @@ from agent import approval_client  # noqa: E402
 from agent.graph import build_graph  # noqa: E402
 from eval.fake_approval_client import FakeApprovalService  # noqa: E402
 
-# Phase G, Stage 2 (DEC-098/DEC-099): this repo never bundles
+# This repo never bundles
 # mcp_server/server.py (moved to the Tools Template) -- call_tool's own
 # "mock" in-process branch would ImportError, and "live" needs a real,
 # reachable server this hermetic unit-test suite doesn't have. Patched at
@@ -48,7 +48,7 @@ def test_read_path_completes_without_approval():
 
 
 def test_write_path_pauses_for_approval():
-    # Phase D/DEC-049: tool_invoke_node's write branch submits a real
+    # tool_invoke_node's write branch submits a real
     # proposal over HTTP -- patched here, mirroring
     # eval/domain_executor.py's own always-active fake for the same
     # reason (no live approval_service in this unit test).
@@ -118,7 +118,7 @@ def test_resume_after_rejection_falls_back():
     assert "PLACEHOLDER_TOOL_RESPONSE_MARKER" not in (result.get("final_output") or "")
 
 
-# --- Phase D2: approval_client's OIDC bearer-header attachment -------------
+# --- approval_client's OIDC bearer-header attachment -------------
 
 
 class _FakeHttpResponse:

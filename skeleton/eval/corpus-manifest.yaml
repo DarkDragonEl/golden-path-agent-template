@@ -1,10 +1,10 @@
 # eval/corpus-manifest.yaml
 #
-# Identity-only manifest for Phase A (Delivery Step 1). Fixes doc_id, title,
+# Identity-only manifest for Delivery Step 1. Fixes doc_id, title,
 # and metadata for the ~20 synthetic corpus documents the knowledge_qa cases
 # assume, so case<->document references are stable before any document
 # content exists. Document CONTENT (chunking, embedding, actual body text)
-# is Phase B (corpus/ingest.py + corpus/seed/) — see TODO_DOMAIN.md.
+# is produced by corpus/ingest.py + corpus/seed/ — see TODO_DOMAIN.md.
 #
 # All documents, roles, and figures below are synthetic (CLAUDE.md: no real
 # product names, hostnames, or figures from any real company). classification

@@ -1,6 +1,5 @@
-# Phase D, D2 (DECISIONS.md DEC-058). The realm content the owner's
-# design-STOP review approved: one realm, one approval-approver role,
-# three clients, two test users. Schema confirmed against the live CRD
+# The realm content: one realm, one approval-approver role, three
+# clients, two test users. Schema confirmed against the live CRD
 # (`oc explain keycloakrealmimport.spec.realm[...]`) before writing.
 #
 # Deliberately secret-free: no client `secret` field, no user
@@ -38,7 +37,7 @@ spec:
       # Agent workload -> approval-service (submit proposal, IF-05 query).
       # Never assigned approval-approver -- this is what makes the named
       # negative test possible: correct by omission, nothing to
-      # misconfigure to "block" it (DECISIONS.md DEC-054's design note).
+      # misconfigure to "block" it.
       - clientId: ${{ values.name }}-approval-workload
         protocol: openid-connect
         publicClient: false
@@ -105,7 +104,7 @@ spec:
         protocol: openid-connect
         publicClient: true
         standardFlowEnabled: true
-        # DEC-058: also enabling Resource Owner Password (direct grant)
+        # Also enabling Resource Owner Password (direct grant)
         # on this SAME client -- deliberately, for D2's own verification
         # test only (no browser available to drive real Authorization
         # Code + PKCE from this environment). Still a real login (the
@@ -140,20 +139,18 @@ spec:
               id.token.claim: "false"
               userinfo.token.claim: "false"
     users:
-      # DEC-058 (owner requirement): at minimum one user with the
-      # approver role, one without -- the wrong-role 403 negative test
-      # needs a real, authenticated-but-unauthorized human token, not
-      # just the agent's own workload token.
+      # At minimum one user with the approver role, one without -- the
+      # wrong-role 403 negative test needs a real,
+      # authenticated-but-unauthorized human token, not just the
+      # agent's own workload token.
       #
       # email/firstName/lastName/emailVerified are NOT cosmetic here --
-      # found live, the hard way: without them, Keycloak's declarative
-      # User Profile feature refuses the direct-grant (Resource Owner
-      # Password) login this realm's own verification path uses
+      # without them, Keycloak's declarative User Profile feature
+      # refuses the direct-grant (Resource Owner Password) login this
+      # realm's own verification path uses
       # (`${{ values.name }}-approver-ui`'s directAccessGrantsEnabled),
-      # with "Account is not fully set up" -- confirmed by reproducing it
-      # live, then fixing it live via the admin API before writing the
-      # fix back here, per this project's own verify-before-trust
-      # discipline. Synthetic values only (CLAUDE.md).
+      # with "Account is not fully set up". Synthetic values only
+      # (CLAUDE.md).
       - username: demo-approver
         enabled: true
         email: demo-approver@example.invalid

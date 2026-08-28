@@ -12,11 +12,11 @@ def _load_system_prompt() -> str:
 
 
 def decide_node(state):
-    """DEC-013 candidate (decide-then-retrieve reordering): the sole
+    """decide-then-retrieve reordering: the sole
     tool-vs-no-tool decision point. Receives only the user query +
     TOOL_SCHEMAS -- no retrieved context, no citation instructions -- so
     citation guidance can no longer compete with tool-calling instructions
-    for the model's attention (DEC-012's diagnosed root cause). If no tool
+    for the model's attention. If no tool
     is selected, routing sends this to retrieve -> generate instead of
     answering here.
     """
@@ -84,10 +84,10 @@ def decide_node(state):
 
     if config.AGENT_MODEL_MODE == "fake":
         # FakeModelClient has no real tool-selection awareness -- reproduce
-        # the pre-B3/pre-B4 deterministic dispatch exactly here, so
+        # the deterministic dispatch exactly here, so
         # eval/cases/EXAMPLE-*.yaml's frozen harness-mechanics fixtures
         # (never domain content, SRS-EVH-F-03) keep passing unchanged.
-        # Phase C (DEC-023): write is now signaled by which tool is
+        # write is now signaled by which tool is
         # dispatched, not by an argument flag on placeholder_lookup --
         # EXAMPLE-002's write-classified case calls placeholder_write_action.
         if state.get("write_requested", False):

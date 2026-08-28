@@ -61,10 +61,10 @@ MODEL_NAME = _env("MODEL_NAME", "placeholder-model")
 MODEL_API_KEY = _env("MODEL_API_KEY", "not-needed")
 AGENT_MODEL_MODE = _env("AGENT_MODEL_MODE", "live")  # live | fake
 
-# Fallback route (SysR-P-F-12, DECISIONS.md DEC-009). Unset => no fallback
+# Fallback route (SysR-P-F-12). Unset => no fallback
 # configured; RoutedModelClient re-raises on primary failure instead of
-# retrying. Same API key as primary -- both routes are the same MaaS today
-# (DEC-009); a separate key isn't needed until that's no longer true.
+# retrying. Same API key as primary -- both routes are the same MaaS today;
+# a separate key isn't needed until that's no longer true.
 MODEL_FALLBACK_API_BASE_URL = _env("MODEL_FALLBACK_API_BASE_URL")
 MODEL_FALLBACK_NAME = _env("MODEL_FALLBACK_NAME")
 
@@ -72,7 +72,7 @@ MODEL_FALLBACK_NAME = _env("MODEL_FALLBACK_NAME")
 MCP_TOOL_ENDPOINT = _env("MCP_TOOL_ENDPOINT", "http://localhost:8081")
 MCP_MODE = _env("MCP_MODE", "mock")  # mock | live
 
-# Approval-service contract (Phase D, DECISIONS.md DEC-008/DEC-045/DEC-049).
+# Approval-service contract.
 # No mock/live toggle here, unlike MCP_TOOL_ENDPOINT above -- unlike the
 # mock ITSM tool (simple synchronous functions with an obvious in-process
 # equivalent), approval_service has real state-machine/atomicity behavior
@@ -83,9 +83,9 @@ MCP_MODE = _env("MCP_MODE", "mock")  # mock | live
 # -- see eval/domain_executor.py's _FakeApprovalService.
 APPROVAL_SERVICE_ENDPOINT = _env("APPROVAL_SERVICE_ENDPOINT", "http://localhost:8082")
 
-# Agent workload OIDC identity (Phase D2). AGENT_OIDC_MODE=none mirrors
-# approval_service's own AUTH_MODE=none escape hatch -- everything built
-# before D2's real IdP existed keeps working unauthenticated. =oidc
+# Agent workload OIDC identity. AGENT_OIDC_MODE=none mirrors
+# approval_service's own AUTH_MODE=none escape hatch: local dev never
+# needs a real IdP, and everything keeps working unauthenticated. =oidc
 # attaches a client-credentials bearer token (agent/oidc_client.py) to
 # both outbound calls this workload makes: approval_service and the MCP
 # tool server's REST route.
@@ -95,7 +95,7 @@ APPROVAL_OIDC_CLIENT_ID = _env("APPROVAL_OIDC_CLIENT_ID")
 APPROVAL_OIDC_CLIENT_SECRET = _env("APPROVAL_OIDC_CLIENT_SECRET")
 MCP_OIDC_CLIENT_ID = _env("MCP_OIDC_CLIENT_ID")
 MCP_OIDC_CLIENT_SECRET = _env("MCP_AUTH_TOKEN")  # reuses the existing ${{ values.name }}-secrets
-# key name (already wired via deployment-agent.yaml's envFrom since Phase C) -- this Python
+# key name (already wired via deployment-agent.yaml's envFrom) -- this Python
 # binding's name reflects what the value actually is now: the mcp-workload client's own OIDC
 # client secret, not a static bearer token. Env var name kept for continuity with the
 # already-provisioned Secret; only this Python-side name changed to reflect the real new meaning.
@@ -106,17 +106,15 @@ AGENT_CORPUS_DIR = _env("AGENT_CORPUS_DIR", "./corpus/seed")
 AGENT_STATE_DIR = _env("AGENT_STATE_DIR", "./state")
 # SRS-RET-IF-01 (resolved): top_k default is config-sourced, not hardcoded.
 RETRIEVAL_TOP_K = _env_int("RETRIEVAL_TOP_K", "retrieval_top_k", 5)
-# Structural mitigation for a Phase B4 live-testing finding: draft_request
-# and tool_selection failed their thresholds decisively (measured, not
-# assumed -- reports/feature-phase-b-golden-path.md) when the full
-# RETRIEVAL_TOP_K passages were injected into the reasoning call verbatim
-# -- a detailed procedure document in context reliably out-competed the
-# tool schemas for the model's attention. state["retrieved_docs"] still
-# carries the full RETRIEVAL_TOP_K set (citation assembly, future
-# consumers); only agent/nodes/generate.py's own context construction caps
-# how much of it actually reaches the model (DEC-013 candidate: this
-# capping is a secondary mitigation now that agent/nodes/decide.py never
-# sees retrieved context at all -- see DECISIONS.md DEC-012/DEC-013).
+# Structural mitigation: draft_request and tool_selection perform worse
+# when the full RETRIEVAL_TOP_K passages are injected into the reasoning
+# call verbatim -- a detailed procedure document in context reliably
+# out-competes the tool schemas for the model's attention.
+# state["retrieved_docs"] still carries the full RETRIEVAL_TOP_K set
+# (citation assembly, future consumers); only agent/nodes/generate.py's
+# own context construction caps how much of it actually reaches the
+# model -- a secondary mitigation now that agent/nodes/decide.py never
+# sees retrieved context at all.
 REASONING_CONTEXT_TOP_K = _env_int("REASONING_CONTEXT_TOP_K", "reasoning_context_top_k", 3)
 REASONING_EXCERPT_CHARS = _env_int("REASONING_EXCERPT_CHARS", "reasoning_excerpt_chars", 400)
 
@@ -126,12 +124,12 @@ MAX_REASONING_STEPS = _env_int("MAX_REASONING_STEPS", "max_reasoning_steps", 5)
 TOOL_TIMEOUT_SECONDS = float(_env_str("TOOL_TIMEOUT_SECONDS", "tool_timeout_seconds", 10))
 TOOL_RETRY_LIMIT = _env_int("TOOL_RETRY_LIMIT", "tool_retry_limit", 2)
 
-# R3 remedy (DEC-015): neither temperature nor seed was pinned before this --
-# the model client relied entirely on the endpoint's own default sampling.
-# A live audit found this was the dominant source of the residual pass-to-
-# pass tool-calling/narration variance (DEC-012/DEC-013/DEC-014's noise
-# categories): the same decide-shaped call, unpinned, alternated between a
-# real tool_calls response and prose narration across repeated calls;
+# Neither temperature nor seed was pinned before this -- the model client
+# relied entirely on the endpoint's own default sampling. This was found
+# to be the dominant source of residual pass-to-pass tool-calling/
+# narration variance: the same decide-shaped call, unpinned, alternated
+# between a real tool_calls response and prose narration across repeated
+# calls;
 # pinned (temperature=0, seed=42), 3/3 repeated calls returned an identical
 # tool_calls response. Both values are env/policy-bundle overridable per
 # this file's own convention -- not because a different temperature is
@@ -154,7 +152,7 @@ DEFAULT_TOOL_CLASSIFICATION = _APPROVAL_RULES_BUNDLE.get("default_classification
 # Telemetry
 OTEL_EXPORTER_OTLP_ENDPOINT = _env("OTEL_EXPORTER_OTLP_ENDPOINT")
 OTEL_SERVICE_NAME = _env("OTEL_SERVICE_NAME", "${{ values.name }}")
-# R4/DEC-020: SRS-AGT-IF-08 "the agent's workload identity", distinct from
+# SRS-AGT-IF-08 "the agent's workload identity", distinct from
 # OTEL_SERVICE_NAME (an OTel resource-attribute convention) even though
 # they share a default -- this names the actual runtime identity
 # (deploy/kustomize/base/serviceaccount.yaml's ServiceAccount), which can

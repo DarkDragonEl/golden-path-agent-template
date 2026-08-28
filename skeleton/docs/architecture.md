@@ -14,8 +14,7 @@ decide -> retrieve -> generate -> respond
 (as above)             fallback
 ```
 
-DEC-013 candidate (decide-then-retrieve reordering, replacing the earlier
-single `reason` node): `decide` (`agent/nodes/decide.py`) is the sole
+`decide` (`agent/nodes/decide.py`) is the sole
 entry point and the sole tool-vs-no-tool decision point — it calls the
 model client with `agent/prompts/decide_system_prompt.md` and the tool
 schemas, and no retrieved context at all. Only when it selects no tool
@@ -25,9 +24,7 @@ does `retrieve` (`agent/nodes/retrieve.py`) run, followed by `generate`
 schemas) and the retrieved context. This split exists because an
 unconditional-retrieval, single-call design let citation instructions
 compete with and beat tool-calling instructions whenever retrieval
-returned any topically-plausible context, even for tool-oriented queries
-(`DECISIONS.md` `DEC-012`) — see `DECISIONS.md` for the full diagnosis and
-`DEC-013` for this redesign's re-baseline result.
+returned any topically-plausible context, even for tool-oriented queries.
 
 - **retrieve** (`agent/nodes/retrieve.py`) calls `agent/retrieval_client.py`
   and catches a lookup failure into `retrieval_unavailable=True` instead of
@@ -60,19 +57,19 @@ returned any topically-plausible context, even for tool-oriented queries
 |---|---|---|
 | Model API | `agent/model_client.py` | OpenAI-compatible client + `FakeModelClient` for offline/eval runs. `AGENT_MODEL_MODE=fake\|live` switches between them. |
 | Retrieval | `agent/retrieval_client.py` | Frozen dataclass contract (`RetrievedChunk`); body is TODO(domain). |
-| Tool / MCP | `mcp_server/client.py` (this repo, calling surface only) | The server implementation (`mcp_server/schemas.py`/`server.py`/`auth.py`/`itsm_store.py`) lives in a separately-scaffolded Tools Template instance, not here (Phase G, Stage 2 -- DEC-098/DEC-099, amended `SysR-P-F-01`). Reached over the network at `MCP_TOOL_ENDPOINT` (`mcpEndpoint` scaffold parameter); `MCP_MODE` is fixed to `live` at build time, never configurable to `mock` (there is no local server to fall back to). |
-| Approval | `agent/approval_client.py` (this repo, calling surface only) | The approval service is a shared Platform Foundation singleton (DEC-098), not bundled per project. Reached at `APPROVAL_SERVICE_ENDPOINT` (`approvalServiceEndpoint` scaffold parameter), per its published contract (`SRS-APR-IF-01..05`). |
+| Tool / MCP | `mcp_server/client.py` (this repo, calling surface only) | The server implementation (`mcp_server/schemas.py`/`server.py`/`auth.py`/`itsm_store.py`) lives in a separately-scaffolded Tools Template instance, not here (per amended `SysR-P-F-01`). Reached over the network at `MCP_TOOL_ENDPOINT` (`mcpEndpoint` scaffold parameter); `MCP_MODE` is fixed to `live` at build time, never configurable to `mock` (there is no local server to fall back to). |
+| Approval | `agent/approval_client.py` (this repo, calling surface only) | The approval service is a shared Platform Foundation singleton, not bundled per project. Reached at `APPROVAL_SERVICE_ENDPOINT` (`approvalServiceEndpoint` scaffold parameter), per its published contract (`SRS-APR-IF-01..05`). |
 | Policy | `agent/policy.py`, `policy/*.yaml` | Step/timeout/retry guardrails + read-vs-write classification. `POLICY_BUNDLE_REF` points at a versioned YAML file that supplies defaults; env vars override per environment. |
 
 ## One image, one runtime role
 
 A single `Containerfile` builds one image; `entrypoint.sh` runs
-`uvicorn agent.api:app`, nothing else. Phase G, Stage 2 (DEC-098/DEC-099)
-retired the old three-way positional-arg dispatch (`DEC-047`) that used to
-also run the MCP server and the approval service as roles of this same
-image -- both are now independent artifacts (a separate Tools Template
-instance; a shared Platform Foundation component), each with their own
-build/deploy/promote lifecycle.
+`uvicorn agent.api:app`, nothing else. This retired an old three-way
+positional-arg dispatch that used to also run the MCP server and the
+approval service as roles of this same image -- both are now independent
+artifacts (a separate Tools Template instance; a shared Platform
+Foundation component), each with their own build/deploy/promote
+lifecycle.
 
 ## Independent Tools Template
 

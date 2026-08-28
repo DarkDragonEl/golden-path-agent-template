@@ -1,4 +1,4 @@
-"""DEC-013 candidate (decide-then-retrieve reordering): structural
+"""Under the decide-then-retrieve reordering: structural
 assertion on build_graph()'s compiled node/edge shape. Cheaper and more
 durable than trying to force the no-tool branch through the full graph in
 fake mode (fake mode always takes the tool-call branch by design -- see
