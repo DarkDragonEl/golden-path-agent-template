@@ -95,22 +95,11 @@ tests, deploys, and evaluates them.
 local SQLite store — it doesn't exist in a fresh clone and has no
 tracked content to link to.
 
-### The build journal
+### Decisions and history
 
-This project keeps its own engineering forensics alongside the code — an
-append-only decision log plus phase-by-phase handoff and pin records —
-so a decision's reasoning, not just its outcome, survives past the
-session that made it. It reads as intentional because it is: every
-`DEC-NNN` comment in the code points back here on purpose.
-
-| Path | What it is |
-|---|---|
-| [`DECISIONS.md`](DECISIONS.md) | The append-only decision log — every `DEC-NNN` entry records one ambiguity, finding, decision, evidence, and status. |
-| [`HANDOFF.md`](HANDOFF.md) | Session-to-session handoff notes for whoever picks up the work next. |
-| [`PINS.md`](PINS.md) | Pinned exact versions/commits for every external component this repo builds on, with source URL and date verified. |
-| [`reports/`](reports/) | Per-task verification reports: commands run, real output, eval scores, what failed and why. |
-| [`MISSION_UNATTENDED.md`](MISSION_UNATTENDED.md) | The standing instructions an unattended/autonomous session runs under. |
-| [`srs/`](srs/) | The normative system/stakeholder requirements this blueprint realizes. |
+ADRs live in `docs/adr/`. The full engineering journal — decision log,
+handoffs, per-task reports — lives in the sibling `agent-roadmap`
+repository. `PINS.md` and `srs/` remain here.
 
 ### Other root files
 
@@ -242,10 +231,13 @@ and the three-image split), [`docs/owner-walkthrough.md`](docs/owner-walkthrough
 [`PINS.md`](PINS.md).
 
 **Decisions**
-- [`DECISIONS.md`](DECISIONS.md) — the project's single decision log. Each `DEC-NNN` entry records one ambiguity, finding, decision, evidence, and status, in that order.
+- `docs/adr/` — architecture decision records for this blueprint's
+  load-bearing design choices.
+- The full decision log lives in the sibling `agent-roadmap` repository.
 
 ---
 
 Provenance and reuse policy: see [`docs/provenance.md`](docs/provenance.md).
-Decision log: see [`DECISIONS.md`](DECISIONS.md) for the full history of
-every ambiguity, finding, and decision behind this blueprint.
+Decision history: the sibling `agent-roadmap` repository's `DECISIONS.md`
+has the full history of every ambiguity, finding, and decision behind
+this blueprint; `docs/adr/` here has the load-bearing design choices.
