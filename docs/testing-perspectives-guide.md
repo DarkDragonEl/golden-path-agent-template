@@ -15,6 +15,16 @@ regression the other five structurally cannot. This guide documents each
 one so it can be reviewed deliberately rather than by ad hoc `make`
 invocations.
 
+**Canonical names** (declared here so `srs/*.md` and `tools/req_trace.py`
+can cite them consistently — deliberately names, not numbers, since
+there is no formal ordering to number against and a name survives this
+table being reordered): perspective 1 is **"the domain eval suite,"**
+perspective 2 is **"unit/integration tests,"** perspective 5 is **"the
+CI promotion gate,"** perspective 6 is **"live-cluster verification."**
+(Perspectives 3 and 4 — fail-closed write authorization, tool-contract
+probe — aren't cited by name elsewhere yet; add their canonical names
+here if that changes.)
+
 Findings below were produced by a live research pass against this repo
 (commands actually run, file paths actually checked) and a second
 adversarial fact-check pass over every claim before being written here.

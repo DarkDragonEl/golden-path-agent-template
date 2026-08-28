@@ -5,24 +5,25 @@
 | Field | Value |
 |---|---|
 | Document ID | SRS-APR |
-| Version | 0.3 (Draft, amended) |
+| Version | 0.4 (Draft, amended) |
 | Conformance | ISO/IEC/IEEE 29148 §9.5 (SRS content), tailored per §0.1 |
-| Derivation basis | SyRS-AGP-001 v0.1 (frozen) — SysR-P-F-08, SysR-P-F-09, SysR-P-USE-01, SysR-P-IF-05/06, SysR-P-SEC-01/02/03/05/06, SysR-P-INFO-03, SysR-P-POL-01 |
+| Derivation basis | SyRS-AGP-001 v0.3 — SysR-P-F-08, SysR-P-F-09, SysR-P-USE-01, SysR-P-IF-05/06, SysR-P-SEC-01/02/03/05/06, SysR-P-INFO-03, SysR-P-POL-01 |
 | Classification | Organization-agnostic blueprint; no proprietary content; no product names in normative text |
-| Depth | Full (per `MISSION_PHASE_B0.md`) |
+| Depth | Full |
 
 ### Revision History
 
 | Version | Date | Author | Changes |
 |---|---|---|---|
-| 0.1 | 2026-08-13 | Delivery agent (Phase B0) | Initial derivation from SyRS-AGP-001 v0.1, following the skeleton pattern at `SRS-APR_skeleton.md`. Submitted at Checkpoint B0-a. |
+| 0.1 | 2026-08-13 | Delivery agent (Phase B0) | Initial derivation from SyRS-AGP-001 v0.1, following the skeleton pattern at `SRS-APR_skeleton.md`. |
 | 0.2 | 2026-08-21 | Owner review, Checkpoint B0-b | All 4 PROPOSED items resolved (F-04 jointly with `srs/SRS-AGT.md`'s F-04, F-07, SEC-02, SEC-04); SRS-APR-IF-05 (terminal-state proposal query) added, closing FIND-004. See `DECISIONS.md` DEC-008. |
 | 0.3 | 2026-08-26 | Phase G kickoff (G0) | Added SRS-APR-QUAL-02 (held, never auto-approved, on shared-service unavailability), extending SRS-APR-SEC-01's fail-closed guarantee to the shared-approval-service consumption boundary introduced by DECISIONS.md DEC-098. Purely additive; no existing requirement text changed. |
+| 0.4 | 2026-08-28 | Delivery agent | Derivation-basis line corrected to the current SyRS version, dropping the stale prior-version tag; session/checkpoint vocabulary removed; delivery-phase verification-timing labels renamed to verification-mechanism names (docs/testing-perspectives-guide.md); the two build-stage-lettered mentions reworded (one kept as historical changelog record, one reworded to drop the build-stage reference). Reference-implementation reframe, DECISIONS.md DEC-130. SRS-APR-F-04/SRS-APR-IF-05 and their trace-table rows additionally rewritten to describe current realization only. No other requirement text changed. |
 
 ### Associated Documents
 
-- **SyRS-AGP-001 v0.1 (frozen)** — derivation basis. Never modified by this document; gaps found during derivation are recorded in `srs/FINDINGS.md`, not applied here.
-- **`eval/` (Phase A, signed, `phase-a-complete`)** — verification evidence. `eval/cases/domain/draft_request.yaml` (DRQ-001..006) and `eval/cases/domain/unauthorized_write.yaml` (UAW-001..006) are the closest existing Phase A cases; where cited below, they provide end-to-end, agent-observable evidence, not component-level test evidence of this service in isolation — the distinction is noted per requirement.
+- **SyRS-AGP-001 v0.3** — derivation basis. Never modified by this document; gaps found during derivation are recorded in `srs/FINDINGS.md`, not applied here.
+- **`eval/` (the domain eval suite, signed, `phase-a-complete`)** — verification evidence. `eval/cases/domain/draft_request.yaml` (DRQ-001..006) and `eval/cases/domain/unauthorized_write.yaml` (UAW-001..006) are the closest existing domain-eval-suite cases; where cited below, they provide end-to-end, agent-observable evidence, not component-level test evidence of this service in isolation — the distinction is noted per requirement.
 - **`SRS-APR_skeleton.md`** — pattern document for this derivation; its four worked exemplars (F-01..F-04) are carried into this document unchanged as style anchors.
 - **ISO/IEC/IEEE 29148:2011** — requirements engineering (compliance reference).
 
@@ -41,25 +42,25 @@ Out of scope for this item: the agent's drafting logic (SRS-AGT), the write exec
 ## 1. Functional Requirements (SRS-APR-F-*)
 
 - **SRS-APR-F-01 — Proposal intake.** The service shall accept a proposed action only as a structured proposal containing: action type, target system identifier, complete action arguments, evidence references (retrieval citations and tool-call record IDs from the initiating run), initiating user identity, agent workload identity, and originating session/request ID. Proposals missing any required field shall be rejected with a machine-readable error and shall create no pending approval.
-  *Trace:* SysR-P-F-08. *Verification:* T (schema-reject cases). No Phase A eval case directly verifies service-level field-validation rejection — `eval/cases/domain/draft_request.yaml` (DRQ-001..006) verify that the *agent* supplies complete fields, which is necessary but not sufficient evidence for this requirement; a dedicated Phase B test is needed.
+  *Trace:* SysR-P-F-08. *Verification:* T (schema-reject cases). No domain-eval-suite case directly verifies service-level field-validation rejection — `eval/cases/domain/draft_request.yaml` (DRQ-001..006) verify that the *agent* supplies complete fields, which is necessary but not sufficient evidence for this requirement; a dedicated unit/integration test is needed.
 
 - **SRS-APR-F-02 — Single-decision lifecycle.** Each proposal shall exist in exactly one state from {pending, approved, rejected, expired} and shall transition at most once, atomically, from pending to a terminal state. Duplicate or late decisions against a non-pending proposal shall be refused and audit-logged as refused attempts.
-  *Trace:* SysR-P-F-08. *Verification:* T (race: two concurrent decisions → one wins, one refused). No Phase A eval case exercises concurrent decisions — out of scope for black-box agent evaluation; a Phase B integration test is needed.
+  *Trace:* SysR-P-F-08. *Verification:* T (race: two concurrent decisions → one wins, one refused). No domain-eval-suite case exercises concurrent decisions — out of scope for black-box agent evaluation; a unit/integration test is needed.
 
 - **SRS-APR-F-03 — Expiry without execution.** A proposal not decided within the configured time limit shall transition to expired, shall never execute, and shall be indistinguishable from a rejection with respect to execution side effects. The time limit shall be environment configuration, not code.
-  *Trace:* SysR-P-F-08 (expiry clause). *Verification:* T (expiry path; demo scenario 3 in Phase D). Evidence: `eval/cases/domain/unauthorized_write.yaml` UAW-002 (`approval_scenario: expired`) — agent-observable evidence that expiry produces `write_blocked: true` / `final_state: no_execution`, consistent with but not a substitute for a service-level expiry-timer test.
+  *Trace:* SysR-P-F-08 (expiry clause). *Verification:* T (expiry path; live-cluster-verification exercise — a pod-restart-survives-pending check against the deployed service). Evidence: `eval/cases/domain/unauthorized_write.yaml` UAW-002 (`approval_scenario: expired`) — agent-observable evidence that expiry produces `write_blocked: true` / `final_state: no_execution`, consistent with but not a substitute for a service-level expiry-timer test.
 
-- **SRS-APR-F-04 — Execution release, not execution.** On approval, the service shall release execution — an atomic transition of the proposal to `approved` plus making the approved proposal, including its *unmodified* `action_arguments`, queryable (SRS-APR-IF-05) — with the *unmodified* approved arguments; the service itself shall contain no target-system client logic and shall not itself issue the literal tool-contract invocation. `Resolved at Checkpoint B0-b — adjudicated jointly with SRS-AGT-F-04, agent-as-invoker model (see DECISIONS.md DEC-008):` "release execution... by invoking the tool-contract path" is read as the service's atomic state transition plus queryable-approved-proposal guarantee described above, not a literal tool-contract call performed by the service; the agent is the component that issues that literal call, per SRS-AGT-F-04 and SRS-MIT-SEC-01's "reachable by the agent" language, which the frozen SysR-A-F-04 also requires ("the agent shall... execute the action"). This resolves the release-mechanism question this requirement originally posed (synchronous invoke-and-record vs. an execution-authorized event) as neither literally: release is the atomic approve-and-expose step; execution is a separate, agent-side act, sourced from this service's query surface rather than a client-cached copy — closing FIND-004 via the new SRS-APR-IF-05 below. Rationale: this keeps SRS-APR-F-04 consistent with the frozen SyRS text it derives from (SysR-P-F-09 does not itself assign the literal invocation to this service) while still satisfying "unmodified approved arguments" end to end, since SRS-AGT-F-04's added condition requires the agent to execute exactly the arguments this service's query surface returns.
+- **SRS-APR-F-04 — Execution release, not execution.** On approval, the service shall release execution — an atomic transition of the proposal to `approved` plus making the approved proposal, including its *unmodified* `action_arguments`, queryable (SRS-APR-IF-05) — with the *unmodified* approved arguments; the service itself shall contain no target-system client logic and shall not itself issue the literal tool-contract invocation. Adjudicated jointly with SRS-AGT-F-04 under the agent-as-invoker model (`DECISIONS.md` DEC-008): "release execution... by invoking the tool-contract path" is read as the service's atomic state transition plus queryable-approved-proposal guarantee described above, not a literal tool-contract call performed by the service; the agent is the component that issues that literal call, per SRS-AGT-F-04 and SRS-MIT-SEC-01's "reachable by the agent" language, which SysR-A-F-04 also requires ("the agent shall... execute the action"). This resolves the release-mechanism question this requirement originally posed (synchronous invoke-and-record vs. an execution-authorized event) as neither literally: release is the atomic approve-and-expose step; execution is a separate, agent-side act, sourced from this service's query surface (SRS-APR-IF-05) rather than a client-cached copy. Rationale: this keeps SRS-APR-F-04 consistent with the SyRS text it derives from (SysR-P-F-09 does not itself assign the literal invocation to this service) while still satisfying "unmodified approved arguments" end to end, since SRS-AGT-F-04's execution step requires the agent to execute exactly the arguments this service's query surface returns.
   *Trace:* SysR-P-F-09. *Verification:* I (no target-system dependencies in the component), T (argument-equality assertion), D. Evidence: `eval/cases/domain/draft_request.yaml` DRQ-001..006 (`write_executed_before_approval: false`) and `eval/cases/domain/unauthorized_write.yaml` UAW-001..006 (`tool_result_in_final_output: false`) — both agent-observable, both consistent with this requirement's outcome.
 
 - **SRS-APR-F-05 — Decision-context availability.** For every pending proposal, the service shall make available, on query, the complete decision context: the proposed action and its arguments, the evidence references supplied at intake, and the initiating user's identity — sufficient to satisfy SRS-APR-QUAL-01's single-view presentation without a separate query to any other system.
-  *Trace:* SysR-P-F-08, SysR-P-USE-01. *Verification:* T (context-completeness assertion against a submitted proposal). No Phase A eval case; Phase A tested the agent's behavior, not a standalone service query surface.
+  *Trace:* SysR-P-F-08, SysR-P-USE-01. *Verification:* T (context-completeness assertion against a submitted proposal). No domain-eval-suite case; the domain eval suite tested the agent's behavior, not a standalone service query surface.
 
 - **SRS-APR-F-06 — Pending-proposal query surface.** The service shall support listing all proposals currently in the `pending` state, filterable at minimum by originating session/request ID, such that an approver or an operator can discover work awaiting decision without prior knowledge of a specific proposal identifier.
-  *Trace:* SysR-P-F-08, SysR-P-USE-01. *Verification:* T (list reflects true pending set across intake/decision transitions). No Phase A eval case.
+  *Trace:* SysR-P-F-08, SysR-P-USE-01. *Verification:* T (list reflects true pending set across intake/decision transitions). No domain-eval-suite case.
 
-- **SRS-APR-F-07 — Idempotent proposal submission.** `Resolved at Checkpoint B0-b (accepted as drafted):` a proposal submission carrying a client-supplied idempotency key already seen for the same originating session/request ID shall return the existing proposal's current state rather than creating a duplicate pending approval. Rationale: SysR-P-F-08 does not address retry behavior on the intake path; without this, a network retry after a successful intake could create two pending approvals for one intended action. Alternative considered: leave de-duplication to the caller (agent-side retry safety) — rejected because it would require every future agent implementation to reimplement the same safeguard the service can provide once.
-  *Trace:* SysR-P-F-08 (intake reliability, by extension). *Verification:* T (duplicate submission with the same idempotency key resolves to one proposal). No Phase A eval case.
+- **SRS-APR-F-07 — Idempotent proposal submission.** Accepted as drafted: a proposal submission carrying a client-supplied idempotency key already seen for the same originating session/request ID shall return the existing proposal's current state rather than creating a duplicate pending approval. Rationale: SysR-P-F-08 does not address retry behavior on the intake path; without this, a network retry after a successful intake could create two pending approvals for one intended action. Alternative considered: leave de-duplication to the caller (agent-side retry safety) — rejected because it would require every future agent implementation to reimplement the same safeguard the service can provide once.
+  *Trace:* SysR-P-F-08 (intake reliability, by extension). *Verification:* T (duplicate submission with the same idempotency key resolves to one proposal). No domain-eval-suite case.
 
 ## 2. Interfaces (SRS-APR-IF-*)
 
@@ -73,13 +74,13 @@ Out of scope for this item: the agent's drafting logic (SRS-AGT), the write exec
   *Trace:* SysR-P-F-08, SysR-P-USE-01. *Verification:* I (schema inspection), T (approve / reject / refused-duplicate-decision cases).
 
 - **SRS-APR-IF-03 — Audit/telemetry emission.** Every state transition shall emit a telemetry event correlated to the originating session/request ID, on the platform telemetry interface.
-  *Trace:* SysR-P-IF-06. *Verification:* T (trace continuity asserted end-to-end; Phase D dashboard).
+  *Trace:* SysR-P-IF-06. *Verification:* T (trace continuity asserted end-to-end; a live-cluster-verification dashboard check).
 
 - **SRS-APR-IF-04 — Pending-proposal query interface.** The service shall expose a query operation implementing SRS-APR-F-06, accepting an optional `originating_session_id` or `originating_request_id` filter and returning the matching set of pending proposals with the same decision-context fields as SRS-APR-IF-01/F-05.
   *Trace:* SysR-P-F-08, SysR-P-USE-01. *Verification:* I (schema inspection), T.
 
-- **SRS-APR-IF-05 — Terminal-state proposal query.** *Added at Checkpoint B0-b, adopted per `DECISIONS.md` DEC-008, closing FIND-004 — purely additive, does not modify SRS-APR-IF-01..04.* The service shall expose a query operation accepting `proposal_id` and returning that proposal's current state and, once it has left `pending`, its terminal-state record in full: the decision outcome (`approved`/`rejected`/`expired`), the approver identity and decision timestamp (SRS-APR-DATA-01), and, for an `approved` proposal, the *unmodified* `action_arguments` accepted at intake (SRS-APR-IF-01) — the exact arguments SRS-AGT-F-04's agent-as-invoker execution step must use. This is the mechanism SRS-AGT-F-04 depends on to learn a decided proposal's outcome and to source the arguments it executes; SRS-APR-IF-04/F-06 remain scoped to `pending` proposals only and are not widened by this addition. **Realization note:** Phase B realizes this requirement's functional intent through an interim, explicitly-labeled mechanism (the agent's own in-process interrupt/resume, plus a `GET /approvals/{session_id}` read endpoint on the agent itself, per `srs/SRS-AGT.md`'s SRS-AGT-F-04 resolution) rather than a standalone service query, since no standalone approval service exists until Phase D; Phase D's standalone `approval_service` component is where this interface is actually implemented as specified.
-  *Trace:* SysR-P-F-08, SysR-A-F-04 (referenced — the agent-side obligation this interface exists to satisfy). *Verification:* I (schema inspection), T (a terminal-state query returns the correct outcome and, for `approved`, arguments identical to those accepted at intake). No Phase A eval evidence; a Phase D integration test is needed once the standalone service exists — Phase B's interim mechanism is verified instead via SRS-AGT-F-04's added arguments-equality test.
+- **SRS-APR-IF-05 — Terminal-state proposal query.** *Adopted per `DECISIONS.md` DEC-008; purely additive, does not modify SRS-APR-IF-01..04.* The service shall expose a query operation accepting `proposal_id` and returning that proposal's current state and, once it has left `pending`, its terminal-state record in full: the decision outcome (`approved`/`rejected`/`expired`), the approver identity and decision timestamp (SRS-APR-DATA-01), and, for an `approved` proposal, the *unmodified* `action_arguments` accepted at intake (SRS-APR-IF-01) — the exact arguments SRS-AGT-F-04's agent-as-invoker execution step must use. This is the mechanism SRS-AGT-F-04 depends on to learn a decided proposal's outcome and to source the arguments it executes; SRS-APR-IF-04/F-06 remain scoped to `pending` proposals only and are not widened by this addition. **Realization:** the standalone `approval_service` component implements this interface directly; the agent's `agent/approval_client.py::resolve_and_resume` queries it to obtain the terminal-state record.
+  *Trace:* SysR-P-F-08, SysR-A-F-04 (referenced — the agent-side obligation this interface exists to satisfy). *Verification:* I (schema inspection), T (a terminal-state query returns the correct outcome and, for `approved`, arguments identical to those accepted at intake) — `tests/test_approval_service.py`'s terminal-state/`action_arguments` assertions and `tests/test_write_gating.py`'s arguments-equality tests exercise this directly. Not separately observable through `eval/cases/domain/` (the domain eval suite tests agent behavior, not this service's query surface in isolation).
 
 ## 3. Data Requirements (SRS-APR-DATA-*)
 
@@ -94,13 +95,13 @@ Out of scope for this item: the agent's drafting logic (SRS-AGT), the write exec
 - **SRS-APR-SEC-01 — Fail closed.** Any internal error, dependency failure, or undecidable state shall result in no execution release. There shall be no code path from an error condition to an executed write.
   *Trace:* SysR-P-SEC-05 (deny-path principle). *Verification:* T (fault injection on every dependency), I. Evidence: `eval/cases/domain/unauthorized_write.yaml` UAW-001..006 provide end-to-end, agent-observable evidence that the wider system's outcome is consistent with this requirement across the `rejected`/`expired`/`not_requested`/`bypass_attempt` scenarios — they exercise the agent's policy layer together with the approval path, not this service in isolation.
 
-- **SRS-APR-SEC-02 — Approver authorization.** `Resolved at Checkpoint B0-b (accepted as drafted, closes FIND-001):` a decision (SRS-APR-IF-02) shall be accepted only from an identity holding the approver role for the proposal's scope; a decision from an identity not so authorized shall be refused and audit-logged as a refused attempt, identically to SRS-APR-F-02's duplicate-decision handling. Rationale: this closes a gap identified during derivation — see `srs/FINDINGS.md` FIND-001. The SyRS records that decisions carry approver identity (SysR-P-F-08) and StRS defines the approver as a distinct stakeholder role (STK-05), but no SysR requires the service to verify the deciding identity actually holds that role. Alternative considered: rely on the demo UI being reachable only by designated approvers, with no service-side check — rejected as inconsistent with the fail-closed/least-privilege posture applied everywhere else in this document (SRS-APR-SEC-01, SysR-P-SEC-03). **Owner known-limitation note (Checkpoint B0-b, not a change to the requirement):** as drafted, this requirement does not forbid an initiator who also holds the approver role from approving their own proposal — acceptable at demo tier; four-eyes / initiator≠approver separation is a staging/phase-two concern and is not built now.
-  *Trace:* SysR-P-F-08 (approver identity recording, by extension), StRS STK-05. *Verification:* T (a decision attempt from a non-approver identity is refused). No Phase A eval case exercises this dimension — recommend it as a future addition to `eval/cases/domain/unauthorized_write.yaml` (e.g., "decision submitted by an identity without the approver role").
+- **SRS-APR-SEC-02 — Approver authorization.** Accepted as drafted, closing FIND-001: a decision (SRS-APR-IF-02) shall be accepted only from an identity holding the approver role for the proposal's scope; a decision from an identity not so authorized shall be refused and audit-logged as a refused attempt, identically to SRS-APR-F-02's duplicate-decision handling. Rationale: this closes a gap identified during derivation — see `srs/FINDINGS.md` FIND-001. The SyRS records that decisions carry approver identity (SysR-P-F-08) and StRS defines the approver as a distinct stakeholder role (STK-05), but no SysR requires the service to verify the deciding identity actually holds that role. Alternative considered: rely on the demo UI being reachable only by designated approvers, with no service-side check — rejected as inconsistent with the fail-closed/least-privilege posture applied everywhere else in this document (SRS-APR-SEC-01, SysR-P-SEC-03). **Owner known-limitation note (not a change to the requirement):** as drafted, this requirement does not forbid an initiator who also holds the approver role from approving their own proposal — acceptable at demo tier; four-eyes / initiator≠approver separation is a staging/phase-two concern and is not built now.
+  *Trace:* SysR-P-F-08 (approver identity recording, by extension), StRS STK-05. *Verification:* T (a decision attempt from a non-approver identity is refused). No domain-eval-suite case exercises this dimension — recommend it as a future addition to `eval/cases/domain/unauthorized_write.yaml` (e.g., "decision submitted by an identity without the approver role").
 
 - **SRS-APR-SEC-03 — Identity propagation.** The initiating user identity (SRS-APR-IF-01) and the approver identity (SRS-APR-IF-02) shall each be established from the enterprise identity provider's authenticated session (SysR-P-IF-05), never accepted as a client-supplied field; the service shall not use a broadly shared credential to represent either identity (SysR-P-SEC-02).
-  *Trace:* SysR-P-IF-05, SysR-P-SEC-02. *Verification:* I (identity-source inspection), T (a request asserting an identity different from its authenticated session is rejected). No Phase A eval case exercises identity-spoofing on the approval path.
+  *Trace:* SysR-P-IF-05, SysR-P-SEC-02. *Verification:* I (identity-source inspection), T (a request asserting an identity different from its authenticated session is rejected). No domain-eval-suite case exercises identity-spoofing on the approval path.
 
-- **SRS-APR-SEC-04 — Audit-record integrity.** `Resolved at Checkpoint B0-b (accepted as drafted, closes FIND-002):` once a proposal reaches a terminal state (`approved`, `rejected`, `expired`), its decision record shall be immutable — no operation exposed by this service shall update or delete a terminal-state record's action, arguments, approver identity, decision, or timestamp. Rationale: StR-APR-03 requires decision records be retrievable "as audit evidence," which implies the evidence is trustworthy; the SyRS states no explicit immutability mechanism, so this document proposes one. Alternative considered: allow corrections via a compensating new record referencing the original (append-only correction) — reasonable if a real correction workflow is ever needed; rejected for the demo tier as unnecessary complexity.
+- **SRS-APR-SEC-04 — Audit-record integrity.** Accepted as drafted, closing FIND-002: once a proposal reaches a terminal state (`approved`, `rejected`, `expired`), its decision record shall be immutable — no operation exposed by this service shall update or delete a terminal-state record's action, arguments, approver identity, decision, or timestamp. Rationale: StR-APR-03 requires decision records be retrievable "as audit evidence," which implies the evidence is trustworthy; the SyRS states no explicit immutability mechanism, so this document proposes one. Alternative considered: allow corrections via a compensating new record referencing the original (append-only correction) — reasonable if a real correction workflow is ever needed; rejected for the demo tier as unnecessary complexity.
   *Trace:* SysR-P-SEC-06, SysR-P-SEC-01. *Verification:* I (no update/delete operation in the service's exposed interface), T (attempted mutation of a terminal record fails).
 
 ## 5. Quality Requirements (SRS-APR-QUAL-*)
@@ -117,28 +118,28 @@ Out of scope for this item: the agent's drafting logic (SRS-AGT), the write exec
 
 | Requirement | Method | Evidence |
 |---|---|---|
-| SRS-APR-F-01 | T | Phase B schema-reject test (needed); DRQ-001..006 (agent-side, partial) |
-| SRS-APR-F-02 | T | Phase B concurrency test (needed) |
-| SRS-APR-F-03 | T | UAW-002 (agent-observable); Phase B expiry-timer test (needed) |
+| SRS-APR-F-01 | T | Unit/integration schema-reject test (needed); DRQ-001..006 (agent-side, partial) |
+| SRS-APR-F-02 | T | Unit/integration concurrency test (needed) |
+| SRS-APR-F-03 | T | UAW-002 (agent-observable); unit/integration expiry-timer test (needed) |
 | SRS-APR-F-04 | I, T, D | DRQ-001..006, UAW-001..006 (agent-observable) |
-| SRS-APR-F-05 | T | Phase B context-completeness test (needed) |
-| SRS-APR-F-06 | T | Phase B list-query test (needed) |
-| SRS-APR-F-07 | T | Phase B idempotency test (needed) |
-| SRS-APR-IF-01 | I, T | Phase B schema conformance test (needed) |
-| SRS-APR-IF-02 | I, T | Phase B schema conformance test (needed) |
-| SRS-APR-IF-03 | T | Phase D dashboard trace-continuity check |
-| SRS-APR-IF-04 | I, T | Phase B schema conformance test (needed) |
-| SRS-APR-IF-05 | I, T | Phase D standalone-service integration test (needed); Phase B verified instead via SRS-AGT-F-04's arguments-equality test on the interim mechanism |
-| SRS-APR-DATA-01 | I, T | Phase B restart-persistence test (needed) |
-| SRS-APR-DATA-02 | I, D | Phase D audit-retrieval exercise |
-| SRS-APR-SEC-01 | T, I | UAW-001..006 (agent-observable); Phase B fault-injection test (needed) |
-| SRS-APR-SEC-02 | T | Phase B non-approver-decision test (needed); recommend eval-set addition |
-| SRS-APR-SEC-03 | I, T | Phase B identity-spoofing test (needed) |
-| SRS-APR-SEC-04 | I, T | Phase B immutability test (needed) |
-| SRS-APR-QUAL-01 | D | Phase D approver walkthrough |
-| SRS-APR-QUAL-02 | T, D | Phase G consumer-side fault-injection test (needed; executable once a second consumer exists, G3+) |
+| SRS-APR-F-05 | T | Unit/integration context-completeness test (needed) |
+| SRS-APR-F-06 | T | Unit/integration list-query test (needed) |
+| SRS-APR-F-07 | T | Unit/integration idempotency test (needed) |
+| SRS-APR-IF-01 | I, T | Unit/integration schema conformance test (needed) |
+| SRS-APR-IF-02 | I, T | Unit/integration schema conformance test (needed) |
+| SRS-APR-IF-03 | T | live-cluster-verification dashboard trace-continuity check |
+| SRS-APR-IF-04 | I, T | Unit/integration schema conformance test (needed) |
+| SRS-APR-IF-05 | I, T | `tests/test_approval_service.py` + `tests/test_write_gating.py`'s arguments-equality tests |
+| SRS-APR-DATA-01 | I, T | Unit/integration restart-persistence test (needed) |
+| SRS-APR-DATA-02 | I, D | live-cluster-verification audit-retrieval exercise |
+| SRS-APR-SEC-01 | T, I | UAW-001..006 (agent-observable); unit/integration fault-injection test (needed) |
+| SRS-APR-SEC-02 | T | Unit/integration non-approver-decision test (needed); recommend eval-set addition |
+| SRS-APR-SEC-03 | I, T | Unit/integration identity-spoofing test (needed) |
+| SRS-APR-SEC-04 | I, T | Unit/integration immutability test (needed) |
+| SRS-APR-QUAL-01 | D | live-cluster-verification approver walkthrough |
+| SRS-APR-QUAL-02 | T, D | Consumer-side fault-injection test (needed; executable once a second live consumer of the approval service exists) |
 
-"Needed" marks a Phase B verification artifact that does not yet exist — listed for `tools/trace-check`'s check (d), which activates once Phase B produces tests.
+"Needed" marks a unit/integration-test verification artifact that does not yet exist — listed for `tools/trace-check`'s check (d), which activates once unit/integration tests exist.
 
 ## 7. Traceability
 
@@ -171,6 +172,6 @@ Out of scope for this item: the agent's drafting logic (SRS-AGT), the write exec
 
 ---
 
-*Requirements marked PROPOSED are not signed. Originally submitted at Checkpoint B0-a with 4 PROPOSED items; all 4 were resolved at Checkpoint B0-b, and SRS-APR-IF-05 was added at that same checkpoint (purely additive) to close FIND-004.*
+*Requirements marked PROPOSED are not signed. This document was originally submitted with 4 PROPOSED items; all 4 have since been resolved, and SRS-APR-IF-05 was added in the same review round (purely additive) to close FIND-004.*
 
-**All 4 PROPOSED items in this document were resolved at Checkpoint B0-b:** SRS-APR-F-04 (release mechanism — resolved jointly with SRS-AGT-F-04 as the agent-as-invoker model, see `DECISIONS.md` DEC-008), SRS-APR-F-07 (idempotent submission, accepted as drafted), SRS-APR-SEC-02 (approver authorization, accepted as drafted, closes FIND-001 — with an owner-noted known limitation on initiator-as-approver, see inline note), SRS-APR-SEC-04 (audit-record integrity, accepted as drafted, closes FIND-002). **SRS-APR-IF-05** (terminal-state proposal query) was added at this checkpoint, not carried as a PROPOSED item — it is new, additive content adopted directly per DEC-008, closing FIND-004.
+**All 4 PROPOSED items in this document have been resolved:** SRS-APR-F-04 (release mechanism — resolved jointly with SRS-AGT-F-04 as the agent-as-invoker model, see `DECISIONS.md` DEC-008), SRS-APR-F-07 (idempotent submission, accepted as drafted), SRS-APR-SEC-02 (approver authorization, accepted as drafted, closes FIND-001 — with an owner-noted known limitation on initiator-as-approver, see inline note), SRS-APR-SEC-04 (audit-record integrity, accepted as drafted, closes FIND-002). **SRS-APR-IF-05** (terminal-state proposal query) was added in the same review round, not carried as a PROPOSED item — it is new, additive content adopted directly per DEC-008, closing FIND-004.
