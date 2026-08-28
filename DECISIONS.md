@@ -9685,3 +9685,85 @@ docs-audit.md`'s own "flagged, not fixed" list (already out of scope by
 design) and the `.claude/worktrees/` cleanup already-merged worktrees
 still sitting on disk — cosmetic, not functional, left for the owner's
 own housekeeping.
+
+## DEC-130 — Reference-implementation reframe: scope changes from one
+engagement's demonstration to a general, adopter-cloneable reference
+implementation
+
+**Owner-stated**, given directly in the Phase I/J mission (blueprint/
+journal separation and requirements re-baseline), after STOP J-2: *"This
+artifact is no longer the demonstration for one engagement; it is a
+general reference implementation intended to be cloned and bootstrapped
+on any OpenShift cluster with the same characteristics as the one this
+project used."* Acceptance filter given for every requirement, document,
+and comment from this point on: *does an adopter who has never heard of
+this engagement need this to stand the platform up and scaffold an
+agent? If not, it is journal.*
+
+**What changes**: `StRS_Agentic_AI_Platform_EN.md` §19's "demonstration
+milestone... within the MVP" framing (one ongoing engagement, a future
+milestone date) is replaced by a reference-implementation delivery-scope
+framing (Steps 1–3 delivered as a reusable artifact for any adopter;
+Steps 4–6 are the adopter's own extension path, not work this delivery
+still owes). `SysR-P-F-13`/`OS-09`'s "a second, independent team"
+language is reworded to "an adopter," anchored to
+`docs/adopting-this-blueprint.md` and verified by the Refresh #2
+acceptance test (I7/J4). Annex A `OI-04` closes — not refuted, moot by
+completion: `SysR-P-F-01` ships both the portal path and the direct-CLI
+path as permanent, delivered capabilities, so the fallback scenario
+`OI-04` hedged against no longer has a case to trigger. `CLAUDE.md`'s own
+workspace-scope header and its "one OCI image" project-summary line are
+reworded to match (the latter to "one immutable artifact per component,"
+per `docs/architecture.md`'s three-image reality, `DEC-098`/`DEC-101`).
+
+**Requirement impact: amends StRS §19, SysR-P-F-13, OS-09; closes
+OI-04.** Per the standing rule this entry itself establishes going
+forward (`agent-roadmap`'s J4 feedback rule, started here rather than
+deferred to phase close): every future `DECISIONS.md` entry with
+non-`none` requirement impact stays open until the corresponding
+SyRS/SRS/StRS revision has actually landed, and the closing entry cites
+that revision — this entry follows its own rule.
+
+**Status**: Closed. Applied 2026-08-28, per STOP J-3 sign-off, in
+dependency order (SyRS → StRS → Annex A → RRT → the five SRS in
+parallel → `CLAUDE.md`). Resulting versions: `SyRS-AGP-001_EN.md` v0.2 →
+**v0.3**; `StRS_Agentic_AI_Platform_EN.md` v1.0 (Baseline) → **v1.1
+(amended baseline)**; `Annex_A_Open_Items_EN.md` v1.0 → **v1.1** (OI-04
+closed); `SyRS-AGP-001-RRT_Realization_Table.md` v0.1 → **v0.2** (row 24
+Gitea-realization correction, DEC-100); `srs/SRS-AGT.md` v0.2 → **v0.3**;
+`srs/SRS-APR.md` v0.3 → **v0.4**; `srs/SRS-EVH.md` v0.1 → **v0.3**;
+`srs/SRS-MIT.md` v0.1 → **v0.2**; `srs/SRS-RET.md` v0.1 → **v0.3**
+(EVH/RET both correct a pre-existing version-numbering gap found during
+apply — their header field had lagged the Revision History table by one
+version since 2026-08-21, independent of this reframe). `CLAUDE.md`
+(unversioned) updated directly, including a second stale-rule fix caught
+in the same pass: "One immutable artifact" → "One immutable artifact per
+component," matching `docs/architecture.md`'s already-documented
+three-image reality (`DEC-098`/`DEC-101`), not itself a consequence of
+the reframe. `docs/testing-perspectives-guide.md` gained a canonical-names
+declaration (domain eval suite / unit-integration tests / CI promotion
+gate / live-cluster verification) so `srs/`'s Phase A–D verification-
+timing references could be renamed to names instead of an invented
+numbering. Full diff, before/after `tools/journal_census.py` counts, and
+verification notes: `agent-roadmap/reports/phase-j2-requirements-diff.md`.
+
+**Addendum — three normative-document fixes made during apply, beyond
+the signed-off diff itself, each caught by direct verification rather
+than assumed, recorded here since they are normative-document changes
+and belong in the log:**
+1. `srs/SRS-EVH.md` and `srs/SRS-RET.md` both had a Revision History row
+   already at "0.2" (dated 2026-08-21) while their header Version field
+   still read "0.1" — a pre-existing numbering gap, predating this
+   reframe and unrelated to it. Both bumped to v0.3 instead of the
+   originally-planned v0.2, with the reconciliation noted in the new
+   changelog row.
+2. `srs/SRS-AGT.md` and `srs/SRS-RET.md` both contained "a second
+   adopting team"/"a second team's" phrasing outside the SyRS/StRS scope
+   this entry names above — including one verbatim quote of SyRS §0.1's
+   old text inside `SRS-AGT.md`, which would have become a misquote once
+   SyRS's own text changed. Both reworded to "an adopter," for
+   consistency and quote accuracy.
+3. A stale cross-document note in `srs/SRS-EVH.md` (flagging a
+   Checkpoint-label tag in `srs/SRS-RET.md` that its own parallel
+   apply-pass had, by the time all five SRS files finished, already
+   fixed) was removed rather than left describing a non-problem.
