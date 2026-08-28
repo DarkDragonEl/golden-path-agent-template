@@ -1,4 +1,4 @@
-# Phase E (DEC-078/DEC-080). Absent on the showcase cluster (verified
+# ADR-009. Absent on the showcase cluster (verified
 # live, PINS.md), unlike the SNO where it pre-existed -- a real bootstrap
 # action here. AllNamespaces-only install mode -- goes into
 # openshift-operators' existing global-operators OperatorGroup, no new

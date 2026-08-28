@@ -6,7 +6,7 @@ design — which store, if any"; only the externally observable guarantee at
 SRS-MIT-IF-05 is specified: state persists across calls within one running
 instance). A dict guarded by a lock satisfies that guarantee without
 over-building — no database is warranted here. Only the approval service
-(Phase D) has a real restart-survival requirement.
+has a real restart-survival requirement.
 
 Seed fixture IDs are contractual, not illustrative: eval/README.md commits
 `eval/cases/domain/*.yaml` to these exact eight IDs and, in several cases,
@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 def _plural_tolerant_variants(needle: str) -> list[str]:
-    """DEC-014: tolerates a trailing-s mismatch between a caller's phrasing
+    """Tolerates a trailing-s mismatch between a caller's phrasing
     and a record's stored text, without full stemming. Returns the needle
     plus a single trailing-s variant."""
     if needle.endswith("s") and len(needle) > 3:
@@ -34,7 +34,7 @@ _STATUS_SEPARATOR_RE = re.compile(r"[-_\s]+")
 
 
 def _normalize_status(status: str) -> str:
-    """DEC-018/DEC-019: treats "in-progress"/"in_progress"/"in progress" as
+    """Treats "in-progress"/"in_progress"/"in progress" as
     the same value -- collapses any run of hyphen/underscore/whitespace
     into one canonical separator and lowercases."""
     return _STATUS_SEPARATOR_RE.sub("_", status.strip().lower())

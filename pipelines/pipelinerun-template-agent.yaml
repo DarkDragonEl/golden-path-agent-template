@@ -1,6 +1,6 @@
-# Phase G, G2 (DECISIONS.md DEC-098/DEC-099). Triggers
+# Triggers
 # golden-path-agent-ci-agent (pipeline-agent.yaml) -- see
-# pipelinerun-template.yaml's original header (DEC-026) for the
+# pipelinerun-template.yaml's original header for the
 # taskRunTemplate/workspace-PVC design notes, unchanged here.
 #   oc create -f pipelines/pipelinerun-template-agent.yaml -n golden-path-agent-ci
 apiVersion: tekton.dev/v1

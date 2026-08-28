@@ -1,8 +1,8 @@
-"""Phase B3: tool_invoke_node's dispatch is fully driven by
+"""tool_invoke_node's dispatch is fully driven by
 state["selected_tool"] (set by decide_node) -- no hardcoded tool name
 anywhere in this node. These tests cover the shapes selected_tool can
-take on this node's actual precondition (never None -- see DEC-013
-candidate: decide-then-retrieve reordering, agent/routers.py's
+take on this node's actual precondition (never None -- see ADR-005
+(decide-then-retrieve reordering), agent/routers.py's
 decide_after_decide routes the None case to retrieve/generate instead),
 independent of tests/test_write_gating.py's B2 write-gating focus.
 """
@@ -47,7 +47,7 @@ def test_selected_tool_write_classified_drafts_without_executing():
         },
         "tool_calls": [],
     }
-    # Phase D/DEC-049: tool_invoke_node's write branch now submits a real
+    # ADR-001: tool_invoke_node's write branch now submits a real
     # proposal to the approval service -- patched here (no running service
     # in this unit test), mirroring eval/domain_executor.py's own
     # _FakeApprovalService pattern for the same reason.

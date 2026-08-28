@@ -1,6 +1,6 @@
 # Generic PR-check pipeline definition, predating this project's real
-# Tekton pipelines (pipelines/pipeline-agent.yaml and friends, Phase C
-# onward) -- kept as a CI-product-agnostic reference shape, not the
+# Tekton pipelines (pipelines/pipeline-agent.yaml and friends) -- kept
+# as a CI-product-agnostic reference shape, not the
 # executing pipeline itself. Every stage must run identically on a
 # laptop and in CI -- none of them assume a specific CI product's
 # environment.
@@ -30,7 +30,7 @@ stages:
 
   - name: link-check
     description: >
-      Phase H3b (DECISIONS.md DEC-114 onward). Non-blocking/informational
+      Phase H3b. Non-blocking/informational
       only -- a broken doc link fails this stage's own report, not the
       pipeline. The mission proposes flipping this to a policy gate once
       a few PR cycles have run clean; that's an owner decision, not made

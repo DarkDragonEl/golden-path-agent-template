@@ -1,6 +1,6 @@
-# DEC-101: copied from base/configmap-approval.yaml, adjusted for this
+# ADR-011: copied from base/configmap-approval.yaml, adjusted for this
 # overlay's single Platform Foundation target -- AUTH_MODE=oidc and the
-# real OTel endpoint baked in directly (DEC-063), not left for an
+# real OTel endpoint baked in directly (ADR-008), not left for an
 # overlay to override, since this target is always the same instance.
 apiVersion: v1
 kind: ConfigMap
@@ -14,5 +14,5 @@ data:
   APPROVER_ROLE_VALUE: "approval-approver"
   OIDC_ISSUER_URL: "http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent"
   OIDC_AUDIENCE: "golden-path-agent-approval"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://golden-path-agent-otel-collector.golden-path-agent-otel.svc.cluster.local:4318" # DEC-071
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://golden-path-agent-otel-collector.golden-path-agent-otel.svc.cluster.local:4318" # ADR-006
   OTEL_SERVICE_NAME: "golden-path-agent-approval"

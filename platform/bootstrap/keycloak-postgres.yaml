@@ -1,12 +1,11 @@
-# DEC-053: Keycloak's own database, plain Deployment+PVC, no new
+# Keycloak's own database, plain Deployment+PVC, no new
 # operator. OpenShift's built-in openshift/postgresql:15-el9 ImageStream
-# is already S2I-shaped, avoiding a second restricted-v2 SCC fight
-# (DEC-026-034).
+# is already S2I-shaped, avoiding a second restricted-v2 SCC fight.
 #
-# DEC-024: credentials are a plain Secret, manually provisioned, never
+# Credentials are a plain Secret, manually provisioned, never
 # committed. Expected keys: POSTGRESQL_USER/PASSWORD/DATABASE.
 #
-# DEC-098/DEC-099: same manual, human-applied bootstrap discipline as
+# Same manual, human-applied bootstrap discipline as
 # namespaces.yaml/rbac.yaml -- namespace-scoped only, no cluster-scoped
 # grant.
 apiVersion: v1

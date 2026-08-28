@@ -1,6 +1,6 @@
-# Phase C (DEC-025). Minimal, self-contained git-clone -- PINS.md's
+# ADR-018. Minimal, self-contained git-clone -- PINS.md's
 # "git-clone" row explains why (not the deprecated Tekton Hub Task).
-# `git init`+`fetch`+`checkout` instead of `clone`, DEC-080/DEC-081:
+# `git init`+`fetch`+`checkout` instead of `clone`:
 # `clone` refuses a non-empty dir, and this cluster's storage class
 # always creates a `lost+found` in a fresh PV -- same result, no check.
 apiVersion: tekton.dev/v1

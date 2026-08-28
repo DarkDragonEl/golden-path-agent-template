@@ -1,5 +1,5 @@
 """Unit tests for eval/domain_scorer.py::check_dec009_route_assertion,
-DECISIONS.md DEC-009's compensating control, rewritten under the DEC-013
+ADR-002's compensating control, rewritten under the ADR-005
 candidate (decide-then-retrieve reordering) to read state["model_calls"]
 (a list, one entry per model call this turn) instead of the single-call
 scalar fields model_route/model_route_reason_code -- previously only

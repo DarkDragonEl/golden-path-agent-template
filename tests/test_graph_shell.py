@@ -36,7 +36,7 @@ def test_read_path_completes_without_approval():
 
 
 def test_write_path_pauses_for_approval():
-    # Phase D/DEC-049: tool_invoke_node's write branch submits a real
+    # ADR-001: tool_invoke_node's write branch submits a real
     # proposal over HTTP -- patched here, mirroring
     # eval/domain_executor.py's own always-active fake for the same
     # reason (no live approval_service in this unit test).

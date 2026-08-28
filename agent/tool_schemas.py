@@ -7,7 +7,7 @@ convenience schema reproductions (e.g. srs/SRS-AGT.md §2's note on
 SRS-APR-IF-01/SRS-MIT-IF-02/03).
 
 Gap noted honestly, not glossed over: `srs/SRS-AGT.md`'s SRS-AGT-IF-04
-(resolved at Checkpoint B0-b, accepted as drafted) calls for treating
+(accepted as drafted) calls for treating
 SRS-MIT-IF-01's tool-catalog metadata as the *runtime* source of truth for
 tool identity, via a real MCP client session — `mcp_server/client.py`
 does not implement the MCP protocol today (an in-process function call in
@@ -17,7 +17,7 @@ static, same-PR-synced mirror is the interim realization; closing the gap
 for real is future work, not silently declared done.
 
 Empirically verified against the live MaaS (both `granite-3-2-8b-instruct`
-and `llama-scout-17b`) in the Phase B kickoff tool-calling spike —
+and `llama-scout-17b`) in a tool-calling spike —
 `tools/phase_b_tool_calling_spike.py` / `reports/phase-b-tool-calling-spike.md`
 — using this exact schema shape.
 """

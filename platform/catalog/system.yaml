@@ -1,6 +1,6 @@
-# DEC-098: the Platform Foundation as a Backstage/RHDH System entity --
+# ADR-012: the Platform Foundation as a Backstage/RHDH System entity --
 # the grouping node the catalog graph hangs off of: platform -> tools ->
-# agents. Registered live in RHDH's catalog.locations (DEC-102).
+# agents. Registered live in RHDH's catalog.locations (ADR-023).
 apiVersion: backstage.io/v1alpha1
 kind: System
 metadata:
@@ -9,8 +9,8 @@ metadata:
     Shared platform services for the Agentic AI Platform golden path --
     identity, telemetry, the approval service, Git hosting, model routes,
     GitOps machinery, and the Internal Developer Portal (RHDH) itself.
-    Stood up once per environment (DEC-098's Layer/Platform-Foundation
-    decision); not produced per agent-project instantiation.
+    Stood up once per environment (ADR-012); not produced per
+    agent-project instantiation.
   tags:
     - agentic-ai
     - golden-path

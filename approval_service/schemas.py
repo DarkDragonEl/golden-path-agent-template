@@ -3,7 +3,7 @@ SRS-APR-IF-01 is the single authoritative schema for proposal submission
 -- agent/approval_client.py and this module's ProposalCreate must stay in
 sync with it in the same PR, per SRS-AGT-IF-05's own same-PR sync rule.
 
-Contracts-STOP artifact (DEC-045): schemas only, no business logic here.
+Contracts-STOP artifact (ADR-025): schemas only, no business logic here.
 """
 
 from typing import Literal
@@ -18,7 +18,7 @@ class ProposalCreate(BaseModel):
     """SRS-APR-IF-01. Missing required field -> the endpoint returns 422
     and creates no record (SRS-APR-F-01).
 
-    evidence_refs is required (no default, DEC-046): F-01 requires the
+    evidence_refs is required (no default, ADR-008): F-01 requires the
     field present, but an *empty* list is a separate, allowed question --
     presence is schema-territory, zero-citation legitimacy is eval-
     territory."""
@@ -84,7 +84,7 @@ class ProposalTerminal(ProposalSummary):
     """SRS-APR-IF-05, terminal-state shape. `action_arguments` (inherited
     from ProposalSummary) is the *unmodified* value accepted at intake --
     what agent/approval_client.py's terminal-state query returns to the
-    /resume handler for an `approved` proposal (DECISIONS.md DEC-008)."""
+    /resume handler for an `approved` proposal (ADR-001)."""
 
     decided_by: str | None = None
     decided_at: str | None = None  # ISO 8601

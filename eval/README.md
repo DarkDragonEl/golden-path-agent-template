@@ -21,11 +21,11 @@ separate, dated commit — see the Review Log.
 and `tests/test_eval_harness_smoke.py` are a **separate, pre-existing
 fixture** proving the LangGraph plumbing runs end-to-end (invoke/resume,
 the human-approval interrupt, mock MCP mode) with zero domain content. They
-are untouched by this phase and still pass (`python -m eval.cli run
+are unaffected by this work and still pass (`python -m eval.cli run
 --all` → 2/2). The files documented here (`schema.json`, `cases/domain/*.yaml`,
 `corpus-manifest.yaml`, `THRESHOLDS.md`, `validate.py`) are the actual
 domain evaluation set and are not yet wired into that harness — see
-"Phase B must extend the harness" below.
+"The harness needs extending to run these cases" below.
 
 ## Directory structure
 
@@ -61,15 +61,16 @@ under `domain/` keeps that command passing 2/2 with zero changes to
 file-layout choice, not a schema change — noted here for visibility since
 it's a deviation from a literal flat `eval/cases/<category>.yaml` layout.
 
-**This is a mandatory input to Phase B0/B, approved at Checkpoint 1, not a
-detail Phase B is free to silently redo.** The authoritative home for the
-extended evaluation harness is **SRS-EVH**, to be drafted in Phase B0
-alongside SRS-MIT/SRS-AGT. SRS-EVH must explicitly specify that the
-harness reads cases from `eval/cases/domain/` — or, if Phase B0 decides to
-unify the layout with `EXAMPLE-*.yaml` some other way, that unification
-must be a deliberate, documented SRS-EVH decision. A Phase B change that
-quietly moves or reshapes `cases/domain/` without updating SRS-EVH is a
-violation of this checkpoint's approval, not a routine refactor.
+**This is a mandatory input to the next implementation work, approved at
+Checkpoint 1, not a detail that work is free to silently redo.** The
+authoritative home for the extended evaluation harness is **SRS-EVH**, to
+be drafted alongside SRS-MIT/SRS-AGT. SRS-EVH must explicitly specify that
+the harness reads cases from `eval/cases/domain/` — or, if that work
+decides to unify the layout with `EXAMPLE-*.yaml` some other way, that
+unification must be a deliberate, documented SRS-EVH decision. A later
+change that quietly moves or reshapes `cases/domain/` without updating
+SRS-EVH is a violation of this checkpoint's approval, not a routine
+refactor.
 
 ## Case format
 
@@ -87,7 +88,7 @@ Every case object has the required top-level fields defined in
 | `category` | One of the 8 categories below; must match the file it lives in. |
 | `input` | What's presented to the agent — always at least `query`; some categories require extra fields (an injection payload, a fault type, an approval scenario). |
 | `expected` | Structured, mechanically checkable ground truth — never prose. Shape is category-specific; see `schema.json`. |
-| `threshold_notes` | One-line note on how this case counts toward its category's gate (see `THRESHOLDS.md`) — e.g. `known-gap: excluded pending Phase B model-failure fallback`. |
+| `threshold_notes` | One-line note on how this case counts toward its category's gate (see `THRESHOLDS.md`) — e.g. `known-gap: excluded pending model-failure fallback implementation`. |
 | `tags` | Free-form labels — see Tag conventions below. |
 | `version` | Content version of this case, e.g. `"0.1.0"`. Bumped on material change; git history is the authoritative record. |
 
@@ -141,14 +142,14 @@ pattern.
 home is **SRS-MIT** (the MCP tool interface requirement) and **SRS-AGT**
 (the `agent/policy.py::classify_action` requirement — which will need to
 move from `arguments.get("write")` to a tool-name check), both to be
-drafted in **Phase B0** (contract definition, per CLAUDE.md's "Phase B
-contracts" checkpoint). Phase B0 may revise this contract freely. Eval
+drafted as part of contract definition (per CLAUDE.md's contract-review
+checkpoint). That work may revise this contract freely. Eval
 cases in this set reference the operation **names**
 (`itsm_search_records`, `itsm_create_request`) only — never an
 implementation, and this README is not the place two sources of truth for
 the same contract should live once SRS-MIT/SRS-AGT actually exist.
 
-**Mock fixture record IDs** these cases reference (seed data Phase B's
+**Mock fixture record IDs** these cases reference (seed data the
 persistent mock-ITSM state should provide): `INC-10234`, `INC-10240`,
 `INC-10255`, `INC-10261`, `REQ-30021`, `REQ-30052`, `KE-50007`, `KE-50012`.
 `INC-10261` was added at Checkpoint 2 (full volume) for `itsm_read`
@@ -161,8 +162,9 @@ as the rest of this list.
 against `doc_id` entries in `corpus-manifest.yaml` — `validate.py` checks
 this. The manifest fixes 20 synthetic document identities (title, owner
 role, classification, version, effective date, access policy, source,
-refresh process); the documents' actual content is Phase B
-(`corpus/ingest.py` + `corpus/seed/`), per `corpus/README.md`.
+refresh process); the documents' actual content comes from
+`corpus/ingest.py` + `corpus/seed/`, per `corpus/README.md`, not from this
+eval set.
 
 ## How to run today
 
@@ -184,19 +186,19 @@ Contrast with `python -m eval.cli run --all`, the existing harness command
 the existing eval harness" above); it does not read anything in this
 document yet.
 
-## Phase B must extend the harness
+## The harness needs extending to run these cases
 
 Today's `eval/loader.py::EvalCase` model is `{id, description, mode,
 input, assertions, steps}` — no `category`, `expected`, `tags`, `version`,
 or `threshold_notes`. To actually execute the cases in `cases/domain/*.yaml`
-against the agent, Phase B needs to either extend `EvalCase` (or add a
+against the agent, this harness needs to either extend `EvalCase` (or add a
 parallel loader) to parse this schema, and extend `eval/scorer.py` with
 category-aware scoring logic that consumes each category's structured
 `expected` shape — the shapes were designed to be deterministically
 checkable (substring/tool-name/policy-state assertions), so no
 `semantic_judge` rubric work is required to start. This is explicitly out
-of scope for Phase A; nothing in `eval/loader.py` or its consumers has
-been modified.
+of scope for this evaluation-set deliverable; nothing in `eval/loader.py`
+or its consumers has been modified.
 
 ## Known, deliberate gap: `operational` / model failure
 
@@ -208,8 +210,8 @@ specifies behavior ahead of implementation — that's StR-EVL-03's whole
 point), tagged `known-gap`, and excluded from the promotion gate.
 
 **Removal trigger** (full text in `THRESHOLDS.md`): the `known-gap` tag
-comes off, and the cases enter the gate, the moment Phase B closes that
-fallback path. A `known-gap` tag still present after that lands is a CI
+comes off, and the cases enter the gate, the moment that fallback path is
+implemented. A `known-gap` tag still present after that lands is a CI
 failure, not a standing exemption.
 
 ## Tag conventions

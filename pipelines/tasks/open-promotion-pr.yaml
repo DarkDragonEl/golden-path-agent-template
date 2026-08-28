@@ -1,4 +1,4 @@
-# Phase C, Step C1b. SysR-P-F-06 -- promotion is exclusively a GitOps PR
+# SysR-P-F-06 -- promotion is exclusively a GitOps PR
 # merge, never a rebuild and never a direct push to main. This Task only
 # runs when every prior gate passed (the Pipeline's `when:` condition, not
 # this Task's own logic) and only ever touches
@@ -24,7 +24,7 @@ spec:
       description: Full pushed image reference including digest.
     - name: commit-sha
       type: string
-    # DEC-098/DEC-099/DEC-101: `image-name` scopes the digest edit to
+    # ADR-011: `image-name` scopes the digest edit to
     # exactly one of the three `images:` entries -- an unscoped sed would
     # corrupt all three. `component` disambiguates the promotion branch
     # name so three concurrent promotions never collide.
@@ -66,7 +66,7 @@ spec:
         git checkout -b "$BRANCH"
         git add deploy/kustomize/base/kustomization.yaml
         git commit -m "Promote $(params.commit-sha): $(params.image-ref)"
-        # DEC-037: bare `Authorization: Bearer` fails for git push over
+        # Bare `Authorization: Bearer` fails for git push over
         # HTTPS (confirmed live) -- URL-embedded-credential is GitHub's
         # documented PAT mechanism instead. Never echoed.
         git push "https://x-access-token:${GITHUB_TOKEN}@github.com/DarkDragonEl/golden-path-agent-template.git" "$BRANCH"

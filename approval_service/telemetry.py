@@ -1,4 +1,4 @@
-"""OpenTelemetry tracing for approval_service (DEC-071). Mirrors
+"""OpenTelemetry tracing for approval_service (ADR-006). Mirrors
 agent/telemetry.py's init/tracer pattern exactly -- same safe-no-op
 behavior when the endpoint is unset, same OTLP/HTTP exporter, same
 explicit /v1/traces suffix (see agent/telemetry.py for why the suffix

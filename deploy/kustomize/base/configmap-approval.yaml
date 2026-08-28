@@ -11,14 +11,14 @@ metadata:
 data:
   APPROVAL_DB_PATH: "./state/approval/approvals.db"
   APPROVAL_TIMEOUT_SECONDS: "3600"
-  AUTH_MODE: "none"   # DEC-045: demo-prod's rendered config must assert
+  AUTH_MODE: "none"   # ADR-025: demo-prod's rendered config must assert
   # AUTH_MODE=oidc once D2 lands, checked mechanically, not by convention.
   APPROVER_ROLE_CLAIM: "roles"
   APPROVER_ROLE_VALUE: "approval-approver"
-  OIDC_ISSUER_URL: "http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent" # DEC-063: no
+  OIDC_ISSUER_URL: "http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent" # ADR-008: no
   # default in approval_service/auth.py; unused while AUTH_MODE=none.
-  OIDC_AUDIENCE: "golden-path-agent-approval" # DEC-063: matches the
-  # realm's own audience mapper (DEC-058).
-  OTEL_EXPORTER_OTLP_ENDPOINT: "" # DEC-071: empty = disabled; ephemeral-
+  OIDC_AUDIENCE: "golden-path-agent-approval" # ADR-008: matches the
+  # realm's own audience mapper.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "" # ADR-006: empty = disabled; ephemeral-
   # test/demo-prod override to the real cluster collector.
   OTEL_SERVICE_NAME: "golden-path-agent-approval"

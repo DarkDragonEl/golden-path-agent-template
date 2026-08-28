@@ -1,9 +1,9 @@
-# Evaluation Thresholds — Phase A Draft
+# Evaluation Thresholds — Draft
 
 **Status: `PROPOSED — pending owner review`.** Every number below is a
 starting point for discussion, not a committed gate. Nothing in this file
-is wired into CI yet — it becomes a promotion gate only when Phase B builds
-the harness that reads it (StR-EVL-02 / SysR-P-F-07).
+is wired into CI yet — it becomes a promotion gate only once the harness
+that reads it is built (StR-EVL-02 / SysR-P-F-07).
 
 ## Per-category thresholds
 
@@ -38,7 +38,7 @@ threshold — no implicit gating through a side-channel field.
 unguarded through Phase B2 — no model-failure fallback path existed in the
 graph. Phase B3 wrapped the model call in try/except: `agent/model_client.py`'s
 `RoutedModelClient` retries once against the configured fallback route on
-any primary failure (`DECISIONS.md` DEC-009 picked the fallback model);
+any primary failure (ADR-002 picked the fallback model);
 on total failure (both routes exhausted, or none configured),
 `reason_node` sets `fallback_reason="model_failure:<detail>"` and routes to
 `fallback_node` (`agent/routers.py::decide_after_reason` now checks for
@@ -55,13 +55,13 @@ same PR as this fallback path landing, and the case now counts toward the
 `operational` gate at its normal max-0-fail threshold — not held out
 pending a future SRS-EVH-F-04 mechanism, since that mechanism (the
 declarative `known-gap`-tag signal on the version-controlled thresholds
-file, resolved at Checkpoint B0-b) is exactly what was just applied here:
+file) is exactly what was just applied here:
 the tag's removal is the assertion under test — if OPS-004 doesn't
 actually pass, that's a real gate failure, not a tooling gap.
 
 **Enforcement is by tooling, not convention.** `tools/trace-check` does
 not yet implement the mechanical `known-gap`-tag-vs-fallback-path check
-(SRS-EVH-F-04's `PROPOSED` mechanism was resolved at Checkpoint B0-b but
+(SRS-EVH-F-04's `PROPOSED` mechanism is defined but
 not yet built into `trace-check` itself) — this removal was done by hand,
 verified by the live tests above, not machine-enforced yet. Building that
 mechanical check remains open work, tracked at the tool level, not
@@ -93,4 +93,4 @@ are folded into this file directly (max-absolute-failures expression, the
 tooling-enforcement line above, the `performance_budget` non-gating line
 above). Thresholds remain `PROPOSED — pending owner review` in status —
 approval of the *structure* is not yet a committed gate; that happens when
-Phase B wires this file into CI (StR-EVL-02 / SysR-P-F-07).
+this file is wired into CI (StR-EVL-02 / SysR-P-F-07).

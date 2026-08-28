@@ -1,28 +1,27 @@
 #!/usr/bin/env python3
-"""Phase F3 (DECISIONS.md DEC-090; docs/phase-f-kickoff-plan.md SS7). The
-direct CLI instantiation path SysR-P-F-01(b) requires, co-equal with the
-Internal Developer Portal path (F5, RHDH's own Scaffolder) -- not a
-lesser fallback. Consumes the same skeleton(-tools)/ + template-schema*.json
+"""The direct CLI instantiation path SysR-P-F-01(b) requires (ADR-022),
+co-equal with the Internal Developer Portal path (F5, RHDH's own
+Scaffolder) -- not a lesser fallback. Consumes the same
+skeleton(-tools)/ + template-schema*.json
 as the Scaffolder Template(s) do (tools/skeleton_renderer.py is the one
-rendering engine both share), so the two paths cannot drift the way
-DEC-075's parallel-constant bug did.
+rendering engine both share), so the two paths cannot drift the way a
+prior parallel-constant bug did.
 
 Produces a complete, parameterized new project in one operation --
 literally satisfying SysR-P-F-01's "produces in one operation" language.
 Zero RHDH dependency for local rendering.
 
-Phase G, Stage 3 (DEC-098/DEC-099/DEC-110, G6 Path B): --template selects
-which of the two templates to render (default: agent, the pre-existing
-behavior, unchanged for anyone not passing the new flag); --publish
-extends rendering with a real publish to the Platform Foundation's Gitea
-instance, as two repositories (source+pipeline, and a separate GitOps
-repo) per the owner's own two-repo decision. See tools/gitea_publish.py
-and reports/feature-g6-cli-publish.md for the publish mechanism itself.
+--template selects which of the two templates to render (ADR-021)
+(default: agent, the pre-existing behavior, unchanged for anyone not
+passing the new flag); --publish extends rendering with a real publish
+to the Platform Foundation's Gitea instance, as two repositories
+(source+pipeline, and a separate GitOps repo) per the owner's own
+two-repo decision. See tools/gitea_publish.py and
+reports/feature-g6-cli-publish.md for the publish mechanism itself.
 
-Phase G, Stage 3 follow-up (DEC-1xx, this session): repoOwner/repoName
-are now resolved to their real publish target BEFORE rendering, not
-after -- rendering first and resolving the actual repo names afterward
-(the original G6 Path B shape) meant the rendered content's own
+repoOwner/repoName are now resolved to their real publish target BEFORE
+rendering, not after -- rendering first and resolving the actual repo
+names afterward (the original shape) meant the rendered content's own
 ${{ values.repoOwner }}/${{ values.repoName }} placeholders stayed as
 the literal 'REPLACE_ME_*' strings whenever a caller didn't pass
 --repoOwner/--repoName explicitly (the common case), even though the

@@ -7,13 +7,13 @@ apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
   name: golden-path-agent
-  namespace: openshift-gitops # DEC-024: shared GitOps controller --
+  namespace: openshift-gitops # ADR-018: shared GitOps controller --
   # this AppProject is the only object this project touches in it.
 spec:
   description: Golden-path agent MVP — one repo, four promoted environments.
   sourceRepos:
     - https://github.com/DarkDragonEl/golden-path-agent-template.git
-    # DEC-024: public repo, HTTPS -- the shared GitOps controller needs no
+    # ADR-018: public repo, HTTPS -- the shared GitOps controller needs no
     # read credential, avoiding a blast-radius increase to its own
     # repo-credentials Secret.
   destinations:
@@ -27,18 +27,18 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: golden-path-agent-rhdh
       server: https://kubernetes.default.svc
-      # DEC-092: RHDH's own dedicated Postgres + Backstage CR -- additive
-      # pattern (DEC-064), nothing narrowed from what already exists.
+      # RHDH's own dedicated Postgres + Backstage CR -- additive
+      # pattern, nothing narrowed from what already exists.
     - namespace: golden-path-agent-approval
       server: https://kubernetes.default.svc
-      # DEC-101: approval service's own Platform Foundation home,
+      # ADR-011: approval service's own Platform Foundation home,
       # extracted out of golden-path-agent-demo-prod.
     - namespace: openshift-gitops
       server: https://kubernetes.default.svc
-      # DEC-021: required for the root app-of-apps Application to manage
+      # Required for the root app-of-apps Application to manage
       # this project's own child Applications (deploy/argocd/apps/*.yaml).
       #
-      # DEC-041: ArgoCD does NOT structurally enforce that an Application
+      # ArgoCD does NOT structurally enforce that an Application
       # created here shares this AppProject's own spec.project value --
       # Applications in the control-plane namespace may set spec.project
       # to any AppProject (a documented backwards-compatibility exemption).
@@ -61,15 +61,15 @@ spec:
     - group: policy
       kind: PodDisruptionBudget
     - group: ""
-      kind: PersistentVolumeClaim # DEC-064: approval service's SQLite
+      kind: PersistentVolumeClaim # approval service's SQLite
       # persistence (pvc-approval.yaml, SRS-APR-DATA-01).
     - group: ""
-      kind: Secret # DEC-024: plain Secret, not ExternalSecret (ESO
+      kind: Secret # ADR-018: plain Secret, not ExternalSecret (ESO
       # deferred as a phase-two integration point).
     - group: argoproj.io
-      kind: Application # DEC-021: app-of-apps pattern -- required for
+      kind: Application # app-of-apps pattern -- required for
       # the root Application to manage the child Applications; still
       # bounded by this same AppProject's destinations/whitelist.
     - group: rhdh.redhat.com
-      kind: Backstage # DEC-092: RHDH Operator's own namespace-scoped CR
+      kind: Backstage # RHDH Operator's own namespace-scoped CR
       # (deploy/kustomize/overlays/rhdh/backstage.yaml).

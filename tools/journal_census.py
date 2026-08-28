@@ -72,7 +72,31 @@ KEEP_LIST_PATTERNS = {"OI"}
 # --- Allowlists ----------------------------------------------------------
 # Exact (relative path, pattern name) -> dated reason. Populated by later
 # stages (e.g. I7) as specific occurrences are reviewed and accepted.
-ALLOWLIST_PATHS: dict[tuple[str, str], str] = {}
+ALLOWLIST_PATHS: dict[tuple[str, str], str] = {
+    ("tools/trace-check/README.md", "DEC"): (
+        "DEC-001 appears only as a worked example of an ID-shaped token "
+        "the eval-case-ref regex must NOT match (alongside PLAT-003, "
+        "INC-10234) -- documenting the tool's own false-positive scoping, "
+        "not a journal citation. -- I3, 2026-08-28."
+    ),
+    ("tools/trace-check/trace_check.py", "DEC"): (
+        "Same false-positive-example usage as the README entry above, in "
+        "this module's own docstrings. -- I3, 2026-08-28."
+    ),
+    ("tests/test_trace_check.py", "DEC"): (
+        "DEC-001/INC-10234 are fixture text inside a test asserting the "
+        "eval-case-ref regex does NOT match ID-shaped non-eval-case "
+        "tokens -- the same false-positive-scoping fact under test, not "
+        "a journal citation. -- I3, 2026-08-28."
+    ),
+    ("eval/reporter.py", "WORKTREE"): (
+        "'worktree' here means a git worktree's clean/dirty state, the "
+        "input to _default_build_reference's commit-hash-vs-'local-dev-"
+        "uncommitted' choice -- a real, shipped build-reference mechanism "
+        "in this code, not build-session narrative about how this repo "
+        "itself was developed. -- I3, 2026-08-28."
+    ),
+}
 
 # (path prefix, pattern name) -> dated reason.
 ALLOWLIST_PREFIXES: dict[tuple[str, str], str] = {

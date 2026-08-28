@@ -1,10 +1,10 @@
-# DEC-053: CRD registration is structurally cluster-scoped for any
+# CRD registration is structurally cluster-scoped for any
 # operator install. OperatorGroup/Subscription are namespace-scoped (no
-# AllNamespaces -- unsupported). DEC-056 found the functionally-
+# AllNamespaces -- unsupported). ADR-017 found the functionally-
 # equivalent upstream manifests carry exactly one ClusterRoleBinding,
 # read-only `config.openshift.io/ingresses`.
 #
-# BLOCKED LIVE (DEC-055/DEC-056), NOT applied: a different tenant's
+# BLOCKED LIVE (ADR-017), NOT applied: a different tenant's
 # broken CatalogSource poisons OLM's cluster-wide resolution (Red Hat KB
 # 7052456) -- not this project's resource to fix. D2 proceeded via
 # keycloak-operator-upstream/ instead. Kept committed as documented tech
@@ -28,8 +28,8 @@ spec:
 ---
 # PINS.md: rhbk-operator, channel stable-v26.6, CSV
 # rhbk-operator.v26.6.6-opr.1, catalog redhat-operators -- re-verified
-# live 2026-08-22, byte-identical to the Phase D plan's original
-# research. installPlanApproval: Manual + startingCSV pinned to this
+# live 2026-08-22, byte-identical to the original research.
+# installPlanApproval: Manual + startingCSV pinned to this
 # exact CSV, deliberately not OLM's default auto-upgrade behavior --
 # this project's own "pin exact versions" discipline (CLAUDE.md's "Reuse
 # over building" rule), applied to an operator subscription the same way

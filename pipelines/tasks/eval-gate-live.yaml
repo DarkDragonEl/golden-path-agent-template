@@ -1,6 +1,6 @@
-# Phase C, Step C1b. SysR-P-F-05(2) agent tests. Re-runs the existing,
+# SysR-P-F-05(2) agent tests. Re-runs the existing,
 # unmodified eval.cli --domain harness in-process (AGENT_MODEL_MODE=live,
-# DEC-017's temperature=0/seed=42 contract; MCP_MODE=mock) -- tests real
+# ADR-007's temperature=0/seed=42 contract; MCP_MODE=mock) -- tests real
 # reasoning quality against the real model, not the deployed pods'
 # HTTP surface (security-tests/operational-tests cover that).
 apiVersion: tekton.dev/v1
@@ -37,7 +37,7 @@ spec:
             configMapKeyRef:
               name: golden-path-agent-ci-config
               key: MODEL_NAME
-        # DEC-027: pip install needs a writable $HOME under this project's
+        # pip install needs a writable $HOME under this project's
         # restricted-v2-SCC identity -- see unit-tests.yaml's fuller note.
         - name: HOME
           value: /tmp
@@ -45,7 +45,7 @@ spec:
         #!/bin/sh
         set -eu
         pip install --no-cache-dir -q -r requirements.txt -r requirements-dev.txt
-        # DEC-022: an unexpected failure here on a PR that doesn't touch
+        # An unexpected failure here on a PR that doesn't touch
         # the measurement instrument isn't automatically the change's
         # fault -- see docs/phase-c-runbook.md §4 before calling it a
         # regression.

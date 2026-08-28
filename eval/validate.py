@@ -1,4 +1,4 @@
-"""eval/validate.py — Phase A structural validation.
+"""eval/validate.py — structural validation for the domain eval set.
 
 Standalone: imports only json/yaml/jsonschema/pathlib/sys. Does not import
 or modify loader.py/scorer.py/runner.py/executor.py/cli.py, and targets an

@@ -1,4 +1,4 @@
-# DEC-103 (addendum): one-time backup/restore exercise for Gitea's data
+# One-time backup/restore exercise for Gitea's data
 # PVC, per G1's DoD. Uses the cluster's existing CSI RBD
 # VolumeSnapshotClass (`ocs-external-storagecluster-rbdplugin-snapclass`)
 # -- a one-shot probe, not a recurring backup schedule.

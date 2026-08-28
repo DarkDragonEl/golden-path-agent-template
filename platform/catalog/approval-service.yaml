@@ -1,4 +1,4 @@
-# DEC-098: the approval service as a shared Platform Foundation
+# ADR-012: the approval service as a shared Platform Foundation
 # Component (a singleton, not bundled per agent) plus its real interface
 # contract as a catalog API, sourced from srs/SRS-APR.md.
 apiVersion: backstage.io/v1alpha1
@@ -36,7 +36,7 @@ metadata:
     SRS-APR-IF-01/02/04/05). Fail-closed on any internal error, dependency
     failure, or undecidable state (SRS-APR-SEC-01); consumers unable to
     reach this API must hold the affected action, never synthesize a
-    locally-assumed approval (SRS-APR-QUAL-02, added at DEC-098's shared-
+    locally-assumed approval (SRS-APR-QUAL-02, added at ADR-012's shared-
     service consumption boundary).
   tags:
     - golden-path
@@ -60,8 +60,8 @@ spec:
     servers:
       - url: http://golden-path-agent-approval.golden-path-agent-approval.svc.cluster.local:8082
         description: >-
-          The Platform Foundation's actual live Service DNS (Phase G,
-          Stage 1 held tail, DEC-098/DEC-099/DEC-103) -- in-cluster only,
+          The Platform Foundation's actual live Service DNS (ADR-012) --
+          in-cluster only,
           not reachable from outside the cluster network. Catalog
           documentation only; no agent/tool code reads this value (the
           real config is APPROVAL_SERVICE_ENDPOINT, injected per SysR-P-

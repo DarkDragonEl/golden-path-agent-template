@@ -1,4 +1,4 @@
-# Phase G, G2 (DEC-098/DEC-099/DEC-101): the approval service's own
+# ADR-011: the approval service's own
 # independent build/test/promote pipeline. Gate set: full unit-test suite
 # + approval-operational-test.yaml's two checks -- a full SRS-APR-IF-01/
 # IF-02 round trip is NOT exercised (would need OIDC credentials minted

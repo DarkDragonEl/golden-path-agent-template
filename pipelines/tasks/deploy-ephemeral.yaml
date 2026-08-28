@@ -1,11 +1,11 @@
-# Phase C (DEC-031/DEC-063). Applies deploy/kustomize/overlays/
+# ADR-008. Applies deploy/kustomize/overlays/
 # ephemeral-test with a pipeline-scoped digest override -- `kustomize
 # edit set image` runs against base/kustomization.yaml, in this scratch
 # checkout only, never committed: base+overlay both declaring an
 # `images:` transformer for the same name is a documented upstream
 # kustomize limitation (kubernetes-sigs/kustomize#1040/#4581) where the
 # overlay's override doesn't reliably take effect. Namespace itself is
-# pre-created (namespaces.yaml, DEC-024) -- this Task never touches it.
+# pre-created (namespaces.yaml, ADR-018) -- this Task never touches it.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -15,7 +15,7 @@ metadata:
     app.kubernetes.io/part-of: golden-path-agent
 spec:
   params:
-    # DEC-098/DEC-099/DEC-101: a PipelineRun under test exercises ONE
+    # ADR-011: a PipelineRun under test exercises ONE
     # fresh, just-built component against the other two's currently-
     # committed digests. An empty value here means "leave this image
     # entry untouched."
@@ -38,7 +38,7 @@ spec:
       image: registry.k8s.io/kustomize/kustomize:v5.8.1
       workingDir: $(workspaces.source.path)/deploy/kustomize/overlays/ephemeral-test
       env:
-        # DEC-031: the overlay's committed configMapGenerator literal is a
+        # The overlay's committed configMapGenerator literal is a
         # deliberate placeholder (this repo is public) -- overridden at
         # apply-time from golden-path-agent-ci-config, never in Git.
         - name: MODEL_API_BASE_URL
@@ -51,8 +51,8 @@ spec:
             configMapKeyRef:
               name: golden-path-agent-ci-config
               key: MODEL_NAME
-        # DEC-035: same placeholder-override reasoning as MODEL_API_BASE_URL
-        # above -- mirrors the local-dev fallback pair pattern (DEC-020).
+        # Same placeholder-override reasoning as MODEL_API_BASE_URL
+        # above -- mirrors the local-dev fallback pair pattern (ADR-006).
         - name: MODEL_FALLBACK_API_BASE_URL
           valueFrom:
             configMapKeyRef:
@@ -69,7 +69,7 @@ spec:
         cd $(workspaces.source.path)/deploy/kustomize/base
         # Only the component(s) actually under test in this PipelineRun
         # get a digest override -- the others keep whatever is currently
-        # committed (last independently promoted), per DEC-098/DEC-099.
+        # committed (last independently promoted).
         [ -n "$(params.agent-image-ref)" ] && \
           kustomize edit set image golden-path-agent="$(params.agent-image-ref)"
         [ -n "$(params.mcp-image-ref)" ] && \
@@ -83,7 +83,7 @@ spec:
           --from-literal=MODEL_FALLBACK_API_BASE_URL="${MODEL_FALLBACK_API_BASE_URL}" \
           --from-literal=MODEL_FALLBACK_NAME="${MODEL_FALLBACK_NAME}"
         kustomize build . > $(workspaces.source.path)/rendered-ephemeral.yaml
-        # DEC-037: `kustomize edit set image` rewrites the whole file in
+        # `kustomize edit set image` rewrites the whole file in
         # place -- revert it now (render already captured above) since
         # open-promotion-pr later sed-patches the ORIGINAL committed file
         # from this same shared workspace PVC.
@@ -96,7 +96,7 @@ spec:
         oc apply -n golden-path-agent-ephemeral-test -f $(workspaces.source.path)/rendered-ephemeral.yaml
         oc rollout status deployment/golden-path-agent -n golden-path-agent-ephemeral-test --timeout=180s
         oc rollout status deployment/golden-path-agent-mcp -n golden-path-agent-ephemeral-test --timeout=180s
-        # DEC-050: approval-service is now part of this same rendered
-        # manifest set (ephemeral-test only, per DEC-046) -- gate on its
+        # approval-service is now part of this same rendered
+        # manifest set (ephemeral-test only, per ADR-008) -- gate on its
         # rollout the same way, not just applied-and-hoped.
         oc rollout status deployment/golden-path-agent-approval -n golden-path-agent-ephemeral-test --timeout=180s

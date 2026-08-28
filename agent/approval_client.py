@@ -1,5 +1,5 @@
 """Thin client the agent's tool_invoke/human_approval path uses to reach
-the standalone approval service (DEC-008/DEC-045). Mirrors
+the standalone approval service (ADR-001, ADR-025). Mirrors
 mcp_server/client.py's own shape -- the contract
 (approval_service/schemas.py) is what's frozen, not this client.
 
@@ -64,7 +64,7 @@ def submit_proposal(
 def get_proposal(proposal_id: str, timeout: float = 10.0) -> dict:
     """SRS-APR-IF-05. Terminal-state query -- the ONLY source of truth
     for a decided proposal's outcome and, for `approved`, its unmodified
-    `action_arguments`. DECISIONS.md DEC-008: the caller must execute
+    `action_arguments`. ADR-001: the caller must execute
     exactly what this returns, never a locally cached copy."""
     response = httpx.get(
         f"{config.APPROVAL_SERVICE_ENDPOINT}/proposals/{proposal_id}", headers=_auth_headers(), timeout=timeout
@@ -92,7 +92,7 @@ def decide_proposal(proposal_id: str, decision: str, timeout: float = 10.0) -> d
 def resolve_and_resume(graph, thread_config: dict):
     """Query this session's pending proposal (SRS-APR-IF-05); if still
     `pending`, the graph is NOT touched. If terminal, inject the outcome
-    using ONLY the values this query just returned (DEC-008: never a
+    using ONLY the values this query just returned (ADR-001: never a
     locally cached copy), then resume. Correlation key:
     `graph.get_state(thread_config).values["proposal_id"]`, set by
     tool_invoke_node at submission time."""

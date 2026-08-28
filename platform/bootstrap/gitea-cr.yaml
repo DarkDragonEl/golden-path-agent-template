@@ -1,10 +1,10 @@
-# DEC-100 (addendum): the Gitea instance -- one shared Platform
+# ADR-013 (addendum): the Gitea instance -- one shared Platform
 # Foundation instance, not per-agent-project. Admin password via a
 # Secret (giteaAdminPasswordSecretName), created out-of-band, never
 # plaintext in Git.
 #
 # giteaSsl: true -- native Route with the cluster's trusted wildcard
-# cert (RHDH's own Route, DEC-094; Keycloak's, DEC-097).
+# cert (ADR-016 -- same pattern as RHDH's own Route and Keycloak's).
 apiVersion: pfe.rhpds.com/v1
 kind: Gitea
 metadata:

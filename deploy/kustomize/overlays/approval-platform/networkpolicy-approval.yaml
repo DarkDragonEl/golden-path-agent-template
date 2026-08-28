@@ -1,4 +1,4 @@
-# DEC-098/DEC-099: copied from base/, adjusted for cross-namespace
+# Copied from base/, adjusted for cross-namespace
 # access (approval now lives in its own namespace). Scoped by this
 # project's `part-of: golden-path-agent` namespace label, single-tenant
 # for now -- G7's multi-tenant fan-out will need to revisit this.

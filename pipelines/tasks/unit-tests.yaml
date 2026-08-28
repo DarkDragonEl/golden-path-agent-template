@@ -1,4 +1,4 @@
-# Phase C, Step C1b/C1c (DECISIONS.md DEC-027). SysR-P-F-05(1) software
+# SysR-P-F-05(1) software
 # tests. Same command a developer runs locally (make test / pytest -q) --
 # no CI-specific reinterpretation of what "tests pass" means.
 apiVersion: tekton.dev/v1
@@ -16,7 +16,7 @@ spec:
       image: docker.io/library/python:3.12-slim
       workingDir: $(workspaces.source.path)
       env:
-        # DEC-027: restricted-v2's arbitrary non-root UID has no
+        # restricted-v2's arbitrary non-root UID has no
         # /etc/passwd entry, so $HOME defaults to "/" -- pip's --user
         # install can't write there (confirmed live). /tmp is guaranteed
         # world-writable regardless of UID; /tekton/home was not verified.
@@ -26,7 +26,7 @@ spec:
         #!/bin/sh
         set -eu
         pip install --no-cache-dir -q -r requirements.txt -r requirements-dev.txt
-        # DEC-028: HOME=/tmp makes pip fall back to --user mode, installing
+        # HOME=/tmp makes pip fall back to --user mode, installing
         # the pytest binary off $PATH -- python -m pytest finds it via
         # sys.path instead, same pattern as eval-gate-offline.yaml.
         python -m pytest -q

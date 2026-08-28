@@ -1,4 +1,4 @@
-# DEC-024 (addendum): documentation only, not referenced from this
+# ADR-018 (addendum): documentation only, not referenced from this
 # overlay's `resources:`. Bootstrapped once, out-of-band
 # (pipelines/bootstrap/namespaces.yaml) -- ArgoCD's own ServiceAccount
 # has no cluster-scoped Namespace permission, so `syncOptions:

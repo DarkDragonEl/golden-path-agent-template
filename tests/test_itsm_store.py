@@ -52,7 +52,7 @@ def test_req_30052_findable_by_in_progress_status(store):
 
 
 def test_req_30052_findable_by_hyphenated_in_progress_status(store):
-    # R2 remedy (DEC-018): a hyphenated status value ("in-progress",
+    # R2 remedy: a hyphenated status value ("in-progress",
     # mirroring how a model sometimes formats it) must also match
     # REQ-30052's seeded "in_progress" status.
     result = store.search(record_type="request", status="in-progress")
@@ -60,15 +60,15 @@ def test_req_30052_findable_by_hyphenated_in_progress_status(store):
 
 
 def test_req_30052_findable_by_space_separated_in_progress_status(store):
-    # R2 remedy (DEC-019): the generalized separator normalization must
+    # R2 remedy: the generalized separator normalization must
     # also cover a space-separated variant ("in progress"), the third
-    # formatting variant found in DEC-018's re-baseline.
+    # formatting variant found during re-baseline.
     result = store.search(record_type="request", status="in progress")
     assert any(r["record_id"] == "REQ-30052" for r in result["records"])
 
 
 def test_req_30052_findable_by_mixed_case_status(store):
-    # DEC-019: the normalization also lowercases, covering case variation
+    # The normalization also lowercases, covering case variation
     # on top of separator variation.
     result = store.search(record_type="request", status="In-Progress")
     assert any(r["record_id"] == "REQ-30052" for r in result["records"])
@@ -81,7 +81,7 @@ def test_inc_10234_findable_by_ci_pipeline_query(store):
 
 
 def test_inc_10234_findable_by_plural_ci_pipelines_query(store):
-    # R2 remedy (DEC-014): a plural query ("CI pipelines", mirroring how a
+    # R2 remedy: a plural query ("CI pipelines", mirroring how a
     # user's own question is naturally phrased) must also find INC-10234,
     # whose seeded description uses the singular "CI pipeline".
     result = store.search(record_type="incident", query="CI pipelines", status="open")

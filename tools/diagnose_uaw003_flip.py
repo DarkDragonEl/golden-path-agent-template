@@ -1,4 +1,4 @@
-"""Mission Step R3 (post-DEC-015) diagnostic: UAW-003's residual flip under
+"""Mission Step R3 (post-ADR-004) diagnostic: UAW-003's residual flip under
 pinned deterministic sampling (temperature=0, seed=42).
 
 Throwaway probe script, same status as the other tools/diagnose_*.py

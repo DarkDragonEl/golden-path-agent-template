@@ -10,16 +10,16 @@ rules:
     classification: write
   - tool_name: placeholder_lookup
     classification: read  # eval/cases/EXAMPLE-001.yaml harness fixture, not
-    # domain content (see eval/README.md, DECISIONS.md DEC-005) — explicit
+    # domain content (see eval/README.md) — explicit
     # here so SEC-03's fail-closed default doesn't route its read call to
-    # approval. Unconditional now — Phase C retired the legacy write:true
+    # approval. Unconditional now — the legacy write:true
     # argument carve-out that used to override this entry for EXAMPLE-002
-    # (DECISIONS.md DEC-023); that fixture calls placeholder_write_action
+    # was retired (ADR-019); that fixture calls placeholder_write_action
     # instead, below.
   - tool_name: placeholder_write_action
     classification: write  # eval/cases/EXAMPLE-002.yaml's write-classified
     # fixture, migrated off placeholder_lookup's retired write:true
-    # argument flag onto this dedicated tool name (DEC-023) — write is
+    # argument flag onto this dedicated tool name (ADR-019) — write is
     # signaled by which tool is called, never by an argument, same as
     # every real domain tool.
 

@@ -1,9 +1,9 @@
 """Retrieval API/library contract.
 
 Phase B3.5: minimal working retrieval against corpus/seed/, per
-srs/SRS-RET-IF-01 (approved at Checkpoint B0-b) -- field names corrected
+srs/SRS-RET-IF-01 -- field names corrected
 here from the pre-existing scaffold's snippet/source_uri (flagged as a
-Phase B update target in srs/REVIEW_INDEX.md) to the authoritative
+known update target in srs/REVIEW_INDEX.md) to the authoritative
 passage_text/source, plus the two fields the scaffold was missing
 (owner_role, effective_date).
 
@@ -16,7 +16,7 @@ SRS-RET-F-03 (authorization filtering): interface-correct only. The
 `user_id` parameter flows through this contract's signature so a real
 identity-based filter has a place to plug in, but no filtering logic is
 implemented against it yet -- this repo's `eval/cases/domain/` set has no
-authorization-negative case to verify against (a recorded Phase A gap,
+authorization-negative case to verify against (a recorded gap,
 srs/SRS-AGT.md's own note at SRS-AGT-F-02), so building enforcement here
 now would be unverifiable. TODO(domain): real per-document access-policy
 enforcement once that eval-set gap closes.

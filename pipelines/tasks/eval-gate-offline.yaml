@@ -1,4 +1,4 @@
-# Phase C, Step C1b. SysR-P-F-05(1) continued -- the existing
+# SysR-P-F-05(1) continued -- the existing
 # ci/pr-checks.yaml eval-gate stage, realized as a Tekton Task, unchanged
 # in substance: fully offline (fake model client, mock MCP tool), no
 # network access or external credentials.
@@ -21,7 +21,7 @@ spec:
           value: fake
         - name: MCP_MODE
           value: mock
-        # DEC-027: pip install needs a writable $HOME under this project's
+        # pip install needs a writable $HOME under this project's
         # restricted-v2-SCC identity -- see unit-tests.yaml's fuller note.
         - name: HOME
           value: /tmp

@@ -14,23 +14,23 @@ data:
   AGENT_MODEL_MODE: "live"
   MCP_TOOL_ENDPOINT: "http://golden-path-agent-mcp:8081"
   MCP_MODE: "mock"
-  APPROVAL_SERVICE_ENDPOINT: "http://golden-path-agent-approval:8082" # DEC-051:
+  APPROVAL_SERVICE_ENDPOINT: "http://golden-path-agent-approval:8082" #
   # mirrors MCP_TOOL_ENDPOINT's Service-DNS convention -- agent/config.py's
   # own localhost default is local-dev-only, wrong for any deployed pod.
-  AGENT_OIDC_MODE: "none" # DEC-062: none | oidc, declared explicitly
+  AGENT_OIDC_MODE: "none" # none | oidc, declared explicitly
   # matching MCP_MODE/AUTH_MODE(approval)'s own convention.
-  OIDC_ISSUER_URL: "http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent" # DEC-062:
-  # internal Service DNS (DEC-057) -- not a secret, one realm for all envs.
-  APPROVAL_OIDC_CLIENT_ID: "golden-path-agent-approval-workload" # DEC-062: not
+  OIDC_ISSUER_URL: "http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/golden-path-agent" #
+  # internal Service DNS -- not a secret, one realm for all envs.
+  APPROVAL_OIDC_CLIENT_ID: "golden-path-agent-approval-workload" # not
   # secret, identical everywhere -- the realm's own client id.
-  MCP_OIDC_CLIENT_ID: "golden-path-agent-mcp-workload" # DEC-062: same reasoning.
-  APPROVAL_OIDC_CLIENT_SECRET: "not-needed" # DEC-062: safe placeholder --
+  MCP_OIDC_CLIENT_ID: "golden-path-agent-mcp-workload" # same reasoning.
+  APPROVAL_OIDC_CLIENT_SECRET: "not-needed" # safe placeholder --
   # demo-prod's real value comes from golden-path-agent-secrets instead
-  # (KNOWN_SECRET_SHADOWED, DEC-059), never committed here.
-  MCP_AUTH_TOKEN: "not-needed" # DEC-062: same shadowing mechanism as
+  # (KNOWN_SECRET_SHADOWED), never committed here.
+  MCP_AUTH_TOKEN: "not-needed" # same shadowing mechanism as
   # APPROVAL_OIDC_CLIENT_SECRET; declared here so the config-contract
-  # completeness check (DEC-044) sees it everywhere.
-  MCP_AUTH_MODE: "none" # DEC-062: none | oidc, gates mcp_server's
+  # completeness check (ADR-019) sees it everywhere.
+  MCP_AUTH_MODE: "none" # none | oidc, gates mcp_server's
   # POST /tools/{tool_name} auth check -- read via os.environ there, but
   # declared here since deployment-mcp.yaml shares this ConfigMap.
   POLICY_BUNDLE_REF: "policy/baseline_policy.yaml"

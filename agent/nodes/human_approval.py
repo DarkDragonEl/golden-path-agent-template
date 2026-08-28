@@ -5,7 +5,7 @@ before this node whenever tool_invoke sets pending_approval=True.
 approval_client.py::resolve_and_resume injects approved_action/
 approval_decision from the approval service's own terminal-state query
 before resuming -- this node never sees a client-supplied decision
-(DEC-008/DEC-049).
+(ADR-001).
 
 Sole invoker of a write-classified tool call (SRS-AGT-F-04,
 SRS-MIT-SEC-01), only when approved_action is set -- exactly the

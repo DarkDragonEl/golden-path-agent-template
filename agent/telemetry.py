@@ -2,7 +2,7 @@
 is unset — the OTel API always provides a working no-op tracer, so spans are
 just discarded locally instead of erroring.
 
-DEC-020: every attribute/event set here is read-only with respect to
+ADR-006: every attribute/event set here is read-only with respect to
 model inputs -- this module only observes already-computed state and
 on-disk prompt files, never alters the system prompt, user message, or
 `tools=` argument actually sent to the model.
@@ -26,7 +26,7 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 def _prompt_version(filename: str) -> str:
     """SRS-AGT-DATA-01: a content hash of the on-disk prompt file, never
-    embedded back into the prompt text itself (DEC-012's re-baseline rule).
+    embedded back into the prompt text itself (ADR-004's re-baseline rule).
     Out-of-band: reaches only the telemetry span, never the model."""
     path = _PROMPTS_DIR / filename
     try:
@@ -81,7 +81,7 @@ def record_invocation_span(state: dict, request_id: str | None = None, span=None
 
     span.set_attribute("session.id", state.get("session_id", ""))
     span.set_attribute("request.id", request_id or "")
-    # DEC-071: proposal.id lets a query join this span to approval_service's
+    # ADR-006: proposal.id lets a query join this span to approval_service's
     # own spans for the SAME proposal, across the async approval gap.
     # Empty string, not omitted, when no proposal was drafted this turn --
     # a consistent, always-present attribute is easier to query.
@@ -94,9 +94,9 @@ def record_invocation_span(state: dict, request_id: str | None = None, span=None
     span.set_attribute("prompt.generate_version", _GENERATE_PROMPT_VERSION)
 
     # SysR-P-F-12/SRS-AGT-IF-02: state["model_calls"] is the source of truth
-    # for routing/reason code, one event per call (DEC-013's decide/generate
+    # for routing/reason code, one event per call (ADR-005's decide/generate
     # split can make two) -- the scalar fields below are last-call
-    # convenience only (DEC-009/DEC-020).
+    # convenience only (ADR-002, ADR-006).
     for call in state.get("model_calls", []):
         span.add_event(
             "model_call",

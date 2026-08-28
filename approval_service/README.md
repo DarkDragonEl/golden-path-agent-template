@@ -3,7 +3,7 @@
 Source for the shared human-approval gate (`api.py`, `auth.py`,
 `config.py`, `schemas.py`, `store.py`, `telemetry.py`) — the enforcement
 point for this project's defining objective, human approval on every
-write. A Platform Foundation component (`DECISIONS.md` `DEC-098`), not
+write. A Platform Foundation component (ADR-012), not
 bundled per agent instance: one running instance serves every Agent
 Template instantiation.
 

@@ -1,16 +1,16 @@
-"""Phase F2/F3 (DECISIONS.md DEC-087 item 1, DEC-088, DEC-090). The one
-rendering engine for skeleton/ -- imported by both tools/verify_skeleton.py
-(F2's own internal verification) and tools/instantiate_agent_project.py
-(F3's real CLI). Deliberately factored out into its own module rather than
-duplicated between the two: DEC-075's own root cause was exactly two
-hand-maintained copies of one constant silently drifting apart, and this
-module exists so that failure shape structurally cannot repeat here.
+"""The one rendering engine for skeleton/ (ADR-022) -- imported by both
+tools/verify_skeleton.py (internal verification) and
+tools/instantiate_agent_project.py (the real CLI). Deliberately factored
+out into its own module rather than duplicated between the two: a prior
+root cause was exactly two hand-maintained copies of one constant silently
+drifting apart, and this module exists so that failure shape structurally
+cannot repeat here.
 
 Substitution engine: a small regex-based renderer for exactly the
 '${{ values.x }}' subset the skeleton actually uses today (plain value
 substitution, no loops/conditionals/filters) -- deliberately not a Jinja2
 dependency, since nothing in the skeleton needs more than this yet
-(DEC-088's own reasoning).
+(ADR-022's own reasoning).
 """
 
 import json
@@ -22,11 +22,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SKELETON_DIR = REPO_ROOT / "skeleton"
 SCHEMA_PATH = REPO_ROOT / "template-schema.json"
 
-# Phase G, Stage 3 (DEC-098/DEC-099/DEC-110, G6 Path B). The two
-# instantiable templates this project ships, by --template flag value --
-# the one place this pairing is declared, so tools/instantiate_agent_project.py
-# and tools/verify_skeleton.py (already extended at Stage 2 to check both)
-# can't drift the way DEC-075's own duplicated constant did.
+# The two instantiable templates this project ships, by --template flag
+# value (ADR-021) -- the one place this pairing is declared, so
+# tools/instantiate_agent_project.py and tools/verify_skeleton.py (which
+# also checks both) can't drift the way a prior duplicated constant did.
 TEMPLATES = {
     "agent": SKELETON_DIR,
     "tools": REPO_ROOT / "skeleton-tools",

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Phase E, E1 (DECISIONS.md DEC-078). Scripted replay of the manual
-# bootstrap sequence (docs/phase-c-runbook.md), extended with two
-# operator Subscriptions this cluster needs from scratch (DEC-078).
+# Scripted replay of the manual bootstrap sequence
+# (docs/phase-c-runbook.md), extended with two operator Subscriptions
+# this cluster needs from scratch (ADR-009).
 #
 # Never runs `oc login` -- credential handling stays the owner's own
 # one-time step; this script assumes KUBECONFIG already points at an
@@ -9,7 +9,7 @@
 #
 # Idempotent for every `oc apply`/`oc apply -k` step. NOT idempotent for
 # provision-identity-secrets.sh's own credential rotation (that script
-# regenerates every run by design, DEC-059) -- re-running this script
+# regenerates every run by design) -- re-running this script
 # against an already-live cluster invalidates live Keycloak sessions.
 set -euo pipefail
 
@@ -21,16 +21,16 @@ Bootstraps the golden-path-agent blueprint onto a fresh OpenShift cluster
 from Git alone. The kubeconfig must already be authenticated (this script
 never runs `oc login`). Re-runnable: picks up where a prior run stopped.
 
-DEC-083 WARNING: if the target cluster's own golden-path-agent-root
+WARNING (ADR-009): if the target cluster's own golden-path-agent-root
 Application has had its auto-sync deliberately disabled (a single-
-active-cluster deprotection, e.g. the SNO after DEC-083), a plain re-run
+active-cluster deprotection, e.g. the SNO's freeze), a plain re-run
 of this script will detect that live-only freeze and SKIP re-applying
 deploy/argocd/application-root.yaml, rather than silently re-enabling
-auto-sync and resurrecting DEC-078's original cross-cluster-promotion
+auto-sync and resurrecting the original cross-cluster-promotion
 hazard via a routine maintenance command. Pass --reenable-sync only if
 you deliberately intend to reverse that specific cluster's freeze.
 
---with-rhdh (DEC-092): opt-in RHDH Operator install (cluster-scoped,
+--with-rhdh: opt-in RHDH Operator install (cluster-scoped,
 AllNamespaces) plus its Postgres credentials Secret -- opt-in because it
 carries real cluster-wide visibility cost a plain namespace/client does
 not.
@@ -78,7 +78,7 @@ approve_pending_installplan() {
   # $1 = namespace, $2 = exact CSV name. installPlanApproval: Manual
   # (PINS.md's pin discipline) means even a first install sits in
   # RequiresApproval -- only ever approves the plan matching the exact
-  # pinned CSV (DEC-055).
+  # pinned CSV.
   local ns="$1" csv="$2" plan approved
   plan=$(oc get installplan -n "$ns" -o jsonpath="{.items[?(@.spec.clusterServiceVersionNames[0]=='$csv')].metadata.name}" 2>/dev/null || echo "")
   [ -n "$plan" ] || return 0
@@ -136,9 +136,9 @@ oc apply -f pipelines/bootstrap/rbac.yaml
 
 # Both secrets required BEFORE keycloak-postgres.yaml/keycloak-cr.yaml
 # apply, or those pods hit CreateContainerConfigError. Create-once, not
-# regenerate-every-run like DEC-059's downstream credentials --
+# regenerate-every-run like the downstream identity credentials --
 # regenerating either after Keycloak trusts it would break a live
-# instance, not just rotate a credential (DEC-059).
+# instance, not just rotate a credential (ADR-017).
 if ! oc get secret golden-path-agent-keycloak-db-secret -n golden-path-agent-keycloak >/dev/null 2>&1; then
   log "creating golden-path-agent-keycloak-db-secret (first time on this cluster)"
   oc create secret generic golden-path-agent-keycloak-db-secret \
@@ -160,7 +160,7 @@ KEYCLOAK_PATH="olm"
 if ! ensure_operator golden-path-agent-keycloak "rhbk-operator" \
     platform/bootstrap/keycloak-operator.yaml \
     rhbk-operator.v26.6.6-opr.1 300; then
-  log "rhbk-operator OLM path did not reach Succeeded in time -- falling back to upstream kustomize (DEC-056 precedent)"
+  log "rhbk-operator OLM path did not reach Succeeded in time -- falling back to upstream kustomize (ADR-017 precedent)"
   KEYCLOAK_PATH="upstream-kustomize"
   oc apply -k platform/bootstrap/keycloak-operator-upstream/
 fi
@@ -190,7 +190,7 @@ if [ "$CONSTRAINED_NODE" = "true" ]; then
 fi
 
 if [ "$WITH_RHDH" = "true" ]; then
-  log "=== step 4b/9 (--with-rhdh, Phase F4, DEC-092): RHDH operator + Postgres secret ==="
+  log "=== step 4b/9 (--with-rhdh): RHDH operator + Postgres secret ==="
   ensure_operator openshift-operators "RHDH" \
     platform/bootstrap/rhdh-operator.yaml \
     rhdh-operator.v1.10.3 300
@@ -252,7 +252,7 @@ while true; do
   sleep 5; RI_WAITED=$((RI_WAITED + 5))
 done
 
-log "=== step 5/9: identity secrets (idempotent by regeneration -- DEC-059) ==="
+log "=== step 5/9: identity secrets (idempotent by regeneration) ==="
 ./platform/bootstrap/provision-identity-secrets.sh
 
 log "=== step 6/9: manual secret + config check ==="
@@ -291,7 +291,7 @@ if [ "$NEEDS_MANUAL" = "true" ]; then
 before demo-prod can sync a working pod and before deploy-ephemeral can
 run (docs/phase-c-runbook.md S2 and S2b have the exact commands).
 
-S3 (golden-path-agent-github-token) is optional -- DEC-078: this
+S3 (golden-path-agent-github-token) is optional -- ADR-009: this
 cluster's pipeline never gets promotion authority over the shared main
 digest pin regardless; any resulting PR is closed unmerged.
 
@@ -304,9 +304,8 @@ log "model-endpoint secret and CI config present, continuing"
 
 log "=== step 7/9: pipeline + task definitions ==="
 # Without this apply, a PipelineRun fails with CouldntGetPipeline
-# (DEC-078). DEC-098/DEC-099 (G2): the single golden-path-agent-ci
-# Pipeline is retired -- apply all three independent component
-# Pipelines instead.
+# (ADR-009). The single golden-path-agent-ci Pipeline is retired
+# (ADR-011) -- apply all three independent component Pipelines instead.
 oc apply -f pipelines/pipeline-agent.yaml -n golden-path-agent-ci
 oc apply -f pipelines/pipeline-mcp.yaml -n golden-path-agent-ci
 oc apply -f pipelines/pipeline-approval.yaml -n golden-path-agent-ci
@@ -315,10 +314,10 @@ oc apply -f pipelines/tasks/ -n golden-path-agent-ci
 log "=== step 8/9: argocd app-of-apps root ==="
 oc apply -f deploy/argocd/project.yaml
 
-# DEC-083 guard: deploy/argocd/application-root.yaml and
+# ADR-009 guard: deploy/argocd/application-root.yaml and
 # deploy/argocd/apps/demo-prod.yaml are single files every cluster
 # bootstraps identically from the same Git history -- a cluster-local
-# "deprotect this cluster's demo-prod" decision (DEC-083's SNO freeze)
+# "deprotect this cluster's demo-prod" decision (the SNO's freeze)
 # is therefore necessarily a live-only patch, never a commit to those
 # shared files. That makes it silently reversible by a routine re-run of
 # this exact step, on this exact cluster, unless guarded here: detect an
@@ -332,7 +331,7 @@ if [ "$ROOT_EXISTS" = "true" ]; then
   ROOT_AUTOMATED=$(oc get applications.argoproj.io golden-path-agent-root -n openshift-gitops \
     -o jsonpath='{.spec.syncPolicy.automated}' 2>/dev/null || echo "")
   if [ -z "$ROOT_AUTOMATED" ] && [ "$REENABLE_SYNC" != "true" ]; then
-    log "  golden-path-agent-root: auto-sync already disabled live on this cluster (DEC-083-style freeze) -- NOT re-applying deploy/argocd/application-root.yaml, which would silently restore automated:{prune:true,selfHeal:true} and resurrect DEC-078's cross-cluster-promotion hazard. Re-run with --reenable-sync if you deliberately intend to reverse this cluster's freeze."
+    log "  golden-path-agent-root: auto-sync already disabled live on this cluster (ADR-009 freeze) -- NOT re-applying deploy/argocd/application-root.yaml, which would silently restore automated:{prune:true,selfHeal:true} and resurrect the cross-cluster-promotion hazard. Re-run with --reenable-sync if you deliberately intend to reverse this cluster's freeze."
   else
     oc apply -f deploy/argocd/application-root.yaml
   fi

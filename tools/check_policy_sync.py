@@ -1,4 +1,4 @@
-"""Phase C policy-validation stage (DECISIONS.md DEC-025): mechanical
+"""CI pipeline policy-validation step (ADR-018): mechanical
 drift check between policy/approval_rules.yaml (the runtime source of
 truth, loaded by agent/config.py) and policy/opa/approval_policy.rego's
 hand-maintained tool_classification/default_classification mirror.

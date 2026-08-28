@@ -2,8 +2,8 @@
 """trace_check.py — executable requirements-traceability validator.
 
 Validates the chain StRS -> SyRS -> SRS -> (eval cases / tests) for the
-golden-path-agent-template blueprint (Phase B0, MISSION_PHASE_B0.md
-deliverable 2). Exits non-zero when any *active* check fails.
+golden-path-agent-template blueprint (deliverable 2 of the requirements-
+traceability work). Exits non-zero when any *active* check fails.
 
 See tools/trace-check/README.md for the full ID grammar, the checks'
 exact semantics, and the exit-code contract. This module is intentionally
@@ -388,9 +388,10 @@ def find_py_files(root: Path) -> List[Path]:
     """Find every .py file under the directories this convention scans.
 
     Only tests/ has content today; agent/ and mcp_server/ are scanned too
-    (per the mission spec: "the parser should scan any .py file passed to
-    it, not hardcode tests/ as the only location") so that once Phase B
-    adds '# verifies:' comments there, no code change is needed here.
+    (per the spec: "the parser should scan any .py file passed to
+    it, not hardcode tests/ as the only location") so that once
+    agent/ or mcp_server/ gain '# verifies:' comments there, no code
+    change is needed here.
     """
     py_files: List[Path] = []
     for dirname in ("tests", "agent", "mcp_server"):
@@ -748,7 +749,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--docs-only",
         action="store_true",
-        help="Skip check (d) (SRS-F -> test/eval coverage), which requires Phase B artifacts.",
+        help="Skip check (d) (SRS-F -> test/eval coverage), which requires implementation-code artifacts.",
     )
     default_root = Path(__file__).resolve().parents[2]
     parser.add_argument(
@@ -850,7 +851,7 @@ if __name__ == "__main__":
     if args.docs_only:
         result_d = {
             "status": "SKIPPED",
-            "reason": "Phase B has not produced tests yet; --docs-only mode",
+            "reason": "no implementation code exists yet to produce tests; --docs-only mode",
             "violations": [],
         }
     else:

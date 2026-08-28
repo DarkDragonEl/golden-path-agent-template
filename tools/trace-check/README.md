@@ -2,8 +2,8 @@
 
 A small, dependency-light Python 3 CLI that validates the requirements
 traceability chain **StRS -> SyRS -> SRS -> (eval cases / tests)** and
-exits non-zero on violation. Built per `MISSION_PHASE_B0.md` deliverable 2,
-before any Phase B implementation code exists.
+exits non-zero on violation. Built as deliverable 2 of the requirements-
+traceability work, before any implementation code exists.
 
 Implementation: `trace_check.py` (single file — parsing, the four checks,
 report generation, and the CLI entrypoint). Tests: `tests/test_trace_check.py`
@@ -12,7 +12,7 @@ at the repository root.
 ## Why one file
 
 The scope here is genuinely small: four checks over five markdown documents,
-one YAML case set, and (once Phase B exists) a handful of Python source
+one YAML case set, and (once implementation code exists) a handful of Python source
 files. Splitting this into a package would trade one obvious place to look
 for several, for no real benefit at this size. Internally the file is
 organized into four clearly marked sections — Parsing, Checks, Report, CLI
@@ -161,7 +161,7 @@ inherently scoped by its path-adjacency requirement instead.
 ## The test-file requirement-reference convention (this tool's own choice)
 
 There is no existing precedent in this repository's `tests/*.py` to match
-— Phase B hasn't started, so no test file references an SRS id yet. This
+— no implementation code exists yet, so no test file references an SRS id. This
 tool adopts a **comment convention**:
 
 ```python
@@ -179,14 +179,13 @@ against every **real Python comment** in a `.py` file — not only inside a
 docstring or immediately above an assertion, but anywhere a genuine `#`
 comment appears — and the captured group is split on commas. Only tokens
 matching `SRS-[A-Z]+-F-\d+` are kept (check (d)'s own scope is F-category
-requirements only, per `MISSION_PHASE_B0.md`'s exact wording: "every
+requirements only, per the deliverable's own scope: "every
 SRS-F requirement is referenced by ≥1 test or eval case").
 
 `find_py_files()` scans `.py` files under `tests/`, `agent/`, and
 `mcp_server/` — not only `tests/` — even though only `tests/` has content
-today, so that once Phase B adds implementation-level verification
-comments under `agent/` or `mcp_server/`, no change to this tool is
-needed.
+today, so that once `agent/` or `mcp_server/` gain implementation-level
+verification comments, no change to this tool is needed.
 
 **Implementation note: matching is done against real comment tokens,
 found with Python's own `tokenize` module — never a whole-file text
@@ -235,8 +234,8 @@ failure and no more; it does not crash the whole trace-check run.
 
 Both were considered. A comment convention was chosen because:
 
-1. **It doesn't constrain how Phase B organizes test functions or
-   classes.** A test-name-suffix convention (e.g. `test_foo__SRS_APR_F_03`)
+1. **It doesn't constrain how test functions or classes get organized.**
+   A test-name-suffix convention (e.g. `test_foo__SRS_APR_F_03`)
    forces every verifying test's *name* to encode the requirement id,
    which fights against writing a test name that actually describes the
    behavior under test.
@@ -251,7 +250,7 @@ Both were considered. A comment convention was chosen because:
 The honest tradeoff: a comment convention is easier to let go stale (a
 comment can silently stop matching reality after a refactor, where a
 test-name suffix at least fails loudly if a test is renamed without
-thought). This tool does not try to solve that; it is a Phase B code-review
+thought). This tool does not try to solve that; it is a code-review
 discipline question, not something a static scanner can fully enforce.
 
 ## `known-gap` tag lifecycle check — current `--docs-only` limitation
@@ -266,11 +265,11 @@ requires a concrete "has the gap closed?" signal — `SRS-EVH-F-04` itself
 marks this choice `PROPOSED — pending owner review` (static inspection of
 `agent/nodes/reason.py` for a `try`/`except` around the model call, versus
 an explicit sentinel such as a manifest flag) — and no such signal exists
-yet because Phase B has not built the fallback path this check would be
-detecting the presence of. Building the detector before the owner decides
+yet because the fallback path this check would be detecting the presence
+of has not been built. Building the detector before the owner decides
 its mechanism would mean guessing at, and likely having to redo, that
-mechanism. This is intentionally deferred to when Phase B lands the
-fallback path and the owner's choice is resolved — consistent with the
+mechanism. This is intentionally deferred to when that fallback path
+lands and the owner's choice is resolved — consistent with the
 same forward-reference posture `srs/SRS-EVH.md` itself uses for this exact
 mechanism ("this document states what that mechanism must satisfy; it does
 not specify the mechanism's own implementation").
@@ -331,8 +330,8 @@ python tools/trace-check/trace_check.py --docs-only --root /path/to/golden-path-
 Flags:
 
 - `--docs-only` — skip check (d), as described above. Always passed today
-  (Phase B does not exist yet); the flag exists from day one so CI wiring
-  never has to change when Phase B lands.
+  (no implementation code exists yet); the flag exists from day one so CI
+  wiring never has to change once it does.
 - `--root PATH` — repository root to scan. Defaults to the directory two
   levels above `trace_check.py` (computed from `__file__`, never
   hardcoded). Note: `SyRS-AGP-001_EN.md` and `StRS_Agentic_AI_Platform_EN.md`

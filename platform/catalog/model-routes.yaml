@@ -1,4 +1,4 @@
-# DEC-098: model routes as catalog Resources, with their OpenAI-
+# ADR-012: model routes as catalog Resources, with their OpenAI-
 # compatible contract as a shared API. Deliberately does NOT hardcode a
 # model name/endpoint (SRS-AGT-IF-01) -- route identity is stable, the
 # model behind it is injected configuration.
@@ -90,7 +90,7 @@ metadata:
     primary_timeout, primary_429, primary_5xx, primary_unreachable
     (srs/SRS-AGT.md SRS-AGT-IF-02 -- its own listed example codes are
     illustrative, "e.g.", not the literal enum; this is the real one).
-    DEC-009 selected llama-scout-17b as the fallback model identity
+    ADR-002 selected llama-scout-17b as the fallback model identity
     (a realization choice, injected via config, not catalog-fixed here).
   annotations:
     golden-path-agent.io/route-role: fallback

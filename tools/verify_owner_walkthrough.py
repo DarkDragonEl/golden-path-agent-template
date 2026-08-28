@@ -7,9 +7,8 @@ owner to click through the same path by hand.
 
 Exercises both the positive path (demo-approver: submit a write-drafting
 query -> pending -> approve -> ticket) and the negative path (demo-user:
-same submission -> pending -> a decision attempt refused 403 server-side,
-DEC-069's fix), then leaves the target environment's pending-proposal list
-empty.
+same submission -> pending -> a decision attempt refused 403 server-side),
+then leaves the target environment's pending-proposal list empty.
 
 Requires two port-forwards already running (see docs/owner-walkthrough.md
 for the exact commands and the accompanying hosts-file mapping this script
@@ -19,9 +18,9 @@ local port the served page's own APPROVAL_SERVICE_ORIGIN default names
   agent            -> http://localhost:18080  (AGENT_ORIGIN)
   Keycloak         -> http://localhost:8080, reached via the internal
                        Service DNS name mapped to 127.0.0.1 in /etc/hosts
-                       (DEC-074) -- not a bare localhost URL.
+                       (ADR-016) -- not a bare localhost URL.
 
-DEC-075: this script used to hardcode APPROVAL_ORIGIN as a second copy of
+This script used to hardcode APPROVAL_ORIGIN as a second copy of
 agent/static/approver_ui.html's own APPROVAL_SERVICE_ORIGIN default --
 exactly the kind of parallel constant that let the real docs/config
 mismatch (18082 in the runbook vs. 8082 in the page) pass verification
@@ -30,7 +29,7 @@ instead, so a future drift between the page's default and this script
 fails loudly rather than silently agreeing with itself.
 
 Credentials are never hardcoded or logged -- set DEMO_APPROVER_PASSWORD and
-DEMO_USER_PASSWORD from the DEC-059 retrieval command immediately before
+DEMO_USER_PASSWORD from the credential retrieval command immediately before
 running this script.
 """
 
@@ -51,7 +50,7 @@ AGENT_ORIGIN = os.environ.get("AGENT_ORIGIN", "http://localhost:18080")
 CLIENT_ID = "golden-path-agent-approver-ui"
 
 # Set once, at the top of main(), by fetch_approval_origin() -- never
-# hardcoded here (DEC-075). Every function below reads this module global
+# hardcoded here. Every function below reads this module global
 # rather than taking it as a parameter, to avoid threading it through the
 # whole call chain for a value that's fixed for the life of one run.
 APPROVAL_ORIGIN = None
@@ -81,7 +80,7 @@ class ScenarioFailure(Exception):
 def fetch_approval_origin() -> str:
     """Derives the approval-service origin from the same source of truth
     a real browser uses: the live served /ui page's own hardcoded default,
-    not a second copy of that value maintained here (DEC-075). An
+    not a second copy of that value maintained here. An
     APPROVAL_ORIGIN env var, if set, is an explicit operator override for
     a non-default port-forward -- documented, not a silent fallback."""
     override = os.environ.get("APPROVAL_ORIGIN")
@@ -346,7 +345,7 @@ def main() -> int:
             refused = decide(proposal_id, user_token, "approve")
             if refused.status_code != 403:
                 raise ScenarioFailure(f"expected 403, got {refused.status_code}: {refused.text}")
-            ok("demo-user decision attempt refused server-side (403)", "matches DEC-069's fix")
+            ok("demo-user decision attempt refused server-side (403)", "fail-closed as required")
         except Exception as exc:  # noqa: BLE001
             bad("negative path (demo-user)", str(exc))
             failures += 1

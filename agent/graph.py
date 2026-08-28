@@ -25,8 +25,8 @@ def build_graph():
     """decide -> (tool_invoke -> (human_approval -> respond|fallback) | respond) |
                   (retrieve -> generate -> respond|fallback) | fallback
 
-    DEC-013: `decide` sees only the query + both tool schemas, no corpus/
-    citation context (DEC-012's root cause). Only the "no tool needed"
+    ADR-005: `decide` sees only the query + both tool schemas, no corpus/
+    citation context (ADR-004's root cause). Only the "no tool needed"
     branch retrieves; `generate` alone handles retrieved context, in a
     separate model call with no tool schemas.
 

@@ -1,4 +1,4 @@
-# Phase C (DEC-023/DEC-024/DEC-021). Applied once, by a human -- the
+# Applied once, by a human (ADR-018, ADR-019) -- the
 # pipeline's own ServiceAccount has no cluster-scoped permissions (no
 # ClusterRoleBinding, ever), and creating/deleting a Namespace is
 # inherently cluster-scoped. "Ephemeral" is preserved at the resource
@@ -24,7 +24,7 @@ metadata:
   name: golden-path-agent-demo-prod
   labels:
     app.kubernetes.io/part-of: golden-path-agent
-    # DEC-078/DEC-080: ArgoCD's default cluster-wide ClusterRole only
+    # ADR-009: ArgoCD's default cluster-wide ClusterRole only
     # grants get/list/watch -- write access needs this label, which
     # triggers the GitOps operator to create a namespace-scoped
     # RoleBinding automatically. golden-path-agent-ephemeral-test does
@@ -32,7 +32,7 @@ metadata:
     # ArgoCD-synced.
     argocd.argoproj.io/managed-by: openshift-gitops
 ---
-# Phase D (DEC-053/DEC-054). A separate namespace for Keycloak + its own
+# A separate namespace for Keycloak + its own (ADR-008, ADR-017)
 # Postgres -- rhbk-operator's only supported install modes are
 # OwnNamespace/SingleNamespace (PINS.md), and Keycloak is platform
 # identity infrastructure, not part of this project's own promoted
@@ -44,7 +44,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
 ---
-# Phase D4 (DEC-068). Platform observability infrastructure, same
+# Phase D4 (ADR-020). Platform observability infrastructure, same
 # reasoning as golden-path-agent-keycloak's own namespace. No
 # NetworkPolicy, deliberately -- mirrors Keycloak's own precedent, both
 # being shared platform infra reachable from anywhere in this project.
@@ -55,10 +55,10 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
 ---
-# Phase F4 (DEC-087/DEC-092/DEC-093). RHDH's namespace -- platform
+# Phase F4. RHDH's namespace -- platform
 # dev-tooling, same reasoning as keycloak/-otel above. Unlike those two,
 # its Postgres/Backstage CR ARE GitOps-managed, so it needs the same
-# write-access label demo-prod's own comment explains (DEC-078/DEC-080).
+# write-access label demo-prod's own comment explains (ADR-009).
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -67,10 +67,10 @@ metadata:
     app.kubernetes.io/part-of: golden-path-agent
     argocd.argoproj.io/managed-by: openshift-gitops
 ---
-# Phase G, Stage 1 (DEC-098/DEC-099/DEC-101/DEC-103). The approval
-# service's Platform Foundation home, extracted out of demo-prod -- a
-# shared singleton, not scoped to one agent project. GitOps-managed,
-# needs the same write-access label the namespaces above already explain.
+# The approval service's Platform Foundation home (ADR-011, ADR-012),
+# extracted out of demo-prod -- a shared singleton, not scoped to one
+# agent project. GitOps-managed, needs the same write-access label the
+# namespaces above already explain.
 apiVersion: v1
 kind: Namespace
 metadata:

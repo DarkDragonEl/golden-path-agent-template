@@ -10,7 +10,7 @@
 #        pipeline/task definitions, the ArgoCD app-of-apps root, AND
 #        (its own internal step 5/9) platform/bootstrap/provision-
 #        identity-secrets.sh -- OIDC client secrets + demo-user
-#        passwords (DECISIONS.md DEC-059: idempotent BY REGENERATION --
+#        passwords (idempotent BY REGENERATION --
 #        every run rotates fresh values, there is no "only if missing"
 #        branch).
 #
@@ -28,7 +28,7 @@
 #
 # This script NEVER passes --reenable-sync to bootstrap.sh, by default or
 # via any flag defined here. That flag reverses a cluster-local auto-sync
-# freeze (DECISIONS.md DEC-083) and is the cluster operator's own
+# freeze (ADR-009) and is the cluster operator's own
 # deliberate, explicit call -- never a choice a one-button installer
 # should make on their behalf. Need it (or --with-rhdh)? Run
 # scripts/bootstrap.sh directly -- see its own usage text.
@@ -40,7 +40,7 @@ usage: install.sh <kubeconfig-path> [--yes]
 
 Runs the fresh-OpenShift-cluster install path: scripts/bootstrap.sh
 <kubeconfig-path>, which itself provisions identity secrets as one of
-its own steps (DECISIONS.md DEC-059) -- rotating them every run, with no
+its own steps (ADR-017) -- rotating them every run, with no
 "only if missing" branch.
 
 <kubeconfig-path> is forwarded to scripts/bootstrap.sh exactly as that
@@ -92,7 +92,7 @@ log() { echo "[install.sh] $*"; }
 if [ "$SKIP_CONFIRM" != "true" ]; then
   cat >&2 <<'WARNING'
 
-[install.sh] WARNING (DECISIONS.md DEC-059): scripts/bootstrap.sh's own
+[install.sh] WARNING (ADR-017): scripts/bootstrap.sh's own
 step 5/9 runs platform/bootstrap/provision-identity-secrets.sh
 unconditionally. That script ROTATES the OIDC client secrets and
 demo-user passwords every time it runs -- there is no "only if missing"

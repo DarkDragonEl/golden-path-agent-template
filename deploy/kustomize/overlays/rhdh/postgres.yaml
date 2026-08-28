@@ -1,10 +1,10 @@
-# DEC-087: RHDH's own dedicated Postgres, separate from Keycloak's own
+# RHDH's own dedicated Postgres, separate from Keycloak's own
 # DB, same plain Deployment+PVC pattern (no new operator). GitOps-managed
 # (unlike Keycloak's manual bootstrap), since RHDH's Backstage CR is
 # GitOps-managed too. Credentials: a plain Secret
 # (golden-path-agent-rhdh-db-secret), manually provisioned, never committed.
 #
-# REQUIRED MANUAL STEP (DEC-093 addendum): RHDH creates one Postgres
+# REQUIRED MANUAL STEP: RHDH creates one Postgres
 # database per backend plugin at startup, not just this S2I image's
 # default single database -- the app user needs CREATEDB or every plugin
 # fails ("permission denied to create database"). Run once, after this

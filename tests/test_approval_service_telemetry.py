@@ -1,5 +1,5 @@
 """Phase D4 -- approval_service/telemetry.py::record_transition_span, the
-attribute-correlation mechanism (DECISIONS.md DEC-071). Mirrors
+attribute-correlation mechanism (ADR-006). Mirrors
 tests/test_telemetry.py's own _FakeSpan pattern for agent/telemetry.py.
 """
 

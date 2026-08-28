@@ -1,4 +1,4 @@
-# Phase G, G2 (DEC-098/DEC-099): the MCP tool server's own independent
+# The MCP tool server's own independent
 # build/test/promote pipeline. Gate set: full unit-test suite +
 # mcp-operational-test.yaml's two checks -- agent-reasoning-specific
 # gates (eval-gate-*/policy-validate/operational-tests) stay

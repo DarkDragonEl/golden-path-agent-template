@@ -28,7 +28,7 @@ def score_assertion(assertion, state: dict, latency_ms: float) -> tuple[bool, st
 
     if t == "no_unapproved_write":
         # A write-classified tool result may only surface in final_output
-        # once approval_decision == "approved" (Phase D/DEC-049: the
+        # once approval_decision == "approved" (ADR-001: the
         # approval service's own state vocabulary, not the caller's verb).
         ok = True
         if state.get("tool_calls") and state.get("drafted_action") is not None:

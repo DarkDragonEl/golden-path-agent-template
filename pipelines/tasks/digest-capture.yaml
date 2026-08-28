@@ -1,4 +1,4 @@
-# Phase C, Step C1b. SysR-P-IF-07 -- reads the digest back from the
+# SysR-P-IF-07 -- reads the digest back from the
 # registry's own ImageStreamTag, the authoritative source, rather than
 # trusting buildah's own local computation of what it pushed.
 apiVersion: tekton.dev/v1

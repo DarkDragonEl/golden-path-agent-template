@@ -2,7 +2,7 @@
 exposing an OpenAI-compatible API, never a provider-specific SDK.
 
 Rules-based routing with one configured fallback (SysR-P-F-12,
-SRS-AGT-IF-02) -- DEC-009 picked the fallback model (llama-scout-17b).
+SRS-AGT-IF-02) -- ADR-002 picked the fallback model (llama-scout-17b).
 """
 
 import json
@@ -54,7 +54,7 @@ class OpenAICompatibleModelClient:
             except json.JSONDecodeError:
                 arguments = {}
             tool_calls.append({"name": tc.function.name, "arguments": arguments})
-        # R4/DEC-020: SRS-AGT-IF-08 "token consumption" -- `usage` is a
+        # R4/ADR-006: SRS-AGT-IF-08 "token consumption" -- `usage` is a
         # standard OpenAI-compatible response field; not every backend
         # reports it, so this stays Optional throughout the call chain.
         usage = None
@@ -67,7 +67,7 @@ class OpenAICompatibleModelClient:
         # response.model reports which model identity actually served the
         # request (can differ from the requested `model` name). Read-only
         # w.r.t. model inputs; threaded through for cross-session drift
-        # correlation (DEC-022).
+        # correlation.
         response_model = response.model
         return choice.content, tool_calls, usage, response_model
 

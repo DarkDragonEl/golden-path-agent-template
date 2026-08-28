@@ -1,6 +1,6 @@
-"""Phase D, Step D1 -- approval_service business-logic tests, covering
+"""approval_service business-logic tests, covering
 every "Needed" item in srs/SRS-APR.md's Section 6 verification table plus
-the two DECISIONS.md DEC-046 additions (the absent-evidence_refs schema
+the two ADR-008 additions (the absent-evidence_refs schema
 reject, and the expired-proposal decided_by/decided_at parity check).
 
 Store-level tests construct their own ApprovalStore/ExpiryScanner
@@ -91,10 +91,10 @@ def test_f01_missing_required_field_rejected_with_422_and_no_record(client, fres
 
 
 def test_f01_missing_evidence_refs_specifically_rejected(client, fresh_store):
-    # DEC-046 correction 1: evidence_refs is required (no default) --
+    # ADR-008 correction 1: evidence_refs is required (no default) --
     # an *absent* field must 422, distinct from the general
     # missing-required-field parametrization above (called out explicitly
-    # since this is the field DEC-046 corrected).
+    # since this is the field ADR-008 corrected).
     payload = _valid_payload()
     del payload["evidence_refs"]
 
@@ -105,7 +105,7 @@ def test_f01_missing_evidence_refs_specifically_rejected(client, fresh_store):
 
 
 def test_f01_empty_evidence_refs_list_is_accepted(client):
-    # DEC-046: presence, not content -- an *empty* list is a valid,
+    # ADR-008: presence, not content -- an *empty* list is a valid,
     # distinct case from an *absent* field.
     payload = _valid_payload(evidence_refs=[])
 
@@ -317,7 +317,7 @@ def test_if05_unknown_proposal_returns_404(client):
     assert response.status_code == 404
 
 
-# --- SRS-APR-F-03: expiry, plus DEC-046's two additions ---------------------
+# --- SRS-APR-F-03: expiry, plus ADR-008's two additions ---------------------
 
 
 def _now_iso() -> str:
@@ -351,7 +351,7 @@ def test_f03_not_yet_overdue_proposal_is_left_pending(fresh_store):
 
 
 def test_dec046_expired_proposal_has_none_decided_by_and_decided_at(fresh_store):
-    # DEC-046 correction 2 (parity test), asserted directly at the store
+    # ADR-008 correction 2 (parity test), asserted directly at the store
     # level: decided_by/decided_at are None for an expired proposal, since
     # no approver ever decided it -- not inferred from resemblance to a
     # rejection, but a direct field assertion.
@@ -387,7 +387,7 @@ def test_dec046_expired_parity_at_the_api_level_if05(client, fresh_store):
 
 
 def test_dec046_app_lifespan_startup_pass_expires_overdue_proposal(client, fresh_store):
-    # Same DEC-046 guarantee, exercised through the real wiring api.py's
+    # Same ADR-008 guarantee, exercised through the real wiring api.py's
     # lifespan uses (_expiry_scanner.start()), not just the ExpiryScanner
     # class in isolation: a fresh TestClient entry re-runs the lifespan's
     # startup, which must immediately pick up an already-overdue proposal.
@@ -410,7 +410,7 @@ def test_dec046_app_lifespan_startup_pass_expires_overdue_proposal(client, fresh
 
 
 def test_dec046_restart_overdue_pickup_on_fresh_scanner_startup_pass(tmp_path):
-    # DEC-046: a proposal already overdue when the previous process died
+    # ADR-008: a proposal already overdue when the previous process died
     # must still expire correctly after restart, via the mandatory
     # immediate startup pass -- not only the periodic loop, and without
     # needing to wait out the poll interval.
@@ -668,7 +668,7 @@ def test_sec02_approver_role_present_succeeds(oidc_client, monkeypatch):
 
 def test_sec02_missing_bearer_token_gets_401(oidc_client, monkeypatch):
     # The decision endpoint's own missing-token case -- setup still needs
-    # A valid token now that create_proposal itself requires one (DEC-069).
+    # A valid token now that create_proposal itself requires one.
     private_key, public_key = _rsa_keypair()
     monkeypatch.setattr(auth, "_get_jwks_client", lambda issuer_url: _FakeJWKSClient(public_key))
     setup_token = _make_token(
@@ -723,8 +723,8 @@ def test_sec03_proposal_decision_schema_has_no_identity_field():
         assert spoofable not in fields
 
 
-# --- DEC-069: create_proposal/list_pending_proposals/get_proposal found
-# running with NO auth check at all under AUTH_MODE=oidc -- fail-open,
+# --- create_proposal/list_pending_proposals/get_proposal previously
+# ran with NO auth check at all under AUTH_MODE=oidc -- fail-open,
 # contradicting SEC-01 applied everywhere else. Fixed with
 # get_authenticated_caller (identity+audience only, no role check --
 # neither the agent's own workload nor an approver checking pending

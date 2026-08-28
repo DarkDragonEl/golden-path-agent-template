@@ -1,8 +1,8 @@
-"""Mission Step R3 final forensic triage diagnostic (post-DEC-017,
-freeze lifted). Runs the 6 remaining firm-failing cases from DEC-015's
+"""Mission Step R3 final forensic triage diagnostic (post-ADR-007,
+freeze lifted). Runs the 6 remaining firm-failing cases from ADR-004's
 deterministic re-baseline through the real graph, 2 reps each at the
 pinned temperature=0/seed=42, capturing full state -- trustworthy
-measurements now that sampling is pinned, unlike R1's pre-DEC-015 triage.
+measurements now that sampling is pinned, unlike R1's pre-pinned-sampling triage.
 
 Throwaway probe script, same status as the other tools/diagnose_*.py
 scripts. No code, prompt, or config change.

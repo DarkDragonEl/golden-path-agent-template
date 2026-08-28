@@ -1,4 +1,4 @@
-# DEC-020: local-dev OTel Collector, minimal by design -- an OTLP HTTP
+# ADR-006: local-dev OTel Collector, minimal by design -- an OTLP HTTP
 # receiver and a debug exporter to this container's own stdout
 # (`podman logs golden-path-otel-collector-dev`). No trace-visualization
 # UI at this phase.

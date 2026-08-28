@@ -12,8 +12,8 @@ restructure (SRS-MIT-SEC-01), not by this schema or by mcp_server/server.py.
 PlaceholderLookupInput/Output are the not-yet-domain-specific placeholder
 tool's schema (TODO(domain): replace once the real domain tools are
 selected). PlaceholderWriteActionInput is the dedicated write-classified
-placeholder tool introduced at Phase C (agent/policy.py, DECISIONS.md
-DEC-023) so a write is signaled by which tool is called, never by an
+placeholder tool (agent/policy.py, ADR-018) so a write is signaled by which
+tool is called, never by an
 argument flag — placeholder_lookup's own legacy `write` field is unchanged
 and unused by this tool.
 """
@@ -87,7 +87,7 @@ class PlaceholderLookupOutput(BaseModel):
 
 
 class PlaceholderWriteActionInput(BaseModel):
-    """DEC-023: write is signaled by which tool is called, never an
+    """ADR-018: write is signaled by which tool is called, never an
     argument (SRS-MIT-IF-03), same as every real domain tool.
     placeholder_lookup stays CONTRACT-FROZEN; this tool never sets or
     reads its write field."""

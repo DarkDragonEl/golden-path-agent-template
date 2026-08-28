@@ -1,8 +1,8 @@
-# DECISIONS.md DEC-040. App-of-apps root: syncs deploy/argocd/apps/ as a
+# App-of-apps root: syncs deploy/argocd/apps/ as a
 # plain directory of Application manifests. Scoped to demo-prod only --
 # ephemeral-test is pipeline-managed, not GitOps-managed (see
 # application-ephemeral-test.yaml); staging/pilot-prod stay un-synced
-# per DEC-021's "no staging, no pilot" decision.
+# per the earlier "no staging, no pilot" decision.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

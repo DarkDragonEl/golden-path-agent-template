@@ -1,9 +1,9 @@
-"""In-process test double for agent.approval_client -- Phase D/DEC-049.
+"""In-process test double for agent.approval_client.
 
 tool_invoke_node's write branch now submits a real proposal to the
-standalone approval service over HTTP (DECISIONS.md DEC-008/DEC-047).
+standalone approval service over HTTP (ADR-001).
 Contexts that must not depend on a live approval_service -- the eval
-harness (eval/domain_executor.py, driving Phase C's eval-gate-offline/
+harness (eval/domain_executor.py, driving the eval-gate-offline/
 eval-gate-live CI stages) and plain pytest unit/integration tests --
 patch agent.approval_client.submit_proposal/get_proposal with this
 fake instead, mirroring eval/domain_executor.py's own _apply_fault

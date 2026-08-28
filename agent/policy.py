@@ -18,7 +18,7 @@ def check_step_limit(state: dict) -> None:
         )
 
 
-# DEC-023: every tool call is classified purely by name, no exceptions --
+# ADR-018: every tool call is classified purely by name, no exceptions --
 # the retired _LEGACY_WRITE_FLAG_TOOLS carve-out used to signal a write
 # via an argument flag, the exact pattern SRS-MIT-IF-03 bans.
 
@@ -29,7 +29,7 @@ def classify_action(tool_name: str, arguments: dict) -> str:
     ambiguous tool name fails closed to "write" (config.DEFAULT_TOOL_CLASSIFICATION)
     — it is never treated as read-only or directly executable. `arguments`
     is accepted for interface stability with callers but no longer
-    consulted (Phase C, DEC-023) -- classification is purely tool-name-keyed.
+    consulted (ADR-018) -- classification is purely tool-name-keyed.
     """
     return config.TOOL_CLASSIFICATION.get(tool_name, config.DEFAULT_TOOL_CLASSIFICATION)
 

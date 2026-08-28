@@ -9,7 +9,7 @@ namespace: golden-path-agent-demo-prod
 resources:
   - ../../base
 
-# DEC-103: the approval service moves out of this namespace into the
+# ADR-012: the approval service moves out of this namespace into the
 # Platform Foundation (overlays/approval-platform/) as a shared singleton
 # -- deleted here via `patches:` rather than removed from base/, since
 # ephemeral-test still needs its own throwaway instance. No data
@@ -28,25 +28,25 @@ configMapGenerator:
   - name: golden-path-agent-config
     behavior: merge
     literals:
-      - MCP_MODE=live # DEC-063: revises DEC-021's "same as ephemeral-test"
+      - MCP_MODE=live # ADR-008: revises the earlier "same as ephemeral-test"
         # framing at the network-topology axis only -- mock ITSM data
         # stays synthetic regardless. Flips agent->MCP from in-process to
         # real HTTP, required for MCP_AUTH_MODE=oidc below to mean anything.
-      - AGENT_OIDC_MODE=oidc # DEC-063
-      - MCP_AUTH_MODE=oidc # DEC-063
+      - AGENT_OIDC_MODE=oidc # ADR-008
+      - MCP_AUTH_MODE=oidc # ADR-008
       - APPROVAL_MODE=required
       - DATA_SOURCE_BINDING=synthetic # CLAUDE.md: synthetic corpus only,
         # never real client/organization data, in any promoted environment.
-      # DEC-041 (addendum): MODEL_API_BASE_URL/NAME/FALLBACK_* are NOT
+      # MODEL_API_BASE_URL/NAME/FALLBACK_* are NOT
       # overridden here -- ArgoCD's selfHeal would stomp a committed
       # placeholder override, and the real value can't be committed. They
       # come from a third golden-path-agent-secrets Secret copy instead;
       # envFrom's secretRef-after-configMapRef ordering (deployment-
       # agent.yaml) makes the Secret's real values shadow these
       # placeholders. See docs/phase-c-runbook.md for the manual step.
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://golden-path-agent-otel-collector.golden-path-agent-otel.svc.cluster.local:4318 # DEC-071:
-        # the cluster-tier collector (DEC-068).
-      - APPROVAL_SERVICE_ENDPOINT=http://golden-path-agent-approval.golden-path-agent-approval.svc.cluster.local:8082 # DEC-101:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://golden-path-agent-otel-collector.golden-path-agent-otel.svc.cluster.local:4318 # ADR-006:
+        # the cluster-tier collector (ADR-020).
+      - APPROVAL_SERVICE_ENDPOINT=http://golden-path-agent-approval.golden-path-agent-approval.svc.cluster.local:8082 # ADR-011:
         # base/configmap.yaml's bare in-namespace default is wrong here --
         # approval now lives in its own Platform Foundation namespace.
 

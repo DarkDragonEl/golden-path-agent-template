@@ -1,4 +1,4 @@
-# DEC-092 (addendum): RHDH's own sign-in via the existing golden-path-
+# RHDH's own sign-in via the existing golden-path-
 # agent-keycloak realm, no second realm. Values pulled from
 # -oidc-secret via Backstage's ${VAR} env-var substitution. Exactly one
 # data entry per ConfigMap, per the operator's own documented
@@ -11,7 +11,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
 data:
-  # DEC-093 (addendum): this RHDH version's oidc provider rejects the
+  # This RHDH version's oidc provider rejects the
   # `scope` key outright ("no longer supports the 'scope' configuration
   # option") -- use `additionalScopes` instead. Without app/backend.
   # baseUrl set, Backstage defaults to internal http://localhost:7007,
@@ -19,7 +19,7 @@ data:
   # Ingress hostname) is kept out of git (CLAUDE.md anonymity rule),
   # lives only in -oidc-secret.
   app-config.oidc.yaml: |
-    # DEC-094: signInPage is a TOP-LEVEL config key, not a sub-key of
+    # ADR-016: signInPage is a TOP-LEVEL config key, not a sub-key of
     # auth: -- nesting it under auth: leaves the backend OIDC flow
     # working while the frontend silently falls back to RHDH's bundled
     # GitHub provider. Only found by opening the portal in a real browser.
@@ -38,7 +38,7 @@ data:
       # a no-auth guest bypass.
       environment: production
       session:
-        # DEC-093 (addendum): omitting this produces "Authentication
+        # Omitting this produces "Authentication
         # failed, authentication requires session support" on the first
         # /api/auth/oidc/start request -- needed even though the OIDC
         # strategy otherwise uses cookie-based state, not express-session.
@@ -54,7 +54,7 @@ data:
               - profile
               - email
             prompt: consent
-            # DEC-092: sandbox-scope, owner-directed -- no user/group
+            # Sandbox-scope, owner-directed -- no user/group
             # ingestion configured (zero User entities), so this lets a
             # real Keycloak identity sign in without a catalog User.
             # Re-entry point if ingestion is ever wanted: the Keycloak

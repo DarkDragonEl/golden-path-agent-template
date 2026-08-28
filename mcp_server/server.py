@@ -5,8 +5,8 @@ named `mcp` at the repo root would shadow the installed `mcp` SDK package
 (the `from mcp.server.fastmcp import FastMCP` import below would resolve to
 itself instead of the real library). Keep this name.
 
-REST/MCP coexistence: confirmed via a minimal probe (Phase B kickoff, Task
-1 prerequisite) that the pinned `mcp` SDK (1.x) supports mounting
+REST/MCP coexistence: confirmed via a minimal probe that the pinned `mcp`
+SDK (1.x) supports mounting
 `FastMCP.streamable_http_app()` as an ASGI sub-app under a parent FastAPI
 app on one port, provided the parent's lifespan explicitly enters the
 sub-app's own lifespan context (its session manager otherwise never
@@ -69,7 +69,7 @@ def placeholder_lookup(query: str, write: bool = False) -> dict:
 
 @mcp.tool()
 def placeholder_write_action(query: str) -> dict:
-    """Phase C: eval/cases/EXAMPLE-002.yaml's dedicated write-classified
+    """eval/cases/EXAMPLE-002.yaml's dedicated write-classified
     fixture tool -- placeholder_lookup's legacy write:true argument-flag
     carve-out (agent/policy.py) is retired; this tool's own name is now
     what signals write, per policy/approval_rules.yaml, matching how every

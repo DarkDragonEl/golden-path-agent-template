@@ -1,13 +1,13 @@
-# DEC-098/DEC-099: Git hosting for scaffolded project repositories --
+# ADR-013: Git hosting for scaffolded project repositories --
 # Platform Foundation infrastructure.
 #
-# DEC-100 (addendum): superseded an earlier plain-OLM-Subscription
+# ADR-013 (addendum): superseded an earlier plain-OLM-Subscription
 # design -- it never resolved an InstallPlan (`ResolutionFailed`/
 # `CatalogSourcesUnhealthy`) despite a confirmed-`READY` CatalogSource, a
 # stuck resolver cache in the cluster-wide `catalog-operator` pod, not a
-# config error here (same "not this project's resource to fix" class as
-# DEC-055). Uses `rhpds/gitea-operator`'s own `config/default` kustomize
-# path instead -- zero OLM dependency, same shape DEC-056 already
+# config error here (not this project's resource to fix). Uses
+# `rhpds/gitea-operator`'s own `config/default` kustomize
+# path instead -- zero OLM dependency, same shape ADR-017 already
 # established for the identical problem class. Image pinned to digest
 # `sha256:ec115feaa606459300c33f8aecd751d637217185e5e9087513f0280768695613`
 # (tag `v2.3.2`), verified live via `skopeo inspect`.

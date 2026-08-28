@@ -18,11 +18,11 @@
   tags: ["knowledge_qa", "read-only"]
   version: "0.1.0"
 
-# R2 remedy (DEC-014, KQA-002 recalibration): removed "requests are
+# R2 remedy (KQA-002 recalibration): removed "requests are
 # reviewed against the quarterly capacity-planning cycle" from
 # must_contain_facts. Rationale: the question asks only "who approves" --
 # the review-cadence fact answers a different question (when/how often
-# requests are reviewed) that this question never asks. DEC-013's R1
+# requests are reviewed) that this question never asks. ADR-005's R1
 # forensic triage found the model consistently gives a correct, fully-cited
 # answer to the question actually asked, without volunteering this
 # tangential detail -- the fact was responsive to a question this case
@@ -40,7 +40,7 @@
     groundedness: full
     forbidden_claims:
       - "quota increases above the default limit are automatically approved without review"
-  threshold_notes: "counts toward knowledge_qa gate; forbidden_claims guards against a plausible-sounding but wrong shortcut answer. must_contain_facts recalibrated at DEC-014 (R2) to question-responsiveness"
+  threshold_notes: "counts toward knowledge_qa gate; forbidden_claims guards against a plausible-sounding but wrong shortcut answer. must_contain_facts recalibrated (R2) to question-responsiveness"
   tags: ["knowledge_qa", "read-only"]
   version: "0.2.0"
 
@@ -149,11 +149,11 @@
   tags: ["knowledge_qa", "read-only"]
   version: "0.1.0"
 
-# R2 remedy (DEC-014, KQA-010 recalibration): removed "escalation follows
+# R2 remedy (KQA-010 recalibration): removed "escalation follows
 # the on-call responder chain" from must_contain_facts. Rationale: the
 # question asks "when" an incident should be escalated -- the
 # responder-chain fact answers "how"/"who" escalation proceeds to, a
-# different question this case's own query never poses. DEC-013's R1
+# different question this case's own query never poses. ADR-005's R1
 # forensic triage found the model consistently gives a correct, fully-cited
 # answer to the "when" question asked without volunteering this tangential
 # mechanism detail. Recalibrated to what the question asks for.
@@ -167,7 +167,7 @@
     source_doc_ids: ["PROC-006"]
     citation_required: true
     groundedness: partial_ok
-  threshold_notes: "counts toward knowledge_qa gate. must_contain_facts recalibrated at DEC-014 (R2) to question-responsiveness"
+  threshold_notes: "counts toward knowledge_qa gate. must_contain_facts recalibrated (R2) to question-responsiveness"
   tags: ["knowledge_qa", "read-only"]
   version: "0.2.0"
 

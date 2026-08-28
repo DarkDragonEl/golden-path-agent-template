@@ -7,12 +7,12 @@ config_reference, thresholds_applied, gate_verdict, tolerated_known_gaps).
 When no explicit build_reference is supplied, _default_build_reference
 derives one from git — a commit hash for a clean worktree, or the
 "local-dev-uncommitted" sentinel for a dirty one, self-described via
-build_reference_type so a downstream consumer (the Phase C pipeline, which
+build_reference_type so a downstream consumer (the CI pipeline, which
 supplies a real image digest instead) can never mistake one for the other.
 
 tolerated_known_gaps carries eval/cli.py's KNOWN_GAP_TOLERANCES entries —
 cases scored but explicitly, individually excluded from the gate's failure
-count (DECISIONS.md DEC-016/DEC-017).
+count (ADR-007).
 
 print_summary renders the same run_results list as human-readable PASS/FAIL
 lines to stdout; it does not read or write the JSON report.
@@ -29,11 +29,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 def _default_build_reference() -> tuple[str, str]:
     """(build_reference, build_reference_type) per the resolved
-    SRS-EVH-IF-02: a real image digest once one exists (Phase C), a git
-    commit hash for a clean pre-build local run, or the explicit
+    SRS-EVH-IF-02: a real image digest once the CI pipeline produces one, a
+    git commit hash for a clean pre-build local run, or the explicit
     "local-dev-uncommitted" sentinel for a dirty worktree -- self-
-    describing via the type field so a downstream consumer (the Phase C
-    MLflow record) can never mistake a commit hash for a real digest.
+    describing via the type field so a downstream consumer (the CI
+    pipeline's MLflow record) can never mistake a commit hash for a real
+    digest.
     """
     try:
         status = subprocess.run(
@@ -73,14 +74,14 @@ def write_report(
         "passed": sum(1 for r in run_results if r["passed"]),
         "failed": sum(1 for r in run_results if not r["passed"]),
         "cases": run_results,
-        # SRS-EVH-IF-02 (resolved at Checkpoint B0-b) -- additive fields.
+        # SRS-EVH-IF-02 -- additive fields.
         "eval_set_version": eval_set_version,
         "build_reference": build_reference,
         "build_reference_type": build_reference_type,
         "config_reference": config_reference,
         "thresholds_applied": thresholds_applied,
         "gate_verdict": gate_verdict,
-        # DEC-016/DEC-017 -- cases scored but explicitly, individually
+        # ADR-007 -- cases scored but explicitly, individually
         # excluded from the gate's failure count (named, dated, and
         # rationale-carrying, per KNOWN_GAP_TOLERANCES in eval/cli.py).
         "tolerated_known_gaps": tolerated_known_gaps or [],

@@ -1,4 +1,4 @@
-# Phase G, G2 (DECISIONS.md DEC-098/DEC-099). Triggers
+# Triggers
 # golden-path-agent-ci-mcp (pipeline-mcp.yaml).
 #   oc create -f pipelines/pipelinerun-template-mcp.yaml -n golden-path-agent-ci
 apiVersion: tekton.dev/v1

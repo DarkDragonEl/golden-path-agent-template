@@ -1,4 +1,4 @@
-# Phase G, G2 (DEC-098/DEC-099). Two checks against the freshly-built MCP
+# Two checks against the freshly-built MCP
 # image only -- security-tests.yaml's zero-mutation-check is agent-
 # specific (drives /invoke) and stays on the agent pipeline.
 apiVersion: tekton.dev/v1

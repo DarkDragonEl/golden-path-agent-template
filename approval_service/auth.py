@@ -127,7 +127,7 @@ _DEV_CALLER_IDENTITY = "dev-caller"
 
 def get_authenticated_caller(request: Request) -> str:
     """SRS-APR-SEC-03 identity-propagation, applied to the three endpoints
-    DEC-069 found with no auth check at all under AUTH_MODE=oidc
+    with no auth check at all under AUTH_MODE=oidc
     (create_proposal, list_pending_proposals, get_proposal) -- identity+
     audience only, no role check, mirrors mcp_server/auth.py's function of
     the same name."""

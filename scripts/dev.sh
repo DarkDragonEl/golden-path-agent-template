@@ -21,9 +21,9 @@ if [ -z "$ENGINE" ]; then
 fi
 
 NETWORK=golden-path-agent-dev
-# DEC-098/DEC-099 (G2, three-image split): three images, one per
-# component, built from their own Containerfiles -- no more single
-# shared image dispatched by a positional entrypoint arg.
+# Three images, one per component, built from their own Containerfiles
+# (ADR-011) -- no more single shared image dispatched by a positional
+# entrypoint arg.
 AGENT_IMAGE=golden-path-agent:dev
 MCP_IMAGE=golden-path-agent-mcp:dev
 APPROVAL_IMAGE=golden-path-agent-approval:dev
@@ -31,7 +31,7 @@ AGENT_NAME=golden-path-agent-dev
 MCP_NAME=golden-path-agent-mcp-dev
 APPROVAL_NAME=golden-path-agent-approval-dev
 OTEL_NAME=golden-path-otel-collector-dev
-# Pinned per PINS.md -- R4/DEC-020, plan-B6 closure. Core distribution
+# Pinned per PINS.md -- R4/ADR-006, plan-B6 closure. Core distribution
 # (not -contrib): only the OTLP receiver + debug exporter are needed here.
 OTEL_COLLECTOR_IMAGE=otel/opentelemetry-collector:0.159.0
 
@@ -69,7 +69,7 @@ up() {
   fi
   # MCP_MODE is always live, offline or not -- Containerfile.agent
   # excludes mcp_server/server.py, so MCP_MODE=mock's in-process fallback
-  # would ImportError (DEC-098/DEC-099, closing the gap DEC-096 found).
+  # would ImportError (ADR-011).
   MCP_MODE=live
 
   "$ENGINE" build -t "$AGENT_IMAGE" -f Containerfile.agent .
@@ -82,7 +82,7 @@ up() {
     -e MCP_HOST=0.0.0.0 -e MCP_PORT=8081 \
     "$MCP_IMAGE" >/dev/null
 
-  # R4/DEC-020: a real local OTel Collector, started before the agent so
+  # R4/ADR-006: a real local OTel Collector, started before the agent so
   # OTEL_EXPORTER_OTLP_ENDPOINT below can address it by container name.
   "$ENGINE" run -d --name "$OTEL_NAME" --network "$NETWORK" -p "4318:4318" \
     -v "$(pwd)/deploy/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:Z" \
@@ -90,7 +90,7 @@ up() {
 
   # Without this, any write-classified query fails immediately -- the
   # agent's APPROVAL_SERVICE_ENDPOINT default points nowhere inside its
-  # own container network namespace otherwise (DEC-047, DEC-096).
+  # own container network namespace otherwise.
   "$ENGINE" run -d --name "$APPROVAL_NAME" --network "$NETWORK" -p "${APPROVAL_HOST_PORT}:8082" \
     -e OTEL_EXPORTER_OTLP_ENDPOINT="http://${OTEL_NAME}:4318" \
     "$APPROVAL_IMAGE" >/dev/null

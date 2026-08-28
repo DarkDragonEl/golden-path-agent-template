@@ -1,4 +1,4 @@
-# DECISIONS.md DEC-021. Auto-sync deliberately ON (unlike pilot-prod's
+# Auto-sync deliberately ON (unlike pilot-prod's
 # stub) -- the promotion-PR merge is this environment's own human gate;
 # once merged, ArgoCD picks up the promoted digest with no manual apply.
 apiVersion: argoproj.io/v1alpha1
