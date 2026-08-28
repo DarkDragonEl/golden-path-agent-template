@@ -95,8 +95,8 @@ document's §§1–5 content would silently produce wrong answers if trusted.
   comma-separated lists (`OPS-001, OPS-002, OPS-003, OPS-005`). For a range,
   this tool checks **both endpoint IDs only** — it does not enumerate and
   check every id in between. This matches the manual verification
-  convention already used in this session's own Phase B0 checkpoint
-  reports, and is sufficient because every domain case file is a small,
+  convention already used elsewhere in this project's reports, and is
+  sufficient because every domain case file is a small,
   densely-numbered sequential set with no gaps.
 
 ### How reference scanning works: two complementary mechanisms

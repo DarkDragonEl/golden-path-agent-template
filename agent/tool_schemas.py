@@ -12,7 +12,7 @@ SRS-MIT-IF-01's tool-catalog metadata as the *runtime* source of truth for
 tool identity, via a real MCP client session — `mcp_server/client.py`
 does not implement the MCP protocol today (an in-process function call in
 mock mode, an ad hoc REST POST in live mode), so a genuine MCP
-`ClientSession`-based runtime lookup is out of Phase B3's scope. This
+`ClientSession`-based runtime lookup is out of scope today. This
 static, same-PR-synced mirror is the interim realization; closing the gap
 for real is future work, not silently declared done.
 

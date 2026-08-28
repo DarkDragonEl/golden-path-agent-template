@@ -20,8 +20,8 @@ ITSM tools below — it is still load-bearing for
 `eval/cases/EXAMPLE-001.yaml` (the harness-mechanics smoke fixture,
 explicitly never treated as domain content per SRS-EVH-F-03) and for
 `agent/nodes/tool_invoke.py`'s current hardcoded tool call. Retiring it
-from the agent's active path is Phase B2 work (the write-gating
-restructure), not this one.
+from the agent's active path is the write-gating restructure's job,
+not this one.
 """
 
 import os
@@ -55,7 +55,7 @@ def placeholder_lookup(query: str, write: bool = False) -> dict:
     Interface (PlaceholderLookupInput/Output) is stable; do not change
     lightly. Superseded, for the ITSM domain, by itsm_search_records /
     itsm_create_request below — kept only for eval/cases/EXAMPLE-001.yaml
-    and the agent's not-yet-updated tool_invoke node (Phase B2).
+    and the agent's not-yet-updated tool_invoke node.
     """
     validated = PlaceholderLookupInput(query=query, write=write)
     mcp_mode = os.environ.get("MCP_MODE", "mock")
@@ -119,13 +119,13 @@ def itsm_create_request(
 ) -> dict:
     """Draft a new ITSM service request. Write (SRS-MIT-IF-03).
 
-    Interim Phase B1 state, deliberately not yet gated here: this tool is
+    Interim state, deliberately not yet gated here: this tool is
     reachable and directly callable with no approval check in front of it.
-    That is expected and correct for B1 — SRS-MIT-SEC-01's no-bypass
+    That is expected and correct today — SRS-MIT-SEC-01's no-bypass
     guarantee is enforced by the agent's policy layer plus the approval
-    flow (Phase B2's write-gating restructure), never by this MCP tool
+    flow (the write-gating restructure), never by this MCP tool
     interface itself. Do not read this ungated window as the intended end
-    state; it closes in B2.
+    state; it closes once that restructure lands.
     """
     validated = ItsmCreateRequestInput(
         short_description=short_description,

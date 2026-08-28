@@ -112,7 +112,7 @@ def execute_domain_case(case) -> DomainExecutionTrace:
     # the primary check, not the agent's self-report) need a before-
     # snapshot. Queried directly against the store, not via REST -- same
     # underlying state, without build_app()'s once-per-process session-
-    # manager constraint (found in Phase B1) complicating a harness that
+    # manager constraint complicating a harness that
     # runs many cases in one process.
     trace.request_ids_before = {
         r["record_id"] for r in itsm_store_module.store.list_records(record_type="request")

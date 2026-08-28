@@ -198,7 +198,7 @@ class ItsmStore:
         """Read-only search/lookup. Never creates, modifies, or deletes state.
 
         `_simulate_error` is a test-only fault-injection hook, driven only by
-        the eval executor's `fault_params` (Phase B4) — never reachable from
+        the eval executor's `fault_params` — never reachable from
         a real agent-constructed call, since the MCP tool wrapper in
         server.py does not expose this parameter at all.
         """
@@ -257,7 +257,7 @@ class ItsmStore:
 
         Per SRS-MIT-SEC-01, this operation itself exposes no bypass — it is
         only reachable at all through the agent's write-gated tool_invoke
-        path (Phase B2). Approval gating is enforced by the agent's policy
+        path. Approval gating is enforced by the agent's policy
         layer plus the approval service, not by this component.
         """
         if _simulate_error == "timeout":

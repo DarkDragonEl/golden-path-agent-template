@@ -1,4 +1,4 @@
-"""Phase D2 -- mcp_server/client.py's MCP_MODE=live path: bearer-token
+"""Tests mcp_server/client.py's MCP_MODE=live path: bearer-token
 attachment gated by AGENT_OIDC_MODE (the agent's own single OIDC on/off
 switch, reused here rather than inventing a third toggle). Also covers
 the new POST /tools/{tool_name} REST route this live path now actually

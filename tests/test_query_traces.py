@@ -1,4 +1,4 @@
-"""Phase D4 -- tools/query_traces.py's own parsing/filtering logic, pure
+"""Tests tools/query_traces.py's own parsing/filtering logic, pure
 function, no live collector needed."""
 
 import json

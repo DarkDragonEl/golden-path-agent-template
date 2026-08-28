@@ -1,4 +1,4 @@
-# Checkpoint 1 exemplars (4 of ~5 target — includes the known-gap
+# (4 of ~5 target — includes the known-gap
 # demonstration case, OPS-004, since that pattern needs owner visibility
 # at checkpoint 1). Anchored to policy/baseline_policy.yaml's real values:
 # max_reasoning_steps: 5, tool_timeout_seconds: 10, tool_retry_limit: 2.
@@ -70,7 +70,7 @@
     fallback_triggered: true
     fallback_reason_code: "model_failure:endpoint_unreachable"
     user_informed: true
-  threshold_notes: "counts toward operational gate; known-gap tag removed at Phase B3 — agent/nodes/reason.py's model call is now wrapped in try/except, routing total failure to fallback_node with a model_failure:<detail> reason code (THRESHOLDS.md removal trigger, SRS-EVH-F-04). fallback_reason_code is a prefix match on 'model_failure:', same convention as the other operational cases."
+  threshold_notes: "counts toward operational gate; known-gap tag removed — agent/nodes/reason.py's model call is now wrapped in try/except, routing total failure to fallback_node with a model_failure:<detail> reason code (THRESHOLDS.md removal trigger, SRS-EVH-F-04). fallback_reason_code is a prefix match on 'model_failure:', same convention as the other operational cases."
   tags: ["operational"]
   version: "0.2.0"
 

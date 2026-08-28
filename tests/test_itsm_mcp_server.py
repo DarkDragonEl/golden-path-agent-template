@@ -50,7 +50,7 @@ def test_itsm_create_request_signature_matches_srs_mit_if_03():
 
 
 def test_simulate_error_not_reachable_through_the_public_tool_functions():
-    # Fault injection is a store-only, test-only hook (Phase B4's eval
+    # Fault injection is a store-only, test-only hook (the eval
     # executor drives it directly against mcp_server.itsm_store.store) --
     # never exposed on the MCP-facing tool wrapper signatures a real agent
     # call would use.
@@ -136,8 +136,8 @@ def test_rest_reset_restores_seed_set_after_a_write(rest_client):
     assert len(ids) == 8
 
 
-# --- REST tool-call surface (Phase D2: the MCP_MODE=live path's real ---
-# --- HTTP target -- previously a 404, mcp_server/client.py's own note) --
+# --- REST tool-call surface (the MCP_MODE=live path's real HTTP target ---
+# --- -- previously a 404, mcp_server/client.py's own note) --------------
 
 
 def test_rest_call_tool_unknown_tool_name_gets_404(rest_client):

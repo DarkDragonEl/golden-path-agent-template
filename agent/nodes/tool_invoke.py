@@ -25,7 +25,7 @@ from mcp_server.client import call_tool
 
 
 def tool_invoke_node(state):
-    """No hardcoded tool selection here (Phase B3 retired it) -- decide_node
+    """No hardcoded tool selection here -- decide_node
     is solely responsible for deciding what state["selected_tool"] is, for
     both live mode (the model's real tool_calls) and fake/offline mode (a
     reproduction of the pre-B3 legacy dispatch, kept only so

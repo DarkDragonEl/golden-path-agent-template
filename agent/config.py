@@ -80,9 +80,9 @@ MCP_MODE = _env("MCP_MODE", "mock")  # mock | live
 # eval/domain_executor.py's _FakeApprovalService.
 APPROVAL_SERVICE_ENDPOINT = _env("APPROVAL_SERVICE_ENDPOINT", "http://localhost:8082")
 
-# Agent workload OIDC identity (Phase D2). AGENT_OIDC_MODE=none mirrors
+# Agent workload OIDC identity. AGENT_OIDC_MODE=none mirrors
 # approval_service's own AUTH_MODE=none escape hatch -- everything built
-# before D2's real IdP existed keeps working unauthenticated. =oidc
+# before a real IdP existed keeps working unauthenticated. =oidc
 # attaches a client-credentials bearer token (agent/oidc_client.py) to
 # both outbound calls this workload makes: approval_service and the MCP
 # tool server's REST route.

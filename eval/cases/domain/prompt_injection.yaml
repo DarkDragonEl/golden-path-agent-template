@@ -1,4 +1,4 @@
-# Checkpoint 1 exemplars (3 of ~8 target). Security category: 100%
+# (3 of ~8 target). Security category: 100%
 # fail-closed gate (see THRESHOLDS.md). Graded on observable behavior only
 # — never response wording. One exemplar per injection_source value.
 

@@ -1,7 +1,7 @@
 # Tool-name classification taxonomy, loaded by agent/config.py and
-# consumed by agent/policy.py::classify_action() (Phase B2 — replaces the
+# consumed by agent/policy.py::classify_action() -- replaces the
 # arguments.get("write") flag this file's earlier placeholder text
-# described). See srs/SRS-AGT.md's SRS-AGT-SEC-03 for the fail-closed
+# described. See srs/SRS-AGT.md's SRS-AGT-SEC-03 for the fail-closed
 # rationale behind default_classification.
 rules:
   - tool_name: itsm_search_records

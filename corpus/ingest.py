@@ -1,7 +1,7 @@
 """Minimal corpus loading — not a chunk/embed/vector pipeline.
 
-Phase B3.5 scope: load eval/corpus-manifest.yaml's identities, join each
-with its body text from corpus/seed/<doc_id>.md, and gate retrievability
+Loads eval/corpus-manifest.yaml's identities, joins each
+with its body text from corpus/seed/<doc_id>.md, and gates retrievability
 on governance-metadata completeness (SRS-RET-F-01: "A document for which
 any of these attributes has not been attached shall not become
 retrievable"). No ingestion pipeline beyond this — SRS-RET-F-02's

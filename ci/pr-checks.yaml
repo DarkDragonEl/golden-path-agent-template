@@ -30,7 +30,7 @@ stages:
 
   - name: link-check
     description: >
-      Phase H3b. Non-blocking/informational
+      Non-blocking/informational
       only -- a broken doc link fails this stage's own report, not the
       pipeline. The mission proposes flipping this to a policy gate once
       a few PR cycles have run clean; that's an owner decision, not made

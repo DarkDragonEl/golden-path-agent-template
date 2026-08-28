@@ -103,7 +103,7 @@ def test_resume_after_rejection_falls_back():
     assert "PLACEHOLDER_TOOL_RESPONSE_MARKER" not in (result.get("final_output") or "")
 
 
-# --- Phase D2: approval_client's OIDC bearer-header attachment -------------
+# --- approval_client's OIDC bearer-header attachment ------------------
 
 
 class _FakeHttpResponse:

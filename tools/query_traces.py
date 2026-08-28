@@ -1,4 +1,4 @@
-"""Phase D4 (ADR-006, ADR-020) -- the "scripted query view"
+"""The "scripted query view" (ADR-006, ADR-020) --
 the owner's own plan approval explicitly offered as an acceptable, honest
 realization of trace continuity over a full Jaeger/Tempo install: filter
 the cluster-tier OTel Collector's `file` exporter output by session.id or

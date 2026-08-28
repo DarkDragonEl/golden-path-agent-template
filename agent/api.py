@@ -41,7 +41,7 @@ _graph = build_graph()
 init_telemetry()
 _tracer = get_tracer()
 
-# Phase D3: read once at import time, not per-request -- this is static
+# Read once at import time, not per-request -- this is static
 # content that never changes at runtime (no templating, see GET /ui/config
 # below for the one piece of real environment config the page needs),
 # so a repeated disk read on every GET /ui would be pure waste.

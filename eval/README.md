@@ -61,8 +61,8 @@ under `domain/` keeps that command passing 2/2 with zero changes to
 file-layout choice, not a schema change — noted here for visibility since
 it's a deviation from a literal flat `eval/cases/<category>.yaml` layout.
 
-**This is a mandatory input to the next implementation work, approved at
-Checkpoint 1, not a detail that work is free to silently redo.** The
+**This is a mandatory input to the next implementation work, not a
+detail that work is free to silently redo.** The
 authoritative home for the extended evaluation harness is **SRS-EVH**, to
 be drafted alongside SRS-MIT/SRS-AGT. SRS-EVH must explicitly specify that
 the harness reads cases from `eval/cases/domain/` — or, if that work
@@ -152,7 +152,7 @@ the same contract should live once SRS-MIT/SRS-AGT actually exist.
 **Mock fixture record IDs** these cases reference (seed data the
 persistent mock-ITSM state should provide): `INC-10234`, `INC-10240`,
 `INC-10255`, `INC-10261`, `REQ-30021`, `REQ-30052`, `KE-50007`, `KE-50012`.
-`INC-10261` was added at Checkpoint 2 (full volume) for `itsm_read`
+`INC-10261` was added for `itsm_read`
 coverage of a status+free-text search — same provisional-contract caveat
 as the rest of this list.
 
@@ -232,9 +232,9 @@ failure, not a standing exemption.
 Test reports for this work live at `reports/<branch-name>.md` — here,
 `reports/feature-phase-a-eval-set.md` — not the literal
 `reports/<branch>.md` shorthand in the mission text (that shorthand is
-superseded by this concrete convention). **Confirmed at Checkpoint 1**: the
-Phase B0 trace-check will consume reports by this convention, so later
-phases should keep naming their reports `reports/<branch-name>.md` rather
+superseded by this concrete convention). **Confirmed**: the
+trace-check tooling consumes reports by this convention, so later
+work should keep naming its reports `reports/<branch-name>.md` rather
 than inventing a different scheme per branch.
 
 ## Review Log
@@ -245,5 +245,5 @@ SysR-P-INFO-02 require. Each row corresponds to a commit on
 
 | Date | Reviewer | Checkpoint | Outcome |
 |---|---|---|---|
-| 2026-08-13 | Owner | 1 — exemplars (25 cases across 8 categories, schema, manifest, thresholds draft) | **Approved with conditions**: ITSM contract approved as Phase B0 input; known-gap mechanism approved + tooling-enforcement line added; performance_budget approved as informative-only; cases/domain/ layout approved as mandatory SRS-EVH input; thresholds re-expressed as max absolute failures; exemplars approved as authored; report-naming convention confirmed. See `reports/feature-phase-a-eval-set.md`. |
-| 2026-08-13 | Owner | 2 — full set (62 cases across 8 categories, approved-pattern variants) | _submitted; pending owner review_. Conditions from Checkpoint 1 applied in a dedicated prep commit first. See `reports/feature-phase-a-eval-set.md`. |
+| 2026-08-13 | Owner | 1 — exemplars (25 cases across 8 categories, schema, manifest, thresholds draft) | **Approved with conditions**: ITSM contract approved as trace-check input; known-gap mechanism approved + tooling-enforcement line added; performance_budget approved as informative-only; cases/domain/ layout approved as mandatory SRS-EVH input; thresholds re-expressed as max absolute failures; exemplars approved as authored; report-naming convention confirmed. See `reports/feature-phase-a-eval-set.md`. |
+| 2026-08-13 | Owner | 2 — full set (62 cases across 8 categories, approved-pattern variants) | _submitted; pending owner review_. Conditions from review round 1 applied in a dedicated prep commit first. See `reports/feature-phase-a-eval-set.md`. |

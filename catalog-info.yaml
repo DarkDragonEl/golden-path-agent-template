@@ -1,12 +1,12 @@
-# Phase F1 (DECISIONS.md DEC-087, kickoff plan docs/phase-f-kickoff-plan.md
-# SS5). Registers this repo as a Backstage/RHDH catalog Component -- valid
-# and committable independent of whether RHDH is installed (F4); it sits
-# inert in Git until F4 stands up a live catalog to import it into.
+# Registers this repo as a Backstage/RHDH catalog Component (DECISIONS.md
+# DEC-087, kickoff plan docs/phase-f-kickoff-plan.md SS5) -- valid and
+# committable independent of whether RHDH is installed; it sits inert in
+# Git until a live catalog exists to import it into.
 #
 # Deliberately one Component for the whole repo, not one each for
-# agent/mcp_server/approval_service under a System grouping -- F1's own
-# scope is the smallest, earliest, RHDH-independent deliverable; further
-# catalog decomposition is a natural future refinement, not required here.
+# agent/mcp_server/approval_service under a System grouping -- this is
+# the smallest, earliest, RHDH-independent deliverable; further catalog
+# decomposition is a natural future refinement, not required here.
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
@@ -18,7 +18,7 @@ metadata:
     every run and human approval gating every write.
   annotations:
     github.com/project-slug: DarkDragonEl/golden-path-agent-template
-    # Phase H3b (DECISIONS.md DEC-114 onward). dir:. -- docs/ + mkdocs.yml
+    # DECISIONS.md DEC-114 onward. dir:. -- docs/ + mkdocs.yml
     # live in this same repo, at its root, alongside this file. RHDH's
     # own generator wiring: deploy/kustomize/overlays/rhdh/
     # techdocs-app-config.yaml.

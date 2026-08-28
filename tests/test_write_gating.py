@@ -209,8 +209,8 @@ def test_no_resume_bypass_attempt_creates_no_new_request_record(rest_client):
     # forces the approval path despite the caller's request to skip it, and
     # no decision is ever rendered -- human_approval_node is never even
     # invoked. tool_invoke_node's write branch (the draft step) must not
-    # touch the store by itself. Phase B3 retired tool_invoke_node's
-    # hardcoded dispatch -- it now reads state["selected_tool"], set by
+    # touch the store by itself. tool_invoke_node's
+    # hardcoded dispatch was retired -- it now reads state["selected_tool"], set by
     # reason_node (real tool_calls in live mode, a legacy simulation in
     # fake mode) -- so this test drives the real write-classified branch
     # directly against the real itsm_create_request tool, exercising the

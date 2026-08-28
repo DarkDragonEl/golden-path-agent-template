@@ -94,8 +94,8 @@ def _score_itsm_read(state: dict, expected: dict) -> list[tuple[bool, str]]:
         )
     if "record_id" in expected_args:
         # Tolerate the record ID arriving as `query` instead of `record_id`
-        # -- mcp_server/itsm_store.py's own fallback (found live-testing
-        # Phase B3) makes both work identically.
+        # -- mcp_server/itsm_store.py's own fallback (found live-testing)
+        # makes both work identically.
         matched = args.get("record_id") == expected_args["record_id"] or args.get(
             "query"
         ) == expected_args["record_id"]

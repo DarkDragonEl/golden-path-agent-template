@@ -734,7 +734,7 @@ def test_real_srs_documents_parse_without_error_and_match_known_counts():
 
 
 def test_real_deferred_md_absent_yields_empty_deferred_set():
-    """srs/DEFERRED.md does not exist yet at this point in Phase B0 (the
+    """srs/DEFERRED.md does not exist yet at this point (the
     orchestrator populates it after this tool exists) — confirms the
     documented 'treat as empty, do not error, do not create the file'
     contract against the real repository state.

@@ -46,9 +46,9 @@ class ItsmSearchRecordsOutput(BaseModel):
 class ItsmCreateRequestInput(BaseModel):
     """Field-for-field per srs/SRS-MIT.md SRS-MIT-IF-03. Write — approval-gated.
 
-    Existence and callability of this tool in Phase B1 does not itself
+    Existence and callability of this tool does not itself
     grant it a bypass path (SRS-MIT-SEC-01): the approval gate is enforced
-    by the agent's write-gating restructure, landing in Phase B2, not by
+    by the agent's write-gating restructure, not by
     this schema or by mcp_server/server.py.
     """
 

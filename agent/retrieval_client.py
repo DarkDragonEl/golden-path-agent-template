@@ -1,14 +1,14 @@
 """Retrieval API/library contract.
 
-Phase B3.5: minimal working retrieval against corpus/seed/, per
+Minimal working retrieval against corpus/seed/, per
 srs/SRS-RET-IF-01 -- field names corrected
 here from the pre-existing scaffold's snippet/source_uri (flagged as a
 known update target in srs/REVIEW_INDEX.md) to the authoritative
 passage_text/source, plus the two fields the scaffold was missing
 (owner_role, effective_date).
 
-Lexical (keyword-overlap) scoring, not embeddings/a vector store: per the
-Phase B3.5 scope decision, semantic matching wasn't needed to get the 15
+Lexical (keyword-overlap) scoring, not embeddings/a vector store:
+semantic matching wasn't needed to get the 15
 knowledge_qa cases passing over 20 documents with fairly distinct topics.
 Escalate to a real vector store only if that stops being true.
 
@@ -51,7 +51,7 @@ class RetrievedChunk:
 
 def _words(text: str) -> set[str]:
     # len(w) > 1 excludes single-character tokens -- the real bug behind
-    # the Phase B4 false-positive-retrieval finding above: `[a-z0-9]+`
+    # the false-positive-retrieval finding above: `[a-z0-9]+`
     # splits a contraction like "What's" into "what" + a bare "s", and
     # that spurious "s" token then coincidentally "matched" any document
     # containing an unrelated possessive ("team's", "Curator's", ...),
@@ -72,12 +72,12 @@ def retrieve(
     and `user_id` are accepted per the interface contract (SRS-RET-IF-01,
     SRS-RET-F-03) but not yet applied -- see the module docstring.
 
-    MIN_OVERLAP gates out noise matches: found live-testing Phase B4 that
+    MIN_OVERLAP gates out noise matches: found via live testing that
     retrieval attaching a document on a single generic shared word (e.g.
     "incident", "current", "status" -- present in nearly every procedure
     document) for a query that isn't actually a knowledge question at all
     (an ITSM record-ID lookup) confused tool selection badly enough to
-    break it, on a query that had been reliable throughout B3. Requiring
+    break it, on a query that had previously been reliable. Requiring
     at least two shared significant words is enough to filter every
     single-word coincidental match seen in that failure while still
     matching every real eval/cases/domain/knowledge_qa.yaml-style query

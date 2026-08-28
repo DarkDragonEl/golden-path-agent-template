@@ -194,7 +194,7 @@ if [ "$WITH_RHDH" = "true" ]; then
   ensure_operator openshift-operators "RHDH" \
     platform/bootstrap/rhdh-operator.yaml \
     rhdh-operator.v1.10.3 300
-  # Real gap found live (Phase F4): the RHDH Operator's external-DB secret
+  # Real gap found live: the RHDH Operator's external-DB secret
   # needs both the OpenShift postgresql S2I image's own env vars
   # (POSTGRESQL_USER/PASSWORD/DATABASE) AND the operator's own
   # POSTGRES_HOST/PORT/USER/PASSWORD keys (docs/external-db.md,

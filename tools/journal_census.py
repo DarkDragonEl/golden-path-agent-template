@@ -56,13 +56,13 @@ HARD_EXCLUDE_PREFIXES = (".claude/worktrees/", ".git/")
 PATTERNS = {
     "DEC": re.compile(r"DEC-\d{3}"),
     "OI": re.compile(r"OI-\d{2}"),
-    "PHASE": re.compile(r"Phase [A-H]\b"),
+    "PHASE": re.compile(r"Phase [A-H]\d?[a-z]?\b"),
     "STOP": re.compile(r"STOP \d"),
     "HANDOFF": re.compile(r"HANDOFF"),
     "WORKTREE": re.compile(r"worktree", re.IGNORECASE),
     "COORD_SESSION": re.compile(r"coordinating session"),
     "WAVE": re.compile(r"Wave [βγ]"),
-    "CHECKPOINT": re.compile(r"Checkpoint [A-Z]\d?[a-z]?\b"),
+    "CHECKPOINT": re.compile(r"Checkpoint (?:[A-Z]\d?[a-z]?|\d+)\b"),
     "MISSION": re.compile(r"MISSION_(UNATTENDED|PHASE)"),
     "STAGE": re.compile(r"Stage [1-4]\b"),
 }
