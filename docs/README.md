@@ -74,8 +74,10 @@ Understand why the system is shaped this way.
 - **[Security & identity](security-identity.md)** — workload identity,
   secrets, the network boundary between components, and the human-
   approval gate's actual control flow.
+- **[ADRs](adr/index.md)** — the load-bearing design choices behind this
+  blueprint (25 records): Context, Decision, Consequences, and a
+  `Journal:` pointer into the full decision log for the debugging story
+  behind each one.
 - **Decision log** — the append-only record of every `DEC-NNN` ambiguity
   → finding → decision → evidence → status entry this project has made
-  lives in the sibling `agent-roadmap` repository's `DECISIONS.md`;
-  load-bearing design choices are distilled into ADRs at `docs/adr/`
-  here.
+  lives in the sibling `agent-roadmap` repository's `DECISIONS.md`.

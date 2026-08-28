@@ -59,3 +59,4 @@ nav:
       - Architecture: architecture.md
       - Security & identity: security-identity.md
       - Provenance: provenance.md
+      - ADRs: adr/index.md
