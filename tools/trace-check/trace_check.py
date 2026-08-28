@@ -422,14 +422,13 @@ def _line_of(text: str, pos: int) -> int:
 
 
 def _find_doc(root: Path, filename: str) -> Optional[Path]:
-    """Locate a frozen source document that may live at --root or at
-    --root's parent directory. StRS_Agentic_AI_Platform_EN.md and
-    SyRS-AGP-001_EN.md are workspace-level documents that sit *outside*
-    the golden-path-agent-template git repository (see README.md); this
-    tool must find them regardless of which side of that boundary --root
-    was pointed at.
+    """Locate a source document that may live at --root/srs (current
+    location, since the J2/I1 reference-implementation reframe moved
+    StRS_Agentic_AI_Platform_EN.md and SyRS-AGP-001_EN.md into srs/), at
+    --root directly, or at --root's parent directory (pre-reframe
+    location, kept as a fallback for an older checkout layout).
     """
-    for base in (root, root.parent):
+    for base in (root / "srs", root, root.parent):
         candidate = base / filename
         if candidate.is_file():
             return candidate

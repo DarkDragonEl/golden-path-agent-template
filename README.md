@@ -116,7 +116,6 @@ Build and packaging plumbing that doesn't belong to either group above.
 | [`.env.example`](.env.example) | The local-dev environment template Quickstart A copies from. |
 | [`pyproject.toml`](pyproject.toml) | Shared Python project metadata/tooling config. |
 | [`TODO_DOMAIN.md`](TODO_DOMAIN.md) | The exact list of domain-specific pieces (corpus, prompts, tools) a real use case must supply. |
-| [`SHOWCASE_NOTES.md`](SHOWCASE_NOTES.md) | Operator notes for running a live demo on the showcase cluster. |
 
 ## Quickstart A — laptop (no cluster, no network)
 
@@ -132,11 +131,11 @@ make down              # tear down the three dev containers
 ```
 
 Verified against this repo's actual `Makefile`: `make test` passes
-(253 passed, 1 skipped), `make eval-fast` passes (`2/2 cases passed`),
-and `make up-offline` brings up all three containers and answers a real
-HTTP request end to end — see
-[`reports/feature-h1-readme-rewrite.md`](reports/feature-h1-readme-rewrite.md)
-for the full commands-and-output transcript.
+(254 passed), `make eval-fast` passes (`2/2 cases passed`), and `make
+up-offline` brings up all three containers and answers a real HTTP
+request end to end — the full commands-and-output transcript for this
+class of check lives in the sibling `agent-roadmap` repository's
+`reports/`.
 
 **Live-model variant**: edit `.env` (`MODEL_API_BASE_URL`, `MODEL_NAME`,
 `MODEL_API_KEY`, and the fallback route —
@@ -217,7 +216,7 @@ the four groups below are the fastest way in from here.
 
 **Learn** — [`docs/README.md#tutorials`](docs/README.md#tutorials):
 [`docs/architecture.md`](docs/architecture.md) (the agent's graph shape
-and the three-image split), [`docs/owner-walkthrough.md`](docs/owner-walkthrough.md)
+and the three-image split), [`docs/direct-chat-walkthrough.md`](docs/direct-chat-walkthrough.md)
 (a full live run, start to finish).
 
 **Operate** — [`docs/README.md#how-to--runbooks`](docs/README.md#how-to--runbooks):

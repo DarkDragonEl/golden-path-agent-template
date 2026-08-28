@@ -675,26 +675,22 @@ def test_real_syrs_and_strs_id_counts_match_documents_own_claims():
     29 total StRs). Both are independently verified here against the real
     documents' own bold-definition markup, not hardcoded from any prompt.
 
-    DECISIONS.md DEC-026: these two documents are workspace-level sources
-    of truth (CLAUDE.md's own numbered list) that live one directory above
-    this git repo's own root -- deliberately not duplicated into the repo,
-    since they're shared workspace governance, not this deliverable's own
-    content. That means a checkout of only this repo (a real Tekton
-    fetch-source clone, any CI system, any other laptop) never has them --
-    this was only ever passing by coincidence of running from this
-    specific machine's directory layout, caught the first time this test
-    ran in a genuinely isolated checkout (Phase C's own pipeline). Skips
-    (not fails) when the parent-workspace files aren't present, so the
-    real regression-guard value is kept for whoever runs from the full
-    workspace layout, without breaking portability for everyone else.
+    Relocated into srs/ during the J2/I1 reference-implementation reframe
+    (DEC-130): these two documents used to live one directory above this
+    repo's own root (DEC-026's original reasoning -- shared workspace
+    governance, not duplicated into the repo); the STOP J-1 placement
+    decision moved StRS/SyRS/Annex_A/RRT into srs/ instead, since
+    anonymized requirements are product and a reader must be able to open
+    the parent alongside the derived SRS documents. Skips (not fails)
+    when the files aren't present, preserving the original portability
+    guarantee for any checkout where srs/ itself is pruned.
     """
     repo_root = Path(__file__).resolve().parent.parent
-    syrs_path = repo_root.parent / "SyRS-AGP-001_EN.md"
-    strs_path = repo_root.parent / "StRS_Agentic_AI_Platform_EN.md"
+    syrs_path = repo_root / "srs" / "SyRS-AGP-001_EN.md"
+    strs_path = repo_root / "srs" / "StRS_Agentic_AI_Platform_EN.md"
     if not (syrs_path.is_file() and strs_path.is_file()):
         pytest.skip(
-            "workspace-level source-of-truth docs not present outside the repo root "
-            f"({syrs_path}, {strs_path}) -- expected in a standalone checkout, see DEC-026"
+            f"srs/ source-of-truth docs not present ({syrs_path}, {strs_path})"
         )
 
     sysr_ids = trace_check.parse_sysr_definitions(syrs_path.read_text(encoding="utf-8"))
