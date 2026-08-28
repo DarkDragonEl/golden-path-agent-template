@@ -58,7 +58,7 @@
       "type": "string",
       "title": "Git host for this project's own repositories",
       "description": "Hostname of the Platform Foundation's shared Git-hosting instance (Gitea, DEC-098/DEC-100) -- used to construct the pipeline's own source-fetch URL, the GitOps repo's ArgoCD Application repoURLs, and the promotion-PR Task's API calls. Phase G, Stage 3 (DEC-098/DEC-099/DEC-110/DEC-111): this project's own scaffolded-project publish target is Gitea, not GitHub -- GitHub is only ever this blueprint repo's own public upstream (DEC-098's own phrasing), never a legitimate target for a scaffolded child project's repositories. Defaults to this blueprint's own live Platform Foundation instance -- this schema default is the single source of truth for that hostname (DEC-075's own duplicated-constant lesson applied here too); tools/instantiate_agent_project.py no longer keeps a separate copy.",
-      "default": "golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io"
+      "default": "gitea.example.com"
     },
     "repoOwner": {
       "type": "string",

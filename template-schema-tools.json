@@ -36,7 +36,7 @@
       "type": "string",
       "title": "Git host for this project's own repositories",
       "description": "Same Platform Foundation Gitea host as the Agent Template's own template-schema.json -- see that file for the full rationale.",
-      "default": "golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io"
+      "default": "gitea.example.com"
     },
     "repoOwner": {
       "type": "string",

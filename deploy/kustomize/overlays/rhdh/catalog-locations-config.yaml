@@ -3,6 +3,12 @@
 # UrlReader NotAllowedError -- any host not allow-listed is refused
 # regardless of the URL being public. Separate ConfigMap from
 # -oidc-config; its backend.* keys merge per-key-path, confirmed live.
+#
+# DEC-131: ${GITEA_HOST} is the cluster's own Gitea Route hostname,
+# resolved live at bootstrap (platform/bootstrap/provision-identity-
+# secrets.sh) via Backstage's own ${VAR} substitution -- an environment
+# hostname is config, never a committed value, same treatment as the
+# gitea/username/password fields below.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -47,12 +53,12 @@ data:
       reading:
         allow:
           - host: raw.githubusercontent.com
-          - host: golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io
+          - host: ${GITEA_HOST}
     integrations:
       github:
         - host: github.com
       gitea:
-        - host: golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io
+        - host: ${GITEA_HOST}
           username: ${GITEA_SCAFFOLDER_USERNAME}
           password: ${GITEA_SCAFFOLDER_TOKEN}
     catalog:
@@ -82,7 +88,7 @@ data:
         - type: url
           target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/template.yaml
         - type: url
-          target: https://golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io/golden-path-agent-admin/golden-path-agent-template/src/branch/main/template.yaml
+          target: https://${GITEA_HOST}/golden-path-agent-admin/golden-path-agent-template/src/branch/main/template.yaml
         # Phase H3b follow-up (DEC-122's raw-URL sweep): pre-emptively
         # switched these three from raw.githubusercontent.com to the
         # github.com/blob/main shape, matching the catalog-info.yaml/
