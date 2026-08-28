@@ -72,23 +72,7 @@ KEEP_LIST_PATTERNS = {"OI"}
 # --- Allowlists ----------------------------------------------------------
 # Exact (relative path, pattern name) -> dated reason. Populated by later
 # stages (e.g. I7) as specific occurrences are reviewed and accepted.
-ALLOWLIST_PATHS: dict[tuple[str, str], str] = {
-    ("docs/adr/ADR-022-skeleton-design.md", "HANDOFF"): (
-        "Documents the skeleton generator's real file-exclusion set "
-        "(DECISIONS.md, HANDOFF.md, PINS.md, reports/, srs/, phase docs "
-        "are excluded from every rendered project) -- an architectural "
-        "fact, not journal narrative. Narrow to this one file, not the "
-        "docs/adr/ prefix, so a future ADR that leaks real session-"
-        "handoff narrative still gets caught. -- I2, 2026-08-28."
-    ),
-    ("docs/adr/index.md", "WORKTREE"): (
-        "Cites the literal slug name of a rejected ADR candidate "
-        "(worktree-isolation-single-governance-owner, DEC-099) for "
-        "traceability -- the word is part of a real decision's name, "
-        "not narrative about session worktree mechanics. -- I2, "
-        "2026-08-28."
-    ),
-}
+ALLOWLIST_PATHS: dict[tuple[str, str], str] = {}
 
 # (path prefix, pattern name) -> dated reason.
 ALLOWLIST_PREFIXES: dict[tuple[str, str], str] = {
