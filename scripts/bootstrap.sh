@@ -561,7 +561,25 @@ while true; do
 done
 
 log "=== step 5/9: identity secrets (idempotent by regeneration -- DEC-059) ==="
-WITH_RHDH="$WITH_RHDH" ./platform/bootstrap/provision-identity-secrets.sh
+# Real race found live: step 3's own rollout-status wait confirms
+# Postgres's pod is ready to accept new TCP connections, but Keycloak's
+# own Agroal connection pool (a separate process, golden-path-agent-0)
+# can still hold stale connections to the PREVIOUS Postgres pod for a
+# few more seconds after a --constrained-node-triggered rollout --
+# surfacing as a transient HTTP 500 from Keycloak's own admin API, not
+# from anything provision-identity-secrets.sh does wrong. Retrying the
+# whole script is safe: it's already explicitly idempotent by
+# regeneration, not by detection (DEC-059).
+IDENTITY_SECRETS_ATTEMPTS=0
+until WITH_RHDH="$WITH_RHDH" ./platform/bootstrap/provision-identity-secrets.sh; do
+  IDENTITY_SECRETS_ATTEMPTS=$((IDENTITY_SECRETS_ATTEMPTS + 1))
+  if [ "$IDENTITY_SECRETS_ATTEMPTS" -ge 3 ]; then
+    log "  provision-identity-secrets.sh failed $IDENTITY_SECRETS_ATTEMPTS times -- not retrying further"
+    exit 1
+  fi
+  log "  provision-identity-secrets.sh failed (attempt $IDENTITY_SECRETS_ATTEMPTS) -- likely Keycloak's own DB reconnection window after a Postgres rollout; retrying"
+  sleep 15
+done
 
 log "=== step 6/9: CI config + verification (DEC-138) ==="
 # golden-path-agent-ci-config (a plain ConfigMap -- MODEL_API_BASE_URL/
