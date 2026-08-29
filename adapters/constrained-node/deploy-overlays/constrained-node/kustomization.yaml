@@ -1,6 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# ADAPTER, NOT PART OF THE GOLDEN PATH -- see ../../README.md.
 # Shared/single-node profile: lowers this project's own committed CPU/
 # memory *requests* to a few tens of millicores and a few dozen Mi --
 # the actual constraint on a busy shared node is what gets requested at
@@ -9,10 +10,9 @@ kind: Kustomization
 # left as demo-prod's own base/ values -- generous headroom for a real
 # burst, Burstable QoS rather than Guaranteed. base/ itself is
 # unchanged; this is a selectable environment variant, not a base
-# change. See docs/cluster-profile.md for when to use this overlay
-# instead of demo-prod directly.
+# change.
 resources:
-  - ../demo-prod
+  - ../../../../deploy/kustomize/overlays/demo-prod
 
 patches:
   - target:

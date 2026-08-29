@@ -1,12 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# ADAPTER, NOT PART OF THE GOLDEN PATH -- see ../../README.md.
 # Same shared/single-node profile as ../constrained-node/, applied to
 # the Platform Foundation's own shared approval-service singleton
 # (ADR-012). See that overlay's own header comment for the reasoning;
 # base/ (and approval-platform/ itself) are unchanged.
 resources:
-  - ../approval-platform
+  - ../../../../deploy/kustomize/overlays/approval-platform
 
 patches:
   - target:

@@ -42,19 +42,26 @@ AllNamespaces) plus its Postgres credentials Secret -- opt-in because it
 carries real cluster-wide visibility cost a plain namespace/client does
 not.
 
---constrained-node: shared/single-node profile (docs/cluster-profile.md)
--- lowers this project's own CPU/memory *requests* to a few tens of
+--constrained-node: ADAPTER, NOT PART OF THE GOLDEN PATH
+(adapters/constrained-node/README.md) -- exists only for bootstrapping
+onto a shared, busy, resource-constrained cluster, e.g. to exercise
+this project's own bootstrap sequence on a borrowed cluster. The
+blueprint's own design assumes a clean cluster and never needs this
+flag; a default run never touches adapters/constrained-node/ at all.
+Lowers this project's own CPU/memory *requests* to a few tens of
 millicores and a few dozen Mi (limits unchanged, Burstable QoS), since
 scheduling on a busy shared node is gated by requests, not actual
-usage. Applies deploy/kustomize/overlays/constrained-node/ and
-.../approval-platform-constrained-node/ instead of demo-prod/
+usage. Applies adapters/constrained-node/deploy-overlays/constrained-node/
+and .../approval-platform-constrained-node/ instead of demo-prod/
 approval-platform directly (via a live-only ArgoCD Application
 source.path patch, safe only because ADR-009's freeze already means
-golden-path-agent-root's own auto-sync won't revert it), patches
-platform/bootstrap/{keycloak-postgres,keycloak-cr,otel-collector}.yaml
-in place after their normal apply, and (with --with-rhdh) points
-golden-path-agent-rhdh at .../rhdh-constrained-node/ the same way. The
-committed base manifests themselves are never changed by this flag.
+golden-path-agent-root's own auto-sync won't revert it -- root will
+correctly show OutOfSync for as long as this adapter is in use, see its
+own README), patches adapters/constrained-node/bootstrap-patches/
+{keycloak-postgres,keycloak-cr,otel-collector}.yaml in place after
+their normal apply, and (with --with-rhdh) points golden-path-agent-rhdh
+at .../rhdh-constrained-node/ the same way. The committed golden-path
+manifests themselves are never changed by this flag.
 USAGE
   exit 1
 }
@@ -309,9 +316,9 @@ oc apply -f platform/bootstrap/keycloak-realm-import.yaml
 if [ "$CONSTRAINED_NODE" = "true" ]; then
   log "  --constrained-node: patching keycloak-db/keycloak requests"
   oc patch deployment golden-path-agent-keycloak-db -n golden-path-agent-keycloak \
-    --type strategic --patch-file platform/bootstrap/constrained-node-patches/keycloak-postgres.yaml >/dev/null
+    --type strategic --patch-file adapters/constrained-node/bootstrap-patches/keycloak-postgres.yaml >/dev/null
   oc patch keycloak golden-path-agent -n golden-path-agent-keycloak \
-    --type merge --patch-file platform/bootstrap/constrained-node-patches/keycloak-cr.yaml >/dev/null
+    --type merge --patch-file adapters/constrained-node/bootstrap-patches/keycloak-cr.yaml >/dev/null
 fi
 
 log "=== step 4/9: cluster-tier otel collector ==="
@@ -324,7 +331,7 @@ if [ "$CONSTRAINED_NODE" = "true" ]; then
   # entry in this patch file, silently deleting the sidecar. Strategic
   # merge patches list items by their own `name` key instead.
   oc patch deployment golden-path-agent-otel-collector -n golden-path-agent-otel \
-    --type strategic --patch-file platform/bootstrap/constrained-node-patches/otel-collector.yaml >/dev/null
+    --type strategic --patch-file adapters/constrained-node/bootstrap-patches/otel-collector.yaml >/dev/null
 fi
 
 if [ "$WITH_RHDH" = "true" ]; then
@@ -652,12 +659,12 @@ if [ "$CONSTRAINED_NODE" = "true" ]; then
     log "  $label ($app): source.path -> $path"
   }
   patch_app_path golden-path-agent-demo-prod \
-    deploy/kustomize/overlays/constrained-node "demo-prod"
+    adapters/constrained-node/deploy-overlays/constrained-node "demo-prod"
   patch_app_path golden-path-agent-approval \
-    deploy/kustomize/overlays/approval-platform-constrained-node "approval-platform"
+    adapters/constrained-node/deploy-overlays/approval-platform-constrained-node "approval-platform"
   if [ "$WITH_RHDH" = "true" ]; then
     patch_app_path golden-path-agent-rhdh \
-      deploy/kustomize/overlays/rhdh-constrained-node "rhdh"
+      adapters/constrained-node/deploy-overlays/rhdh-constrained-node "rhdh"
   fi
 fi
 

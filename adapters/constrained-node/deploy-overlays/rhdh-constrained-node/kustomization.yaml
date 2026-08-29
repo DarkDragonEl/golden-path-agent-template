@@ -1,6 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# ADAPTER, NOT PART OF THE GOLDEN PATH -- see ../../README.md.
 # Same shared/single-node profile as ../constrained-node/, applied to
 # the Backstage (RHDH) CR. See that overlay's own header comment for
 # the general reasoning; rhdh/ itself is unchanged.
@@ -15,7 +16,7 @@ kind: Kustomization
 # default-config/deployment.yaml, read directly at the pinned
 # rhdh-operator.v1.10.3 release).
 resources:
-  - ../rhdh
+  - ../../../../deploy/kustomize/overlays/rhdh
 
 patches:
   - target:

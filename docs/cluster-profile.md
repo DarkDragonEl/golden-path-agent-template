@@ -41,95 +41,17 @@ as a known gap `DEC-138` did not close.
 The owner decides which endpoint each new cluster targets; this
 document and the bootstrap tooling never assume one.
 
-## Shared/single-node profile (`--constrained-node`)
+## Shared/constrained clusters — not part of this blueprint
 
-For a shared, multi-tenant cluster or a single node where scheduling
-headroom is the actual constraint, not real usage — a cluster can run
-at a small fraction of its allocatable CPU while still having no
-schedulable headroom left, because the scheduler gates on committed
-*requests*, not actual usage. `scripts/bootstrap.sh --constrained-node`
-applies:
-
-- `deploy/kustomize/overlays/constrained-node/` instead of `demo-prod`
-  (agent, mcp Deployments).
-- `deploy/kustomize/overlays/approval-platform-constrained-node/`
-  instead of `approval-platform` (the shared approval-service
-  singleton, `ADR-012`).
-- `deploy/kustomize/overlays/rhdh-constrained-node/` instead of `rhdh`,
-  when `--with-rhdh` is also passed.
-- `platform/bootstrap/constrained-node-patches/{keycloak-postgres,
-  keycloak-cr,otel-collector}.yaml`, applied via `oc patch` right
-  after the normal `oc apply -f` of those three manifests (not a
-  kustomize overlay — `platform/bootstrap/` is a flat, directly-
-  applied tree with no `base/` subdirectory a nested overlay could
-  reference without breaking kustomize's own load-restriction
-  boundary).
-
-**What changes**: `resources.requests` only, lowered to roughly
-10–50m CPU / 16–256Mi memory depending on the component. `resources.
-limits` are left at `base/`'s own committed values (Burstable QoS —
-generous burst headroom on top of a small guaranteed floor). `base/`
-itself, `demo-prod`, `approval-platform`, and `rhdh` are never edited
-by this profile; it is a selectable environment variant, applied
-either via a fresh kustomize `path` (deploy/-based components) or a
-live-only `oc patch` (platform/bootstrap/'s directly-applied
-manifests and, for the two GitOps-managed Applications, their own
-`spec.source.path`).
-
-**Field notes, verified directly against each CRD's own schema, not
-assumed from documentation**:
-- `Backstage`'s CRD has no `spec.application.resources` field. The
-  real mechanism is `spec.deployment.patch` ("a valid fragment of
-  Deployment to be merged with default/raw configuration"), and the
-  main container's name — `backstage-backend` — comes from the
-  operator's own default deployment template
-  (`redhat-developer/rhdh-operator`, `config/profile/rhdh/
-  default-config/deployment.yaml`, read directly at the pinned
-  `rhdh-operator.v1.10.3` release, not guessed).
-- `Keycloak`'s CRD does expose `spec.resources.{requests,limits}`
-  directly, confirmed via `oc explain keycloak.spec.resources`.
-- Gitea's operator CRD (`pfe.rhpds.com/v1`, `rhpds/gitea-operator`)
-  has **no resources field of any kind** — confirmed by reading its
-  CRD schema directly at the pinned commit. There is no CR-level knob
-  to constrain Gitea's own pod; the operator's underlying Deployment
-  would need a direct post-creation patch if this ever becomes a real
-  constraint, not a CR field. Not yet needed — Gitea's own footprint
-  was never part of the static request total to begin with (the
-  operator was never installed on this cluster before this
-  bootstrap), so there is nothing to compare a "before" against.
-  Revisit once a real instance exists to inspect.
-- Tekton step defaults: this cluster's own `TektonConfig` sets no
-  `default-container-resource-requirements`, and no `Task` in
-  `pipelines/tasks/` declares its own `computeResources` — pipeline
-  steps already schedule with no explicit request at all (confirmed
-  no `LimitRange` in `golden-path-agent-ci` imposes an implicit
-  default either). Nothing to constrain further; already the smallest
-  possible footprint. Build/eval steps keep their current, unbounded
-  limits — they are expected to burst.
-
-**Verified total requests, static estimate** (same method
-`tools/cluster_precheck.sh` uses — parse committed/rendered manifests,
-sum `resources.requests`, not a live cluster measurement):
-
-| Component | Before (realistic profile) | After (`--constrained-node`) |
-|---|---|---|
-| `demo-prod` (agent + mcp) | 150m CPU / 384Mi | 30m CPU / 96Mi |
-| `approval-platform` | 100m CPU / 256Mi | 20m CPU / 64Mi |
-| `rhdh` (Postgres + Backstage) | 100m CPU / 256Mi | 150m CPU / 512Mi |
-| `platform/bootstrap` (Keycloak DB + OTel Collector + Keycloak CR) | 175m CPU / 448Mi | 55m CPU / 240Mi |
-| **Total** | **525m CPU / 1344Mi** | **255m CPU / 912Mi** |
-
-`rhdh`'s own row rises, not falls: the committed `Backstage` CR had
-**no declared request at all** before this profile (BestEffort
-scheduling, no accounting) — giving it an honest 50m/256Mi floor for
-a real Node.js app is a deliberate correctness improvement, not a
-regression, even though it makes that one row's static total larger.
-Every other component's total falls. Treat this profile as headroom
-margin and QoS discipline for a busy shared node, not as a fix for an
-acute capacity shortage — run `tools/cluster_precheck.sh` against the
-actual target cluster to know whether this blueprint's own footprint
-is even the binding constraint there before assuming this profile is
-required.
+The golden path assumes a clean cluster with normal scheduling headroom
+for its own footprint. If a target cluster is instead shared,
+multi-tenant, or otherwise resource-constrained, `adapters/
+constrained-node/` is an **adapter, not part of the golden path** —
+see its own `README.md` for what it patches, why the root ArgoCD
+Application intentionally stays `OutOfSync` while it's in use, and how
+to remove it. Run `tools/cluster_precheck.sh` against the actual target
+cluster first to know whether this blueprint's own footprint is even a
+binding constraint there before reaching for it.
 
 ## Operator channel/version drift between clusters
 
@@ -199,11 +121,11 @@ before it runs:
   assume shared infrastructure is safe to remove just because part of
   it looks unused.
 - **A shared, multi-tenant cluster's own unrelated workloads.** Prefer
-  fitting this blueprint's own footprint (the shared/single-node
-  profile above) over reducing another workload's resources or
-  deleting anything this blueprint doesn't own. Only propose changes
-  to unrelated workloads as a last resort, listed for explicit
-  approval before any of it is touched.
+  fitting this blueprint's own footprint (`adapters/constrained-node/`
+  above) over reducing another workload's resources or deleting
+  anything this blueprint doesn't own. Only propose changes to
+  unrelated workloads as a last resort, listed for explicit approval
+  before any of it is touched.
 - **A pre-existing Subscription for the same package under a
   *different object name* than this blueprint's own manifest uses —
   not only a different channel.** Confirmed live once: matching by
