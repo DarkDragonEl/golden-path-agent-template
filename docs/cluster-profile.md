@@ -136,6 +136,20 @@ assume a pin verified on one cluster (or a now-gone cluster) still
 resolves on a different one; record what actually differed here, not
 just what was expected.
 
+**A single unhealthy `CatalogSource` can block dependency resolution
+for every `Subscription` on the cluster, not just ones targeting the
+broken catalog** — a known OLM behavior, not specific to this
+blueprint. If an operator install this blueprint's own bootstrap
+attempts sits unresolved (no `InstallPlan`, no CSV appearing) even
+though the package/channel/CSV are confirmed present in the catalog,
+check `oc get catalogsource -A` for any source that isn't `READY`
+before assuming the failure is this blueprint's own bug. This is not
+this blueprint's resource to fix if the broken catalog belongs to
+something else already on the cluster; either wait for it to be
+resolved by whoever owns it, or work around it the same way this
+blueprint already does for Keycloak — an OLM-free upstream install as
+a documented fallback for that one operator specifically.
+
 ## Leftover-state checks before a clean-slate re-bootstrap
 
 A cluster this blueprint didn't provision from scratch — or is being
