@@ -65,74 +65,23 @@ oc auth can-i create namespace \
   # permission," not just an absence of a ClusterRoleBinding in the YAML
 ```
 
-## 2. Model-endpoint credential (done — Step C1a; a second copy added at
-Step C1c, `DEC-033`; a third planned for Step C4, `DEC-039` — not yet
-created, since `golden-path-agent-demo-prod` doesn't exist until the
-bootstrap in §1 is extended and applied)
+## 2. Model-endpoint credential (automated — `bootstrap.env`, `DEC-138`)
 
-The live MaaS credential (`MODEL_API_KEY`) is created directly as a
-Kubernetes `Secret`, from the same value already used for local dev
-(`.env`, gitignored) — never as a pipeline parameter, never written into a
-`PipelineRun` spec, never committed. **Three copies, in three namespaces,
-for three different consumers** — `secretKeyRef`/`configMapKeyRef` cannot
-cross namespaces, confirmed live (`CreateContainerConfigError` on
-`eval-gate-live` before the second copy existed):
+Fill `bootstrap.env` (copy `bootstrap.env.example`, gitignored, never
+committed) with `MODEL_API_KEY` and the four `MODEL_*_URL`/`MODEL_*_NAME`
+values. `scripts/bootstrap.sh --env bootstrap.env` validates all five are
+present at step 0, before touching the cluster at all, then creates
+`golden-path-agent-secrets` in `golden-path-agent-ephemeral-test` and
+`golden-path-agent-demo-prod` (step 5,
+`platform/bootstrap/provision-identity-secrets.sh`) directly from those
+values — idempotent by regeneration (`DEC-059`), same discipline as every
+other identity secret this project provisions, never echoed, never
+written to a `ConfigMap` or a report. No manual `oc create secret` step
+remains; §2b below (CI's own copy) works the same way.
 
-```sh
-set -a && . ./.env && set +a
-# Copy 1: the deployed agent pod's own envFrom.secretRef
-# (deploy/kustomize/base/deployment-agent.yaml), read by whatever's
-# actually running in the ephemeral-test namespace.
-oc create secret generic golden-path-agent-secrets \
-  -n golden-path-agent-ephemeral-test \
-  --from-literal=MODEL_API_KEY="$MODEL_API_KEY" \
-  --from-literal=MCP_AUTH_TOKEN="not-needed"
-
-# Copy 2: eval-gate-live's own TaskRun, which executes in
-# golden-path-agent-ci (running the in-process eval harness against the
-# real model -- see that Task's own design note), not in
-# golden-path-agent-ephemeral-test.
-oc create secret generic golden-path-agent-secrets \
-  -n golden-path-agent-ci \
-  --from-literal=MODEL_API_KEY="$MODEL_API_KEY" \
-  --from-literal=MCP_AUTH_TOKEN="not-needed"
-
-# Copy 3 (Step C4, DEC-039): golden-path-agent-demo-prod. Unlike copies 1
-# and 2, this copy ALSO carries the model-endpoint values themselves
-# (MODEL_API_BASE_URL/MODEL_NAME/MODEL_FALLBACK_API_BASE_URL/
-# MODEL_FALLBACK_NAME) -- demo-prod is ArgoCD-synced with selfHeal: true,
-# which would continuously stomp any apply-time ConfigMap override (the
-# mechanism copies 1/2's environment use) back to the committed
-# placeholder. The Secret is never Kustomize/ArgoCD-managed, so this is
-# safe; envFrom ordering in deployment-agent.yaml (secretRef listed after
-# configMapRef) makes these values shadow the ConfigMap's placeholder at
-# the container level -- see docs/environments.md's "Config that changes
-# per environment" section for the full mechanism. Run only after
-# golden-path-agent-demo-prod exists (pipelines/bootstrap/namespaces.yaml,
-# extended at Step C4) -- must exist before demo-prod's Application's
-# first sync, or its pod hits the same CreateContainerConfigError DEC-033
-# already diagnosed once.
-oc create secret generic golden-path-agent-secrets \
-  -n golden-path-agent-demo-prod \
-  --from-literal=MODEL_API_KEY="$MODEL_API_KEY" \
-  --from-literal=MCP_AUTH_TOKEN="not-needed" \
-  --from-literal=MODEL_API_BASE_URL="$MODEL_API_BASE_URL" \
-  --from-literal=MODEL_NAME="$MODEL_NAME" \
-  --from-literal=MODEL_FALLBACK_API_BASE_URL="$MODEL_FALLBACK_API_BASE_URL" \
-  --from-literal=MODEL_FALLBACK_NAME="$MODEL_FALLBACK_NAME"
-```
-
-`deploy/kustomize/base/deployment-agent.yaml`'s `envFrom.secretRef` already
-references copy 1 by name — no manifest change was needed to consume it.
-If the credential ever needs rotating, re-run the same command against
-**all three** namespaces (`oc create secret` fails on an existing name; use
-`oc create secret ... -o yaml --dry-run=client | oc apply -f -` to update
-in place instead).
-
-**Verify the value is never echoed** when running or reviewing any command
-that touches this secret — pipe through a redaction filter, or use
-`jsonpath`/`-o name` forms that never print `.data`, as done above and in
-`DEC-024`'s own evidence.
+`deploy/kustomize/base/deployment-agent.yaml`'s `envFrom.secretRef`
+already references this Secret by name — no manifest change was ever
+needed to consume it.
 
 **"Why doesn't Kustomize just set the model endpoint for demo-prod, the
 way the overlay already does for `MODEL_NAME`/`MCP_MODE`/etc.?"** — the
@@ -188,48 +137,44 @@ that could never surface on the SNO once this `ConfigMap` was created
 there by hand, undocumented, at some earlier point in this project's
 history.
 
+**Automated — `bootstrap.env`, `DEC-138`**: the same four `MODEL_*_URL`/
+`MODEL_*_NAME` values filled in §2 are enough — `scripts/bootstrap.sh`
+step 6 creates `golden-path-agent-ci-config` directly from them,
+idempotent by regeneration (`DEC-059`). No manual `oc create configmap`
+step remains.
+
+**Known gap, not closed by `DEC-138`**: `pipelines/tasks/eval-gate-live.yaml`
+also reads `MODEL_API_KEY` via `secretKeyRef` from a `golden-path-agent-secrets`
+Secret *in `golden-path-agent-ci` itself* — a third copy, distinct from
+the demo-prod/ephemeral-test one §2 now automates and from this
+`ConfigMap`. This was always a pure manual step (the original "Copy 2"),
+never migrated into any script even before `DEC-137`/`DEC-138`, and
+`bootstrap.sh` still does not create it. Triggering a `PipelineRun` that
+includes `eval-gate-live` on a genuinely fresh cluster still needs it
+created by hand, the same way as before this entry.
+
+## 2c. Gitea admin password (`--with-rhdh` only; `DEC-137`/`DEC-138`)
+
+Fully automated, no manual step. `scripts/bootstrap.sh`'s step 4c
+generates `golden-path-agent-gitea-admin-password` (key `adminPassword`)
+itself, via `openssl rand`, create-once — the same discipline as
+`golden-path-agent-keycloak-admin` at step 2 — before applying
+`gitea-cr.yaml`. Everything downstream of it (the org, the scaffolder
+machine account, its scoped token, and the
+`golden-path-agent-gitea-scaffolder-token`/`-password` Secrets) is then
+created by that same step, idempotently, same regeneration discipline
+as `DEC-059`.
+
+**To read the generated admin password back** (e.g. to log into Gitea's
+web UI directly as `golden-path-agent-admin`):
+
 ```sh
-set -a && . ./.env && set +a
-oc create configmap golden-path-agent-ci-config \
-  -n golden-path-agent-ci \
-  --from-literal=MODEL_API_BASE_URL="$MODEL_API_BASE_URL" \
-  --from-literal=MODEL_NAME="$MODEL_NAME" \
-  --from-literal=MODEL_FALLBACK_API_BASE_URL="$MODEL_FALLBACK_API_BASE_URL" \
-  --from-literal=MODEL_FALLBACK_NAME="$MODEL_FALLBACK_NAME"
+oc extract secret/golden-path-agent-gitea-admin-password \
+  -n golden-path-agent-gitea --to=- --keys=adminPassword
 ```
 
-## 2c. Gitea admin password (`--with-rhdh` only; `DEC-137`)
-
-`scripts/bootstrap.sh`'s step 4c applies the Gitea operator and CR
-unconditionally when `--with-rhdh` is passed, but the CR's own
-`giteaAdminPasswordSecretName` (`platform/bootstrap/gitea-cr.yaml`)
-names a Secret that must already exist out-of-band — same reasoning as
-§2's model-endpoint credential: never scripted, never committed, never
-printed in a report. Without it, the Gitea CR's own controller keeps
-retrying and failing that one reconciliation step, `adminSetupComplete`
-never becomes `true`, and step 6 stops the run with a clear pointer
-back here.
-
-```sh
-oc create secret generic golden-path-agent-gitea-admin-password \
-  -n golden-path-agent-gitea \
-  --from-literal=adminPassword="$(openssl rand -base64 24)"
-```
-
-The key name must be exactly `adminPassword` — the operator's own role
-reads `.data.adminPassword` specifically (confirmed by reading
-`rhpds/gitea-operator`'s `roles/gitea-ocp/tasks/main.yml` at the pinned
-tag, not assumed). Not needed at all for a plain bootstrap without
-`--with-rhdh` — Gitea has no consumer without RHDH's Scaffolder and step
-4c is skipped entirely in that case.
-
-Everything downstream of this Secret — the org, the scaffolder machine
-account, its scoped token, and the
-`golden-path-agent-gitea-scaffolder-token`/`-password` Secrets — is
-created by step 4c itself, idempotently, same regeneration discipline
-as `DEC-059`. Mirroring this blueprint's own repo content into Gitea is
-a separate, explicit action (`tools/gitea_publish.py`), not part of
-bootstrap.
+Mirroring this blueprint's own repo content into Gitea is a separate,
+explicit action (`tools/gitea_publish.py`), not part of bootstrap.
 
 ## 3. Promotion-PR git credential (mechanism finalized — Step C1b; creation
 still a pending manual action before C1c can exercise `open-promotion-pr`)

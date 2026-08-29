@@ -21,18 +21,22 @@ from the cluster's own pod network (or from wherever `scripts/dev.sh`
 runs, for local dev). Nothing else — no in-cluster inference stack,
 no GPU node, no model-serving operator.
 
-**How the credential is provisioned** (`docs/phase-c-runbook.md`
-section 2, unchanged for a new cluster — same procedure, different
-target): three copies of a `golden-path-agent-secrets` Secret, one
-each in `golden-path-agent-ephemeral-test`, `golden-path-agent-ci`,
-and `golden-path-agent-demo-prod`, sourced from a local, gitignored
-`.env` file — never scripted, never committed, never printed in a
-report. The `demo-prod` copy additionally carries
-`MODEL_API_BASE_URL`/`MODEL_NAME`/`MODEL_FALLBACK_API_BASE_URL`/
-`MODEL_FALLBACK_NAME` (`demo-prod`'s `ConfigMap` is ArgoCD-managed with
-`selfHeal: true`, so only a Secret — never Kustomize/ArgoCD-managed —
-can hold the real value without being stomped back to the committed
-placeholder on the next sync).
+**How the credential is provisioned** (`docs/phase-c-runbook.md` §2,
+`DEC-138`, unchanged for a new cluster — same mechanism, different
+target): filled once into `bootstrap.env` (gitignored, copied from the
+committed `bootstrap.env.example`), validated at `scripts/bootstrap.sh`
+step 0 before anything touches the cluster, then written into a
+`golden-path-agent-secrets` Secret in both `golden-path-agent-ephemeral-test`
+and `golden-path-agent-demo-prod` (step 5) — idempotent by regeneration
+(`DEC-059`), never scripted into Git, never printed in a report. The
+`demo-prod` copy additionally carries `MODEL_API_BASE_URL`/`MODEL_NAME`/
+`MODEL_FALLBACK_API_BASE_URL`/`MODEL_FALLBACK_NAME` (`demo-prod`'s
+`ConfigMap` is ArgoCD-managed with `selfHeal: true`, so only a Secret —
+never Kustomize/ArgoCD-managed — can hold the real value without being
+stomped back to the committed placeholder on the next sync). A separate,
+still-manual `golden-path-agent-ci`-namespace copy remains needed for
+`eval-gate-live` specifically — `docs/phase-c-runbook.md` §2b names this
+as a known gap `DEC-138` did not close.
 
 The owner decides which endpoint each new cluster targets; this
 document and the bootstrap tooling never assume one.

@@ -92,26 +92,43 @@ PYEOF
 )
 EOF
 
-# --- Step 2: write the two client secrets into every consuming namespace --
-# golden-path-agent-secrets already exists in each of these namespaces
-# (docs/phase-c-runbook.md Sec.2, Phase C) with MODEL_API_KEY/MCP_AUTH_TOKEN
-# keys -- `oc patch --type merge` on .data only touches the keys listed
-# below, leaving those alone. If the Secret does not exist yet in a given
-# namespace (a genuinely fresh environment, this bootstrap step run before
-# that one), create it fresh with just these keys instead.
+# --- Step 2: write the two client secrets + model-endpoint config into
+# every consuming namespace -- golden-path-agent-secrets. `oc patch
+# --type merge` on .data only touches the keys listed below, leaving any
+# others alone. If the Secret does not exist yet in a given namespace (a
+# genuinely fresh environment), create it fresh with all these keys
+# instead.
+#
+# DEC-138: MODEL_API_KEY/MODEL_*_URL/MODEL_*_NAME come from bootstrap.env
+# (validated and exported by scripts/bootstrap.sh's own step 0) --
+# regenerated into this Secret every run, same discipline as
+# APPROVAL_OIDC_CLIENT_SECRET/MCP_AUTH_TOKEN below, replacing what used
+# to be a manually-created "Copy 3" (docs/phase-c-runbook.md, formerly
+# S2).
 B64_APPROVAL=$(printf '%s' "$APPROVAL_SECRET" | base64 -w0)
 B64_MCP=$(printf '%s' "$MCP_SECRET" | base64 -w0)
+B64_MODEL_API_KEY=$(printf '%s' "$MODEL_API_KEY" | base64 -w0)
+B64_MODEL_API_BASE_URL=$(printf '%s' "$MODEL_API_BASE_URL" | base64 -w0)
+B64_MODEL_NAME=$(printf '%s' "$MODEL_NAME" | base64 -w0)
+B64_MODEL_FALLBACK_API_BASE_URL=$(printf '%s' "$MODEL_FALLBACK_API_BASE_URL" | base64 -w0)
+B64_MODEL_FALLBACK_NAME=$(printf '%s' "$MODEL_FALLBACK_NAME" | base64 -w0)
 for ns in "${CONSUMER_NAMESPACES[@]}"; do
   if oc get secret golden-path-agent-secrets -n "$ns" >/dev/null 2>&1; then
     oc patch secret golden-path-agent-secrets -n "$ns" --type merge \
-      -p "{\"data\":{\"APPROVAL_OIDC_CLIENT_SECRET\":\"${B64_APPROVAL}\",\"MCP_AUTH_TOKEN\":\"${B64_MCP}\"}}" >/dev/null
+      -p "{\"data\":{\"APPROVAL_OIDC_CLIENT_SECRET\":\"${B64_APPROVAL}\",\"MCP_AUTH_TOKEN\":\"${B64_MCP}\",\"MODEL_API_KEY\":\"${B64_MODEL_API_KEY}\",\"MODEL_API_BASE_URL\":\"${B64_MODEL_API_BASE_URL}\",\"MODEL_NAME\":\"${B64_MODEL_NAME}\",\"MODEL_FALLBACK_API_BASE_URL\":\"${B64_MODEL_FALLBACK_API_BASE_URL}\",\"MODEL_FALLBACK_NAME\":\"${B64_MODEL_FALLBACK_NAME}\"}}" >/dev/null
   else
     oc create secret generic golden-path-agent-secrets -n "$ns" \
       --from-literal=APPROVAL_OIDC_CLIENT_SECRET="$APPROVAL_SECRET" \
-      --from-literal=MCP_AUTH_TOKEN="$MCP_SECRET" >/dev/null
+      --from-literal=MCP_AUTH_TOKEN="$MCP_SECRET" \
+      --from-literal=MODEL_API_KEY="$MODEL_API_KEY" \
+      --from-literal=MODEL_API_BASE_URL="$MODEL_API_BASE_URL" \
+      --from-literal=MODEL_NAME="$MODEL_NAME" \
+      --from-literal=MODEL_FALLBACK_API_BASE_URL="$MODEL_FALLBACK_API_BASE_URL" \
+      --from-literal=MODEL_FALLBACK_NAME="$MODEL_FALLBACK_NAME" >/dev/null
   fi
-  echo "provisioned workload client secrets in ${ns}/golden-path-agent-secrets"
+  echo "provisioned workload client secrets + model-endpoint config in ${ns}/golden-path-agent-secrets"
 done
+unset B64_MODEL_API_KEY B64_MODEL_API_BASE_URL B64_MODEL_NAME B64_MODEL_FALLBACK_API_BASE_URL B64_MODEL_FALLBACK_NAME
 unset APPROVAL_SECRET MCP_SECRET B64_APPROVAL B64_MCP
 
 # --- Step 3: demo users' passwords -----------------------------------------
@@ -288,16 +305,22 @@ echo "provisioned RHDH OIDC client secret in ${NS_RHDH}/golden-path-agent-rhdh-o
 # this blueprint reads it), so this section is a no-op, not a failure,
 # when RHDH wasn't requested. When RHDH WAS requested, the namespace and
 # token Secret this section reads are scripts/bootstrap.sh's own step
-# 4c's responsibility -- if either is missing here, that step either
-# didn't run or hasn't completed (most likely: the out-of-band
-# golden-path-agent-gitea-admin-password Secret step 4c depends on isn't
-# provisioned yet), not something this script should try to work around.
+# 4c's responsibility.
+#
+# DEC-138: step 4c now generates its own admin password (create-once,
+# same as golden-path-agent-keycloak-admin) and runs the org/account/
+# token setup unconditionally -- there is no longer any out-of-band
+# input step 4c can be waiting on. On a correct run this guard is
+# therefore UNREACHABLE whenever --with-rhdh is set: kept as a fail-fast
+# check, not deleted, precisely so that if it ever DOES fire, that is
+# unambiguously a defect in step 4c (or a manual namespace/secret
+# deletion), not a normal "come back later" state.
 NS_GITEA=golden-path-agent-gitea
 if [ "${WITH_RHDH:-false}" != "true" ]; then
   echo "WARNING: --with-rhdh not set -- skipping Gitea scaffolder credential copy (RHDH is Gitea's only consumer)"
 elif ! oc get namespace "$NS_GITEA" >/dev/null 2>&1 || \
     ! oc get secret golden-path-agent-gitea-scaffolder-token -n "$NS_GITEA" >/dev/null 2>&1; then
-  echo "[provision-identity-secrets.sh] FAILED: golden-path-agent-gitea namespace or golden-path-agent-gitea-scaffolder-token Secret not found -- scripts/bootstrap.sh's step 4c (Gitea) must complete first (see docs/phase-c-runbook.md S2c if it stopped there for the out-of-band admin password)" >&2
+  echo "[provision-identity-secrets.sh] FAILED (unreachable on a correct run, DEC-138): golden-path-agent-gitea namespace or golden-path-agent-gitea-scaffolder-token Secret not found -- scripts/bootstrap.sh's step 4c should always create both unconditionally now. Inspect step 4c's own output for what actually happened." >&2
   exit 1
 else
   GITEA_SCAFFOLDER_USERNAME=$(oc get secret golden-path-agent-gitea-scaffolder-token -n "$NS_GITEA" -o jsonpath='{.data.username}' | base64 -d)
