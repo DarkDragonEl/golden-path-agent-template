@@ -1,12 +1,7 @@
-# Phase E, E1 entry gate (DECISIONS.md DEC-078 and onward). First time
-# this project has ever authored an OpenShift Pipelines Subscription --
-# on the SNO (Phase C), this operator was already installed cluster-wide
-# by prior, unrelated work before this project ever touched it
-# (docs/environments.md's own "shared, multi-tenant lab" note). The
-# showcase cluster is a dedicated environment with no such pre-install
-# (verified live via `oc get csv -A` before this file was authored,
-# PINS.md's Phase E section), so this is the actual from-scratch
-# operator-bootstrap leg Phase E exists to prove.
+# This Subscription provisions openshift-pipelines-operator-rh from
+# scratch, for a cluster where it is not already installed cluster-wide
+# (docs/environments.md's own "shared, multi-tenant lab" note covers the
+# case where a prior, unrelated install already provides it).
 #
 # Structurally different from keycloak-operator.yaml's pattern:
 # openshift-pipelines-operator-rh only supports AllNamespaces install mode

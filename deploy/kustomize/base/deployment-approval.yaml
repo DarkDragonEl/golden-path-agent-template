@@ -1,4 +1,4 @@
-# DEC-098/DEC-099: own independently-built/promoted image and Tekton
+# Own independently-built/promoted image and Tekton
 # pipeline -- CLAUDE.md's "one immutable artifact" rule now reads as
 # "one immutable artifact per component".
 apiVersion: apps/v1
@@ -8,7 +8,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    # Real gap found live (Stage 1/G2, promoting the approval image
+    # Real gap found live (G2, promoting the approval image
     # independently for the first time): the default RollingUpdate
     # strategy schedules the new pod before killing the old one, which
     # deadlocks against this Deployment's ReadWriteOnce state PVC (a new

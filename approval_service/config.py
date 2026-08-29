@@ -2,7 +2,7 @@
 convention exactly -- every environment difference via env vars, never a
 rebuilt image (CLAUDE.md's contracts-not-couplings rule).
 
-Contracts-STOP artifact (DEC-045).
+Contracts-STOP artifact (ADR-025).
 """
 
 import os
@@ -12,8 +12,8 @@ def _env(name, default=None):
     return os.environ.get(name, default)
 
 
-# Persistence (SRS-APR-DATA-01) -- SQLite on a PVC, per the Phase D plan's
-# D1 section; the storage module's own interface stays narrow enough that
+# Persistence (SRS-APR-DATA-01) -- SQLite on a PVC; the storage module's
+# own interface stays narrow enough that
 # swapping the backing store later doesn't touch the API layer.
 APPROVAL_DB_PATH = _env("APPROVAL_DB_PATH", "./state/approval/approvals.db")
 
@@ -38,6 +38,6 @@ APPROVER_ROLE_VALUE = _env("APPROVER_ROLE_VALUE", "approval-approver")
 
 APPROVAL_PORT = int(_env("APPROVAL_PORT", "8082"))
 
-# DEC-071: mirrors agent/config.py's identical OTEL_* pair.
+# ADR-006: mirrors agent/config.py's identical OTEL_* pair.
 OTEL_EXPORTER_OTLP_ENDPOINT = _env("OTEL_EXPORTER_OTLP_ENDPOINT")
 OTEL_SERVICE_NAME = _env("OTEL_SERVICE_NAME", "golden-path-agent-approval")

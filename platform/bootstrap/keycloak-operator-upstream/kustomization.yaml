@@ -1,4 +1,4 @@
-# DEC-055/DEC-056: rhbk-operator's OLM Subscription (keycloak-
+# ADR-017: rhbk-operator's OLM Subscription (keycloak-
 # operator.yaml) is blocked by a different tenant's broken CatalogSource
 # poisoning OLM's cluster-wide resolution (Red Hat KB 7052456). Unblock:
 # the Keycloak project's own upstream, OLM-free kustomize install path.

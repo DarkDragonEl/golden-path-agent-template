@@ -1,9 +1,8 @@
-# Phase C, Step C4 (DECISIONS.md DEC-021/DEC-040). The Git-bootstrapped
-# app-of-apps root: syncs argocd/apps/ (this GitOps repo's own root --
-# DEC-111's two-repo split moved this whole deploy/ tree here, dropping
-# the redundant deploy/ prefix) as a plain directory of Application
-# manifests (not Kustomize/Helm) -- applying this one object
-# instantiates every GitOps-managed environment from Git alone.
+# The Git-bootstrapped app-of-apps root: syncs argocd/apps/ (this
+# GitOps repo's own root, dropping the redundant deploy/ prefix) as a
+# plain directory of Application manifests (not Kustomize/Helm) --
+# applying this one object instantiates every GitOps-managed environment
+# from Git alone.
 #
 # Deliberately scoped to only demo-prod. ephemeral-test is pipeline-
 # managed, not GitOps-managed (deploy-ephemeral applies a specific
@@ -12,14 +11,13 @@
 # deploy/argocd/application-ephemeral-test.yaml's own header and
 # docs/environments.md's ownership-model line), so its Application
 # manifest deliberately stays outside this directory. staging/pilot-prod's
-# existing stub Applications stay outside it too, un-synced, per DEC-021's
-# "no staging, no pilot" decision for the demo (see docs/environments.md).
+# existing stub Applications stay outside it too, un-synced -- no staging,
+# no pilot, for this demo (see docs/environments.md).
 #
 # Requires this AppProject to permit managing Application objects in
-# openshift-gitops as a destination -- see deploy/argocd/project.yaml's
-# own DEC-021 update and the STOP presentation for why that widening is
-# scoped the way it is (this project's own Application objects only,
-# never another tenant's).
+# openshift-gitops as a destination -- see deploy/argocd/project.yaml for
+# why that widening is scoped the way it is (this project's own
+# Application objects only, never another tenant's).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

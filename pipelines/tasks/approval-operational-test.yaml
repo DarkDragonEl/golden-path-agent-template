@@ -1,4 +1,4 @@
-# Phase G, G2 (DEC-098/DEC-099). Two checks only: reachability + health
+# Two checks only: reachability + health
 # and NetworkPolicy binding -- a full SRS-APR-IF-01/IF-02 round trip
 # would need OIDC credentials this Task doesn't have (a named gap).
 apiVersion: tekton.dev/v1

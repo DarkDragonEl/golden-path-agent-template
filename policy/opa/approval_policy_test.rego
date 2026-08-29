@@ -1,7 +1,7 @@
 # opa test policy/opa/ -- structurally mirrors tests/test_policy_limits.py's
 # cases, so both suites assert the same behavior against the same inputs
 # (the actual proof this file is a faithful mirror, not just similar-looking
-# rego). Phase C, DECISIONS.md DEC-023.
+# rego). ADR-019.
 package golden_path.approval_test
 
 import data.golden_path.approval.classify
@@ -42,7 +42,7 @@ test_requires_approval_false_when_mode_auto_even_for_write if {
 	not requires_approval("itsm_create_request", "auto")
 }
 
-# The proven fail-closed deny path (Annex A OI-03 / DEC-021): a
+# The proven fail-closed deny path (Annex A OI-03): a
 # write-classified action is never directly executable/allowed on its own.
 test_write_classified_action_denies_direct_execution if {
 	deny_direct_execution("itsm_create_request")

@@ -5,7 +5,7 @@ NOT network-free: a `--write` query still submits a real proposal via
 approval_client.submit_proposal, so APPROVAL_SERVICE_ENDPOINT must be
 reachable. Fresh in-memory checkpointer per run (no cross-*process*
 resume); `--decision` round-trips through the real approval service via
-approval_client.resolve_and_resume, never trusting local state (DEC-096).
+approval_client.resolve_and_resume, never trusting local state.
 """
 
 import argparse

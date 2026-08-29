@@ -1,5 +1,5 @@
 # SRS-APR-DATA-01 (restart survival) -- SQLite on a PVC, reusing the
-# restricted-v2/arbitrary-non-root-UID fights already solved (DEC-026-034)
+# restricted-v2/arbitrary-non-root-UID fights already solved
 # rather than opening a new one with Postgres. RWO, small -- demo-scale.
 apiVersion: v1
 kind: PersistentVolumeClaim

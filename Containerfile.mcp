@@ -7,8 +7,8 @@ FROM ${BASE_IMAGE}
 WORKDIR /opt/app-root/src
 
 # Dependencies first (cache layer). MCP-only: the `mcp` SDK and pyjwt
-# never load in the agent or approval images (DEC-098/DEC-099 artifact
-# split). server.py never imports client.py, so httpx here is for
+# never load in the agent or approval images (three-image split).
+# server.py never imports client.py, so httpx here is for
 # auth.py's JWKS fetch, not for the agent-facing client module (excluded
 # below — this image never needs it).
 COPY requirements-mcp.txt ./requirements.txt

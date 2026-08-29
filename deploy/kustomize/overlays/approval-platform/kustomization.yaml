@@ -1,4 +1,4 @@
-# DEC-101: the approval service's Platform Foundation home -- a shared
+# ADR-011: the approval service's Platform Foundation home -- a shared
 # singleton. Deliberately standalone, not `resources: [../../base]`:
 # ephemeral-test still needs its own throwaway approval instance, so
 # `../../base` keeps its own copies too; this directory holds

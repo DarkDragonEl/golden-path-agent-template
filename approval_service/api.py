@@ -1,11 +1,11 @@
-"""Approval service -- SRS-APR's standalone realization (DEC-008).
+"""Approval service -- SRS-APR's standalone realization (ADR-001).
 
 Never issues the literal tool-contract call itself (SRS-APR-F-04) -- the
-agent is the sole invoker (DEC-008). This service's job is exactly:
+agent is the sole invoker (ADR-001). This service's job is exactly:
 intake, decide, expose.
 
 Telemetry (SRS-APR-IF-03) is realized via structured `logging`, not an
-OTel span/TracerProvider (DEC-046) -- this service's config.py contract
+OTel span/TracerProvider (ADR-008) -- this service's config.py contract
 carries no OTEL_* fields, unlike agent/config.py.
 """
 
@@ -68,7 +68,7 @@ app = FastAPI(title="golden-path-approval-service", lifespan=_lifespan)
 
 # The approver UI calls this service's different origin directly, needing
 # CORS. allow_origins=["*"] is acceptable: the real security boundary is
-# the bearer-token auth enforced on every route below (DEC-069/DEC-072) --
+# the bearer-token auth enforced on every route below (ADR-024) --
 # CORS doesn't substitute for or weaken it.
 app.add_middleware(
     CORSMiddleware,
@@ -130,7 +130,7 @@ def healthz():
 @app.post("/proposals", response_model=ProposalCreated, status_code=201)
 def create_proposal(body: ProposalCreate, request: Request) -> ProposalCreated:
     """SRS-APR-IF-01/F-01. Caller: agent workload identity only (SEC-03).
-    DEC-069: requires SOME authenticated, correctly-audienced caller, not
+    Requires SOME authenticated, correctly-audienced caller, not
     role-gated. `initiating_user_id` stays client-supplied (no end-user
     login flow exists upstream -- out of D2's scope). A replayed
     idempotency_key for the same originating_session_id returns the
@@ -210,7 +210,7 @@ def list_pending_proposals(
 ) -> list[ProposalSummary]:
     """SRS-APR-IF-04/F-06. Lists proposals currently `pending`, filterable
     by session/request id; full decision-context fields per F-05.
-    DEC-069: authenticated caller required, no role check -- agent
+    Authenticated caller required, no role check -- agent
     workload and approver tokens both legitimate."""
     get_authenticated_caller(request)
     with _tracer.start_as_current_span("approval.list_pending_proposals") as span:
@@ -228,9 +228,9 @@ def get_proposal(proposal_id: str, request: Request) -> ProposalTerminal:
     """SRS-APR-IF-05. Current state; once terminal, the full record
     including the *unmodified* `action_arguments` accepted at intake --
     this is what agent/approval_client.py's terminal-state query calls
-    from the /resume handler, and the exact arguments DEC-008 requires
+    from the /resume handler, and the exact arguments ADR-001 requires
     the agent to execute (never a locally cached copy).
-    DEC-069: requires an authenticated caller (identity+audience, no role
+    Requires an authenticated caller (identity+audience, no role
     check), same reasoning as list_pending_proposals above."""
     get_authenticated_caller(request)
     with _tracer.start_as_current_span("approval.get_proposal") as span:

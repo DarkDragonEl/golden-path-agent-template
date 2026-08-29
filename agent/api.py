@@ -13,7 +13,7 @@ Routes and their contracts:
   empty; see its own docstring). Never trusts caller-supplied decision
   data — it only triggers agent/approval_client.py::resolve_and_resume to
   re-fetch the approval service's own terminal-state (SRS-APR-IF-05)
-  before resuming the paused graph (DECISIONS.md DEC-008/DEC-045/DEC-049's
+  before resuming the paused graph (ADR-001/ADR-025's
   Layer 1/Layer 2 split).
 - GET /healthz — liveness probe.
 - GET /ui / GET /ui/config — serves the static approver UI page and the
@@ -41,7 +41,7 @@ _graph = build_graph()
 init_telemetry()
 _tracer = get_tracer()
 
-# Phase D3: read once at import time, not per-request -- this is static
+# Read once at import time, not per-request -- this is static
 # content that never changes at runtime (no templating, see GET /ui/config
 # below for the one piece of real environment config the page needs),
 # so a repeated disk read on every GET /ui would be pure waste.
@@ -56,10 +56,10 @@ class InvokeRequest(BaseModel):
 
 
 class ResumeRequest(BaseModel):
-    """Deliberately empty (DEC-045's Layer 1/Layer 2 split): the decision
+    """Deliberately empty (ADR-025's Layer 1/Layer 2 split): the decision
     and arguments to execute come only from the approval service's own
     IF-05 terminal-state query (approval_client.py::resolve_and_resume),
-    never from this request body (DEC-008)."""
+    never from this request body (ADR-001)."""
 
 
 def _initial_state(session_id: str, request_id: str, req: InvokeRequest) -> dict:
@@ -87,7 +87,7 @@ def _public_view(state: dict) -> dict:
 
 
 def _auto_approve(thread_config: dict, result: dict) -> dict:
-    """Dev-only convenience (config.AUTO_APPROVE_IN_DEV, DEC-049): bypasses
+    """Dev-only convenience (config.AUTO_APPROVE_IN_DEV, ADR-001): bypasses
     the real approval service entirely for this path. **Never set true in
     staging/pilot-prod/demo-prod overlay configmaps.** Still two internal
     graph.invoke() calls, not one -- interrupt_before is unconditional at
@@ -131,7 +131,7 @@ def approver_ui_config():
 @app.post("/invoke")
 def invoke(req: InvokeRequest):
     session_id = req.session_id or str(uuid.uuid4())
-    # DEC-020: fresh per call, distinct from session_id (SRS-AGT-IF-08's
+    # ADR-006: fresh per call, distinct from session_id (SRS-AGT-IF-08's
     # two separate correlation keys).
     request_id = str(uuid.uuid4())
     thread_config = {"configurable": {"thread_id": session_id}}

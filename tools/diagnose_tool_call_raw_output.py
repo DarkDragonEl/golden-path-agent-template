@@ -1,6 +1,6 @@
 """Step 0 forensic diagnostic (decide-then-retrieve redesign pre-check).
 
-Classifies DEC-012's raw tool-call failure mode into exactly one of:
+Classifies ADR-004's raw tool-call failure mode into exactly one of:
   (a) parseable-tag-in-content -- a <tool_call>...</tool_call> tag (vLLM
       issue #11402's documented Granite tool-parser misconfiguration
       shape) or a fenced ```json block, parsing to valid JSON naming a
@@ -8,7 +8,7 @@ Classifies DEC-012's raw tool-call failure mode into exactly one of:
       This class points at a server-side serving-config bug, not a model-
       capability or prompt-competition problem.
   (b) prose narration -- content describes/references a tool call without
-      cleanly parseable JSON. This is DEC-012's original diagnosis.
+      cleanly parseable JSON. This is ADR-004's original diagnosis.
   (c) genuine wrong decision -- no tool-call attempt at all, parseable or
       narrated.
 
@@ -18,7 +18,7 @@ and agent.config directly so the context sent to the model is byte-for-
 byte what agent/nodes/reason.py's reason_node builds today, against the
 CURRENT, unmodified frozen-config code (agent/prompts/system_prompt.md,
 .env unchanged) -- this must run before any redesign code lands, so it
-diagnoses the failure mode as it actually stands under DEC-012's frozen
+diagnoses the failure mode as it actually stands under ADR-004's frozen
 config, not a hypothetical. Calls the model's raw HTTP endpoint directly
 (bypassing agent/model_client.py's SDK-based parsing) so nothing about
 the raw response is discarded before classification.
@@ -68,8 +68,8 @@ MODEL_NAME = os.environ["MODEL_NAME"]
 
 SYSTEM_PROMPT = (REPO_ROOT / "agent" / "prompts" / "system_prompt.md").read_text()
 
-# One representative query per currently-failing category (DECISIONS.md
-# DEC-012), verbatim from eval/cases/domain/*.yaml.
+# One representative query per currently-failing category (ADR-004),
+# verbatim from eval/cases/domain/*.yaml.
 CASES = [
     ("ITR-001", "itsm_read", "Show me open incidents related to CI pipelines."),
     (
@@ -98,7 +98,7 @@ def build_user_message(query: str) -> str:
     """Byte-for-byte the same construction as agent/nodes/reason.py's
     reason_node (context retrieval + capping + the "(Requested by: ...)"
     suffix) -- so this diagnostic exercises the exact same conditions
-    DEC-012 measured, not a simplified stand-in."""
+    ADR-004 measured, not a simplified stand-in."""
     docs = retrieve(query, top_k=config.RETRIEVAL_TOP_K, user_id="eval-harness")
     docs_for_context = [d.__dict__ for d in docs][: config.REASONING_CONTEXT_TOP_K]
     context = "\n\n".join(
@@ -144,7 +144,7 @@ def call_model(user_message: str, timeout: float = 90.0) -> dict:
 
 def extract_candidate_json(content: str):
     """Try <tool_call>...</tool_call> first (vLLM issue #11402's shape),
-    then a fenced ```json block (DEC-012's own observed shape). Returns
+    then a fenced ```json block (ADR-004's own observed shape). Returns
     the first candidate that parses as valid JSON, or None."""
     for pattern in (TOOL_CALL_TAG_RE, FENCED_JSON_RE):
         m = pattern.search(content or "")

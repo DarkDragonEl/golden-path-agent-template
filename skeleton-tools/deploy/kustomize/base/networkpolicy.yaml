@@ -1,10 +1,9 @@
-# This tool server's independent security boundary. Phase G, Stage 2
-# (DEC-098/DEC-099): now that the MCP tool server is its own independently
-# deployable artifact (no longer co-deployed with one specific agent under
-# a shared project name), "only the agent pod may reach it" becomes "only
-# the configured consumer's pod(s) may reach it" -- allowedConsumerName
-# (template-schema-tools.json) names the single consumer this instance is
-# provisioned for.
+# This tool server's independent security boundary. Now that the MCP tool
+# server is its own independently deployable artifact (no longer
+# co-deployed with one specific agent under a shared project name), "only
+# the agent pod may reach it" becomes "only the configured consumer's
+# pod(s) may reach it" -- allowedConsumerName (template-schema-tools.json)
+# names the single consumer this instance is provisioned for.
 #
 # NAMED LIMITATION, not solved this session: this is a single-consumer
 # allow-list, not a real multi-tenant ACL. A Tools Template instance meant

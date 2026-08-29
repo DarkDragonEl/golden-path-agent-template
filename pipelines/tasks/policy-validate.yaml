@@ -1,9 +1,9 @@
-# Phase C (DEC-025/DEC-043/DEC-044). SysR-P-F-11 -- three checks, kept
+# SysR-P-F-11 (ADR-018, ADR-019) -- three checks, kept
 # as separate steps since opa/python don't share one image:
 #   1. opa test policy/opa/ -- the rego's own fail-closed deny path.
 #   2. tools/check_policy_sync.py -- approval_rules.yaml vs. its rego
-#      mirror haven't drifted (DEC-023).
-#   3. tools/check_config_contract.py -- the DEC-035/DEC-042 missing-key/
+#      mirror haven't drifted (ADR-019).
+#   3. tools/check_config_contract.py -- the missing-key/
 #      unresolved-placeholder pattern, enforced.
 # None is a live enforcement point -- agent/policy.py stays the sole
 # Policy Decision Point at request time.
@@ -44,7 +44,7 @@ spec:
       image: docker.io/library/python:3.12-slim
       workingDir: $(workspaces.source.path)
       env:
-        # DEC-027: pip install needs a writable $HOME under this project's
+        # pip install needs a writable $HOME under this project's
         # restricted-v2-SCC identity -- see unit-tests.yaml's fuller note.
         - name: HOME
           value: /tmp

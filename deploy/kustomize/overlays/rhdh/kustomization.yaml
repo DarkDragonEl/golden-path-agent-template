@@ -1,4 +1,4 @@
-# DEC-092: not an overlay of shared base/ -- RHDH is a separate
+# Not an overlay of shared base/ -- RHDH is a separate
 # component with its own namespace and resources entirely.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

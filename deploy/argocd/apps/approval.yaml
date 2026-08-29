@@ -1,4 +1,4 @@
-# DECISIONS.md DEC-101. Platform Foundation singleton's own Application
+# ADR-011. Platform Foundation singleton's own Application
 # (mirrors rhdh.yaml) -- auto-sync on, since no separate promotion step
 # exists for it; this repo's own commit is the human gate.
 apiVersion: argoproj.io/v1alpha1

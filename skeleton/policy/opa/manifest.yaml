@@ -1,4 +1,4 @@
-# Version marker for the OPA policy-definition bundle (Phase C, DEC-023).
+# Version marker for the OPA policy-definition bundle.
 # Not an OPA runtime bundle manifest (no live server/sidecar consumes this
 # -- see approval_policy.rego's own header) -- just a durable version
 # stamp for the CI stage that runs `opa test policy/opa/`.

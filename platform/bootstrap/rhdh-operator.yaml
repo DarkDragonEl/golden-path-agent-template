@@ -1,10 +1,10 @@
-# DEC-092: RHDH's OperatorHub packagemanifest supports only AllNamespaces
+# RHDH's OperatorHub packagemanifest supports only AllNamespaces
 # install (confirmed live via packagemanifest) -- goes into
 # openshift-operators, reusing scripts/bootstrap.sh's existing
-# wait_for_csv/approve_pending_installplan mechanism (DEC-080). Applied
+# wait_for_csv/approve_pending_installplan mechanism. Applied
 # manually, never by the CI pipeline's ServiceAccount.
 #
-# DEC-092 (addendum): AllNamespaces means this operator is visible to
+# AllNamespaces means this operator is visible to
 # every tenant on this shared cluster -- the same precedent already
 # accepted for Pipelines/GitOps, not a new exposure class.
 apiVersion: operators.coreos.com/v1alpha1

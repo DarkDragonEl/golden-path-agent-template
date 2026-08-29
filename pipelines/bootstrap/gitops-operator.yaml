@@ -1,4 +1,4 @@
-# Phase E (DEC-078/DEC-080). Absent on the showcase cluster (verified
+# ADR-009. Absent on the showcase cluster (verified
 # live, PINS.md) unlike the SNO -- a real bootstrap action here. Only
 # supports AllNamespaces install mode; applied manually, cluster-scoped,
 # never by the CI pipeline's own ServiceAccount.

@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Code only. This is the Tools Template's own product: an independent MCP
 # tool server, no agent/approval-service code exists in this repo at all
-# (Phase G, DEC-098/DEC-099 -- Layer 1 separation from the Agent Template).
+# (Layer 1 separation from the Agent Template).
 COPY mcp_server/ ./mcp_server/
 COPY --chmod=0755 entrypoint.sh ./entrypoint.sh
 

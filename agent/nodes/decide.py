@@ -8,10 +8,10 @@ model_calls, selected_tool). On total model failure it returns
 fallback_reason instead of selected_tool, which agent/routers.py's
 decide_after_decide routes to "fallback" (SysR-A-F-05/SysR-P-F-12).
 
-DEC-013: sees only the query and TOOL_SCHEMAS, deliberately no retrieved
-corpus context (DEC-012's root cause). In config.AGENT_MODEL_MODE ==
+ADR-005: sees only the query and TOOL_SCHEMAS, deliberately no retrieved
+corpus context (ADR-004's root cause). In config.AGENT_MODEL_MODE ==
 "fake" mode, state["write_requested"] selects between placeholder_lookup
-and placeholder_write_action (DEC-023) so eval/cases/EXAMPLE-*.yaml's
+and placeholder_write_action (ADR-019) so eval/cases/EXAMPLE-*.yaml's
 harness-mechanics fixtures keep passing.
 """
 
@@ -29,11 +29,11 @@ def _load_system_prompt() -> str:
 
 
 def decide_node(state):
-    """DEC-013 candidate (decide-then-retrieve reordering): the sole
+    """ADR-005 (decide-then-retrieve reordering): the sole
     tool-vs-no-tool decision point. Receives only the user query +
     TOOL_SCHEMAS -- no retrieved context, no citation instructions -- so
     citation guidance can no longer compete with tool-calling instructions
-    for the model's attention (DEC-012's diagnosed root cause). If no tool
+    for the model's attention (ADR-004's diagnosed root cause). If no tool
     is selected, routing sends this to retrieve -> generate instead of
     answering here.
     """
@@ -104,7 +104,7 @@ def decide_node(state):
         # the pre-B3/pre-B4 deterministic dispatch exactly here, so
         # eval/cases/EXAMPLE-*.yaml's frozen harness-mechanics fixtures
         # (never domain content, SRS-EVH-F-03) keep passing unchanged.
-        # Phase C (DEC-023): write is now signaled by which tool is
+        # ADR-019: write is now signaled by which tool is
         # dispatched, not by an argument flag on placeholder_lookup --
         # EXAMPLE-002's write-classified case calls placeholder_write_action.
         if state.get("write_requested", False):

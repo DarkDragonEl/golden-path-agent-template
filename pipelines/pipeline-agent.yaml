@@ -1,6 +1,6 @@
-# Phase G, G2 (DEC-098/DEC-099/DEC-101): the agent's own independent
+# ADR-011: the agent's own independent
 # build/test/promote pipeline, split out of the original single
-# golden-path-agent-ci Pipeline (DEC-025). Keeps the full gate set -- none
+# golden-path-agent-ci Pipeline (ADR-018). Keeps the full gate set -- none
 # of these were ever mcp/approval-specific, so none moved elsewhere.
 apiVersion: tekton.dev/v1
 kind: Pipeline
@@ -87,7 +87,7 @@ spec:
           value: "$(params.image-repo)@$(tasks.digest-capture.results.digest)"
         # mcp-image-ref / approval-image-ref left at their "" default --
         # ephemeral-test renders with the currently-committed (last
-        # independently promoted) mcp/approval digests, per DEC-099.
+        # independently promoted) mcp/approval digests.
 
     - name: eval-gate-live
       taskRef: { name: eval-gate-live }

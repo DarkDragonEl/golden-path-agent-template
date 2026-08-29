@@ -1,6 +1,5 @@
-# Checkpoint 1 exemplars (3 of ~8 target). Tool contract and fixture record
-# IDs are documented in eval/README.md — this contract is PROVISIONAL,
-# authoritative home SRS-MIT/SRS-AGT (Phase B0).
+# Tool contract and fixture record IDs are documented in eval/README.md
+# — this contract is PROVISIONAL, authoritative home SRS-MIT/SRS-AGT.
 
 - id: ITR-001
   category: itsm_read
@@ -63,7 +62,7 @@
     write_attempted: false
     approval_required: false
     result_contains: ["REQ-30052"]
-  threshold_notes: "known-gap: excluded from the itsm_read gate count since 2026-08-21 (DECISIONS.md DEC-019), narrower scope than DEC-018's entry -- the store-side generalized separator/case fix closed the functional gap (the right record is always found and cited, result_contains always passes), but the scorer's tool_arguments.status assertion does a literal comparison against decide's raw argument value, which is not always exactly 'in_progress' (confirmed 'in progress' post-fix). eval/cli.py's KNOWN_GAP_TOLERANCES only excludes this case when tool_name/record_type/result_contains and every other assertion still passed."
+  threshold_notes: "known-gap: excluded from the itsm_read gate count -- the store-side generalized separator/case fix closed the functional gap (the right record is always found and cited, result_contains always passes), but the scorer's tool_arguments.status assertion does a literal comparison against decide's raw argument value, which is not always exactly 'in_progress' (confirmed 'in progress' post-fix). eval/cli.py's KNOWN_GAP_TOLERANCES only excludes this case when tool_name/record_type/result_contains and every other assertion still passed."
   tags: ["itsm_read", "read-only", "known-gap"]
   version: "0.4.0"
 

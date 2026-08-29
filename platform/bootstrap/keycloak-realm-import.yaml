@@ -1,7 +1,7 @@
-# DEC-058: one realm, one approval-approver role, three clients, two
+# One realm, one approval-approver role, three clients, two
 # test users. Schema confirmed against the live CRD, not guessed.
 #
-# DEC-098/DEC-099: deliberately secret-free -- client secrets and
+# Deliberately secret-free -- client secrets and
 # test-user passwords are both provisioned post-apply by
 # provision-identity-secrets.sh via Keycloak's admin API (one code path
 # for both fresh-environment and rotation), not this CRD's
@@ -23,7 +23,7 @@ spec:
         - name: approval-approver
           description: "Authorized to decide (approve/reject) pending write proposals -- SRS-APR-SEC-02."
     clients:
-      # DEC-054 (addendum): agent workload -> approval-service. Never
+      # ADR-017 (addendum): agent workload -> approval-service. Never
       # assigned approval-approver -- correct by omission, nothing to
       # misconfigure to "block" it, which is what makes the negative
       # test possible.
@@ -93,7 +93,7 @@ spec:
         protocol: openid-connect
         publicClient: true
         standardFlowEnabled: true
-        # DEC-058: also enables Resource Owner Password (direct grant) on
+        # Also enables Resource Owner Password (direct grant) on
         # this same client, deliberately, for D2's own verification test
         # only (no browser available there) -- still a real login, not
         # an admin-tooling shortcut. D3's real UI uses Authorization
@@ -123,7 +123,7 @@ spec:
               access.token.claim: "true"
               id.token.claim: "false"
               userinfo.token.claim: "false"
-      # DEC-092 (addendum): RHDH's own sign-in -- confidential client,
+      # RHDH's own sign-in -- confidential client,
       # standard Authorization Code flow (Backstage's backend OIDC
       # plugin handles the exchange server-side), a genuinely distinct
       # trust surface from golden-path-agent-approver-ui's public
@@ -147,7 +147,7 @@ spec:
         webOrigins:
           - "*" # TODO(F4 follow-up): same deferral as redirectUris above
     users:
-      # DEC-058: at minimum one user with the approver role, one without
+      # At minimum one user with the approver role, one without
       # -- the wrong-role 403 negative test needs a real human token.
       # email/firstName/lastName/emailVerified are NOT cosmetic: without
       # them, Keycloak's User Profile feature refuses direct-grant login

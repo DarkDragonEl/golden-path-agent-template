@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
-"""Phase F2 (DECISIONS.md DEC-087 item 1; docs/phase-f-kickoff-plan.md SS6,
-item 6). This is F2's OWN internal verification tool -- NOT F3's CLI
-renderer (that's tools/instantiate_agent_project.py). This script exists
-only to prove the skeleton itself is correct before F3/F5 are built
+"""ADR-022 (this is the skeleton's OWN internal verification tool -- NOT
+the CLI renderer, that's tools/instantiate_agent_project.py). This script exists
+only to prove the skeleton itself is correct before anything is built
 against it: render once with test parameters into a scratch directory,
 then sweep the result for (a) zero surviving source-repo literals and
 (b) zero unresolved template placeholders. Both checks matter -- (a)
 proves nothing project-specific leaked through, (b) proves every
 placeholder in the skeleton has a matching parameter in
-template-schema.json, catching typos/drift between the two before F3/F5
-ever get built on top of a broken pairing.
+template-schema.json, catching typos/drift between the two before
+anything ever gets built on top of a broken pairing.
 
-Phase G, Stage 2 (DEC-098/DEC-099): extended to verify BOTH templates --
-skeleton/ (the Agent Template) and skeleton-tools/ (the new Tools
-Template) -- rather than duplicating this file for the second one.
-TARGETS below is the only thing that changed structurally; the
-render-then-sweep logic itself is unchanged and shared via
-skeleton_renderer.py, same as before.
+Extended to verify BOTH templates -- skeleton/ (the Agent Template) and
+skeleton-tools/ (the new Tools Template) -- rather than duplicating this
+file for the second one. TARGETS below is the only thing that changed
+structurally; the render-then-sweep logic itself is unchanged and shared
+via skeleton_renderer.py, same as before.
 
-Rendering logic lives in tools/skeleton_renderer.py, shared with F3's CLI
--- DEC-090's own reasoning for why this file no longer defines its own
-copy (it used to; DEC-075's precedent is exactly the failure this refactor
-avoids repeating).
+Rendering logic lives in tools/skeleton_renderer.py, shared with the CLI
+renderer (ADR-022) -- this file no longer defines its own copy (it used
+to; a prior precedent is exactly the failure this refactor avoids
+repeating).
 
 Usage:
     python3 tools/verify_skeleton.py

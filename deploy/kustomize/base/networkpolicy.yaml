@@ -17,7 +17,7 @@ spec:
             matchLabels:
               app.kubernetes.io/name: golden-path-agent
               app.kubernetes.io/component: agent
-        # DEC-101 (addendum): operational-tests.yaml's kill-primary-
+        # ADR-011 (addendum): operational-tests.yaml's kill-primary-
         # fallback clone. Narrow second entry, not a widened first --
         # `agent-fallback-demo` deliberately isn't a subset-match for the
         # standing agent Deployment's selector (avoids ReplicaSet

@@ -145,7 +145,7 @@ spec:
           ui:field: RepoUrlPicker
           ui:options:
             allowedHosts:
-              - golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io
+              - gitea.example.com
   steps:
     - id: fetch-base
       name: Render golden-path-agent skeleton

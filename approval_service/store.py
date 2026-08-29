@@ -201,7 +201,7 @@ class ApprovalStore:
     ) -> dict[str, Any] | None:
         """The ONE atomic write path for approve/reject *and* expiry
         (SEC-04) -- pass `decision="expired"`, `decided_by=None`,
-        `decided_at=None` for expiry (DEC-046: an expired proposal's
+        `decided_at=None` for expiry (ADR-008: an expired proposal's
         decided_by/decided_at stay None). One `UPDATE ... WHERE state =
         'pending'` per connection, SQLite's own `busy_timeout` serializing
         concurrent callers (SRS-APR-F-02). Returns the updated record, or
@@ -221,7 +221,7 @@ class ApprovalStore:
 class ExpiryScanner:
     """SRS-APR-F-03 -- in-process asyncio background task, started from
     the FastAPI app's lifespan (api.py). `sweep()` does one pass; called
-    both by `start()`'s mandatory immediate pass (DEC-046: catches
+    both by `start()`'s mandatory immediate pass (ADR-008: catches
     proposals already overdue when the previous process died) and by the
     periodic loop `start()` also launches -- one place expiry-detection
     logic lives."""
@@ -277,7 +277,7 @@ class ExpiryScanner:
 
     def start(self) -> None:
         """Call once from the FastAPI lifespan's startup. Runs the
-        mandatory immediate pass synchronously first (DEC-046), then
+        mandatory immediate pass synchronously first (ADR-008), then
         starts the periodic loop as a background task."""
         self.sweep()
         self._task = asyncio.create_task(self._run_periodic())

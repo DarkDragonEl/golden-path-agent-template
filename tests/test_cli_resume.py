@@ -4,7 +4,7 @@ Regression test for the fix that replaced a direct
 `graph.update_state(thread_config, {"approval_decision": decision})` call
 with a real `approval_client.decide_proposal` + `resolve_and_resume`
 sequence -- the same one `agent/api.py`'s `/resume` endpoint uses. The
-old code was silently ignored by `agent/nodes/human_approval.py` (DEC-049:
+old code was silently ignored by `agent/nodes/human_approval.py` (ADR-001:
 a tool call is only ever authorized when `approved_action` is set, and
 that field is set only by `resolve_and_resume`), so a CLI `--decision
 approve` had the exact same effect as `--decision reject`.

@@ -11,7 +11,7 @@ instead of setting final_output.
 
 Caps how much of state["retrieved_docs"] actually reaches the model via
 config.REASONING_CONTEXT_TOP_K / config.REASONING_EXCERPT_CHARS (see
-agent/config.py's own comment on the Phase B4 finding that drives this
+agent/config.py's own comment on the finding that drives this
 cap) — the full retrieved set is left untouched in state for citation
 assembly. SRS-AGT-F-01: every corpus-derived claim needs a citation naming
 the source doc_id and version, which is why context is only ever injected

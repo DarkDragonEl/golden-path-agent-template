@@ -29,7 +29,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              policy-group.network.openshift.io/ingress: ""   # DEC-023
+              policy-group.network.openshift.io/ingress: ""   # ADR-019
               # (addendum): standard OpenShift SDN/OVN "traffic from the
               # router" convention. STILL OPEN -- VERIFY against this
               # specific cluster live (oc get namespace openshift-ingress

@@ -17,9 +17,9 @@ spec:
       serviceAccountName: ${{ values.name }}
       containers:
         - name: mcp
-          # Phase G, Stage 2 (DEC-098/DEC-099): the Tools Template's own
-          # independently-built/promoted image -- this repo's sole
-          # deployable, no positional-arg role dispatch.
+          # The Tools Template's own independently-built/promoted image
+          # -- this repo's sole deployable, no positional-arg role
+          # dispatch.
           image: ${{ values.name }}
           ports:
             - name: http

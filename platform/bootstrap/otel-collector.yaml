@@ -1,7 +1,8 @@
-# DEC-068: cluster-tier OTel Collector, a plain Deployment (same pinned
+# ADR-020: cluster-tier OTel Collector, a plain Deployment (same pinned
 # image the local-dev collector uses) rather than the
 # opentelemetry-operator route -- avoids a second operator install
-# risking the same shared-catalog blocker class as DEC-055/DEC-056.
+# risking the same class of shared-catalog blocker seen elsewhere in
+# this project.
 #
 # Exporters: `debug` (live `oc logs` visibility during a demo) AND
 # `file` (JSON Lines to an emptyDir volume) together -- `file` is what
@@ -83,13 +84,12 @@ spec:
               mountPath: /etc/otel
             - name: traces
               mountPath: /var/otel
-        # DEC-068: the upstream collector image is fully distroless -- no
+        # ADR-020: the upstream collector image is fully distroless -- no
         # shell, no `tar`, nothing `oc exec`/`oc cp` can read the file
         # exporter's output. This sidecar shares the `traces` emptyDir
         # and serves it over plain HTTP for tools/query_traces.py.
         - name: traces-http
-          # DEC-119 (not DEC-085, a prior mis-citation corrected there):
-          # the original pin reused this project's own CI ImageStream
+          # ADR-020: the original pin reused this project's own CI ImageStream
           # image, which prunes old digests by design -- the pinned digest
           # got pruned, causing a 12h+ ImagePullBackOff that starved the
           # whole collector Service (both containers must be Ready).
@@ -97,10 +97,10 @@ spec:
           # no relationship to this project's CI/promotion lifecycle, so
           # this failure class cannot recur.
           image: registry.access.redhat.com/ubi9/python-312-minimal@sha256:813ff135a87941ab1417b50c8db68a84ee40a8fc484c87f8a80458d3cafe74b1
-          # DEC-068: port 19999, not 8888 -- confirmed live that something
+          # ADR-020: port 19999, not 8888 -- confirmed live that something
           # in this cluster's networking layer already occupies 8888 in
-          # every pod's network namespace. Not investigated further, same
-          # posture as DEC-034/DEC-051's own accepted quirks.
+          # every pod's network namespace. Not investigated further,
+          # consistent with other accepted quirks in this environment.
           command: ["python3", "-m", "http.server", "19999", "--bind", "0.0.0.0", "--directory", "/var/otel"]
           ports:
             - name: traces-http

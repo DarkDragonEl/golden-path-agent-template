@@ -1,19 +1,18 @@
 """Single-shot local invocation for dev convenience.
 
-Runs the whole invoke -> (pause) -> approve/reject -> resume sequence in
-ONE process, so it needs no server. Unlike agent/api.py (where `_graph` is
-built once and reused across requests, so state genuinely persists between
-an /invoke and a later /approvals/.../resume call), this builds a fresh
-in-memory checkpointer every run — there is no cross-invocation resume
-mode here. For the real cross-request approval flow, run the actual
-server (scripts/dev.sh / make up) and call
-POST /approvals/{session_id}/resume against it.
+Runs invoke -> (pause) -> approve/reject -> resume in ONE process, but
+NOT network-free: a `--write` query still submits a real proposal via
+approval_client.submit_proposal, so the approval service's own endpoint
+must be reachable. Fresh in-memory checkpointer per run (no cross-*process*
+resume); `--decision` round-trips through the real approval service via
+approval_client.resolve_and_resume, never trusting local state.
 """
 
 import argparse
 import json
 import sys
 
+from . import approval_client
 from .graph import build_graph
 
 
@@ -57,8 +56,9 @@ def main():
                     file=sys.stderr,
                 )
                 decision = "reject"
-        graph.update_state(thread_config, {"approval_decision": decision})
-        result = graph.invoke(None, thread_config)
+        proposal_id = graph.get_state(thread_config).values["proposal_id"]
+        approval_client.decide_proposal(proposal_id, decision)
+        result = approval_client.resolve_and_resume(graph, thread_config)
 
     print(json.dumps(result, indent=2, default=str))
 

@@ -1,5 +1,5 @@
-"""R4/DEC-020: agent/telemetry.py::record_invocation_span. Central concern
-mirrors eval/domain_scorer.py's own DEC-009 fix -- state["model_calls"]
+"""agent/telemetry.py::record_invocation_span. Central concern
+mirrors eval/domain_scorer.py's own routing fix -- state["model_calls"]
 (a list, not the last-write-wins model_route/model_route_reason_code
 scalars) must be the source of truth for per-call route telemetry, so a
 routing failure on `decide` isn't silently hidden once `generate` writes
@@ -69,9 +69,9 @@ def test_every_model_call_gets_its_own_event_not_just_the_last():
 
 
 def test_model_call_event_carries_response_model():
-    # Post-Checkpoint-C backlog item 1 (model-identity capture): the
-    # backend's own reported model identity must be visible per call, not
-    # just the requested config.MODEL_NAME -- same "one event per call"
+    # model-identity capture: the backend's own reported model identity
+    # must be visible per call, not just the requested config.MODEL_NAME
+    # -- same "one event per call"
     # requirement as route/reason_code above.
     state = _state(
         model_calls=[

@@ -1,4 +1,4 @@
-"""Phase D2 -- mcp_server/auth.py's get_authenticated_caller: identity+
+"""Tests mcp_server/auth.py's get_authenticated_caller: identity+
 audience validation only (no role concept for MCP tool calls). Mirrors
 tests/test_approval_service.py's own JWKS-fixture pattern (RSA keypair,
 hand-built fake JWKS client) so these tests need no live IdP.

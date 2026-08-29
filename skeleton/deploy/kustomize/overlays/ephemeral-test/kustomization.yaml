@@ -3,56 +3,50 @@ kind: Kustomization
 
 namespace: ${{ values.name }}-ephemeral-test
 
-# DECISIONS.md DEC-031: namespace.yaml is intentionally not a managed
-# resource here anymore (DEC-024's own design, only now actually
-# implemented) -- the Namespace is bootstrapped once, out-of-band
+# namespace.yaml is intentionally not a managed resource here -- the
+# Namespace is bootstrapped once, out-of-band
 # (pipelines/bootstrap/namespaces.yaml), and this project's pipeline
 # ServiceAccount has no RBAC to manage Namespace objects at all
-# (deliberately, no cluster-scoped grant). Confirmed live: applying/
-# deleting a rendered manifest that still included the Namespace object
-# hit "cannot get/delete resource namespaces" on every deploy-ephemeral/
+# (deliberately, no cluster-scoped grant): applying/deleting a rendered
+# manifest that still included the Namespace object hits "cannot
+# get/delete resource namespaces" on every deploy-ephemeral/
 # destroy-ephemeral run. The file itself (namespace.yaml) is kept in this
 # directory as documentation of the namespace's own metadata, just no
 # longer referenced from `resources:`.
 resources:
   - ../../base
-  # Phase G, Stage 2 (DEC-098/DEC-099): approval is no longer co-deployed
-  # by this repo at all -- it's a shared Platform Foundation singleton,
-  # consumed via approvalServiceEndpoint config only. Nothing here needs
-  # to provision or override its own ConfigMap anymore.
+  # approval is no longer co-deployed by this repo at all -- it's a
+  # shared Platform Foundation singleton, consumed via
+  # approvalServiceEndpoint config only. Nothing here needs to provision
+  # or override its own ConfigMap anymore.
 
 configMapGenerator:
   - name: ${{ values.name }}-config
     behavior: merge
     literals:
       - MODEL_API_BASE_URL=http://dev-model-endpoint.example.com/v1 # TODO(platform): real dev model endpoint
-      - MODEL_NAME=placeholder-model # DEC-031: declared here (even though
-        # it equals base's own default) so `kustomize edit set configmap`
+      - MODEL_NAME=placeholder-model # declared here (even though it
+        # equals base's own default) so `kustomize edit set configmap`
         # has an existing literal to override at apply-time -- that
         # command can only update a key already present in this file, not
-        # any key in the merged/generated ConfigMap overall. Confirmed by
-        # reproducing the failure locally before trusting the live fix:
-        # "key 'MODEL_NAME' not found in resource".
+        # any key in the merged/generated ConfigMap overall.
       - MODEL_FALLBACK_API_BASE_URL=http://dev-model-endpoint.example.com/v1 # TODO(platform): real fallback model endpoint
-      - MODEL_FALLBACK_NAME=placeholder-fallback-model # DEC-035: same
+      - MODEL_FALLBACK_NAME=placeholder-fallback-model # same
         # pre-existing-literal requirement as MODEL_NAME above, for the
-        # same kustomize edit set configmap constraint -- fallback route
-        # was never wired into the K8s-deployed config path at all before
-        # DEC-035; SysR-P-F-12/CLAUDE.md's "one model route + one
-        # fallback" is a hard scope requirement.
+        # same kustomize edit set configmap constraint --
+        # SysR-P-F-12/CLAUDE.md's "one model route + one fallback" is a
+        # hard scope requirement.
       - DATA_SOURCE_BINDING=synthetic
       - APPROVAL_MODE=required
-      # Phase G, Stage 2 (DEC-098/DEC-099): MCP_MODE=mock deliberately NOT
-      # set here anymore -- this repo's split agent image never bundles
-      # server.py, so a mock override would ImportError, the exact
-      # DEC-096/DEC-101 class of bug G2 already found and fixed live for
-      # the non-templated project. The image's own Containerfile ENV
-      # (MCP_MODE=live) is the only value that may ever apply; a real
-      # configMapGenerator literal here would win over that image default
-      # (pod-spec env beats image ENV) and silently reintroduce the bug.
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318 # DEC-071:
-        # the cluster-tier collector (DEC-068), reachable cross-namespace --
-        # same internal Service DNS pattern as OIDC_ISSUER_URL/MCP_TOOL_ENDPOINT.
+      # MCP_MODE=mock deliberately NOT set here -- this repo's split
+      # agent image never bundles server.py, so a mock override would
+      # ImportError. The image's own Containerfile ENV (MCP_MODE=live) is
+      # the only value that may ever apply; a real configMapGenerator
+      # literal here would win over that image default (pod-spec env
+      # beats image ENV) and silently reintroduce the bug.
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318 # the
+        # cluster-tier collector, reachable cross-namespace -- same
+        # internal Service DNS pattern as OIDC_ISSUER_URL/MCP_TOOL_ENDPOINT.
 
 replicas:
   - name: ${{ values.name }}

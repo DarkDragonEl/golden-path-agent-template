@@ -308,7 +308,7 @@ def test_eval_case_prefix_set_derived_from_real_ids():
 def test_eval_case_ref_regex_matches_bare_and_range_but_not_unrelated_prefixes():
     prefixes = {"KQA", "OPS"}
     regex = trace_check.build_eval_case_ref_regex(prefixes)
-    text = "See KQA-001..015 and OPS-004, but not PLAT-001 or DEC-001 or SysR-P-OPS-02."
+    text = "See KQA-001..015 and OPS-004, but not PLAT-001 or XYZ-001 or SysR-P-OPS-02."
     matches = [(m.group(1), m.group(2), m.group(3)) for m in regex.finditer(text)]
     # Exact match set, not just "every matched prefix is KQA/OPS" — that
     # weaker assertion would not have caught the SysR-P-OPS-02 substring
@@ -367,7 +367,7 @@ def test_find_eval_case_refs_near_paths_ignores_unrelated_tokens_further_in_pros
     text = (
         "Evidence: `eval/cases/domain/draft_request.yaml` (DRQ-001..006) — "
         "consistent with, not a substitute for, a component-level test of "
-        "SRS-APR-F-02/F-04 in isolation, per DEC-001 and INC-10234."
+        "SRS-APR-F-02/F-04 in isolation, per XYZ-001 and INC-10234."
     )
     refs = trace_check.find_eval_case_refs_near_paths(text)
     assert [(r["prefix"], r["n1"], r["n2"]) for r in refs] == [("DRQ", "001", "006")]
@@ -564,7 +564,7 @@ def test_check_c_pass_when_clean():
 
 # ---------------------------------------------------------------------------
 # Check (d): SRS-F -> test/eval coverage (logic tested directly, unreachable
-# via the CLI in --docs-only mode today, per MISSION_PHASE_B0.md).
+# via the CLI in --docs-only mode today).
 # ---------------------------------------------------------------------------
 
 
@@ -631,7 +631,7 @@ def test_real_tests_own_test_file_contributes_no_spurious_verifies_ids():
     against the REAL repository, not just an isolated fixture: once check
     (d) is invoked without --docs-only, find_py_files() sweeps
     tools/trace-check's own tests/test_trace_check.py (it lives under
-    tests/, exactly like every real Phase B test will). This file's own
+    tests/, exactly like every test file added to this suite will). This file's own
     fixture data for test_parse_verifies_comments_filters_to_f_category_only
     and test_parse_verifies_comments_ignores_ids_inside_string_literals
     exercises the '# verifies: ...' convention as *sample input* inside
@@ -654,12 +654,12 @@ def test_real_tests_own_test_file_contributes_no_spurious_verifies_ids():
     for f in py_files:
         verified.update(trace_check.parse_verifies_comments(f.read_text(encoding="utf-8")))
 
-    # Phase B has not started; no real test file anywhere in tests/
-    # (this one included) has yet written a genuine '# verifies:'
-    # comment referencing a real SRS-*-F-* id.
+    # No real test file anywhere in tests/ (this one included) has yet
+    # written a genuine '# verifies:' comment referencing a real
+    # SRS-*-F-* id.
     assert verified == set(), (
-        f"expected zero real '# verifies:' comments across tests/ before "
-        f"Phase B begins, found: {sorted(verified)}"
+        f"expected zero real '# verifies:' comments across tests/ so far, "
+        f"found: {sorted(verified)}"
     )
 
 
@@ -675,12 +675,12 @@ def test_real_syrs_and_strs_id_counts_match_documents_own_claims():
     29 total StRs). Both are independently verified here against the real
     documents' own bold-definition markup, not hardcoded from any prompt.
 
-    Relocated into srs/ during the J2/I1 reference-implementation reframe
-    (DEC-130): these two documents used to live one directory above this
-    repo's own root (DEC-026's original reasoning -- shared workspace
-    governance, not duplicated into the repo); the STOP J-1 placement
-    decision moved StRS/SyRS/Annex_A/RRT into srs/ instead, since
-    anonymized requirements are product and a reader must be able to open
+    Relocated into srs/ during the J2/I1 reference-implementation reframe:
+    these two documents used to live one directory above this repo's own
+    root (originally for shared-workspace governance reasons, not
+    duplicated into the repo); placement was later revisited and
+    StRS/SyRS/Annex_A/RRT moved into srs/ instead, since anonymized
+    requirements are product and a reader must be able to open
     the parent alongside the derived SRS documents. Skips (not fails)
     when the files aren't present, preserving the original portability
     guarantee for any checkout where srs/ itself is pruned.
@@ -705,11 +705,10 @@ def test_real_srs_documents_parse_without_error_and_match_known_counts():
     development: 25+20+13+6+11 = 75 total bold SRS definitions across the
     five documents, with srs/SRS-MIT.md (interface-only, no section 7)
     among them, proving the parser handles that structural difference.
-    SRS-APR.md's count moved from 18 to 19 at Checkpoint B0-b, when
+    SRS-APR.md's count moved from 18 to 19 when
     SRS-APR-IF-05 (terminal-state proposal query) was added to close
-    FIND-004 (DECISIONS.md DEC-008); and from 19 to 20 at Phase G kickoff
-    (G0), when SRS-APR-QUAL-02 (held, never auto-approved, on shared-
-    service unavailability) was added (DECISIONS.md DEC-098).
+    FIND-004 (ADR-001); and from 19 to 20 when SRS-APR-QUAL-02 (held,
+    never auto-approved, on shared-service unavailability) was added.
     """
     repo_root = Path(__file__).resolve().parent.parent
     srs_dir = repo_root / "srs"
@@ -735,7 +734,7 @@ def test_real_srs_documents_parse_without_error_and_match_known_counts():
 
 
 def test_real_deferred_md_absent_yields_empty_deferred_set():
-    """srs/DEFERRED.md does not exist yet at this point in Phase B0 (the
+    """srs/DEFERRED.md does not exist yet at this point (the
     orchestrator populates it after this tool exists) — confirms the
     documented 'treat as empty, do not error, do not create the file'
     contract against the real repository state.

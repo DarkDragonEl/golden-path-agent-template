@@ -1,11 +1,11 @@
-# Phase C, Step C1b/C1c (DECISIONS.md DEC-026). Template for triggering
-# ${{ values.name }}-ci (pipeline.yaml) -- `generateName`, not `name`,
-# since every real trigger creates a new PipelineRun.
-# `taskRunTemplate.serviceAccountName` is the least-privilege identity
-# from pipelines/bootstrap/rbac.yaml -- every Task step in this run
-# executes as that ServiceAccount, nothing broader.
+# Template for triggering ${{ values.name }}-ci (pipeline.yaml) --
+# `generateName`, not `name`, since every real trigger creates a new
+# PipelineRun. `taskRunTemplate.serviceAccountName` is the
+# least-privilege identity from pipelines/bootstrap/rbac.yaml -- every
+# Task step in this run executes as that ServiceAccount, nothing
+# broader.
 #
-# DEC-026: this field lives under spec.taskRunTemplate in the tekton.dev/v1
+# This field lives under spec.taskRunTemplate in the tekton.dev/v1
 # API this cluster runs (confirmed via `oc explain pipelinerun.spec` --
 # there is no top-level spec.serviceAccountName at all). A first real run
 # with the field misplaced at spec.serviceAccountName (an older/incorrect

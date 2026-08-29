@@ -1,5 +1,5 @@
-"""R4/DEC-020: agent/telemetry.py::record_invocation_span. Central concern
-mirrors eval/domain_scorer.py's own DEC-009 fix -- state["model_calls"]
+"""R4/ADR-006: agent/telemetry.py::record_invocation_span. Central concern
+mirrors eval/domain_scorer.py's own ADR-002 fix -- state["model_calls"]
 (a list, not the last-write-wins model_route/model_route_reason_code
 scalars) must be the source of truth for per-call route telemetry, so a
 routing failure on `decide` isn't silently hidden once `generate` writes

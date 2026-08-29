@@ -1,8 +1,5 @@
-"""Post-Checkpoint-C backlog item 3 (DECISIONS.md DEC-035, scope extended
-to placeholder detection at the Checkpoint C closure review, and to
-demo-prod's own security-downgrade-switch assertion plus
-`approval_service/config.py`'s own key completeness at the D2 cutover,
-DEC-063).
+"""Config-contract checks: catch a deployment surface that silently drifts
+from what the code actually requires.
 
 Four independent checks, run together, no cluster access needed:
 
@@ -10,30 +7,26 @@ Four independent checks, run together, no cluster access needed:
    `_env(name)` call with no default argument at all -- for these, an
    absent deployment surface isn't "wrong but running," it's silently
    `None`. Extracted directly from `agent/config.py`'s own source (AST,
-   not a hand-maintained list -- DEC-035's own pattern note: a
-   hand-maintained list is exactly what went stale twice already), this
+   not a hand-maintained list -- a hand-maintained list goes stale), this
    check verifies every such key is either declared (as a literal, any
    value) by every deployment surface below, or named on
    `KNOWN_SECRET_SHADOWED` with a stated reason.
 
 2. PLACEHOLDER DETECTION. `deploy/argocd/apps/*.yaml` names exactly which
    overlay paths a GitOps-synced `Application` consumes precisely as
-   committed (no pipeline injection step exists for these -- DEC-042's
-   `REGISTRY_PLACEHOLDER` finding). Every manifest under those overlay
-   paths, plus `deploy/kustomize/base/` (which every overlay builds on),
-   is scanned for placeholder-shaped values (`REPLACE_WITH_*`,
-   `*_PLACEHOLDER`). Any match not named on `KNOWN_PLACEHOLDERS` with a
-   stated reason is a finding.
+   committed (no pipeline injection step exists for these). Every
+   manifest under those overlay paths, plus `deploy/kustomize/base/`
+   (which every overlay builds on), is scanned for placeholder-shaped
+   values (`REPLACE_WITH_*`, `*_PLACEHOLDER`). Any match not named on
+   `KNOWN_PLACEHOLDERS` with a stated reason is a finding.
 
 3. APPROVAL-SERVICE KEY COMPLETENESS. The same check as (1), against
    `approval_service/config.py`'s own no-default keys and
-   `configmap-approval.yaml` -- a separate config module this checker
-   never scanned before D2, since `agent/config.py` was the only one that
-   existed when this check was first built (DEC-035). Found live: with
-   `AUTH_MODE` at `"none"` throughout D1, `OIDC_ISSUER_URL`/`OIDC_AUDIENCE`
-   went completely undeclared with nothing to catch it -- exactly the
-   kind of gap this checker exists to prevent, closed here rather than
-   left as the same class of blind spot for a second config module.
+   `configmap-approval.yaml` -- a separate config module from
+   `agent/config.py`. With `AUTH_MODE` at `"none"` during local
+   development, `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` can go completely
+   undeclared with nothing to catch it -- exactly the kind of gap this
+   checker exists to prevent.
 
 4. DEMO-PROD SECURITY-DOWNGRADE-SWITCH ASSERTION. `AGENT_OIDC_MODE`,
    `MCP_AUTH_MODE`, and the approval service's own `AUTH_MODE` each
@@ -43,7 +36,7 @@ Four independent checks, run together, no cluster access needed:
    committed default, with demo-prod's own `configMapGenerator` override
    applied on top, the same `behavior: merge` semantics Kustomize itself
    uses) and asserts it is the secure value -- mechanically, not by
-   convention (DECISIONS.md DEC-046 owner-addition #1 / DEC-063).
+   convention.
 
 Both allow-lists use the same named/dated/rationale-carrying convention
 already established elsewhere in this repo (`eval/cli.py::KNOWN_GAP_TOLERANCES`,
@@ -78,18 +71,17 @@ KNOWN_SECRET_SHADOWED = {
         "demo-prod is ArgoCD-synced with selfHeal: true -- no apply-time "
         "injection point exists (unlike ephemeral-test's pipeline Task), "
         "so the real value comes from a third ${{ values.name }}-secrets "
-        "copy instead, shadowing the ConfigMap via envFrom ordering. "
-        "DECISIONS.md DEC-039, docs/phase-c-runbook.md section 2."
+        "copy instead, shadowing the ConfigMap via envFrom ordering."
     ),
     ("demo-prod", "MODEL_FALLBACK_NAME"): (
         "Same mechanism and reason as MODEL_FALLBACK_API_BASE_URL above."
     ),
     ("demo-prod", "APPROVAL_OIDC_CLIENT_SECRET"): (
-        "DECISIONS.md DEC-062: base/configmap.yaml declares a safe "
+        "base/configmap.yaml declares a safe "
         "'not-needed' placeholder (satisfies completeness everywhere); "
         "demo-prod's real value comes from ${{ values.name }}-secrets "
         "instead, provisioned by pipelines/bootstrap/provision-identity-"
-        "secrets.sh (DEC-059) -- same shadowing mechanism as "
+        "secrets.sh -- same shadowing mechanism as "
         "MODEL_FALLBACK_API_BASE_URL above, documented here for the "
         "identical reason even though base's own placeholder already "
         "satisfies the completeness check on its own."
@@ -136,9 +128,9 @@ def _extract_no_default_env_keys(config_py: Path = CONFIG_PY) -> set[str]:
     fallback at all. `_env_int`/`_env_str` always take a hard_default
     (3rd positional), so they're structurally excluded from this class.
     Defaults to `agent/config.py`; `approval_service/config.py` has its
-    own, separate check (DEC-063 -- it went unscanned through all of D1,
-    since AUTH_MODE stayed "none" the whole time and the gap never
-    surfaced)."""
+    own, separate check -- needed because with AUTH_MODE staying "none"
+    by default, an undeclared key there can go unnoticed unless scanned
+    on its own."""
     tree = ast.parse(config_py.read_text())
     keys = set()
     for node in ast.walk(tree):
@@ -223,14 +215,11 @@ def check_key_completeness() -> list[str]:
 
 
 def check_approval_service_key_completeness() -> list[str]:
-    """DEC-063: `approval_service/config.py`'s own no-default keys,
+    """`approval_service/config.py`'s own no-default keys,
     checked the same way `check_key_completeness()` checks `agent/config.py`'s
     -- against `configmap-approval.yaml` (base + every overlay) only, not
     `.env.example`/`scripts/dev.sh` (`approval_service` isn't part of that
-    local-dev flow, unlike `agent`/`mcp_server`). Found live while wiring
-    the D2 cutover: `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` had gone completely
-    unscanned through all of D1, since `AUTH_MODE` stayed `"none"` the
-    whole time and nothing ever exercised the gap."""
+    local-dev flow, unlike `agent`/`mcp_server`)."""
     required = _extract_no_default_env_keys(APPROVAL_CONFIG_PY)
     problems = []
 
@@ -240,8 +229,7 @@ def check_approval_service_key_completeness() -> list[str]:
     if not base_declared:
         # base/kustomization.yaml doesn't use a configMapGenerator for this
         # ConfigMap -- it's a plain resource file (configmap-approval.yaml)
-        # instead, per DEC-045's own shape. Read its literal `data:` keys
-        # directly in that case.
+        # instead. Read its literal `data:` keys directly in that case.
         base_declared = set(
             yaml.safe_load((KUSTOMIZE_BASE / "configmap-approval.yaml").read_text())["data"].keys()
         )
@@ -302,11 +290,11 @@ def check_placeholder_values() -> list[str]:
 
 
 # --- Check 3: demo-prod's own security-downgrade-switch assertion ------
-# DECISIONS.md DEC-046 owner-addition #1 / DEC-063: these three switches
-# each have a safe-but-insecure default (needed so D1/D2 could be built
-# and tested before their real dependencies -- OIDC/Keycloak -- existed),
-# and each is exactly the kind of thing that is easy to leave un-flipped
-# by accident once it does. Mechanical, not conventional: this asserts
+# These three switches each have a safe-but-insecure default (needed so
+# the platform can be built and tested before their real dependencies --
+# OIDC/Keycloak -- exist), and each is exactly the kind of thing that is
+# easy to leave un-flipped by accident once it does. Mechanical, not
+# conventional: this asserts
 # demo-prod's own EFFECTIVE, merged config (base's committed default,
 # with demo-prod's own configMapGenerator override applied on top, the
 # same `behavior: merge` semantics Kustomize itself uses) has the secure
@@ -346,7 +334,7 @@ def check_demo_prod_security_downgrade_switches() -> list[str]:
             problems.append(
                 f"demo-prod's effective {configmap_name}.{key} is {effective!r}, "
                 f"expected {required_value!r} -- a security-relevant downgrade switch "
-                f"left un-flipped (DECISIONS.md DEC-046/DEC-063)"
+                f"left un-flipped"
             )
     return problems
 

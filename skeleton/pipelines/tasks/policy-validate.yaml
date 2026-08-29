@@ -1,21 +1,19 @@
-# Phase C, Step C1b (DECISIONS.md DEC-025), extended post-Checkpoint-C
-# (DEC-043/DEC-044). SysR-P-F-11 -- the CI pipeline validates policy
-# bundles and the config contract. Three checks, deliberately kept
-# separate steps where opa and python don't share one container image:
+# SysR-P-F-11 -- the CI pipeline validates policy bundles and the
+# config contract. Three checks, deliberately kept separate steps where
+# opa and python don't share one container image:
 #   1. opa test policy/opa/ -- the policy-definition unit tests themselves
 #      (proves the rego's own internal logic, including the fail-closed
 #      deny path, is correct).
 #   2. tools/check_policy_sync.py -- proves policy/approval_rules.yaml (the
 #      actual runtime source of truth) and policy/opa/approval_policy.rego
-#      (the hand-maintained mirror) have not drifted apart. Added per the
-#      owner's explicit note on DEC-023's review: the rego mirror's
-#      "kept in sync by hand" discipline needed to become an enforced
-#      invariant, not just a documented hope.
-#   3. tools/check_config_contract.py -- the DEC-035/DEC-042 pattern (a
-#      deployment surface silently missing a required key, or a GitOps-
-#      synced environment consuming an unresolved placeholder value)
-#      turned into an enforced invariant the same way check 2 already did
-#      for the policy/rego drift class -- post-Checkpoint-C backlog item 3.
+#      (the hand-maintained mirror) have not drifted apart. The rego
+#      mirror's "kept in sync by hand" discipline needs to be an
+#      enforced invariant, not just a documented hope.
+#   3. tools/check_config_contract.py -- catches a deployment surface
+#      silently missing a required key, or a GitOps-synced environment
+#      consuming an unresolved placeholder value, turned into an
+#      enforced invariant the same way check 2 already does for the
+#      policy/rego drift class.
 # None of the three is a live enforcement point -- agent/policy.py stays
 # the sole Policy Decision Point at request time (see
 # approval_policy.rego's own header).
@@ -56,7 +54,7 @@ spec:
       image: docker.io/library/python:3.12-slim
       workingDir: $(workspaces.source.path)
       env:
-        # DEC-027: pip install needs a writable $HOME under this project's
+        # pip install needs a writable $HOME under this project's
         # restricted-v2-SCC identity -- see unit-tests.yaml's fuller note.
         - name: HOME
           value: /tmp

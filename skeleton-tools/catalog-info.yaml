@@ -1,4 +1,4 @@
-# Phase G, Stage 2 (DEC-098/DEC-099). Registers this scaffolded Tools
+# Registers this scaffolded Tools
 # Template instance as its own catalog Component, plus the tool contract
 # it exposes as a catalog API -- an Agent Template instance's own
 # catalog-info.yaml (see the sibling Agent Template's output)

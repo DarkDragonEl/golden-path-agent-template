@@ -1,8 +1,8 @@
-# Phase C, Step C1b. SysR-P-F-05(4): a live kill-primary fallback
-# trigger, mirroring DEC-020's manual demo, automated against the real
+# SysR-P-F-05(4): a live kill-primary fallback
+# trigger, mirroring ADR-006's manual demo, automated against the real
 # cluster. Checks fallback behavior functionally, not via an exported
 # OTel trace (the cluster-tier Collector isn't wired into ephemeral-test
-# yet -- a named, tracked gap, DEC-025).
+# yet -- a named, tracked gap, ADR-018).
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -32,7 +32,7 @@ spec:
         # silently drops kustomize's commonLabels-injected keys the
         # NetworkPolicy selector needs). component=agent-fallback-demo,
         # deliberately NOT component=agent -- avoids ReplicaSet adoption
-        # by the standing agent Deployment's own selector (DEC-101).
+        # by the standing agent Deployment's own selector (ADR-011).
         oc get deployment golden-path-agent -n "$NS" -o json \
           | python3 -c "
         import json, sys
@@ -60,7 +60,7 @@ spec:
         oc rollout status deployment/"$NAME" -n "$NS" --timeout=180s
         POD=$(oc get pod -n "$NS" -l app.kubernetes.io/instance="$NAME" -o jsonpath='{.items[0].metadata.name}')
 
-        # DEC-034: python3/urllib inside the pod via stdin, not curl --
+        # ADR-019: python3/urllib inside the pod via stdin, not curl --
         # same reason as security-tests.yaml's own fix (the agent's own
         # image has no curl at all, confirmed live).
         oc exec -i -n "$NS" "$POD" -- python3 - <<'PYEOF' > /tmp/resp.json
@@ -106,11 +106,11 @@ spec:
         NS=golden-path-agent-ephemeral-test
         NAME=golden-path-agent-mcp-unreachable-demo
 
-        # DEC-105's own network-fault complement, proven live here: a
+        # ADR-014's own network-fault complement, proven live here: a
         # genuine network fault (unreachable DNS, real connection
         # failure), not simulated -- same isolated throwaway-clone +
         # merge-not-replace label pattern as kill-primary-fallback-check
-        # above (DEC-101), never touching the standing deployment other
+        # above (ADR-011), never touching the standing deployment other
         # stages still depend on.
         oc get deployment golden-path-agent -n "$NS" -o json \
           | python3 -c "

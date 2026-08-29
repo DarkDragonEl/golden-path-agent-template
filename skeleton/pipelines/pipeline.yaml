@@ -1,6 +1,5 @@
-# Phase C, Step C1b (DECISIONS.md DEC-025). Realizes the accepted plan's
-# C1 stage sequence as a real Tekton Pipeline. Fan-out where stages are
-# independent (unit-tests/eval-gate-offline/policy-validate all only need
+# This Pipeline fans out where stages are independent
+# (unit-tests/eval-gate-offline/policy-validate all only need
 # the checkout; eval-gate-live/security-tests/operational-tests all only
 # need the ephemeral deployment) -- Tekton's default DAG semantics already
 # mean open-promotion-pr only runs if every upstream task succeeded, and
@@ -51,13 +50,12 @@ spec:
       workspaces: [{ name: source, workspace: source }]
 
     - name: container-build
-      # DEC-030: references the OpenShift Pipelines operator's own
-      # pre-built buildah Task (openshift-pipelines namespace) via the
-      # cluster resolver, in place of the custom Task this Pipeline
-      # originally defined -- see pipelines/bootstrap/rbac.yaml's
-      # pipelines-scc RoleBinding for why, and DEC-030 for the full
-      # investigation. Not an external Tekton Hub bundle fetch: `cluster`
-      # resolves a Task object already installed on this cluster by the
+      # References the OpenShift Pipelines operator's own pre-built
+      # buildah Task (openshift-pipelines namespace) via the cluster
+      # resolver, in place of a custom Task -- see
+      # pipelines/bootstrap/rbac.yaml's pipelines-scc RoleBinding for
+      # why. Not an external Tekton Hub bundle fetch: `cluster` resolves
+      # a Task object already installed on this cluster by the
       # operator, no network fetch, no version-pin-chasing.
       taskRef:
         resolver: cluster
@@ -77,10 +75,10 @@ spec:
       taskRef: { name: digest-capture }
       runAfter: [container-build]
       params:
-        # DEC-031: no namespace prefix -- digest-capture's own TaskRun
-        # already executes in ${{ values.name }}-ci (where the ImageStream
-        # lives); `oc get imagestreamtag "ns/name:tag"` was live-confirmed
-        # NOT equivalent to `-n ns imagestreamtag name:tag` -- it triggers
+        # No namespace prefix -- digest-capture's own TaskRun already
+        # executes in ${{ values.name }}-ci (where the ImageStream
+        # lives); `oc get imagestreamtag "ns/name:tag"` is NOT
+        # equivalent to `-n ns imagestreamtag name:tag` -- it triggers
         # "there is no need to specify a resource type as a separate
         # argument..." instead of resolving cross-namespace.
         - name: imagestream-tag

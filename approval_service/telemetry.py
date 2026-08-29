@@ -1,4 +1,4 @@
-"""OpenTelemetry tracing for approval_service (DEC-071). Mirrors
+"""OpenTelemetry tracing for approval_service (ADR-006). Mirrors
 agent/telemetry.py's init/tracer pattern exactly -- same safe-no-op
 behavior when the endpoint is unset, same OTLP/HTTP exporter, same
 explicit /v1/traces suffix (see agent/telemetry.py for why the suffix
@@ -32,9 +32,9 @@ def get_tracer():
 
 
 def record_transition_span(event: str, record: dict, span=None) -> None:
-    """Phase D4's own attribute-correlation mechanism (the plan doc's D4
-    section, adopted over real trace-context propagation across the async
-    approval gap): session.id/proposal.id, the same attribute names
+    """The attribute-correlation mechanism adopted over real
+    trace-context propagation across the async approval gap:
+    session.id/proposal.id, the same attribute names
     agent/telemetry.py's own record_invocation_span uses -- a query joins
     across both services by those two values alone, not by trace id
     (each process's own span tree is independent; nothing here tries to

@@ -1,6 +1,6 @@
 """Loader for eval/cases/domain/*.yaml — distinct from eval/loader.py,
 which serves the EXAMPLE-*.yaml harness-mechanics fixtures only (kept
-untouched per DECISIONS.md DEC-005). Each domain file is a YAML *list* of
+untouched). Each domain file is a YAML *list* of
 cases, matching eval/schema.json, not eval/loader.py's one-file-one-case
 shape.
 """

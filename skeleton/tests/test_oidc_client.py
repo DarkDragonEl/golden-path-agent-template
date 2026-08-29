@@ -1,4 +1,4 @@
-"""Phase D2 -- agent/oidc_client.py's caching behavior: fetch on miss,
+"""agent/oidc_client.py's caching behavior: fetch on miss,
 serve from cache while valid, refetch after expiry. time.monotonic() is
 monkeypatched to control the clock deterministically -- no sleeping."""
 

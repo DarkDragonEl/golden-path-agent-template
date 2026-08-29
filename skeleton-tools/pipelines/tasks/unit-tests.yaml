@@ -1,6 +1,6 @@
-# Phase C, Step C1b/C1c (DECISIONS.md DEC-027). SysR-P-F-05(1) software
-# tests. Same command a developer runs locally (make test / pytest -q) --
-# no CI-specific reinterpretation of what "tests pass" means.
+# SysR-P-F-05(1) software tests. Same command a developer runs locally
+# (make test / pytest -q) -- no CI-specific reinterpretation of what
+# "tests pass" means.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -16,30 +16,24 @@ spec:
       image: docker.io/library/python:3.12-slim
       workingDir: $(workspaces.source.path)
       env:
-        # DEC-027: under this project's own restricted-v2-SCC ServiceAccount
-        # (no anyuid grant, deliberately), the container runs as an
+        # Under this project's own restricted-v2-SCC ServiceAccount (no
+        # anyuid grant, deliberately), the container runs as an
         # arbitrary non-root UID with no /etc/passwd entry -- $HOME
         # defaults to "/", which pip's --user install target then can't
-        # write to ("Permission denied: '/.local'", confirmed live, first
-        # C1c run). /tmp is used deliberately over the originally-tried
-        # /tekton/home: /tmp is guaranteed world-writable by plain
-        # container/OS convention regardless of arbitrary UID, verified
-        # locally (podman, simulated non-root UID) before trusting it on a
-        # third cluster run -- /tekton/home's writability under this
-        # specific Tekton/SCC combination was an unverified assumption the
-        # first fix attempt would have carried forward untested.
+        # write to ("Permission denied: '/.local'"). /tmp is used
+        # deliberately over /tekton/home: /tmp is guaranteed
+        # world-writable by plain container/OS convention regardless of
+        # arbitrary UID, whereas /tekton/home's writability under this
+        # specific Tekton/SCC combination is not guaranteed.
         - name: HOME
           value: /tmp
       script: |
         #!/bin/sh
         set -eu
         pip install --no-cache-dir -q -r requirements.txt -r requirements-dev.txt
-        # DEC-028: HOME=/tmp above makes pip fall back to --user mode,
-        # installing scripts (including the pytest binary) to
-        # /tmp/.local/bin -- not on $PATH. python -m pytest finds the
-        # installed package via sys.path instead of relying on a PATH
-        # lookup, exactly like eval-gate-offline.yaml's python -m eval.cli
-        # already does -- confirmed live: that Task passed under the
-        # identical HOME=/tmp fix, this one didn't, because only this one
-        # invoked a script binary directly.
+        # HOME=/tmp above makes pip fall back to --user mode, installing
+        # scripts (including the pytest binary) to /tmp/.local/bin --
+        # not on $PATH. python -m pytest finds the installed package via
+        # sys.path instead of relying on a PATH lookup, exactly like
+        # eval-gate-offline.yaml's python -m eval.cli already does.
         python -m pytest -q

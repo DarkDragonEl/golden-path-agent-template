@@ -56,13 +56,13 @@ HARD_EXCLUDE_PREFIXES = (".claude/worktrees/", ".git/")
 PATTERNS = {
     "DEC": re.compile(r"DEC-\d{3}"),
     "OI": re.compile(r"OI-\d{2}"),
-    "PHASE": re.compile(r"Phase [A-H]\b"),
+    "PHASE": re.compile(r"Phase [A-H]\d?[a-z]?\b"),
     "STOP": re.compile(r"STOP \d"),
     "HANDOFF": re.compile(r"HANDOFF"),
     "WORKTREE": re.compile(r"worktree", re.IGNORECASE),
     "COORD_SESSION": re.compile(r"coordinating session"),
     "WAVE": re.compile(r"Wave [βγ]"),
-    "CHECKPOINT": re.compile(r"Checkpoint [A-Z]\d?[a-z]?\b"),
+    "CHECKPOINT": re.compile(r"Checkpoint (?:[A-Z]\d?[a-z]?|\d+)\b"),
     "MISSION": re.compile(r"MISSION_(UNATTENDED|PHASE)"),
     "STAGE": re.compile(r"Stage [1-4]\b"),
 }
@@ -73,19 +73,16 @@ KEEP_LIST_PATTERNS = {"OI"}
 # Exact (relative path, pattern name) -> dated reason. Populated by later
 # stages (e.g. I7) as specific occurrences are reviewed and accepted.
 ALLOWLIST_PATHS: dict[tuple[str, str], str] = {
-    ("docs/adr/ADR-022-skeleton-design.md", "HANDOFF"): (
-        "Documents the skeleton generator's real file-exclusion set "
-        "(DECISIONS.md, HANDOFF.md, PINS.md, reports/, srs/, phase docs "
-        "are excluded from every rendered project) -- an architectural "
-        "fact, not journal narrative. Narrow to this one file, not the "
-        "docs/adr/ prefix, so a future ADR that leaks real session-"
-        "handoff narrative still gets caught. -- I2, 2026-08-28."
+    ("eval/reporter.py", "WORKTREE"): (
+        "'worktree' here means a git worktree's clean/dirty state, the "
+        "input to _default_build_reference's commit-hash-vs-'local-dev-"
+        "uncommitted' choice -- a real, shipped build-reference mechanism "
+        "in this code, not build-session narrative about how this repo "
+        "itself was developed. -- I3, 2026-08-28."
     ),
-    ("docs/adr/index.md", "WORKTREE"): (
-        "Cites the literal slug name of a rejected ADR candidate "
-        "(worktree-isolation-single-governance-owner, DEC-099) for "
-        "traceability -- the word is part of a real decision's name, "
-        "not narrative about session worktree mechanics. -- I2, "
+    ("skeleton/eval/reporter.py", "WORKTREE"): (
+        "Same git-worktree-state meaning as the main-tree eval/reporter.py "
+        "entry above -- this file is its skeleton counterpart. -- I4, "
         "2026-08-28."
     ),
 }

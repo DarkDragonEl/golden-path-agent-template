@@ -1,9 +1,7 @@
 # Lean operational gate for the freshly-deployed MCP image, adapted for a
 # standalone Tools Template repo: there is no co-deployed agent pod in
-# this repo's own ephemeral-test namespace to call through (unlike the
-# combined-repo pipeline this pattern was originally proven in -- see
-# DEC-098/DEC-099's Stage-1 mcp-operational-test.yaml). Instead, this
-# Task creates two throwaway probe pods directly: one carrying the
+# this repo's own ephemeral-test namespace to call through. Instead,
+# this Task creates two throwaway probe pods directly: one carrying the
 # allowed-consumer's labels (per allowedConsumerName /
 # deploy/kustomize/base/networkpolicy.yaml), one without -- proving the
 # NetworkPolicy admits the former and blocks the latter, and exercising

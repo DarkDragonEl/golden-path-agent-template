@@ -1,8 +1,14 @@
-# DEC-093 (addendum): registers F1's catalog-info.yaml into RHDH's live
+# Registers F1's catalog-info.yaml into RHDH's live
 # catalog. backend.reading.allow guards against Backstage's own
 # UrlReader NotAllowedError -- any host not allow-listed is refused
 # regardless of the URL being public. Separate ConfigMap from
 # -oidc-config; its backend.* keys merge per-key-path, confirmed live.
+#
+# ${GITEA_HOST} is the cluster's own Gitea Route hostname,
+# resolved live at bootstrap (platform/bootstrap/provision-identity-
+# secrets.sh) via Backstage's own ${VAR} substitution -- an environment
+# hostname is config, never a committed value, same treatment as the
+# gitea/username/password fields below.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10,29 +16,29 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
 #
-# DEC-095: second location entry registers template.yaml -- a distinct
+# Second location entry registers template.yaml -- a distinct
 # entity kind (Template) needs integrations.github for fetch:template's
 # relative `url: ./skeleton` resolution, distinct from backend.reading.
 # allow's generic exact-URL guard.
 #
-# DEC-100 (addendum): third location entry additionally registers the
+# ADR-013 (addendum): third location entry additionally registers the
 # same Template from the internal Gitea mirror -- needs `integrations.
 # gitea`, not `integrations.github` (a first attempt guessed wrong).
 # Confirmed via `@backstage/integration`'s own `parseGiteaUrl` source
 # directly: expects `https://<host>/<owner>/<repo>/src/branch/<ref>/
 # <path>`. No token: public repo, unauthenticated reads only.
 #
-# DEC-102: three more locations register G5's platform catalog model
+# ADR-023: three more locations register G5's platform catalog model
 # (platform/catalog/{system,approval-service,model-routes}.yaml) --
 # same already-allow-listed host, no new config needed. Deliberately
 # NOT registered: skeleton/'s and skeleton-tools/' own catalog-info.yaml
 # templates, which are scaffolder output, not this repo's own entities.
 #
-# Phase G, Stage 3 (DEC-098/DEC-099/DEC-110/DEC-118, G6 Path A landing).
+# G6 Path A landing (ADR-013, ADR-021).
 # `username`/`password` added to the `gitea` integration -- read-only use
 # (above) needed neither; the real `template.yaml`'s new `publish:gitea`
 # step needs write access, and `getGiteaRequestOptions` (`@backstage/
-# integration`, read directly at DEC-118's pinned ref before assuming
+# integration`, read directly before assuming
 # this) authenticates exactly this way: `password` is Gitea's own
 # convention for "API token here," not a literal password. Values
 # substituted via Backstage's own ${VAR} syntax from
@@ -40,32 +46,32 @@ metadata:
 # secrets.sh) -- never a literal in this ConfigMap, same pattern as the
 # OIDC secret's own fields. This is the exact `golden-path-agent-
 # scaffolder` machine-account token G1 already proved live to actual
-# destruction (DEC-100) -- not a new credential.
+# destruction (ADR-013) -- not a new credential.
 data:
   app-config.catalog.yaml: |
     backend:
       reading:
         allow:
           - host: raw.githubusercontent.com
-          - host: golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io
+          - host: ${GITEA_HOST}
     integrations:
       github:
         - host: github.com
       gitea:
-        - host: golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io
+        - host: ${GITEA_HOST}
           username: ${GITEA_SCAFFOLDER_USERNAME}
           password: ${GITEA_SCAFFOLDER_TOKEN}
     catalog:
       locations:
-        # Phase H3b (DEC-114 onward, DEC-121 follow-up). Real gap found
+        # Real gap found (ADR-015 follow-up)
         # live via a real browser TechDocs check (the exact class of
-        # check DEC-094/DEC-097 already established a scripted call
+        # check ADR-016 already established a scripted call
         # can't substitute for -- third confirmation of that lesson):
         # "FetchUrlReader does not implement readTree". Root cause read
         # directly from this pod's own GithubUrlReader.cjs.js: its
         # predicate is `url.host === integration.config.host`, exact
         # string equality -- registering this Component from
-        # raw.githubusercontent.com (below, since F1/DEC-087) never
+        # raw.githubusercontent.com (below, since F1) never
         # matches the `github.com` integration.github entry already
         # configured, so techdocs-ref: dir:.'s derived URL fell through
         # to the generic FetchUrlReader, which has no readTree at all.
@@ -82,14 +88,14 @@ data:
         - type: url
           target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/template.yaml
         - type: url
-          target: https://golden-path-agent-gitea-golden-path-agent-gitea.apps.cluster-hj7xp.dyn.redhatworkshops.io/golden-path-agent-admin/golden-path-agent-template/src/branch/main/template.yaml
-        # Phase H3b follow-up (DEC-122's raw-URL sweep): pre-emptively
+          target: https://${GITEA_HOST}/golden-path-agent-admin/golden-path-agent-template/src/branch/main/template.yaml
+        # Follow-up raw-URL sweep: pre-emptively
         # switched these three from raw.githubusercontent.com to the
         # github.com/blob/main shape, matching the catalog-info.yaml/
         # template.yaml fix above -- none of these three carried a
         # techdocs-ref annotation at the time of this sweep, so the bug
         # was dormant, not live, but it's the identical landmine one
-        # techdocs-ref line away from reproducing DEC-122 verbatim. Fixed
+        # techdocs-ref line away from reproducing the same bug. Fixed
         # now rather than left for whoever adds that annotation next.
         - type: url
           target: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/platform/catalog/system.yaml

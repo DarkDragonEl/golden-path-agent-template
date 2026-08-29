@@ -1,14 +1,13 @@
-"""Phase G, Stage 3 (DECISIONS.md DEC-098/DEC-099/DEC-110, G6 Path B).
-Publishes a locally-rendered scaffolded project to Gitea as two
+"""Publishes a locally-rendered scaffolded project to Gitea as two
 repositories -- a source+pipeline repo and a separate GitOps repo -- per
-the owner's own two-repo decision (DEC-098/DEC-099), matching the
+the owner's own two-repo decision (ADR-013/ADR-021), matching the
 verified redhat-ai-dev/ai-lab-template reference pattern.
 
-Uses the Platform Foundation's own Gitea instance (G1, DEC-100) and its
+Uses the Platform Foundation's own Gitea instance (ADR-013) and its
 scoped `golden-path-agent-scaffolder` machine account for create/push --
 never the admin account. Repo deletion (this module's own test cleanup,
 never a normal publish operation) requires the admin credential, since
-the scoped account cannot delete repos it does not own (DEC-100's own
+the scoped account cannot delete repos it does not own (ADR-013's own
 live-proven finding, not re-derived here).
 
 Deliberately stdlib-only (urllib.request, subprocess), matching this

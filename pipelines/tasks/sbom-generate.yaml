@@ -1,4 +1,4 @@
-# Phase C, Step C1b. SysR-P-PKG-02 -- an SBOM generated at build time,
+# SysR-P-PKG-02 -- an SBOM generated at build time,
 # associated with the image digest.
 apiVersion: tekton.dev/v1
 kind: Task
@@ -15,7 +15,7 @@ spec:
   workspaces:
     - name: source
   volumes:
-    # DEC-027: syft hardcodes some /tmp usage regardless of $HOME/
+    # syft hardcodes some /tmp usage regardless of $HOME/
     # $XDG_CACHE_HOME, and the image's own /tmp isn't writable under an
     # arbitrary non-root UID (confirmed live) -- an emptyDir at /tmp fixes it.
     - name: syft-tmp

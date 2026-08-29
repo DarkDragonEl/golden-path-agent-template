@@ -9,8 +9,8 @@ Node contract: reads state["selected_tool"] ({tool_name, arguments}, set by
 decide_node — never None here, see agent/routers.py's decide_after_decide).
 The read branch returns tool_calls plus final_output. The write branch
 returns tool_calls, drafted_action, and pending_approval=True plus
-proposal_id on a successful submission to the approval service (Phase D,
-DECISIONS.md DEC-008/DEC-049), or pending_approval=False plus a
+proposal_id on a successful submission to the approval service (ADR-001),
+or pending_approval=False plus a
 fallback_reason ("approval_service_failure:<ExcType>") if the approval
 service itself is unreachable or errors.
 
@@ -25,7 +25,7 @@ from mcp_server.client import call_tool
 
 
 def tool_invoke_node(state):
-    """No hardcoded tool selection here (Phase B3 retired it) -- decide_node
+    """No hardcoded tool selection here -- decide_node
     is solely responsible for deciding what state["selected_tool"] is, for
     both live mode (the model's real tool_calls) and fake/offline mode (a
     reproduction of the pre-B3 legacy dispatch, kept only so
@@ -33,7 +33,7 @@ def tool_invoke_node(state):
     job is purely execution-timing: read-classified now, write-classified
     drafted only.
 
-    Precondition (DEC-013 candidate: decide-then-retrieve reordering):
+    Precondition (ADR-005: decide-then-retrieve reordering):
     state["selected_tool"] is never None here -- the graph's
     decide_after_decide router sends that case to retrieve/generate
     instead. The "plain answer" branch this node used to own now belongs
@@ -75,7 +75,7 @@ def tool_invoke_node(state):
         }
 
     # Write-classified (SRS-AGT-F-04, SRS-MIT-SEC-01): draft only, then
-    # submit a proposal (DEC-008/DEC-049). human_approval_node is the sole
+    # submit a proposal (ADR-001). human_approval_node is the sole
     # invoker, executing only approved_action, never this node's drafted
     # copy.
     tool_calls = tool_calls + [
@@ -90,8 +90,8 @@ def tool_invoke_node(state):
     drafted_action = {"tool_name": tool_name, "arguments": arguments}
 
     # evidence_refs (SRS-APR-IF-01): always empty here -- retrieve_node is
-    # never reached on a tool-selected turn (DEC-013). Legitimate at the
-    # schema layer (DEC-046), not a bug; a richer evidence trail is
+    # never reached on a tool-selected turn (ADR-005). Legitimate at the
+    # schema layer (ADR-008), not a bug; a richer evidence trail is
     # deferred scope.
     evidence_refs: list[str] = []
 

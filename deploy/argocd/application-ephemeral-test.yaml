@@ -1,4 +1,4 @@
-# DECISIONS.md DEC-040. DELIBERATELY NOT part of deploy/argocd/apps/ --
+# DELIBERATELY NOT part of deploy/argocd/apps/ --
 # golden-path-agent-ephemeral-test is pipeline-managed (deploy-ephemeral
 # applies an unpromoted digest per PipelineRun), not GitOps-managed; a
 # real, dry-run-validated scaffold for a future GitOps-synced path, kept

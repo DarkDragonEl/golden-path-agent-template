@@ -1,15 +1,12 @@
-# Phase C, Step C1b. SysR-P-F-05(4) operational tests: a live kill-primary
-# fallback trigger, mirroring the demo DEC-020 already ran manually and
-# locally (this session's own Checkpoint B2 exit verification) -- now
-# automated against the real cluster.
+# SysR-P-F-05(4) operational tests: a live kill-primary fallback
+# trigger, automated against the real cluster.
 #
 # Scope note: this checks fallback *behavior* (the call still succeeds
 # despite a broken primary route) functionally, not via an exported OTel
 # trace -- the cluster-tier OTel Collector Operator (PINS.md: pinned,
 # available in-cluster, not yet installed) isn't wired into this
 # ephemeral deployment yet. That's a real, separately-tracked gap, not a
-# silent scope cut -- see the Phase C report/DEC-025 for the explicit
-# note on what's deferred and why.
+# silent scope cut.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -38,16 +35,13 @@ spec:
         # correct fallback (from the same real secret/config the standing
         # deployment uses).
         #
-        # Phase G, Stage 2 (DEC-098/DEC-099): merge into the existing
-        # (already commonLabels-rendered) label dicts rather than
-        # replacing them wholesale -- a full replacement silently drops
-        # whatever commonLabels injected (app.kubernetes.io/name,
-        # app.kubernetes.io/part-of), which matters now that this query
-        # triggers a real MCP_MODE=live tool call to an external Tools
-        # Template instance (the split agent image can never run
-        # MCP_MODE=mock). Same class of bug G2's own equivalent test
-        # found and fixed live (DEC-101) -- fixed here proactively rather
-        # than left for a future live run to rediscover.
+        # Merge into the existing (already commonLabels-rendered) label
+        # dicts rather than replacing them wholesale -- a full
+        # replacement silently drops whatever commonLabels injected
+        # (app.kubernetes.io/name, app.kubernetes.io/part-of), which
+        # matters now that this query triggers a real MCP_MODE=live tool
+        # call to an external Tools Template instance (the split agent
+        # image can never run MCP_MODE=mock).
         #
         # NAMED GAP, not resolved this session: if the configured
         # mcpEndpoint's own NetworkPolicy (deploy/kustomize/base/
@@ -81,9 +75,9 @@ spec:
         oc rollout status deployment/"$NAME" -n "$NS" --timeout=180s
         POD=$(oc get pod -n "$NS" -l app.kubernetes.io/instance="$NAME" -o jsonpath='{.items[0].metadata.name}')
 
-        # DEC-034: python3/urllib inside the pod via stdin, not curl --
-        # same reason as security-tests.yaml's own fix (the agent's own
-        # image has no curl at all, confirmed live).
+        # python3/urllib inside the pod via stdin, not curl -- same
+        # reason as security-tests.yaml's own fix (the agent's own image
+        # has no curl at all).
         oc exec -i -n "$NS" "$POD" -- python3 - <<'PYEOF' > /tmp/resp.json
         import json
         import sys
@@ -127,10 +121,9 @@ spec:
         NS=${{ values.name }}-ephemeral-test
         NAME=${{ values.name }}-mcp-unreachable-demo
 
-        # Phase G, Stage 2 (DEC-098/DEC-099/DEC-104/DEC-105): the
-        # complement DEC-105 requires -- domain eval's own fault
-        # injection moved to an in-process, eval-only fixture (never
-        # touching the real, deployed MCP server -- see
+        # Domain eval's own fault injection moved to an in-process,
+        # eval-only fixture (never touching the real, deployed MCP
+        # server -- see
         # eval/mock_itsm_fixture.py), so the network-level fidelity that
         # gives up must be proven honestly here instead, against the real
         # split architecture. This is a genuine network fault (an

@@ -17,14 +17,12 @@ down:
 logs:
 	./scripts/dev.sh logs
 
-# R0 crosswalk / DEC-020: the canonical target now runs the real gate --
-# EXAMPLE-*.yaml fixtures + all 8 domain categories, DEC-017's gate
-# semantics (deterministic sampling, named known-gap/measurement-tolerance
-# exclusions) applied. Meaningful only against a real model
+# The canonical target runs the real gate --
+# EXAMPLE-*.yaml fixtures + all 8 domain categories, with deterministic
+# sampling and named known-gap/measurement-tolerance exclusions applied.
+# Meaningful only against a real model
 # (AGENT_MODEL_MODE=live) -- domain cases exercise real reasoning, tool
 # selection, and citation, which FakeModelClient doesn't simulate.
-# Checkpoint B2's exit criterion -- "make up && make eval" now actually
-# tests what that command has always claimed to.
 eval: eval-fast eval-domain
 
 # Fast, fully offline EXAMPLE-*.yaml harness-mechanics smoke pair -- inner-
@@ -57,13 +55,13 @@ test:
 lint:
 	python -m py_compile $$(find agent mcp_server eval -name '*.py')
 
-# Phase E, E1 (DECISIONS.md DEC-078 onward). Replays the from-scratch
+# Replays the from-scratch
 # bootstrap sequence (operators, namespaces, RBAC, Keycloak, cluster-tier
 # OTel, ArgoCD app-of-apps root) against any OpenShift cluster whose
 # kubeconfig is already authenticated -- CLUSTER=<path>. See
 # scripts/bootstrap.sh for the full step list and docs/phase-c-runbook.md
 # for the manual secret-provisioning commands it pauses for.
-# DEC-083: pass REENABLE_SYNC=true only to deliberately reverse a
+# Pass REENABLE_SYNC=true only to deliberately reverse a
 # cluster's own single-active-cluster auto-sync freeze -- see
 # scripts/bootstrap.sh's own usage text for what this actually guards.
 bootstrap:

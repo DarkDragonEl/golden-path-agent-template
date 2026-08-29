@@ -13,24 +13,19 @@ configMapGenerator:
   - name: ${{ values.name }}-config
     behavior: merge
     literals:
-      - MCP_MODE=live # DEC-063: revises DEC-021's own "same as
-        # ephemeral-test" framing, at the network-topology axis only --
-        # the mock ITSM *data* stays synthetic regardless of this value
-        # (itsm_search_records/itsm_create_request never branch on
-        # MCP_MODE at all, CLAUDE.md's synthetic-data-only rule is
-        # unaffected either way). What this flips is whether the agent
+      - MCP_MODE=live # the mock ITSM *data* stays synthetic regardless of
+        # this value (itsm_search_records/itsm_create_request never
+        # branch on MCP_MODE at all, CLAUDE.md's synthetic-data-only rule
+        # is unaffected either way). What this flips is whether the agent
         # calls MCP in-process (mock) or over real HTTP to the
         # separately-deployed mcp pod (live) -- required for
         # MCP_AUTH_MODE=oidc below to mean anything: enforcement on a
         # call that never leaves the process isn't enforcement.
-      - AGENT_OIDC_MODE=oidc # DEC-063
-      - MCP_AUTH_MODE=oidc # DEC-063
+      - AGENT_OIDC_MODE=oidc
+      - MCP_AUTH_MODE=oidc
       - APPROVAL_MODE=required
       - DATA_SOURCE_BINDING=synthetic # CLAUDE.md: synthetic corpus only,
         # never real client/organization data, in any promoted environment.
-      # DECISIONS.md DEC-035/DEC-039: MODEL_API_BASE_URL, MODEL_NAME,
-      # MODEL_FALLBACK_API_BASE_URL, and MODEL_FALLBACK_NAME are
-      # deliberately NOT overridden here, unlike ephemeral-test's overlay.
       # ephemeral-test's real values are injected transiently at apply-time
       # by the pipeline's own deploy-ephemeral Task (a one-shot `oc apply`,
       # never reconciled again). demo-prod has no such injection point --
@@ -45,30 +40,21 @@ configMapGenerator:
       # Kustomize/ArgoCD-managed (same established reasoning as
       # base/kustomization.yaml's own comment on why externalsecret.yaml
       # was dropped rather than replaced with a stub Secret). Kubernetes'
-      # own envFrom ordering (deployment-agent.yaml lists
-      # secretRef AFTER configMapRef) means the Secret's real values
-      # correctly shadow this ConfigMap's inherited base placeholders at
-      # the container level -- no code or manifest mechanism needed beyond
-      # that ordering, which already exists. See docs/phase-c-runbook.md's
-      # demo-prod bootstrap section for the exact manual provisioning step
-      # -- this is the config-contract completeness lesson (DEC-035)
-      # applied to a GitOps-synced environment: every required key IS
-      # declared (by base/configmap.yaml, DEC-035's own fix), and this
-      # comment states exactly where each demo-prod-specific real value
-      # actually comes from, so it is never silent.
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318 # DEC-071:
-        # the cluster-tier collector (DEC-068) -- this is Checkpoint D's
-        # own live-trace target environment.
-  - name: ${{ values.name }}-approval-config
-    behavior: merge
-    literals:
-      - AUTH_MODE=oidc # DEC-063: the D2 cutover's own binding requirement
-        # (DEC-046 owner-addition #1) -- the approval service now
-        # validates real Keycloak-issued tokens for every decision/query
-        # call in this environment. tools/check_config_contract.py's own
-        # new demo-prod-config assertion (DEC-063) mechanically fails if
-        # this line is ever reverted/omitted, not left to convention.
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318 # DEC-071
+      # own envFrom ordering (deployment-agent.yaml lists secretRef AFTER
+      # configMapRef) means the Secret's real values correctly shadow
+      # this ConfigMap's inherited base placeholders at the container
+      # level -- no code or manifest mechanism needed beyond that
+      # ordering, which already exists. Every required key IS declared
+      # (by base/configmap.yaml), and this comment states exactly where
+      # each demo-prod-specific real value actually comes from, so it is
+      # never silent.
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318 # the
+        # cluster-tier collector.
+        # No approval-config ConfigMap generator here: the approval
+        # service is a shared Platform Foundation singleton, never
+        # bundled or co-deployed by this template (approvalServiceEndpoint
+        # config only) -- this overlay's base has no approval-config
+        # resource for a `behavior: merge` generator to merge into.
 
 replicas:
   - name: ${{ values.name }}

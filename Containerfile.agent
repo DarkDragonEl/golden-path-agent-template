@@ -7,8 +7,8 @@ FROM ${BASE_IMAGE}
 WORKDIR /opt/app-root/src
 
 # Dependencies first (cache layer). Agent-only: langgraph/langchain-core/
-# openai/pyyaml never load in the mcp or approval images (DEC-098/DEC-099
-# artifact split).
+# openai/pyyaml never load in the mcp or approval images (three-image
+# split).
 COPY requirements-agent.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -21,7 +21,7 @@ COPY corpus/ingest.py ./corpus/ingest.py
 # server.py/auth.py/schemas.py/itsm_store.py, which never load here.
 # call_tool()'s `if mcp_mode == "mock":` branch does `from . import
 # server`, which would ImportError since server.py isn't in this image —
-# this image MUST run with MCP_MODE=live (DEC-096/DEC-099), never mock.
+# this image MUST run with MCP_MODE=live, never mock.
 COPY mcp_server/__init__.py ./mcp_server/__init__.py
 COPY mcp_server/client.py ./mcp_server/client.py
 COPY --chmod=0755 entrypoint-agent.sh ./entrypoint.sh

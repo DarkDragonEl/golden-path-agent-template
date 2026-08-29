@@ -1,5 +1,5 @@
-# Declarative mirror of agent/policy.py::classify_action / requires_approval
-# (Phase C, DECISIONS.md DEC-023, per the accepted plan's C2 step). This is
+# Declarative mirror of agent/policy.py::classify_action / requires_approval.
+# This is
 # a policy-*definition* validation gate (`opa test`, run in CI) proving the
 # taxonomy's shape and fail-closed default are internally consistent -- it
 # is NOT a second runtime enforcement point. agent/policy.py stays the one
@@ -37,7 +37,7 @@ requires_approval(tool_name, approval_mode) if {
 	classify(tool_name) == "write"
 }
 
-# The one enforced deny path this bundle proves (Annex A OI-03 / DEC-021's
+# The one enforced deny path this bundle proves (Annex A OI-03's
 # "OPA bundles with >=1 proven fail-closed deny"): a write-classified
 # action must never be marked directly executable/allowed on its own --
 # it is only ever a *candidate* for human approval, never a bypass.

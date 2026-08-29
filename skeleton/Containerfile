@@ -11,11 +11,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Code only — never the corpus. The corpus is a mount, not a layer. This
-# repo has no mcp_server/server.py or approval_service/ at all (Phase G,
-# DEC-098/DEC-099 -- the Agent Template no longer bundles either; per the
-# amended SysR-P-F-01, an agent project consumes both over the network,
-# via mcpEndpoint/approvalServiceEndpoint config, never by bundling
-# source).
+# repo has no mcp_server/server.py or approval_service/ at all -- the
+# Agent Template no longer bundles either; per the amended SysR-P-F-01,
+# an agent project consumes both over the network, via
+# mcpEndpoint/approvalServiceEndpoint config, never by bundling source.
 COPY agent/ ./agent/
 COPY policy/ ./policy/
 COPY corpus/ingest.py ./corpus/ingest.py

@@ -1,4 +1,4 @@
-"""Deterministic tool-result -> final_output text formatting (DEC-013).
+"""Deterministic tool-result -> final_output text formatting (ADR-005).
 
 Not a model call: a tool-call branch never needs a second call to produce
 its final_output -- the deterministic mapping here is sufficient (domain

@@ -1,14 +1,12 @@
-# Phase C, Step C1a (DECISIONS.md DEC-023/DEC-024), extended at Step C4
-# (DEC-021) for ${{ values.name }}-demo-prod. Applied once, by a human, as a
-# deliberate bootstrap step -- not by the pipeline itself, and not by
-# ArgoCD either (demo-prod's own Application deliberately sets
-# CreateNamespace=false, same reasoning as pilot-prod's existing stub --
-# see deploy/argocd/apps/demo-prod.yaml). All three namespaces are
-# pre-created here, not created/destroyed per PipelineRun or per sync,
-# specifically because the pipeline's own ServiceAccount (rbac.yaml, this
-# directory) is granted NO cluster-scoped permissions at all (no
-# ClusterRoleBinding, no cluster-admin, per the owner's explicit
-# constraint) -- and creating/deleting a Namespace object is an inherently
+# Applied once, by a human, as a deliberate bootstrap step -- not by
+# the pipeline itself, and not by ArgoCD either (demo-prod's own
+# Application deliberately sets CreateNamespace=false, same reasoning
+# as pilot-prod's existing stub -- see deploy/argocd/apps/demo-prod.yaml).
+# All three namespaces are pre-created here, not created/destroyed per
+# PipelineRun or per sync, specifically because the pipeline's own
+# ServiceAccount (rbac.yaml, this directory) is granted NO
+# cluster-scoped permissions at all (no ClusterRoleBinding, no
+# cluster-admin) -- and creating/deleting a Namespace object is an inherently
 # cluster-scoped action that a namespace-scoped Role/RoleBinding cannot
 # grant (Kubernetes RBAC's `create` verb also does not support
 # `resourceNames` restriction, since the object doesn't exist yet at
@@ -38,34 +36,26 @@ metadata:
   name: ${{ values.name }}-demo-prod
   labels:
     app.kubernetes.io/part-of: ${{ values.name }}
-    # Real gap found live on the showcase cluster (Phase E, DEC-078
-    # onward): OpenShift GitOps's default ClusterRole for the ArgoCD
-    # application controller only grants get/list/watch on core
-    # resources cluster-wide -- write access to a target namespace
-    # requires opting it in via this label, which triggers the GitOps
-    # operator's own controller to create a namespace-scoped RoleBinding
-    # automatically. The SNO's GitOps operator was pre-installed by
-    # prior, unrelated work before this project ever touched it
-    # (docs/environments.md) and evidently carried a broader default (an
-    # older operator version's blanket admin ClusterRoleBinding, most
-    # likely) -- this label was never needed there and so was never
-    # written down anywhere in this project until the first genuine
-    # from-scratch GitOps install actually exercised the gap.
+    # OpenShift GitOps's default ClusterRole for the ArgoCD application
+    # controller only grants get/list/watch on core resources
+    # cluster-wide -- write access to a target namespace requires
+    # opting it in via this label, which triggers the GitOps operator's
+    # own controller to create a namespace-scoped RoleBinding
+    # automatically.
     # ${{ values.name }}-ephemeral-test deliberately does NOT get this
     # label -- it is pipeline-managed (direct oc apply), never
     # ArgoCD-synced, per docs/environments.md's ownership model.
     argocd.argoproj.io/managed-by: openshift-gitops
 ---
-# Phase D, D2 entry gate (DECISIONS.md DEC-053). A fifth, separate
-# namespace for Keycloak + its own Postgres -- not folded into
-# ${{ values.name }}-demo-prod or any existing namespace. rhbk-operator's
-# only supported install modes are OwnNamespace/SingleNamespace (PINS.md,
-# verified live) -- it needs one namespace it owns outright, and Keycloak
-# itself is platform identity infrastructure, not part of this project's
-# own promoted image/environments (deploy/kustomize/), so it does not
-# belong inside any of those three. Same manual, human-applied bootstrap
-# discipline as the three namespaces above -- flagged explicitly per the
-# owner's kickoff instruction, since creating a Namespace is itself a
+# A fifth, separate namespace for Keycloak + its own Postgres -- not
+# folded into ${{ values.name }}-demo-prod or any existing namespace.
+# rhbk-operator's only supported install modes are
+# OwnNamespace/SingleNamespace (PINS.md, verified live) -- it needs one
+# namespace it owns outright, and Keycloak itself is platform identity
+# infrastructure, not part of this project's own promoted
+# image/environments (deploy/kustomize/), so it does not belong inside
+# any of those three. Same manual, human-applied bootstrap discipline
+# as the three namespaces above, since creating a Namespace is itself a
 # cluster-scoped action no namespace-scoped Role can grant (see this
 # file's own header comment).
 apiVersion: v1
@@ -75,16 +65,16 @@ metadata:
   labels:
     app.kubernetes.io/part-of: ${{ values.name }}
 ---
-# Phase D4 entry gate (DECISIONS.md DEC-068). A sixth namespace for the
-# cluster-tier OTel Collector -- platform observability infrastructure,
-# not part of this project's own promoted image/environments, same
-# reasoning as ${{ values.name }}-keycloak's own separate namespace above.
+# A sixth namespace for the cluster-tier OTel Collector -- platform
+# observability infrastructure, not part of this project's own
+# promoted image/environments, same reasoning as
+# ${{ values.name }}-keycloak's own separate namespace above.
 # Reachable cross-namespace from ephemeral-test/demo-prod/${{ values.name }}-keycloak
 # (no NetworkPolicy restricts egress from any of those pods today, and
 # none is added restricting ingress here either -- mirrors Keycloak's own
 # precedent of no NetworkPolicy, both being shared platform infra reachable
-# from anywhere in this project's own namespaces, a deliberate choice
-# stated explicitly, not an oversight).
+# from anywhere in this project's own namespaces, a deliberate choice,
+# not an oversight).
 apiVersion: v1
 kind: Namespace
 metadata:

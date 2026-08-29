@@ -1,4 +1,4 @@
-# DEC-024: bootstrapped once, manually, and stays standing -- creating/
+# ADR-018: bootstrapped once, manually, and stays standing -- creating/
 # deleting a Namespace is cluster-scoped, and the pipeline ServiceAccount
 # deliberately has no ClusterRoleBinding ever. "Ephemeral" means the
 # resources inside (cycled by deploy/destroy-ephemeral), not the

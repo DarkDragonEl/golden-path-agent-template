@@ -76,7 +76,7 @@ tests, deploys, and evaluates them.
 |---|---|
 | [`agent/`](agent/) | The LangGraph agent: `decide` → `retrieve`/`tool_invoke` → `human_approval` → `respond`, with a deterministic fallback path. |
 | [`mcp_server/`](mcp_server/) | The one MCP tool contract — a mock ITSM tool with persistent state. |
-| [`approval_service/`](approval_service/) | The human-approval gate: a human approver explicitly approves or rejects every write before it executes. Independently built and promoted since Phase D, same as the agent and the MCP tool server. |
+| [`approval_service/`](approval_service/) | The human-approval gate: a human approver explicitly approves or rejects every write before it executes. Independently built and promoted, same as the agent and the MCP tool server. |
 | [`deploy/`](deploy/) | Kustomize base + overlays and ArgoCD `Application` manifests for the ephemeral test and demo-prod environments. |
 | [`pipelines/`](pipelines/) | Tekton `Pipeline`/`Task` definitions for each of the three components' independent build → test → promote pipeline. |
 | [`platform/`](platform/) | Platform Foundation bootstrap manifests and scripts — identity (Keycloak), Gitea, the Internal Developer Portal (RHDH), and the cluster-tier OpenTelemetry collector. |
@@ -143,7 +143,7 @@ class of check lives in the sibling `agent-roadmap` repository's
 instead of `make up-offline`. Once live, `make eval` is the real promotion gate —
 `eval-fast`'s offline pair plus the full domain eval-case set
 (`eval-domain`) against the real model, scored under a
-deterministic-sampling gate contract (see `DECISIONS.md` `DEC-017`).
+deterministic-sampling gate contract (see ADR-007).
 The domain categories need a live model to be meaningful: the fake
 client doesn't simulate real reasoning, tool selection, or citation.
 
@@ -187,8 +187,7 @@ line alone, without the second script.)
 >    credentials and invalidates live sessions.**
 >    `platform/bootstrap/provision-identity-secrets.sh` regenerates the
 >    OIDC client secrets and demo-user passwords on *every* run, by
->    design — there is no "only if missing" branch (`DECISIONS.md`
->    `DEC-059`). Safe on a fresh install; on an already-live cluster,
+>    design — there is no "only if missing" branch (ADR-017). Safe on a fresh install; on an already-live cluster,
 >    anyone currently signed in gets signed out.
 > 2. **`scripts/bootstrap.sh`'s `--reenable-sync` flag exists because
 >    auto-sync may be deliberately frozen on a cluster.** A cluster's
@@ -197,7 +196,7 @@ line alone, without the second script.)
 >    `bootstrap.sh` detects that freeze and skips re-applying the
 >    ArgoCD root `Application` rather than silently reversing it. Only
 >    pass `--reenable-sync` if you deliberately intend to reverse that
->    specific cluster's freeze (`DECISIONS.md` `DEC-083`).
+>    specific cluster's freeze (ADR-009).
 >    `scripts/install.sh` never passes this flag — that choice belongs
 >    to the cluster operator, made explicitly, not to a one-button
 >    wrapper.

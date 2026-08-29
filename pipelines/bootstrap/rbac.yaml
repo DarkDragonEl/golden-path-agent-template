@@ -1,5 +1,5 @@
-# Phase C (DEC-023/DEC-024). Least-privilege RBAC for the CI pipeline's
-# ServiceAccount: strictly within golden-path-agent-*, no ClusterRole, no
+# Least-privilege RBAC for the CI pipeline's ServiceAccount (ADR-018,
+# ADR-019): strictly within golden-path-agent-*, no ClusterRole, no
 # ClusterRoleBinding, no cluster-admin, ever. Namespace lifecycle itself
 # is deliberately not one of its grants -- see namespaces.yaml's header.
 apiVersion: v1
@@ -72,10 +72,10 @@ roleRef:
   name: system:image-builder
   apiGroup: rbac.authorization.k8s.io
 ---
-# DEC-030: pipelines-scc, granted narrowly (resourceNames:[pipelines-scc],
-# not a blanket SCC grant) -- plain restricted-v2 cannot run a real
-# rootless buildah build (DEC-029/DEC-030's investigation), and this is
-# Red Hat's own purpose-built SCC for that, scoped to SETFCAP only.
+# pipelines-scc, granted narrowly (resourceNames:[pipelines-scc], not a
+# blanket SCC grant) -- plain restricted-v2 cannot run a real rootless
+# buildah build, and this is Red Hat's own purpose-built SCC for that,
+# scoped to SETFCAP only.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -97,7 +97,7 @@ roleRef:
 # kinds deploy/kustomize/base actually produces (matching
 # deploy/argocd/project.yaml's own namespaceResourceWhitelist), read-only
 # on secrets (referenced by name, never created/mutated by the pipeline --
-# see the Phase C plan's secret-material handling constraint), and
+# secret material is provisioned out-of-band, not pipeline-managed), and
 # pod/log read for smoke checks.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -113,8 +113,8 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
     verbs: ["get", "list", "create", "update", "patch", "delete"]
-    # DEC-031: missed in the original grant, confirmed live
-    # ("cannot get/delete resource ingresses").
+    # Confirmed live ("cannot get/delete resource ingresses") -- missed
+    # in the original grant.
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
@@ -141,13 +141,13 @@ rules:
   - apiGroups: [""]
     resources: ["pods/exec"]
     verbs: ["create"]
-    # DEC-033: security-tests.yaml/operational-tests.yaml both oc exec
+    # security-tests.yaml/operational-tests.yaml both oc exec
     # into the deployed agent pod -- confirmed live: missing this
     # returned Forbidden on both Tasks.
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["get", "list", "create", "update", "patch", "delete"]
-    # DEC-045: approval-service's SQLite persistence (pvc-approval.yaml,
+    # ADR-025: approval-service's SQLite persistence (pvc-approval.yaml,
     # SRS-APR-DATA-01) is the first PVC this project needs to manage.
 ---
 # Cross-namespace RoleBinding: lives in golden-path-agent-ephemeral-test,
@@ -171,7 +171,7 @@ roleRef:
   name: golden-path-agent-ci-deploy-role
   apiGroup: rbac.authorization.k8s.io
 ---
-# DEC-032. Cross-namespace image pull: OpenShift disallows it by
+# Cross-namespace image pull: OpenShift disallows it by
 # default, confirmed live (ImagePullBackOff, "authentication required").
 # system:image-puller is the standard built-in role for this; lives in
 # golden-path-agent-ci (the source namespace granting read access).
@@ -189,24 +189,24 @@ subjects:
   - kind: ServiceAccount
     name: golden-path-agent
     namespace: golden-path-agent-demo-prod
-    # DEC-042: a RoleBinding's subject list is scoped per (SA, namespace)
+    # A RoleBinding's subject list is scoped per (SA, namespace)
     # pair, so demo-prod needs its own entry, not inherited from
-    # ephemeral-test's (DEC-032).
+    # ephemeral-test's.
   - kind: ServiceAccount
     name: golden-path-agent-approval
     namespace: golden-path-agent-ephemeral-test
-    # DEC-045: approval-service hits the identical cross-namespace pull
-    # gap (DEC-032), in both namespaces it's deployed to.
+    # ADR-025: approval-service hits the identical cross-namespace pull
+    # gap, in both namespaces it's deployed to.
   - kind: ServiceAccount
     name: golden-path-agent-approval
     namespace: golden-path-agent-approval
-    # DEC-103: the approval service moved to its own Platform Foundation
+    # ADR-012: the approval service moved to its own Platform Foundation
     # namespace -- replaces the old demo-prod entry, same cross-namespace
-    # pull gap (DEC-032).
+    # pull gap.
   - kind: ServiceAccount
     name: golden-path-agent-mcp
     namespace: golden-path-agent-ephemeral-test
-    # DEC-061: the agent/mcp ServiceAccount split -- mcp runs under its
+    # The agent/mcp ServiceAccount split -- mcp runs under its
     # own identity, same cross-namespace pull gap.
   - kind: ServiceAccount
     name: golden-path-agent-mcp
@@ -214,7 +214,7 @@ subjects:
   - kind: ServiceAccount
     name: default
     namespace: golden-path-agent-otel
-    # DEC-068: the OTel Collector's traces-http sidecar reuses this
+    # ADR-020: the OTel Collector's traces-http sidecar reuses this
     # project's own image, runs as the namespace default ServiceAccount
     # (no dedicated one for a single sidecar), same pull gap.
 roleRef:

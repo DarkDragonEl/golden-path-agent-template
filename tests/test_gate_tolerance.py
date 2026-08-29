@@ -1,4 +1,4 @@
-"""DEC-016/DEC-017: eval/cli.py::_gate_verdict_for_domain's known-gap /
+"""ADR-007: eval/cli.py::_gate_verdict_for_domain's known-gap /
 measurement-tolerance mechanism -- a named, dated case can be excluded from
 its category's gate count, but ONLY when the failing assertion(s) are
 exactly the ones named as excludable. If any other assertion also fails

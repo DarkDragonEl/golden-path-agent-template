@@ -1,29 +1,27 @@
-# Phase C, Step C1b. SysR-P-F-06 -- promotion is exclusively a GitOps PR
-# merge, never a rebuild and never a direct push to main. This Task only
-# runs when every prior gate passed (the Pipeline's `when:` condition, not
-# this Task's own logic) and only ever touches the GitOps repo's own
+# SysR-P-F-06 -- promotion is exclusively a GitOps PR merge, never a
+# rebuild and never a direct push to main. This Task only runs when
+# every prior gate passed (the Pipeline's `when:` condition, not this
+# Task's own logic) and only ever touches the GitOps repo's own
 # kustomize/base/kustomization.yaml's one images.digest field.
 #
-# Phase G, Stage 3 (DEC-098/DEC-099/DEC-111, G6): DEC-111's two-repo split
-# moved deploy/ (now kustomize/, argocd/, otel/ at the GitOps repo's own
-# root -- the deploy/ prefix is dropped there) out of this Task's own
-# source workspace entirely. This Task used to edit
-# deploy/kustomize/base/kustomization.yaml in place inside the
-# already-checked-out source repo; that file no longer exists there once
-# a project is actually published via tools/gitea_publish.py. Rewritten
-# to clone the separate '<repoName>-gitops' repo into its own scratch
-# subdirectory of the shared workspace, edit/commit/push there instead --
-# the source workspace's own checked-out content is untouched.
+# The GitOps repo layout has kustomize/, argocd/, otel/ at its own root
+# (no deploy/ prefix), separate from this Task's own source workspace;
+# deploy/kustomize/base/kustomization.yaml does not exist there once a
+# project is actually published via tools/gitea_publish.py. This Task
+# clones the separate '<repoName>-gitops' repo into its own scratch
+# subdirectory of the shared workspace and edits/commits/pushes there
+# instead -- the source workspace's own checked-out content is
+# untouched.
 #
 # Credential: a Gitea access token scoped to this one '<repoName>-gitops'
 # repo (create/push + PR), stored as Secret ${{ values.name }}-gitea-token
 # in ${{ values.name }}-ci, keys `token`/`username` -- same
 # manually-provisioned-per-project pattern this Task's own prior
 # GitHub-based version already used (docs/phase-c-runbook.md §3), now
-# targeting the Platform Foundation's own shared Gitea instance
-# (DEC-098/DEC-100) instead. Never a pipeline param, never in this Task's
-# own args (only as env vars sourced from the Secret, which Tekton does
-# not log), never echoed by any step below.
+# targeting the Platform Foundation's own shared Gitea instance instead.
+# Never a pipeline param, never in this Task's own args (only as env
+# vars sourced from the Secret, which Tekton does not log), never
+# echoed by any step below.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -70,12 +68,9 @@ spec:
         git checkout -b "$BRANCH"
         git add kustomize/base/kustomization.yaml
         git commit -q -m "Promote $(params.commit-sha): $(params.image-ref)"
-        # DEC-037's own lesson (GitHub's git-over-HTTPS smart endpoint
-        # rejecting a bare Bearer header for push) doesn't apply here --
         # Gitea's own git-over-HTTPS auth accepts standard HTTP Basic auth
         # (username:token), already embedded in the clone URL above, the
-        # same pattern tools/gitea_publish.py's own push_directory()
-        # already proved live (DEC-100/DEC-111), not re-derived here.
+        # same pattern tools/gitea_publish.py's own push_directory() uses.
         git push -q origin "$BRANCH:$BRANCH"
         echo "$BRANCH" > $(workspaces.source.path)/.promotion-branch
 
@@ -104,7 +99,7 @@ spec:
         ")
         # Gitea's PR-creation endpoint (api/v1/repos/{owner}/{repo}/pulls),
         # token auth via the `token` scheme header -- same convention
-        # tools/gitea_publish.py already proved live (DEC-100/DEC-111).
+        # tools/gitea_publish.py uses.
         curl -sf -X POST \
           -H "Authorization: token ${GITEA_TOKEN}" \
           -H "Content-Type: application/json" \

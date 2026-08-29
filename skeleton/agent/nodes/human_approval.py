@@ -8,10 +8,10 @@ queries the approval service's own terminal-state (SRS-APR-IF-05), and
 only if that query reports a terminal state does it inject
 approved_action/approval_decision into checkpointed state and call
 graph.invoke(None, thread_config). This node never sees a client-supplied
-decision (DECISIONS.md DEC-008/DEC-049) — it only ever reads what
+decision — it only ever reads what
 resolve_and_resume already validated against the service.
 
-Phase D graduation from Phase B2's interim mechanism: this node is still
+This node is still
 the sole invoker of a write-classified tool call, and only when
 approved_action is set (SRS-AGT-F-04, SRS-MIT-SEC-01 — tool_invoke_node
 never calls a write-classified tool itself, it only drafts and submits).

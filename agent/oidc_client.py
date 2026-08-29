@@ -1,5 +1,5 @@
 """OAuth2 client-credentials token fetch for the agent's own workload
-identity (Phase D2) -- used to authenticate outbound calls this workload
+identity -- used to authenticate outbound calls this workload
 makes to approval_service and the MCP tool server once AGENT_OIDC_MODE
 is "oidc".
 

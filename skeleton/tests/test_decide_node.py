@@ -1,4 +1,4 @@
-"""DEC-013 candidate (decide-then-retrieve reordering): decide_node is the
+"""Under the decide-then-retrieve reordering, decide_node is the
 sole tool-vs-no-tool decision point, called with no retrieved context and
 no citation instructions. These tests cover its dispatch shapes and the
 literal regression guard for the redesign itself (context never reaches
@@ -43,7 +43,7 @@ def _base_state(**overrides):
 
 
 def test_fake_mode_hardcodes_placeholder_write_action_dispatch_when_write_requested(monkeypatch):
-    # Phase C (DEC-023): write is signaled by tool name, not an argument.
+    # Write is signaled by tool name, not an argument.
     monkeypatch.setattr(decide_module.config, "AGENT_MODEL_MODE", "fake")
     state = _base_state(write_requested=True)
     result = decide_node(state)

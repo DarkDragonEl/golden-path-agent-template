@@ -1,5 +1,5 @@
-# DEC-057: the Keycloak instance itself. Schema fields confirmed
-# against the live CRD (`oc explain keycloak.spec[...]`, DEC-056's
+# The Keycloak instance itself. Schema fields confirmed
+# against the live CRD (`oc explain keycloak.spec[...]`, ADR-017's
 # operator), not guessed.
 #
 # Deliberately no TLS/Route at this layer -- matches every other Ingress
@@ -12,7 +12,7 @@
 # whatever host actually reached it, the same way the other two
 # Ingresses never hardcode a host).
 #
-# DEC-054: both credential Secrets (db-secret, admin) are plain
+# ADR-017: both credential Secrets (db-secret, admin) are plain
 # Secrets, manually provisioned out-of-band, never committed.
 apiVersion: k8s.keycloak.org/v2beta1
 kind: Keycloak

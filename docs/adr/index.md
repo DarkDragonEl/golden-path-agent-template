@@ -38,14 +38,13 @@ ADR's own `Journal:` line.
 Two candidates turned out to be process decisions rather than product
 architecture, and stay in `agent-roadmap/DECISIONS.md` only:
 
-- `worktree-isolation-single-governance-owner` (`DEC-099`) — how this
-  project's own parallel build streams were organized; nothing about
-  the shipped artifact depends on it.
-- `phase-f-stop1-scope-decisions` (`DEC-087`) — an owner decision
-  bundling seven unrelated sub-items; the four with lasting design
-  content were distributed into the ADRs above (Ingress/Route into
-  ADR-016, Keycloak auth wiring into ADR-017, publish scope into
-  ADR-021, templating engine into ADR-022); the remaining three (an
-  `OI-04` trigger threshold — moot, `OI-04` is closed; a namespace name;
-  a catalog-absence fallback found moot the same session) have no
-  lasting design content to distill.
+- `DEC-099` — how this project's own parallel build streams were
+  organized; nothing about the shipped artifact depends on it. Process
+  decisions like this are recorded in the roadmap repository, not here.
+- `DEC-087` — an owner decision bundling seven unrelated sub-items; the
+  four with lasting design content were distributed into the ADRs above
+  (Ingress/Route into ADR-016, Keycloak auth wiring into ADR-017,
+  publish scope into ADR-021, templating engine into ADR-022); the
+  remaining three (an `OI-04` trigger threshold — moot, `OI-04` is
+  closed; a namespace name; a catalog-absence fallback found moot the
+  same session) have no lasting design content to distill.

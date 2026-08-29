@@ -1,7 +1,7 @@
-# Phase C, Step C1b. SysR-P-F-05(3), against the actually-deployed pods
+# SysR-P-F-05(3), against the actually-deployed pods
 # (unlike eval-gate-live). Three checks:
 #   1. REST zero-mutation check: write-shaped /invoke rejected via
-#      /approvals/{id}/resume, confirmed against /records (DEC-020).
+#      /approvals/{id}/resume, confirmed against /records (ADR-006).
 #   2. Disallowed-egress proof: this Task's own (unlabeled) pod must be
 #      blocked reaching the MCP pod directly -- proves the NetworkPolicy
 #      actually enforces, not just exists.
@@ -45,12 +45,12 @@ spec:
         #!/bin/sh
         set -eu
         NS=golden-path-agent-ephemeral-test
-        # DEC-033: the real label is the prefixed app.kubernetes.io/
+        # The real label is the prefixed app.kubernetes.io/
         # component, not the short form -- confirmed live (short form
         # matched zero pods).
         AGENT_POD=$(oc get pod -n "$NS" -l app.kubernetes.io/component=agent -o jsonpath='{.items[0].metadata.name}')
 
-        # DEC-034: python3 via stdin, not curl -- the agent image has no
+        # ADR-019: python3 via stdin, not curl -- the agent image has no
         # curl (confirmed live). Stdin avoids shell-quoting JSON/braces
         # through oc exec's own arg parsing.
         oc exec -i -n "$NS" "$AGENT_POD" -- python3 - <<'PYEOF'

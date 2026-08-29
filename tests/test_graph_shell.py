@@ -36,7 +36,7 @@ def test_read_path_completes_without_approval():
 
 
 def test_write_path_pauses_for_approval():
-    # Phase D/DEC-049: tool_invoke_node's write branch submits a real
+    # ADR-001: tool_invoke_node's write branch submits a real
     # proposal over HTTP -- patched here, mirroring
     # eval/domain_executor.py's own always-active fake for the same
     # reason (no live approval_service in this unit test).
@@ -103,7 +103,7 @@ def test_resume_after_rejection_falls_back():
     assert "PLACEHOLDER_TOOL_RESPONSE_MARKER" not in (result.get("final_output") or "")
 
 
-# --- Phase D2: approval_client's OIDC bearer-header attachment -------------
+# --- approval_client's OIDC bearer-header attachment ------------------
 
 
 class _FakeHttpResponse:

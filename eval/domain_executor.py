@@ -1,7 +1,7 @@
 """Category-aware graph driving for eval/cases/domain/*.yaml.
 
-Distinct from eval/executor.py (EXAMPLE-*.yaml harness-mechanics only,
-DEC-005). Domain cases don't declare a `mode` field (eval/schema.json)
+Distinct from eval/executor.py (EXAMPLE-*.yaml harness-mechanics only).
+Domain cases don't declare a `mode` field (eval/schema.json)
 -- AGENT_MODEL_MODE is an environment-level setting, not per-case. Most
 categories only produce meaningful (non-vacuous) results in live mode,
 since FakeModelClient has no real reasoning/tool-selection/citation
@@ -40,7 +40,7 @@ class DomainExecutionTrace:
 def _initial_state(session_id: str, case) -> dict:
     return {
         "session_id": session_id,
-        "request_id": f"{session_id}-req",  # Phase D/DEC-049: agent/api.py's own equivalent is a
+        "request_id": f"{session_id}-req",  # ADR-001: agent/api.py's own equivalent is a
         # fresh uuid per API call; a case-derived value is fine here since one case makes one call.
         "user_id": "eval-harness",
         "input_query": case.input["query"],
@@ -112,7 +112,7 @@ def execute_domain_case(case) -> DomainExecutionTrace:
     # the primary check, not the agent's self-report) need a before-
     # snapshot. Queried directly against the store, not via REST -- same
     # underlying state, without build_app()'s once-per-process session-
-    # manager constraint (found in Phase B1) complicating a harness that
+    # manager constraint complicating a harness that
     # runs many cases in one process.
     trace.request_ids_before = {
         r["record_id"] for r in itsm_store_module.store.list_records(record_type="request")
@@ -123,7 +123,7 @@ def execute_domain_case(case) -> DomainExecutionTrace:
     injection_source = case.input.get("injection_source")
     injection_payload = case.input.get("injection_payload")
 
-    # Phase D/DEC-049: tool_invoke_node's write branch now submits a real
+    # ADR-001: tool_invoke_node's write branch now submits a real
     # proposal to the standalone approval service over HTTP -- domain
     # eval runs must never depend on one being reachable (this is what
     # makes eval-gate-offline/eval-gate-live able to run without standing
@@ -178,7 +178,7 @@ def execute_domain_case(case) -> DomainExecutionTrace:
         if case.category == "unauthorized_write":
             scenario = case.input.get("approval_scenario")
             if scenario in ("rejected", "expired") and state.get("pending_approval"):
-                # Phase D/DEC-049: the real resume path is
+                # ADR-001: the real resume path is
                 # agent/approval_client.py::resolve_and_resume -- it
                 # queries the (patched, fake) approval service's own
                 # terminal-state and only then touches the graph, exactly

@@ -1,5 +1,5 @@
-# Checkpoint 1 exemplars (3 of ~15 target). See eval/README.md for case
-# format and eval/corpus-manifest.yaml for the doc_ids cited below.
+# See eval/README.md for case format and eval/corpus-manifest.yaml for
+# the doc_ids cited below.
 
 - id: KQA-001
   category: knowledge_qa
@@ -18,16 +18,15 @@
   tags: ["knowledge_qa", "read-only"]
   version: "0.1.0"
 
-# R2 remedy (DEC-014, KQA-002 recalibration): removed "requests are
-# reviewed against the quarterly capacity-planning cycle" from
-# must_contain_facts. Rationale: the question asks only "who approves" --
-# the review-cadence fact answers a different question (when/how often
-# requests are reviewed) that this question never asks. DEC-013's R1
-# forensic triage found the model consistently gives a correct, fully-cited
-# answer to the question actually asked, without volunteering this
-# tangential detail -- the fact was responsive to a question this case
-# doesn't pose, not a gap in the model's grounding. Recalibrated to what the
-# question asks for, not removed to raise the pass rate.
+# Removed "requests are reviewed against the quarterly capacity-planning
+# cycle" from must_contain_facts. Rationale: the question asks only "who
+# approves" -- the review-cadence fact answers a different question
+# (when/how often requests are reviewed) that this question never asks.
+# The model consistently gives a correct, fully-cited answer to the
+# question actually asked, without volunteering this tangential detail --
+# the fact was responsive to a question this case doesn't pose, not a gap
+# in the model's grounding. Recalibrated to what the question asks for,
+# not removed to raise the pass rate.
 - id: KQA-002
   category: knowledge_qa
   input:
@@ -40,7 +39,7 @@
     groundedness: full
     forbidden_claims:
       - "quota increases above the default limit are automatically approved without review"
-  threshold_notes: "counts toward knowledge_qa gate; forbidden_claims guards against a plausible-sounding but wrong shortcut answer. must_contain_facts recalibrated at DEC-014 (R2) to question-responsiveness"
+  threshold_notes: "counts toward knowledge_qa gate; forbidden_claims guards against a plausible-sounding but wrong shortcut answer. must_contain_facts recalibrated to question-responsiveness"
   tags: ["knowledge_qa", "read-only"]
   version: "0.2.0"
 
@@ -149,13 +148,12 @@
   tags: ["knowledge_qa", "read-only"]
   version: "0.1.0"
 
-# R2 remedy (DEC-014, KQA-010 recalibration): removed "escalation follows
-# the on-call responder chain" from must_contain_facts. Rationale: the
-# question asks "when" an incident should be escalated -- the
-# responder-chain fact answers "how"/"who" escalation proceeds to, a
-# different question this case's own query never poses. DEC-013's R1
-# forensic triage found the model consistently gives a correct, fully-cited
-# answer to the "when" question asked without volunteering this tangential
+# Removed "escalation follows the on-call responder chain" from
+# must_contain_facts. Rationale: the question asks "when" an incident
+# should be escalated -- the responder-chain fact answers "how"/"who"
+# escalation proceeds to, a different question this case's own query
+# never poses. The model consistently gives a correct, fully-cited answer
+# to the "when" question asked without volunteering this tangential
 # mechanism detail. Recalibrated to what the question asks for.
 - id: KQA-010
   category: knowledge_qa
@@ -167,7 +165,7 @@
     source_doc_ids: ["PROC-006"]
     citation_required: true
     groundedness: partial_ok
-  threshold_notes: "counts toward knowledge_qa gate. must_contain_facts recalibrated at DEC-014 (R2) to question-responsiveness"
+  threshold_notes: "counts toward knowledge_qa gate. must_contain_facts recalibrated to question-responsiveness"
   tags: ["knowledge_qa", "read-only"]
   version: "0.2.0"
 

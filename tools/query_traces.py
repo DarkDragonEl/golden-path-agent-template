@@ -1,4 +1,4 @@
-"""Phase D4 (DECISIONS.md DEC-068/DEC-071) -- the "scripted query view"
+"""The "scripted query view" (ADR-006, ADR-020) --
 the owner's own plan approval explicitly offered as an acceptable, honest
 realization of trace continuity over a full Jaeger/Tempo install: filter
 the cluster-tier OTel Collector's `file` exporter output by session.id or
@@ -8,7 +8,7 @@ ID spans both services -- each process's own span tree is independent,
 joined here by attribute value instead, not by trace-context propagation).
 
 Source format: one full OTLP `ExportTraceServiceRequest` JSON object per
-line (confirmed live, DEC-068 -- the collector's `file` exporter batches
+line (confirmed live, ADR-020 -- the collector's `file` exporter batches
 per flush, not per span). This script flattens every span (and, for
 completeness, every span *event*, since agent/telemetry.py's own
 model_call/tool_call events carry their own attributes too) across every

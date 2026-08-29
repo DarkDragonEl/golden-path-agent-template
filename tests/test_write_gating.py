@@ -1,5 +1,5 @@
-"""Phase B2 write-gating restructure — integration tests. Graduated to
-Phase D's standalone-approval-service model at DECISIONS.md DEC-049:
+"""Write-gating integration tests, against the standalone-approval-service
+model of ADR-001:
 human_approval_node now reads approved_action/approval_decision, both of
 which are only ever populated by agent/approval_client.py::resolve_and_resume
 from the approval service's own IF-05 response -- these unit tests
@@ -7,7 +7,7 @@ construct that already-resolved state directly (simulating what
 resolve_and_resume would have injected), exercising the node's own
 execution behavior in isolation.
 
-Per the kickoff design points: (1) DECISIONS.md DEC-008's arguments-sourcing
+Per the kickoff design points: (1) ADR-001's arguments-sourcing
 condition -- the agent executes exactly the arguments the approval
 service's terminal-state query returned, never a locally cached draft;
 (2) the SRS-AGT-SEC-03 fail-closed default and its inverse test; (3) reject/
@@ -36,7 +36,7 @@ def _req_ids(rest_client):
     return {r["record_id"] for r in _records(rest_client, record_type="request")}
 
 
-# --- (1) DEC-008: arguments_executed == arguments_approved ---
+# --- (1) ADR-001: arguments_executed == arguments_approved ---
 
 
 def test_approve_invokes_with_exactly_the_persisted_approved_action_arguments(rest_client):
@@ -115,7 +115,7 @@ def test_approve_reads_arguments_from_persisted_state_not_a_stale_local_copy(res
 
 
 def test_execution_uses_approved_action_not_drafted_action_when_they_diverge(rest_client):
-    # DEC-045's own mutated-draft regression test: drafted_action (what
+    # ADR-025's own mutated-draft regression test: drafted_action (what
     # tool_invoke_node originally proposed) and approved_action (what
     # resolve_and_resume's IF-05 query actually returned) deliberately
     # differ here -- a stronger proof than equality alone, since two
@@ -209,8 +209,8 @@ def test_no_resume_bypass_attempt_creates_no_new_request_record(rest_client):
     # forces the approval path despite the caller's request to skip it, and
     # no decision is ever rendered -- human_approval_node is never even
     # invoked. tool_invoke_node's write branch (the draft step) must not
-    # touch the store by itself. Phase B3 retired tool_invoke_node's
-    # hardcoded dispatch -- it now reads state["selected_tool"], set by
+    # touch the store by itself. tool_invoke_node's
+    # hardcoded dispatch was retired -- it now reads state["selected_tool"], set by
     # reason_node (real tool_calls in live mode, a legacy simulation in
     # fake mode) -- so this test drives the real write-classified branch
     # directly against the real itsm_create_request tool, exercising the
@@ -252,6 +252,6 @@ def test_unrecognized_tool_classifies_as_write_and_would_pause():
     # fails closed to "write", so a hypothetical call to it would take the
     # draft-and-pause branch, never the eager-execution one -- this is the
     # eval-set gap srs/SRS-AGT.md's own Verification table for SEC-03
-    # notes (no Phase A case exercises a classification-ambiguous action).
+    # notes (no eval case exercises a classification-ambiguous action).
     assert policy.classify_action("some_unrecognized_tool", {"anything": "here"}) == "write"
     assert policy.requires_approval("some_unrecognized_tool", {"anything": "here"}) is True

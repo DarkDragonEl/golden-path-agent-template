@@ -1,32 +1,23 @@
 # Environments
 
-**On the SNO target being a shared, multi-tenant lab cluster, not a
-dedicated one (`DECISIONS.md` `DEC-024`):** the accepted delivery plan
-assumed Phase C would bootstrap a dedicated SNO from Git alone, operators
-included. The real target is a shared lab cluster where the OpenShift
-Pipelines and GitOps operators were already installed by prior, unrelated
-work, before this project ever touched it. Consequence, stated plainly
-rather than left for a colleague to notice: this project's own
-namespaces/RBAC/`AppProject`/pipeline/policy bundle all do bootstrap from
-Git as designed, but **operator installation does not** — installing or
-reinstalling cluster-wide operators on a shared, busy cluster is outside
-this project's authority and would itself be a blast-radius risk. Phase
-E's shared showcase cluster is therefore the first and only full
-from-scratch bootstrap test (operators included) — that raises the bar for
-what "exercised ≥2 refreshes" needs to mean at that milestone, since Phase
-C alone cannot prove the operator-install leg of the story.
+**The target cluster is a shared, multi-tenant lab cluster, not a
+dedicated one.** This project's own namespaces/RBAC/`AppProject`/pipeline/
+policy bundle all bootstrap from Git, but **operator installation does
+not** — the OpenShift Pipelines and GitOps operators must already be
+installed on the target cluster. Installing or reinstalling cluster-wide
+operators is outside this project's authority and would itself be a
+blast-radius risk on a shared, busy cluster.
 
 | Stage | Purpose | Deployed this milestone? | What's here |
 |---|---|---|---|
 | Local laptop | Fast dev loop, deterministic testing | yes | `scripts/dev.sh --offline` (plain `podman run`/`docker run`, no compose dependency), `.env.example` |
 | PR CI | Basic correctness + the eval promotion gate | yes (as the real Tekton `Pipeline`, `pipelines/`, Step C1) | `ci/pr-checks.yaml`'s shape, realized: `unit-tests` → `eval-gate-offline`/`eval-gate-live` → `container-build` → `sbom-generate` |
 | Ephemeral test | Validate integrated behavior in a real (short-lived) namespace, pre-promotion | yes | `deploy/kustomize/overlays/ephemeral-test/`, `deploy/argocd/application-ephemeral-test.yaml`; deployed directly by the pipeline's own `deploy-ephemeral` Task, not by ArgoCD sync — see the ownership model below for why |
-| Demo production | The demo milestone's own promoted, always-on environment (`DECISIONS.md` `DEC-021`) | **yes — new at Step C4** | `deploy/kustomize/overlays/demo-prod/`, `deploy/argocd/apps/demo-prod.yaml`; ArgoCD-synced (`automated`, `selfHeal: true`) from the digest the promotion PR merge lands on `main` |
+| Demo production | The demo milestone's own promoted, always-on environment | **yes — new at Step C4** | `deploy/kustomize/overlays/demo-prod/`, `deploy/argocd/apps/demo-prod.yaml`; ArgoCD-synced (`automated`, `selfHeal: true`) from the digest the promotion PR merge lands on `main` |
 | Staging | Validate against approved staging data / real identity | **no — explicitly out of scope this milestone** | `deploy/kustomize/overlays/staging/`, `deploy/argocd/application-staging.yaml` (stub, un-synced, not part of the app-of-apps root) |
 | Pilot production | Controlled, human-approval-gated value delivery | **no — explicitly out of scope this milestone** | `deploy/kustomize/overlays/pilot-prod/`, `deploy/argocd/application-pilot-prod.yaml` (stub, un-synced, not part of the app-of-apps root) |
 
-**Ownership model (`DECISIONS.md` `DEC-040`, resolved at the Step C3/C4
-STOP): `demo-prod` is GitOps-managed (ArgoCD auto-sync); `ephemeral-test`
+**Ownership model:** `demo-prod` is GitOps-managed (ArgoCD auto-sync); `ephemeral-test`
 is pipeline-managed (direct `oc apply`, a specific unpromoted digest,
 per `PipelineRun`).** `deploy-ephemeral` (the pipeline `Task`) applies a
 digest that is deliberately not yet on `main` — the whole point of the
@@ -53,7 +44,7 @@ digest, image name, and namespace come out identically shaped, only the
 
 GitOps promotion at this MVP's scale is small `Application` manifests
 pointed at overlay paths — not an `ApplicationSet` generator matrix.
-Since Step C4 (`DECISIONS.md` `DEC-021`/`DEC-040`), `deploy/argocd/apps/`
+`deploy/argocd/apps/`
 holds exactly the `Application`s the app-of-apps root
 (`deploy/argocd/application-root.yaml`) actually syncs — currently just
 `demo-prod` (see the ownership model above for why `ephemeral-test`
@@ -72,15 +63,15 @@ regardless, preserving a manual-sync gate for whenever it is activated.
 `Namespace` object (the other two overlays only set `namespace:` on
 existing resources — they assume the namespace already exists), but on the
 real SNO target this object is created once, out of band
-(`pipelines/bootstrap/namespaces.yaml`, applied manually — see the Phase C
-runbook), not per `PipelineRun` and not TTL-garbage-collected.
+(`pipelines/bootstrap/namespaces.yaml`, applied manually), not per
+`PipelineRun` and not TTL-garbage-collected.
 
-**This is a deliberate deviation from the original design** (`DECISIONS.md`
-`DEC-024`), driven by RBAC, not convenience: creating/deleting a `Namespace`
+**This is a deliberate deviation from the original design,** driven by RBAC,
+not convenience: creating/deleting a `Namespace`
 is a cluster-scoped action that a namespace-scoped `Role`/`RoleBinding`
 cannot grant (Kubernetes RBAC's `create` verb has no `resourceNames`
 restriction, since the target doesn't exist yet at authorization-check
-time), and the Phase C pipeline's own `ServiceAccount` is deliberately
+time), and the pipeline's own `ServiceAccount` is deliberately
 granted zero cluster-scoped permissions — no `ClusterRoleBinding`, no
 cluster-admin — regardless of what a human operator's own session could do
 (`pipelines/bootstrap/rbac.yaml`'s header). **"Ephemeral" now means
@@ -98,15 +89,14 @@ apply rather than ever reflecting the real, one-time bootstrap event.
 All of it lives in `deploy/kustomize/base/configmap.yaml` (defaults) and
 each overlay's `configMapGenerator` literals (overrides):
 `MODEL_API_BASE_URL`, `MODEL_NAME`, `MODEL_FALLBACK_API_BASE_URL`,
-`MODEL_FALLBACK_NAME` (`DECISIONS.md` `DEC-035`), `DATA_SOURCE_BINDING`,
+`MODEL_FALLBACK_NAME`, `DATA_SOURCE_BINDING`,
 `APPROVAL_MODE`, `MCP_MODE`, plus replica count via the `replicas:`
 transformer. None of it requires a rebuild — this is the literal
 implementation of "environment differences expressed through
 configuration."
 
 **Two different mechanisms deliver the real (non-placeholder) model
-endpoint values, per how each environment is deployed** (`DECISIONS.md`
-`DEC-039`): `ephemeral-test` gets them injected transiently, at
+endpoint values, per how each environment is deployed:** `ephemeral-test` gets them injected transiently, at
 apply-time, by the pipeline's own `deploy-ephemeral` Task (a one-shot
 `oc apply`, never reconciled again — safe to override a Kustomize-managed
 `ConfigMap` key this way). `demo-prod` is ArgoCD-synced with
@@ -127,6 +117,6 @@ obviously fake rather than a real internal hostname) — true for every
 overlay, including `demo-prod`'s (inherited unmodified from `base`, per
 the mechanism above). `deploy/argocd/*.yaml`'s `REPLACE_WITH_GIT_REPO_URL`/
 `REPLACE_WITH_GITOPS_NAMESPACE` placeholders were filled in at Step C1a
-(`DECISIONS.md` `DEC-024`) with this repo's real, public HTTPS URL and
+with this repo's real, public HTTPS URL and
 the shared cluster's `openshift-gitops` namespace — no longer a
 placeholder as of this milestone.

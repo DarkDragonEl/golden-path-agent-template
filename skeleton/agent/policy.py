@@ -18,7 +18,7 @@ def check_step_limit(state: dict) -> None:
         )
 
 
-# Phase C (DEC-023): the legacy _LEGACY_WRITE_FLAG_TOOLS carve-out that
+# The legacy _LEGACY_WRITE_FLAG_TOOLS carve-out that
 # used to live here is retired. It existed only to let
 # eval/cases/EXAMPLE-002.yaml signal a write-classified call via a
 # `write: true` argument flag on placeholder_lookup, rather than by
@@ -35,7 +35,7 @@ def classify_action(tool_name: str, arguments: dict) -> str:
     ambiguous tool name fails closed to "write" (config.DEFAULT_TOOL_CLASSIFICATION)
     — it is never treated as read-only or directly executable. `arguments`
     is accepted for interface stability with callers but no longer
-    consulted (Phase C, DEC-023) -- classification is purely tool-name-keyed.
+    consulted -- classification is purely tool-name-keyed.
     """
     return config.TOOL_CLASSIFICATION.get(tool_name, config.DEFAULT_TOOL_CLASSIFICATION)
 

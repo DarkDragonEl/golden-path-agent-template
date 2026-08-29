@@ -1,4 +1,4 @@
-# DECISIONS.md DEC-092. Auto-sync on, matching demo-prod's precedent --
+# Auto-sync on, matching demo-prod's precedent --
 # no separate promotion step exists for RHDH; this repo's commit is the
 # human gate.
 apiVersion: argoproj.io/v1alpha1

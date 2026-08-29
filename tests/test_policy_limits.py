@@ -2,7 +2,7 @@ import pytest
 
 from agent import policy
 
-# Phase C (DEC-023): the legacy write:true argument-flag carve-out that
+# ADR-019: the legacy write:true argument-flag carve-out that
 # used to live in agent/policy.py is retired -- classification is now
 # purely tool-name-keyed, with no exceptions. The two tests below prove
 # exactly that: placeholder_lookup classifies "read" regardless of any
@@ -38,7 +38,7 @@ def test_itsm_create_request_classified_as_write():
 def test_unknown_tool_fails_closed_to_write():
     # SRS-AGT-SEC-03: an action whose tool name is not in the taxonomy is
     # always treated as write-capable, never read-only or directly
-    # executable -- verification the Phase A eval set doesn't cover yet
+    # executable -- verification this eval set doesn't cover yet
     # (srs/SRS-AGT.md's own Verification table for SEC-03 flags this gap).
     assert policy.classify_action("some_unlisted_tool", {}) == "write"
     assert policy.requires_approval("some_unlisted_tool", {}) is True

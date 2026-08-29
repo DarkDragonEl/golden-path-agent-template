@@ -6,7 +6,7 @@ design — which store, if any"; only the externally observable guarantee at
 SRS-MIT-IF-05 is specified: state persists across calls within one running
 instance). A dict guarded by a lock satisfies that guarantee without
 over-building — no database is warranted here. Only the approval service
-(Phase D) has a real restart-survival requirement.
+has a real restart-survival requirement.
 
 Seed fixture IDs are contractual, not illustrative: eval/README.md commits
 `eval/cases/domain/*.yaml` to these exact eight IDs and, in several cases,
@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 def _plural_tolerant_variants(needle: str) -> list[str]:
-    """DEC-014: tolerates a trailing-s mismatch between a caller's phrasing
+    """Tolerates a trailing-s mismatch between a caller's phrasing
     and a record's stored text, without full stemming. Returns the needle
     plus a single trailing-s variant."""
     if needle.endswith("s") and len(needle) > 3:
@@ -34,7 +34,7 @@ _STATUS_SEPARATOR_RE = re.compile(r"[-_\s]+")
 
 
 def _normalize_status(status: str) -> str:
-    """DEC-018/DEC-019: treats "in-progress"/"in_progress"/"in progress" as
+    """Treats "in-progress"/"in_progress"/"in progress" as
     the same value -- collapses any run of hyphen/underscore/whitespace
     into one canonical separator and lowercases."""
     return _STATUS_SEPARATOR_RE.sub("_", status.strip().lower())
@@ -198,7 +198,7 @@ class ItsmStore:
         """Read-only search/lookup. Never creates, modifies, or deletes state.
 
         `_simulate_error` is a test-only fault-injection hook, driven only by
-        the eval executor's `fault_params` (Phase B4) — never reachable from
+        the eval executor's `fault_params` — never reachable from
         a real agent-constructed call, since the MCP tool wrapper in
         server.py does not expose this parameter at all.
         """
@@ -257,7 +257,7 @@ class ItsmStore:
 
         Per SRS-MIT-SEC-01, this operation itself exposes no bypass — it is
         only reachable at all through the agent's write-gated tool_invoke
-        path (Phase B2). Approval gating is enforced by the agent's policy
+        path. Approval gating is enforced by the agent's policy
         layer plus the approval service, not by this component.
         """
         if _simulate_error == "timeout":

@@ -1,7 +1,6 @@
-# Phase C, Step C1b. Cycles the ephemeral resources deploy-ephemeral
-# created -- the Namespace itself is never touched (DEC-024). Runs in the
-# Pipeline's finally block, always, regardless of whether earlier stages
-# passed or failed.
+# Cycles the ephemeral resources deploy-ephemeral created -- the
+# Namespace itself is never touched. Runs in the Pipeline's finally
+# block, always, regardless of whether earlier stages passed or failed.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:

@@ -1,7 +1,7 @@
 # Architecture
 
 One image, one runtime role: the MCP tool server (`mcp_server/`), nothing
-else. This is a Phase G, Stage 2 (DEC-098/DEC-099) Tools Template
+else. This is a Tools Template
 instance -- it is deliberately independent of any Agent Template
 instance's own build/deploy/promote lifecycle. No agent code, no
 approval-service code exists in this repo.
