@@ -7,12 +7,9 @@ correctness, retrieval relevance, citation quality, tool selection,
 tool-argument correctness, refusal and escalation behavior, resistance to
 prompt injection, policy compliance, and latency/token consumption.
 
-It exists **before** the complete agent implementation, per StR-EVL-03 /
-SysR-P-LC-04 — verified by repository-history inspection: this content is
-committed on `feature/phase-a-eval-set`, ahead of any ITSM tool, corpus, or
-domain-prompt implementation. Ground-truth validation (StR-EVL-04 /
-SysR-P-INFO-02) happens as the two review checkpoints below, each a
-separate, dated commit — see the Review Log.
+It exists **before** the complete agent implementation, ahead of any real
+tool, corpus, or domain-prompt implementation — the eval set defines what
+"correct" means before there's a full system to measure against it.
 
 ## This is not the existing eval harness
 
@@ -232,14 +229,3 @@ superseded by this concrete convention). The trace-check will consume
 reports by this convention, so later phases should keep naming their
 reports `reports/<branch-name>.md` rather than inventing a different
 scheme per branch.
-
-## Review Log
-
-Human-readable pointer to the git-history sign-off evidence StR-EVL-04 /
-SysR-P-INFO-02 require. Each row corresponds to a commit on
-`feature/phase-a-eval-set`.
-
-| Date | Reviewer | Checkpoint | Outcome |
-|---|---|---|---|
-| 2026-08-13 | Owner | 1 — exemplars (25 cases across 8 categories, schema, manifest, thresholds draft) | **Approved with conditions**: ITSM contract approved as downstream input; known-gap mechanism approved + tooling-enforcement line added; performance_budget approved as informative-only; cases/domain/ layout approved as mandatory SRS-EVH input; thresholds re-expressed as max absolute failures; exemplars approved as authored; report-naming convention confirmed. See `reports/feature-phase-a-eval-set.md`. |
-| 2026-08-13 | Owner | 2 — full set (62 cases across 8 categories, approved-pattern variants) | _submitted; pending owner review_. Conditions from the previous review applied in a dedicated prep commit first. See `reports/feature-phase-a-eval-set.md`. |

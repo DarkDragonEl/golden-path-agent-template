@@ -50,15 +50,11 @@ configMapGenerator:
       # never silent.
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318 # the
         # cluster-tier collector.
-  - name: ${{ values.name }}-approval-config
-    behavior: merge
-    literals:
-      - AUTH_MODE=oidc # the approval service now validates real
-        # Keycloak-issued tokens for every decision/query call in this
-        # environment. tools/check_config_contract.py's demo-prod-config
-        # assertion mechanically fails if this line is ever
-        # reverted/omitted, not left to convention.
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318
+        # No approval-config ConfigMap generator here: the approval
+        # service is a shared Platform Foundation singleton, never
+        # bundled or co-deployed by this template (approvalServiceEndpoint
+        # config only) -- this overlay's base has no approval-config
+        # resource for a `behavior: merge` generator to merge into.
 
 replicas:
   - name: ${{ values.name }}

@@ -282,7 +282,7 @@ def eval_case_prefix_set(known_case_ids: List[str]) -> set:
     from the real, loaded case-id set. Used to build a discriminating
     regex for eval-case-ID *references* inside SRS prose (see
     find_eval_case_ref_violations) — this avoids false positives on
-    unrelated NNN-suffixed tokens in the same prose (DEC-001, PLAT-003,
+    unrelated NNN-suffixed tokens in the same prose (XYZ-001, PLAT-003,
     INC-10234, etc.) that are not eval case ids at all.
     """
     prefix_re = re.compile(r"^(.*)-(\d+)$")
@@ -356,7 +356,7 @@ def find_eval_case_refs_near_paths(text: str) -> List[Dict]:
     ID-shaped tokens that appear elsewhere in the same prose (bare SRS
     category shorthand like `F-04` inside `SRS-APR-F-02/F-04`, mock-ITSM
     ids like `INC-10234`, corpus doc ids like `PLAT-003`, decision/finding
-    ids like `DEC-001`) never sit directly after such a path mention, so
+    ids like `XYZ-001`) never sit directly after such a path mention, so
     a wider, unscoped "any shape" scan would have reintroduced exactly
     the kind of false positives build_eval_case_ref_regex()'s known-prefix
     restriction was originally written to avoid. This function keeps that

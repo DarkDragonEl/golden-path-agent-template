@@ -308,7 +308,7 @@ def test_eval_case_prefix_set_derived_from_real_ids():
 def test_eval_case_ref_regex_matches_bare_and_range_but_not_unrelated_prefixes():
     prefixes = {"KQA", "OPS"}
     regex = trace_check.build_eval_case_ref_regex(prefixes)
-    text = "See KQA-001..015 and OPS-004, but not PLAT-001 or DEC-001 or SysR-P-OPS-02."
+    text = "See KQA-001..015 and OPS-004, but not PLAT-001 or XYZ-001 or SysR-P-OPS-02."
     matches = [(m.group(1), m.group(2), m.group(3)) for m in regex.finditer(text)]
     # Exact match set, not just "every matched prefix is KQA/OPS" — that
     # weaker assertion would not have caught the SysR-P-OPS-02 substring
@@ -367,7 +367,7 @@ def test_find_eval_case_refs_near_paths_ignores_unrelated_tokens_further_in_pros
     text = (
         "Evidence: `eval/cases/domain/draft_request.yaml` (DRQ-001..006) — "
         "consistent with, not a substitute for, a component-level test of "
-        "SRS-APR-F-02/F-04 in isolation, per DEC-001 and INC-10234."
+        "SRS-APR-F-02/F-04 in isolation, per XYZ-001 and INC-10234."
     )
     refs = trace_check.find_eval_case_refs_near_paths(text)
     assert [(r["prefix"], r["n1"], r["n2"]) for r in refs] == [("DRQ", "001", "006")]

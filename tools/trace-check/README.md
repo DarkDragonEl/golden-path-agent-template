@@ -104,7 +104,7 @@ document's §§1–5 content would silently produce wrong answers if trusted.
 The SRS documents' prose is full of other `PREFIX-NNN`-shaped tokens that
 are **not** eval case ids: mock ITSM record ids (`INC-10234`, `REQ-30021`),
 corpus document ids (`PLAT-003`, `PROC-001`), decision/finding log ids
-(`DEC-001`, `FIND-004`), bare SRS category shorthand (`F-04`, `IF-02`). A
+(`XYZ-001`, `FIND-004`), bare SRS category shorthand (`F-04`, `IF-02`). A
 regex that matched any `[A-Z]+-\d+` token *anywhere* in a document would
 flag all of these as broken eval-case references — and, in the other
 direction, a regex that only ever recognized tokens whose prefix is
@@ -146,7 +146,7 @@ tight window, so a hallucinated prefix such as `FAKE-001..999` is caught
 even though `FAKE` is not, and never was, a real case-id family. The
 tight scoping is what keeps this safe: unrelated ID-shaped tokens
 elsewhere in the same long sentence (`F-04` inside `SRS-APR-F-02/F-04`,
-`INC-10234`, `PLAT-003`, `DEC-001`) never sit directly after a path
+`INC-10234`, `PLAT-003`, `XYZ-001`) never sit directly after a path
 mention, so they are never swept in.
 
 This check is scoped to the five `srs/SRS-*.md` files only, per the
