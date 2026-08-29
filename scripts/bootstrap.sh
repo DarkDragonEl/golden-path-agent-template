@@ -672,6 +672,58 @@ log "=== step 9/9: verification ==="
 VERIFY_FAILED=false
 oc get applications.argoproj.io -n openshift-gitops
 
+# Step 9b: a genuinely fresh cluster's own internal registry starts
+# empty, so a plain bootstrap otherwise ends in the documented
+# ImagePullBackOff condition (DEC-080) with no path to a working
+# demo-prod at all. Trigger the already-committed PipelineRun template
+# for each demo-prod-relevant component and wait only for the
+# build/push (container-build + digest-capture), not the full pipeline
+# (eval-gate-live/security-tests/operational-tests/open-promotion-pr
+# keep running in the background) -- that's the only part standing
+# between "no image exists yet" and demo-prod being pullable. This
+# never touches the committed digest pin itself or attempts to merge
+# anything; if a freshly-built image's digest doesn't match what's
+# committed, demo-prod stays on ImagePullBackOff exactly as before, and
+# that's a real, separate promotion decision, not something this step
+# resolves silently.
+for component in agent mcp; do
+  RUN_NAME=$(oc create -f "pipelines/pipelinerun-template-${component}.yaml" -n golden-path-agent-ci -o jsonpath='{.metadata.name}')
+  log "  step 9b: triggered $RUN_NAME"
+  DIGEST_TASKRUN=""
+  PR_WAITED=0
+  PR_TIMEOUT=480
+  while [ -z "$DIGEST_TASKRUN" ]; do
+    DIGEST_TASKRUN=$(oc get pipelinerun "$RUN_NAME" -n golden-path-agent-ci \
+      -o jsonpath='{.status.childReferences[?(@.pipelineTaskName=="digest-capture")].name}' 2>/dev/null || echo "")
+    [ -n "$DIGEST_TASKRUN" ] && break
+    if [ "$PR_WAITED" -ge "$PR_TIMEOUT" ]; then
+      log "  step 9b: $RUN_NAME never reached digest-capture within ${PR_TIMEOUT}s -- inspect 'oc get pipelinerun $RUN_NAME -n golden-path-agent-ci -o yaml'"
+      break
+    fi
+    sleep 10; PR_WAITED=$((PR_WAITED + 10))
+  done
+  if [ -n "$DIGEST_TASKRUN" ]; then
+    while true; do
+      TR_STATUS=$(oc get taskrun "$DIGEST_TASKRUN" -n golden-path-agent-ci \
+        -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].status}' 2>/dev/null || echo "")
+      [ "$TR_STATUS" = "True" ] && { log "  step 9b: $RUN_NAME image build+push succeeded"; break; }
+      [ "$TR_STATUS" = "False" ] && { log "  step 9b: $RUN_NAME image build+push FAILED -- inspect 'oc get taskrun $DIGEST_TASKRUN -n golden-path-agent-ci -o yaml'"; break; }
+      if [ "$PR_WAITED" -ge "$PR_TIMEOUT" ]; then
+        log "  step 9b: $RUN_NAME digest-capture still not finished after ${PR_TIMEOUT}s -- not waiting further, the rest of the pipeline continues in the background"
+        break
+      fi
+      sleep 10; PR_WAITED=$((PR_WAITED + 10))
+    done
+  fi
+  log "  step 9b: $RUN_NAME left running in the background for its remaining tasks (eval-gate-live/security-tests/operational-tests/open-promotion-pr/destroy-ephemeral)"
+done
+
+# A pod already sitting in ImagePullBackOff from before step 9b ran
+# retries on kubelet's own exponential backoff (up to 300s between
+# attempts) -- force an immediate fresh pull attempt rather than
+# passively waiting on that schedule.
+oc rollout restart deployment/golden-path-agent deployment/golden-path-agent-mcp -n golden-path-agent-demo-prod >/dev/null 2>&1 || true
+
 # demo-prod's two Deployments are the one thing here that can genuinely
 # still be mid-rollout moments after step 8's apply (image pull, pod
 # start) -- poll briefly rather than a single point-in-time snapshot
@@ -717,6 +769,23 @@ if [ "$WITH_RHDH" = "true" ]; then
   verify_row "Application golden-path-agent-rhdh sync" \
     "$(oc get applications.argoproj.io golden-path-agent-rhdh -n openshift-gitops -o jsonpath='{.status.sync.status}' 2>/dev/null)" \
     "Synced"
+fi
+
+# E2E probe: a Deployment showing ready replicas only proves the
+# container passed its own liveness probe from inside the pod network
+# -- it doesn't prove the external-facing path (Ingress -> the Route
+# OpenShift's own Ingress Controller creates from it -> Service -> pod)
+# actually works. deploy/kustomize/base/ingress.yaml deliberately
+# commits no `host`/TLS annotations (platform-specific), so discover
+# the live Route and its scheme rather than assuming either.
+AGENT_ROUTE_HOST=$(oc get route -n golden-path-agent-demo-prod -o jsonpath='{.items[?(@.spec.to.name=="golden-path-agent")].spec.host}' 2>/dev/null | head -1)
+if [ -n "$AGENT_ROUTE_HOST" ]; then
+  AGENT_ROUTE_TLS=$(oc get route -n golden-path-agent-demo-prod -o jsonpath='{.items[?(@.spec.to.name=="golden-path-agent")].spec.tls}' 2>/dev/null | head -1)
+  AGENT_SCHEME="http"; [ -n "$AGENT_ROUTE_TLS" ] && AGENT_SCHEME="https"
+  AGENT_HEALTHZ=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "${AGENT_SCHEME}://${AGENT_ROUTE_HOST}/healthz" 2>/dev/null || echo "000")
+  verify_row "demo-prod agent /healthz via live Route (E2E)" "$AGENT_HEALTHZ" "200"
+else
+  verify_row "demo-prod agent /healthz via live Route (E2E)" "no Route found" "200"
 fi
 
 END_EPOCH=$(date -u +%s)
