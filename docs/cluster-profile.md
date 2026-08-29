@@ -136,6 +136,26 @@ assume a pin verified on one cluster (or a now-gone cluster) still
 resolves on a different one; record what actually differed here, not
 just what was expected.
 
+**Pin discipline: channel + minimum version, not an exact CSV.** For
+each cluster-scoped operator this blueprint uses (OpenShift Pipelines,
+OpenShift GitOps, the Keycloak operator, RHDH), `PINS.md` and this
+blueprint's tooling require a *channel* and a *minimum version* on that
+channel, not one exact historical CSV name. An exact-CSV pin is
+brittle across clusters: catalogs prune old entries and roll forward on
+their own schedule, and a shared cluster may already have the operator
+installed — by the adopter, or by a prior bootstrap run — at a CSV
+newer than whatever this blueprint last verified. `scripts/bootstrap.sh`
+treats a pre-existing `Subscription` for one of these packages as
+adopter-provided: if it already exists on the expected channel, the
+script verifies the installed CSV meets the minimum version (approving
+any in-progress, `installPlanApproval: Manual` upgrade within that
+channel if it doesn't yet) and never reapplies its own Subscription
+manifest over it. It installs fresh, using its own committed
+`startingCSV`, only when no such Subscription exists at all. A
+`Subscription` that exists but targets a *different* channel than
+expected is left untouched and flagged for a human to resolve — see
+"Leftover-state checks" below.
+
 **A single unhealthy `CatalogSource` can block dependency resolution
 for every `Subscription` on the cluster, not just ones targeting the
 broken catalog** — a known OLM behavior, not specific to this

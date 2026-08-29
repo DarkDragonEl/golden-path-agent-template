@@ -188,38 +188,52 @@ fi
 
 catalog_json="$($OC get packagemanifest -n openshift-marketplace -o json 2>/dev/null)"
 
+version_ge() {
+  # $1 >= $2, dotted-version comparison (GNU sort -V). Good enough for
+  # the "at least this version" comparisons this script needs -- not a
+  # full semver implementation.
+  [ "$1" = "$2" ] && return 0
+  [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]
+}
+
 check_operator_pin() {
-  # check_operator_pin <package> <expected-channel> <expected-starting-csv>
-  local pkg="$1" chan="$2" csv="$3"
+  # check_operator_pin <package> <expected-channel> <minimum-version>
+  #
+  # Exact-CSV pins are brittle across clusters: catalogs prune old
+  # entries and rotate forward independently of this project's own
+  # release cadence, and an adopter's cluster may already have a newer
+  # (still perfectly usable) CSV installed within the same channel.
+  # This checks the channel's current head meets a minimum version, not
+  # that one exact historical CSV name is still resolvable.
+  local pkg="$1" chan="$2" min_version="$3"
   local pm
   pm="$(echo "$catalog_json" | jq -c --arg pkg "$pkg" '.items[] | select(.metadata.name==$pkg and (.status.catalogSource=="redhat-operators"))' 2>/dev/null | head -1)"
   if [ -z "$pm" ]; then
     row FAIL "$pkg in redhat-operators catalog" "not found" "present" "PackageManifest '$pkg' not found in redhat-operators catalog on this cluster"
     return
   fi
-  local chan_present csv_in_channel
+  local chan_present current_csv current_version
   chan_present="$(echo "$pm" | jq -r --arg c "$chan" '[.status.channels[].name] | index($c) != null')"
   if [ "$chan_present" != "true" ]; then
     row FAIL "$pkg channel '$chan'" "not present" "present" "available channels: $(echo "$pm" | jq -r '[.status.channels[].name] | join(", ")')"
     return
   fi
-  csv_in_channel="$(echo "$pm" | jq -r --arg c "$chan" --arg csv "$csv" '.status.channels[] | select(.name==$c) | (.currentCSV == $csv) or ([.entries[]?.name] | index($csv) != null)')"
-  if [ "$csv_in_channel" = "true" ]; then
-    row PASS "$pkg pinned startingCSV" "$csv still in channel '$chan'" "$csv" ""
+  current_csv="$(echo "$pm" | jq -r --arg c "$chan" '.status.channels[] | select(.name==$c) | .currentCSV')"
+  current_version="${current_csv##*.v}"
+  if version_ge "$current_version" "$min_version"; then
+    row PASS "$pkg channel '$chan' minimum version" "head is $current_csv (>= $min_version)" ">= $min_version" ""
   else
-    local current_csv
-    current_csv="$(echo "$pm" | jq -r --arg c "$chan" '.status.channels[] | select(.name==$c) | .currentCSV')"
-    row FAIL "$pkg pinned startingCSV" "'$csv' NOT in channel '$chan' (current head: $current_csv)" "$csv" "pinned CSV has left the catalog -- would surface mid-bootstrap, fix the pin before running scripts/bootstrap.sh"
+    row FAIL "$pkg channel '$chan' minimum version" "head is $current_csv (< $min_version)" ">= $min_version" "channel's current head has fallen below this blueprint's minimum -- re-verify before running scripts/bootstrap.sh"
   fi
 }
 
 if [ -z "$catalog_json" ]; then
   row FAIL "redhat-operators catalog reachable" "(no response)" "reachable" "oc get packagemanifest failed"
 else
-  check_operator_pin "openshift-pipelines-operator-rh" "pipelines-1.22" "openshift-pipelines-operator-rh.v1.22.5"
-  check_operator_pin "openshift-gitops-operator" "gitops-1.20" "openshift-gitops-operator.v1.20.6"
-  check_operator_pin "rhbk-operator" "stable-v26.6" "rhbk-operator.v26.6.6-opr.1"
-  check_operator_pin "rhdh" "fast-1.10" "rhdh-operator.v1.10.3"
+  check_operator_pin "openshift-pipelines-operator-rh" "pipelines-1.22" "1.22.5"
+  check_operator_pin "openshift-gitops-operator" "gitops-1.20" "1.20.6"
+  check_operator_pin "rhbk-operator" "stable-v26.6" "26.6.6-opr.1"
+  check_operator_pin "rhdh" "fast-1.10" "1.10.3"
 
   rhdh_modes="$(echo "$catalog_json" | jq -r '.items[] | select(.metadata.name=="rhdh" and .status.catalogSource=="redhat-operators") | .status.channels[0].currentCSVDesc.installModes[]? | select(.supported==true) | .type' 2>/dev/null | tr '\n' ',' | sed 's/,$//')"
   if echo "$rhdh_modes" | grep -q "AllNamespaces"; then

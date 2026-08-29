@@ -74,61 +74,94 @@ log() { echo "[bootstrap.sh $(date -u '+%H:%M:%S')] $*"; }
 
 log "target: $(oc whoami --show-server) as $(oc whoami)"
 
-approve_pending_installplan() {
-  # $1 = namespace, $2 = exact CSV name. installPlanApproval: Manual
-  # (PINS.md's pin discipline) means even a first install sits in
-  # RequiresApproval -- only ever approves the plan matching the exact
-  # pinned CSV (DEC-055).
-  local ns="$1" csv="$2" plan approved
-  plan=$(oc get installplan -n "$ns" -o jsonpath="{.items[?(@.spec.clusterServiceVersionNames[0]=='$csv')].metadata.name}" 2>/dev/null || echo "")
+version_from_csv() {
+  # e.g. openshift-pipelines-operator-rh.v1.22.5 -> 1.22.5
+  echo "${1##*.v}"
+}
+
+version_ge() {
+  # $1 >= $2, dotted-version comparison (GNU sort -V). Good enough for
+  # the "at least this version" comparisons this script needs -- not a
+  # full semver implementation.
+  [ "$1" = "$2" ] && return 0
+  [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]
+}
+
+approve_pending_installplan_for_subscription() {
+  # $1 = namespace, $2 = Subscription name. Approves whichever
+  # InstallPlan that Subscription's own status currently references --
+  # scoped to this one Subscription, never a blanket approval of
+  # unrelated plans (DEC-055/DEC-080 discipline).
+  local ns="$1" sub="$2" plan approved
+  plan=$(oc get subscription "$sub" -n "$ns" -o jsonpath='{.status.installPlanRef.name}' 2>/dev/null || echo "")
   [ -n "$plan" ] || return 0
   approved=$(oc get installplan "$plan" -n "$ns" -o jsonpath='{.spec.approved}' 2>/dev/null || echo "")
   if [ "$approved" != "true" ]; then
-    log "  approving InstallPlan $plan ($csv) in $ns"
+    log "  approving InstallPlan $plan (subscription $sub) in $ns"
     oc patch installplan "$plan" -n "$ns" --type merge -p '{"spec":{"approved":true}}' >/dev/null
   fi
 }
 
-wait_for_csv() {
-  # $1 = namespace, $2 = exact CSV name, $3 = timeout seconds. Also
-  # approves a pending InstallPlan for this exact CSV on every poll, so
-  # this one loop handles both "InstallPlan not created yet" and
-  # "InstallPlan created, sitting in RequiresApproval" races.
-  local ns="$1" csv="$2" timeout="${3:-300}" waited=0 phase
+ensure_operator() {
+  # $1 = namespace, $2 = human label, $3 = fresh-install manifest path
+  # (exact startingCSV, used only when nothing pre-exists), $4 =
+  # Subscription/package name, $5 = expected channel, $6 = minimum
+  # acceptable version, $7 = timeout seconds.
+  #
+  # Adopter-provided discipline (DEC-135 addendum, docs/cluster-profile.md):
+  # a Subscription for this exact package may already exist on the
+  # target cluster -- installed by the adopter, or by a prior run of
+  # this script -- not created by this invocation. Never reapply this
+  # blueprint's own Subscription manifest onto one that already exists;
+  # doing so could silently change its channel or approval settings.
+  # Detect it, verify it meets the minimum version on the expected
+  # channel, and let OLM finish an in-progress upgrade if it hasn't yet
+  # -- install fresh only when no such Subscription exists at all.
+  local ns="$1" label="$2" manifest="$3" name="$4" channel="$5" min_version="$6" timeout="$7"
+  local existing_channel installed_csv installed_version waited=0 phase
+
+  if oc get subscription "$name" -n "$ns" >/dev/null 2>&1; then
+    existing_channel=$(oc get subscription "$name" -n "$ns" -o jsonpath='{.spec.channel}' 2>/dev/null || echo "")
+    if [ "$existing_channel" != "$channel" ]; then
+      log "$label: Subscription $name already exists in $ns on channel '$existing_channel', not this blueprint's expected '$channel' -- leftover-state case (docs/cluster-profile.md), not touching it. Resolve manually before continuing."
+      return 1
+    fi
+    log "$label: Subscription $name already exists in $ns on the expected channel '$channel' -- treating as adopter-provided, not reapplying $manifest"
+  else
+    log "$label: no existing Subscription $name in $ns -- applying $manifest"
+    oc apply -f "$manifest"
+  fi
+
   while true; do
-    approve_pending_installplan "$ns" "$csv"
-    phase=$(oc get csv "$csv" -n "$ns" -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
-    case "$phase" in
-      Succeeded) log "  $csv: Succeeded"; return 0 ;;
-      Failed) log "  $csv: FAILED -- inspect 'oc get csv $csv -n $ns -o yaml'"; return 1 ;;
-    esac
+    installed_csv=$(oc get subscription "$name" -n "$ns" -o jsonpath='{.status.installedCSV}' 2>/dev/null || echo "")
+    if [ -n "$installed_csv" ]; then
+      phase=$(oc get csv "$installed_csv" -n "$ns" -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+      installed_version=$(version_from_csv "$installed_csv")
+      if [ "$phase" = "Succeeded" ] && version_ge "$installed_version" "$min_version"; then
+        log "  $installed_csv: Succeeded, >= minimum $min_version"
+        return 0
+      fi
+      if [ "$phase" = "Failed" ]; then
+        log "  $installed_csv: FAILED -- inspect 'oc get csv $installed_csv -n $ns -o yaml'"
+        return 1
+      fi
+    fi
+    approve_pending_installplan_for_subscription "$ns" "$name"
     if [ "$waited" -ge "$timeout" ]; then
-      log "  $csv: still '${phase:-<not found>}' after ${timeout}s -- not waiting further"
+      log "  $name: still '${installed_csv:-<no CSV yet>}' (phase '${phase:-<none>}') after ${timeout}s -- not waiting further"
       return 1
     fi
     sleep 10; waited=$((waited + 10))
   done
 }
 
-ensure_operator() {
-  # $1 = namespace, $2 = human label, $3 = manifest path, $4 = exact startingCSV, $5 = timeout seconds
-  local ns="$1" label="$2" manifest="$3" csv="$4" timeout="$5"
-  if oc get csv "$csv" -n "$ns" -o jsonpath='{.status.phase}' 2>/dev/null | grep -q Succeeded; then
-    log "$label: already Succeeded in $ns, skipping"
-    return 0
-  fi
-  log "$label: applying $manifest"
-  oc apply -f "$manifest"
-  wait_for_csv "$ns" "$csv" "$timeout"
-}
-
 log "=== step 1/9: cluster-scoped operators (Pipelines, GitOps) ==="
 ensure_operator openshift-operators "OpenShift Pipelines" \
   pipelines/bootstrap/pipelines-operator.yaml \
-  openshift-pipelines-operator-rh.v1.22.5 300
+  openshift-pipelines-operator-rh pipelines-1.22 1.22.5 300
 ensure_operator openshift-operators "OpenShift GitOps" \
   pipelines/bootstrap/gitops-operator.yaml \
-  openshift-gitops-operator.v1.20.6 300
+  openshift-gitops-operator gitops-1.20 1.20.6 300
 
 log "=== step 2/9: namespaces + rbac ==="
 oc apply -f pipelines/bootstrap/namespaces.yaml
@@ -159,7 +192,7 @@ log "=== step 3/9: keycloak ==="
 KEYCLOAK_PATH="olm"
 if ! ensure_operator golden-path-agent-keycloak "rhbk-operator" \
     platform/bootstrap/keycloak-operator.yaml \
-    rhbk-operator.v26.6.6-opr.1 300; then
+    rhbk-operator stable-v26.6 26.6.6-opr.1 300; then
   log "rhbk-operator OLM path did not reach Succeeded in time -- falling back to upstream kustomize (DEC-056 precedent)"
   KEYCLOAK_PATH="upstream-kustomize"
   oc apply -k platform/bootstrap/keycloak-operator-upstream/
@@ -193,7 +226,7 @@ if [ "$WITH_RHDH" = "true" ]; then
   log "=== step 4b/9 (--with-rhdh, Phase F4, DEC-092): RHDH operator + Postgres secret ==="
   ensure_operator openshift-operators "RHDH" \
     platform/bootstrap/rhdh-operator.yaml \
-    rhdh-operator.v1.10.3 300
+    rhdh fast-1.10 1.10.3 300
   # Real gap found live (Phase F4): the RHDH Operator's external-DB secret
   # needs both the OpenShift postgresql S2I image's own env vars
   # (POSTGRESQL_USER/PASSWORD/DATABASE) AND the operator's own
