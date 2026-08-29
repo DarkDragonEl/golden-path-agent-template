@@ -107,38 +107,45 @@ find_subscription_for_package() {
 }
 
 approve_pending_installplan_for_package() {
-  # $1 = namespace, $2 = package name.
+  # $1 = namespace, $2 = Subscription object name (NOT the package name
+  # -- confirmed live that a CSV's own bundle name is not guaranteed to
+  # be prefixed by its package identifier: package "rhdh" resolves to
+  # CSV "rhdh-operator.v1.10.3", which a package-name-prefix match would
+  # miss entirely).
   #
-  # Finds whichever pending InstallPlan actually LISTS a CSV for this
-  # package, by reading each plan's own spec.clusterServiceVersionNames
-  # directly -- NOT via Subscription.status.installPlanRef. Confirmed
-  # live (DEC-135 addendum): on a cluster running several Manual-approval
-  # Subscriptions in one shared AllNamespaces OperatorGroup,
-  # installPlanRef does not reliably reference a plan that actually
-  # contains that Subscription's own target package -- it can point at
-  # a completely different package's plan.
+  # Reads this Subscription's own status.currentCSV -- the exact CSV
+  # OLM has resolved for THIS Subscription specifically -- and finds the
+  # InstallPlan whose spec.clusterServiceVersionNames contains that
+  # EXACT name. Deliberately not status.installPlanRef: confirmed live
+  # (DEC-135 addendum) that field can reference a different
+  # Subscription's plan entirely on a cluster with several simultaneous
+  # Manual-approval upgrades pending in one shared AllNamespaces
+  # OperatorGroup. An exact CSV-name match against every plan's own
+  # contents has no such ambiguity.
   #
-  # Refuses to approve a plan that also lists a CSV for any OTHER
-  # package (fail closed, CLAUDE.md). OLM can bundle several pending
-  # Manual-approval upgrades into one joint InstallPlan when they
-  # resolve together in the same pass -- approving it would upgrade
-  # those other packages too, which this call was never asked to touch.
-  local ns="$1" pkg="$2" plan approved other_pkgs
-  plan=$(oc get installplan -n "$ns" -o json 2>/dev/null | jq -r --arg pkg "$pkg" '
+  # Refuses to approve a plan that also lists any OTHER CSV (fail
+  # closed, CLAUDE.md). OLM can bundle several pending Manual-approval
+  # upgrades into one joint InstallPlan when they resolve together in
+  # the same pass -- approving it would upgrade those other targets
+  # too, which this call was never asked to touch.
+  local ns="$1" sub="$2" target_csv plan other_csvs approved
+  target_csv=$(oc get subscription "$sub" -n "$ns" -o jsonpath='{.status.currentCSV}' 2>/dev/null || echo "")
+  [ -n "$target_csv" ] || return 0
+  plan=$(oc get installplan -n "$ns" -o json 2>/dev/null | jq -r --arg csv "$target_csv" '
     .items[]
     | select(.spec.approved != true)
-    | select(.spec.clusterServiceVersionNames[]? | startswith($pkg + "."))
+    | select(.spec.clusterServiceVersionNames[]? == $csv)
     | .metadata.name' | head -1)
   [ -n "$plan" ] || return 0
-  other_pkgs=$(oc get installplan "$plan" -n "$ns" -o json 2>/dev/null | jq -r --arg pkg "$pkg" '
-    [.spec.clusterServiceVersionNames[] | select(startswith($pkg + ".") | not)] | join(", ")')
-  if [ -n "$other_pkgs" ]; then
-    log "  InstallPlan $plan also bundles: $other_pkgs -- NOT auto-approving a joint plan for packages this run wasn't asked to touch. Resolve manually."
+  other_csvs=$(oc get installplan "$plan" -n "$ns" -o json 2>/dev/null | jq -r --arg csv "$target_csv" '
+    [.spec.clusterServiceVersionNames[] | select(. != $csv)] | join(", ")')
+  if [ -n "$other_csvs" ]; then
+    log "  InstallPlan $plan also bundles: $other_csvs -- NOT auto-approving a joint plan for targets this run wasn't asked to touch. Resolve manually."
     return 1
   fi
   approved=$(oc get installplan "$plan" -n "$ns" -o jsonpath='{.spec.approved}' 2>/dev/null || echo "")
   if [ "$approved" != "true" ]; then
-    log "  approving InstallPlan $plan (package $pkg) in $ns"
+    log "  approving InstallPlan $plan ($target_csv) in $ns"
     oc patch installplan "$plan" -n "$ns" --type merge -p '{"spec":{"approved":true}}' >/dev/null
   fi
 }
@@ -193,7 +200,7 @@ ensure_operator() {
         return 1
       fi
     fi
-    approve_pending_installplan_for_package "$ns" "$package"
+    approve_pending_installplan_for_package "$ns" "$sub_name"
     if [ "$waited" -ge "$timeout" ]; then
       log "  $sub_name: still '${installed_csv:-<no CSV yet>}' (phase '${phase:-<none>}') after ${timeout}s -- not waiting further"
       return 1
@@ -274,12 +281,16 @@ if [ "$WITH_RHDH" = "true" ]; then
   # DEC-136: this blueprint is meant to be the SOLE owner of the rhdh
   # package's Subscription going forward (a prior, unrelated cluster
   # owner's own rhdh-operator Subscription was intentionally retired in
-  # favor of this one). Unlike ensure_operator's general
-  # adopter-provided path for Pipelines/GitOps/RHBK, any pre-existing
-  # rhdh Subscription found here is drift, not a legitimate adopter --
-  # abort rather than silently adopt or create a second one.
+  # favor of this one). A Subscription for package rhdh under any name
+  # OTHER than this blueprint's own ("rhdh") is therefore drift, not a
+  # legitimate adopter to fold into the general adopter-provided path
+  # -- abort rather than silently adopt or create a second one. A
+  # Subscription already named "rhdh" is this blueprint's own, from an
+  # earlier (possibly partial) run of this exact script -- ensure_operator
+  # handles that case exactly like Pipelines/GitOps/RHBK's, including
+  # its own channel-mismatch abort if that ever drifted too.
   EXISTING_RHDH_SUB=$(find_subscription_for_package openshift-operators rhdh)
-  if [ -n "$EXISTING_RHDH_SUB" ]; then
+  if [ -n "$EXISTING_RHDH_SUB" ] && [ "$EXISTING_RHDH_SUB" != "rhdh" ]; then
     log "  ABORT: Subscription $EXISTING_RHDH_SUB already provides package rhdh in openshift-operators -- this blueprint expects to be the sole owner (DEC-136). Not adopting, not creating a second one. Resolve manually before re-running with --with-rhdh."
     exit 1
   fi
