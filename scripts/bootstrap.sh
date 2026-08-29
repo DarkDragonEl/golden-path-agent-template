@@ -87,17 +87,58 @@ version_ge() {
   [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]
 }
 
-approve_pending_installplan_for_subscription() {
-  # $1 = namespace, $2 = Subscription name. Approves whichever
-  # InstallPlan that Subscription's own status currently references --
-  # scoped to this one Subscription, never a blanket approval of
-  # unrelated plans (DEC-055/DEC-080 discipline).
-  local ns="$1" sub="$2" plan approved
-  plan=$(oc get subscription "$sub" -n "$ns" -o jsonpath='{.status.installPlanRef.name}' 2>/dev/null || echo "")
+find_subscription_for_package() {
+  # $1 = namespace, $2 = package name (spec.name). Prints the
+  # metadata.name of whichever Subscription in that namespace targets
+  # this package, if any -- there should be at most one (OLM does not
+  # support two Subscriptions to the same package in one
+  # namespace/OperatorGroup). Matched by PACKAGE, not by this
+  # blueprint's own fixed object name: an adopter's pre-existing
+  # Subscription for the same package is not guaranteed to share this
+  # blueprint's own naming convention (DEC-135 addendum found this live
+  # -- a real cluster had the Pipelines operator already installed under
+  # a Subscription object named differently than this blueprint's own
+  # manifest, and matching by object name alone missed it, letting this
+  # script create a second, conflicting Subscription for the same
+  # package).
+  local ns="$1" pkg="$2"
+  oc get subscription -n "$ns" -o json 2>/dev/null | \
+    jq -r --arg pkg "$pkg" '.items[] | select(.spec.name==$pkg) | .metadata.name' | head -1
+}
+
+approve_pending_installplan_for_package() {
+  # $1 = namespace, $2 = package name.
+  #
+  # Finds whichever pending InstallPlan actually LISTS a CSV for this
+  # package, by reading each plan's own spec.clusterServiceVersionNames
+  # directly -- NOT via Subscription.status.installPlanRef. Confirmed
+  # live (DEC-135 addendum): on a cluster running several Manual-approval
+  # Subscriptions in one shared AllNamespaces OperatorGroup,
+  # installPlanRef does not reliably reference a plan that actually
+  # contains that Subscription's own target package -- it can point at
+  # a completely different package's plan.
+  #
+  # Refuses to approve a plan that also lists a CSV for any OTHER
+  # package (fail closed, CLAUDE.md). OLM can bundle several pending
+  # Manual-approval upgrades into one joint InstallPlan when they
+  # resolve together in the same pass -- approving it would upgrade
+  # those other packages too, which this call was never asked to touch.
+  local ns="$1" pkg="$2" plan approved other_pkgs
+  plan=$(oc get installplan -n "$ns" -o json 2>/dev/null | jq -r --arg pkg "$pkg" '
+    .items[]
+    | select(.spec.approved != true)
+    | select(.spec.clusterServiceVersionNames[]? | startswith($pkg + "."))
+    | .metadata.name' | head -1)
   [ -n "$plan" ] || return 0
+  other_pkgs=$(oc get installplan "$plan" -n "$ns" -o json 2>/dev/null | jq -r --arg pkg "$pkg" '
+    [.spec.clusterServiceVersionNames[] | select(startswith($pkg + ".") | not)] | join(", ")')
+  if [ -n "$other_pkgs" ]; then
+    log "  InstallPlan $plan also bundles: $other_pkgs -- NOT auto-approving a joint plan for packages this run wasn't asked to touch. Resolve manually."
+    return 1
+  fi
   approved=$(oc get installplan "$plan" -n "$ns" -o jsonpath='{.spec.approved}' 2>/dev/null || echo "")
   if [ "$approved" != "true" ]; then
-    log "  approving InstallPlan $plan (subscription $sub) in $ns"
+    log "  approving InstallPlan $plan (package $pkg) in $ns"
     oc patch installplan "$plan" -n "$ns" --type merge -p '{"spec":{"approved":true}}' >/dev/null
   fi
 }
@@ -105,35 +146,41 @@ approve_pending_installplan_for_subscription() {
 ensure_operator() {
   # $1 = namespace, $2 = human label, $3 = fresh-install manifest path
   # (exact startingCSV, used only when nothing pre-exists), $4 =
-  # Subscription/package name, $5 = expected channel, $6 = minimum
+  # package name (spec.name), $5 = expected channel, $6 = minimum
   # acceptable version, $7 = timeout seconds.
   #
   # Adopter-provided discipline (DEC-135 addendum, docs/cluster-profile.md):
-  # a Subscription for this exact package may already exist on the
-  # target cluster -- installed by the adopter, or by a prior run of
-  # this script -- not created by this invocation. Never reapply this
-  # blueprint's own Subscription manifest onto one that already exists;
-  # doing so could silently change its channel or approval settings.
+  # a Subscription for this exact PACKAGE may already exist on the
+  # target cluster -- installed by the adopter (possibly under a
+  # different object name than this blueprint's own manifest uses), or
+  # by a prior run of this script -- not created by this invocation.
+  # Never reapply this blueprint's own Subscription manifest when one
+  # already exists for the package; doing so creates a second,
+  # conflicting Subscription for the same package (confirmed live,
+  # DEC-135 addendum) rather than silently updating the existing one.
   # Detect it, verify it meets the minimum version on the expected
   # channel, and let OLM finish an in-progress upgrade if it hasn't yet
-  # -- install fresh only when no such Subscription exists at all.
-  local ns="$1" label="$2" manifest="$3" name="$4" channel="$5" min_version="$6" timeout="$7"
-  local existing_channel installed_csv installed_version waited=0 phase
+  # -- install fresh only when no Subscription for this package exists
+  # at all.
+  local ns="$1" label="$2" manifest="$3" package="$4" channel="$5" min_version="$6" timeout="$7"
+  local sub_name existing_channel installed_csv installed_version waited=0 phase
 
-  if oc get subscription "$name" -n "$ns" >/dev/null 2>&1; then
-    existing_channel=$(oc get subscription "$name" -n "$ns" -o jsonpath='{.spec.channel}' 2>/dev/null || echo "")
+  sub_name=$(find_subscription_for_package "$ns" "$package")
+  if [ -n "$sub_name" ]; then
+    existing_channel=$(oc get subscription "$sub_name" -n "$ns" -o jsonpath='{.spec.channel}' 2>/dev/null || echo "")
     if [ "$existing_channel" != "$channel" ]; then
-      log "$label: Subscription $name already exists in $ns on channel '$existing_channel', not this blueprint's expected '$channel' -- leftover-state case (docs/cluster-profile.md), not touching it. Resolve manually before continuing."
+      log "$label: Subscription $sub_name already provides package $package in $ns on channel '$existing_channel', not this blueprint's expected '$channel' -- leftover-state case (docs/cluster-profile.md), not touching it. Resolve manually before continuing."
       return 1
     fi
-    log "$label: Subscription $name already exists in $ns on the expected channel '$channel' -- treating as adopter-provided, not reapplying $manifest"
+    log "$label: Subscription $sub_name already provides package $package in $ns on the expected channel '$channel' -- treating as adopter-provided, not applying $manifest"
   else
-    log "$label: no existing Subscription $name in $ns -- applying $manifest"
+    log "$label: no existing Subscription for package $package in $ns -- applying $manifest"
     oc apply -f "$manifest"
+    sub_name=$(find_subscription_for_package "$ns" "$package")
   fi
 
   while true; do
-    installed_csv=$(oc get subscription "$name" -n "$ns" -o jsonpath='{.status.installedCSV}' 2>/dev/null || echo "")
+    installed_csv=$(oc get subscription "$sub_name" -n "$ns" -o jsonpath='{.status.installedCSV}' 2>/dev/null || echo "")
     if [ -n "$installed_csv" ]; then
       phase=$(oc get csv "$installed_csv" -n "$ns" -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
       installed_version=$(version_from_csv "$installed_csv")
@@ -146,9 +193,9 @@ ensure_operator() {
         return 1
       fi
     fi
-    approve_pending_installplan_for_subscription "$ns" "$name"
+    approve_pending_installplan_for_package "$ns" "$package"
     if [ "$waited" -ge "$timeout" ]; then
-      log "  $name: still '${installed_csv:-<no CSV yet>}' (phase '${phase:-<none>}') after ${timeout}s -- not waiting further"
+      log "  $sub_name: still '${installed_csv:-<no CSV yet>}' (phase '${phase:-<none>}') after ${timeout}s -- not waiting further"
       return 1
     fi
     sleep 10; waited=$((waited + 10))

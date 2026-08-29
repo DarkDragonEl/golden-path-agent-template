@@ -261,12 +261,33 @@ if [ -n "$existing_csvs" ]; then
   sub_summary="$(echo "$subs_json" | jq -r '.items[] | "\(.metadata.namespace)/\(.metadata.name)->\(.spec.channel)"' | tr '\n' ';' | sed 's/;$//')"
   row WARN "Existing Subscriptions across all namespaces ($(echo "$subs_json" | jq -r '.items | length'))" "$(md_escape "$sub_summary")" "reviewed manually" "real objects, not copied per-namespace -- this list is exhaustive"
 
-  rhdh_sub_channel="$(echo "$subs_json" | jq -r '.items[] | select(.metadata.name=="rhdh-operator") | .spec.channel' 2>/dev/null)"
+  # DEC-135 addendum: found live on a real cluster -- an adopter's
+  # Subscription for a package this blueprint also subscribes to,
+  # existing under a DIFFERENT object name than this blueprint's own
+  # manifest uses. scripts/bootstrap.sh's own duplicate-detection
+  # matches by package (spec.name), not object name, precisely because
+  # of this; this check surfaces the same class of collision before
+  # bootstrap.sh ever runs, since OLM does not support two Subscriptions
+  # to the same package in one namespace.
+  dup_pkg_ns="$(echo "$subs_json" | jq -r '
+    [.items[] | {ns: .metadata.namespace, pkg: .spec.name, name: .metadata.name}]
+    | group_by(.ns + "/" + .pkg)
+    | map(select(length > 1))
+    | map("\(.[0].ns)/\(.[0].pkg): " + ([.[].name] | join(", ")))
+    | join("; ")
+  ' 2>/dev/null)"
+  if [ -n "$dup_pkg_ns" ]; then
+    row FAIL "Duplicate Subscriptions for the same package+namespace" "$(md_escape "$dup_pkg_ns")" "at most one Subscription per package per namespace" "OLM does not support two Subscriptions to the same package in one namespace -- resolution/upgrades for at least one of them will misbehave. Delete whichever Subscription is redundant before running scripts/bootstrap.sh."
+  else
+    row PASS "Duplicate Subscriptions for the same package+namespace" "none found" "at most one per package per namespace" ""
+  fi
+
+  rhdh_sub_channel="$(echo "$subs_json" | jq -r '.items[] | select(.spec.name=="rhdh") | .spec.channel' 2>/dev/null)"
   if [ -n "$rhdh_sub_channel" ]; then
     if [ "$rhdh_sub_channel" = "fast-1.10" ]; then
-      row PASS "Existing rhdh-operator Subscription channel" "$rhdh_sub_channel" "fast-1.10 (this blueprint's own pin)" ""
+      row PASS "Existing rhdh Subscription channel" "$rhdh_sub_channel" "fast-1.10 (this blueprint's own pin)" ""
     else
-      row WARN "Existing rhdh-operator Subscription channel" "$rhdh_sub_channel" "fast-1.10 (this blueprint's own pin)" "an rhdh-operator Subscription already exists on a different channel -- owner-confirmed resolution: update this existing Subscription's channel at bootstrap time rather than creating a second one; not a blocker, but scripts/bootstrap.sh's own RHDH step needs to patch, not blind-apply, this specific object"
+      row WARN "Existing rhdh Subscription channel" "$rhdh_sub_channel" "fast-1.10 (this blueprint's own pin)" "an rhdh Subscription already exists on a different channel -- owner-confirmed resolution: update this existing Subscription's channel at bootstrap time rather than creating a second one; not a blocker, but scripts/bootstrap.sh's own RHDH step needs to patch, not blind-apply, this specific object"
     fi
   fi
 
