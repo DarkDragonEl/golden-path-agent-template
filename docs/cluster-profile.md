@@ -200,3 +200,18 @@ before it runs:
   deleting anything this blueprint doesn't own. Only propose changes
   to unrelated workloads as a last resort, listed for explicit
   approval before any of it is touched.
+- **A pre-existing Subscription for the same package under a
+  *different object name* than this blueprint's own manifest uses —
+  not only a different channel.** Confirmed live once: matching by
+  this blueprint's own fixed Subscription name alone missed an
+  adopter's differently-named Subscription for the identical package,
+  and this blueprint's own bootstrap created a second, conflicting one
+  (OLM does not support two Subscriptions to one package in one
+  namespace). `scripts/bootstrap.sh`'s `ensure_operator` matches by
+  package (`spec.name`), not by object name, for exactly this reason.
+  For a package this blueprint is meant to be the *sole* owner of on a
+  given cluster (an owner decision made once, not this blueprint's own
+  default assumption — RHDH's `--with-rhdh` flag on one real cluster is
+  the one case so far), any pre-existing Subscription found for it is
+  treated as drift to resolve manually, never silently adopted or
+  duplicated.

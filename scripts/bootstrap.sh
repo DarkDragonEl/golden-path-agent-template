@@ -271,6 +271,18 @@ fi
 
 if [ "$WITH_RHDH" = "true" ]; then
   log "=== step 4b/9 (--with-rhdh, Phase F4, DEC-092): RHDH operator + Postgres secret ==="
+  # DEC-136: this blueprint is meant to be the SOLE owner of the rhdh
+  # package's Subscription going forward (a prior, unrelated cluster
+  # owner's own rhdh-operator Subscription was intentionally retired in
+  # favor of this one). Unlike ensure_operator's general
+  # adopter-provided path for Pipelines/GitOps/RHBK, any pre-existing
+  # rhdh Subscription found here is drift, not a legitimate adopter --
+  # abort rather than silently adopt or create a second one.
+  EXISTING_RHDH_SUB=$(find_subscription_for_package openshift-operators rhdh)
+  if [ -n "$EXISTING_RHDH_SUB" ]; then
+    log "  ABORT: Subscription $EXISTING_RHDH_SUB already provides package rhdh in openshift-operators -- this blueprint expects to be the sole owner (DEC-136). Not adopting, not creating a second one. Resolve manually before re-running with --with-rhdh."
+    exit 1
+  fi
   ensure_operator openshift-operators "RHDH" \
     platform/bootstrap/rhdh-operator.yaml \
     rhdh fast-1.10 1.10.3 300
