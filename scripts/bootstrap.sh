@@ -320,6 +320,18 @@ if [ "$CONSTRAINED_NODE" = "true" ]; then
   oc patch keycloak golden-path-agent -n golden-path-agent-keycloak \
     --type merge --patch-file adapters/constrained-node/bootstrap-patches/keycloak-cr.yaml >/dev/null
 fi
+# Real race found live (DEC-138's own "keycloak-db double rollout"
+# adaptation note, now understood more precisely): the plain apply
+# above and this patch are two SEPARATE rollout-triggering spec
+# changes to the same Deployment on every single run, not just an
+# artifact of rapid re-runs -- Keycloak's own "Ready" condition
+# reflects the Keycloak pod itself, never Postgres, so step 5's later
+# `oc exec` into keycloak-db can race whichever of the two rollouts is
+# still settling regardless of how much time passed since this script
+# started. Wait for the Deployment's own rollout to finish here,
+# unconditionally (a no-op wait when nothing changed) -- cheaper and
+# more correct than hoping step 5 doesn't run too soon.
+oc rollout status deployment/golden-path-agent-keycloak-db -n golden-path-agent-keycloak --timeout=180s
 
 log "=== step 4/9: cluster-tier otel collector ==="
 oc apply -f platform/bootstrap/otel-collector.yaml
