@@ -1,13 +1,12 @@
 # Cluster profile
 
-A living record of what this blueprint's own bootstrap needs from a
-target cluster, and what to check/adjust when the cluster isn't the
-one the pins in `PINS.md` were originally verified against. Derived
-from `tools/cluster_precheck.sh`'s own output and from real deviations
-found while bootstrapping onto a second, differently-shaped cluster —
-not hand-written speculation. Each new cluster this blueprint targets
-is expected to add rows here, not replace the existing ones, unless a
-row is proven wrong.
+What this blueprint's own bootstrap needs from a target cluster, and
+what to check or adjust when a cluster differs from the one `PINS.md`'s
+pins were originally verified against. Derived from `tools/
+cluster_precheck.sh`'s own output and from real, live-verified
+findings, not hand-written speculation. Each new target cluster is
+expected to add rows here, not replace the existing ones, unless a row
+is proven wrong.
 
 ## Model endpoint
 
@@ -41,10 +40,11 @@ document and the bootstrap tooling never assume one.
 ## Shared/single-node profile (`--constrained-node`)
 
 For a shared, multi-tenant cluster or a single node where scheduling
-headroom is the actual constraint, not real usage (confirmed live on
-one such cluster: ~7% CPU utilization against allocatable capacity,
-while committed *requests* — not usage — are what the scheduler
-actually gates on). `scripts/bootstrap.sh --constrained-node` applies:
+headroom is the actual constraint, not real usage — a cluster can run
+at a small fraction of its allocatable CPU while still having no
+schedulable headroom left, because the scheduler gates on committed
+*requests*, not actual usage. `scripts/bootstrap.sh --constrained-node`
+applies:
 
 - `deploy/kustomize/overlays/constrained-node/` instead of `demo-prod`
   (agent, mcp Deployments).
@@ -72,7 +72,7 @@ live-only `oc patch` (platform/bootstrap/'s directly-applied
 manifests and, for the two GitOps-managed Applications, their own
 `spec.source.path`).
 
-**Field corrections found while building this, verified live, not
+**Field notes, verified directly against each CRD's own schema, not
 assumed from documentation**:
 - `Backstage`'s CRD has no `spec.application.resources` field. The
   real mechanism is `spec.deployment.patch` ("a valid fragment of
@@ -120,13 +120,12 @@ sum `resources.requests`, not a live cluster measurement):
 scheduling, no accounting) — giving it an honest 50m/256Mi floor for
 a real Node.js app is a deliberate correctness improvement, not a
 regression, even though it makes that one row's static total larger.
-Every other component's total falls, and the profile's actual value
-is headroom margin and QoS discipline on a shared node, not solving
-an acute capacity shortage — this blueprint's own footprint was never
-the binding constraint on the cluster this was verified against (node
-allocatable vs. already-used-by-other-tenants headroom was already
-positive before this profile existed; see the dated precheck report
-this row is attached to for that cluster's own numbers).
+Every other component's total falls. Treat this profile as headroom
+margin and QoS discipline for a busy shared node, not as a fix for an
+acute capacity shortage — run `tools/cluster_precheck.sh` against the
+actual target cluster to know whether this blueprint's own footprint
+is even the binding constraint there before assuming this profile is
+required.
 
 ## Operator channel/version drift between clusters
 
@@ -137,29 +136,33 @@ assume a pin verified on one cluster (or a now-gone cluster) still
 resolves on a different one; record what actually differed here, not
 just what was expected.
 
-## Leftover-state hazards found on a shared cluster, not this
-blueprint's own
+## Leftover-state checks before a clean-slate re-bootstrap
 
-A cluster this blueprint didn't provision from scratch may carry
-state from other tenants, or from an earlier, since-superseded
-bootstrap of this same project, that a clean-slate re-bootstrap needs
-to know about:
+A cluster this blueprint didn't provision from scratch — or is being
+re-bootstrapped onto after an earlier, superseded run of this same
+project — can carry state a clean-slate step needs to account for
+before it runs:
 
-- An operator Subscription for a package this blueprint also
-  subscribes to (e.g. `rhdh-operator`), already installed on a
-  different channel than this blueprint's own pin. Not necessarily a
-  conflict to work around — if it is this same project's own
-  abandoned prior instance, the fix is deleting it outright (its CR,
-  namespace, Subscription, and CSV) so this blueprint's own bootstrap
-  creates and owns a fresh one on its own pinned channel, rather than
-  colliding with or silently adopting someone else's install.
-- A shared Gateway API `GatewayClass`/`Gateway` serving real,
-  unrelated workloads (another tenant's dashboard, notebooks) may
-  share underlying infrastructure with an experimental stack this
-  blueprint has no use for. Before proposing removal of anything
-  attached to shared gateway infrastructure, confirm via each
-  policy/CR's own `targetRef` (not just naming conventions) exactly
-  which Gateway it targets, and confirm the `GatewayClass`'s own
-  `controllerName` and owning labels — do not assume shared
-  infrastructure is safe to remove just because part of it looks
-  unused.
+- **An operator Subscription for a package this blueprint also
+  subscribes to, already installed on a different channel than this
+  blueprint's own pin.** Not necessarily a conflict to work around —
+  if it is this same project's own abandoned prior instance, delete it
+  outright (its CR, namespace, Subscription, and CSV) so this
+  blueprint's own bootstrap creates and owns a fresh one on its own
+  pinned channel, rather than colliding with or silently adopting an
+  unrelated install.
+- **Shared Gateway API infrastructure.** A `GatewayClass`/`Gateway`
+  serving real, unrelated workloads may share underlying
+  infrastructure with a stack this blueprint has no use for. Before
+  proposing removal of anything attached to shared gateway
+  infrastructure, confirm via each policy/CR's own `targetRef` (not
+  naming conventions) exactly which `Gateway` it targets, and confirm
+  the `GatewayClass`'s own `controllerName` and owning labels — do not
+  assume shared infrastructure is safe to remove just because part of
+  it looks unused.
+- **A shared, multi-tenant cluster's own unrelated workloads.** Prefer
+  fitting this blueprint's own footprint (the shared/single-node
+  profile above) over reducing another workload's resources or
+  deleting anything this blueprint doesn't own. Only propose changes
+  to unrelated workloads as a last resort, listed for explicit
+  approval before any of it is touched.
