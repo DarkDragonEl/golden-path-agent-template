@@ -198,6 +198,39 @@ oc create configmap golden-path-agent-ci-config \
   --from-literal=MODEL_FALLBACK_NAME="$MODEL_FALLBACK_NAME"
 ```
 
+## 2c. Gitea admin password (`--with-rhdh` only; `DEC-137`)
+
+`scripts/bootstrap.sh`'s step 4c applies the Gitea operator and CR
+unconditionally when `--with-rhdh` is passed, but the CR's own
+`giteaAdminPasswordSecretName` (`platform/bootstrap/gitea-cr.yaml`)
+names a Secret that must already exist out-of-band — same reasoning as
+§2's model-endpoint credential: never scripted, never committed, never
+printed in a report. Without it, the Gitea CR's own controller keeps
+retrying and failing that one reconciliation step, `adminSetupComplete`
+never becomes `true`, and step 6 stops the run with a clear pointer
+back here.
+
+```sh
+oc create secret generic golden-path-agent-gitea-admin-password \
+  -n golden-path-agent-gitea \
+  --from-literal=adminPassword="$(openssl rand -base64 24)"
+```
+
+The key name must be exactly `adminPassword` — the operator's own role
+reads `.data.adminPassword` specifically (confirmed by reading
+`rhpds/gitea-operator`'s `roles/gitea-ocp/tasks/main.yml` at the pinned
+tag, not assumed). Not needed at all for a plain bootstrap without
+`--with-rhdh` — Gitea has no consumer without RHDH's Scaffolder and step
+4c is skipped entirely in that case.
+
+Everything downstream of this Secret — the org, the scaffolder machine
+account, its scoped token, and the
+`golden-path-agent-gitea-scaffolder-token`/`-password` Secrets — is
+created by step 4c itself, idempotently, same regeneration discipline
+as `DEC-059`. Mirroring this blueprint's own repo content into Gitea is
+a separate, explicit action (`tools/gitea_publish.py`), not part of
+bootstrap.
+
 ## 3. Promotion-PR git credential (mechanism finalized — Step C1b; creation
 still a pending manual action before C1c can exercise `open-promotion-pr`)
 

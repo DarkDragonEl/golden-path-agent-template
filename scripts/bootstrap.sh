@@ -318,6 +318,134 @@ if [ "$WITH_RHDH" = "true" ]; then
     unset RHDH_DB_PASSWORD
   fi
   log "RHDH operator ready, DB secret provisioned -- Postgres/Backstage CR themselves are GitOps-managed (deploy/kustomize/overlays/rhdh/, deploy/argocd/apps/rhdh.yaml), applied automatically by golden-path-agent-root's own selfHeal sync, not by this script"
+
+  log "=== step 4c/9 (--with-rhdh, DEC-137): Gitea (RHDH scaffolder's git host) ==="
+  # DEC-137: G1 (DEC-100/DEC-103) stood this up by hand; G6 then made
+  # provision-identity-secrets.sh depend on it (golden-path-agent-gitea-
+  # scaffolder-token) without this script ever gaining a step to create
+  # it -- a real blueprint gap, only surfaced by this cluster's first
+  # true from-scratch bootstrap. Gated on --with-rhdh: Gitea exists to
+  # serve RHDH's Scaffolder publish:gitea action and has no other
+  # consumer in this blueprint.
+  GITEA_NS=golden-path-agent-gitea
+  oc apply -k platform/bootstrap/gitea-operator-upstream/
+  oc apply -f platform/bootstrap/gitea-cr.yaml
+  if ! oc get secret golden-path-agent-gitea-admin-password -n "$GITEA_NS" \
+      -o jsonpath='{.data.adminPassword}' 2>/dev/null | grep -q .; then
+    log "  golden-path-agent-gitea-admin-password (key adminPassword) missing in $GITEA_NS -- the Gitea CR cannot complete reconciliation without it (its own controller will keep retrying and failing that one step). Not waiting on it this run; step 6 will report this as a required manual secret."
+  else
+    log "  waiting for Gitea CR to report adminSetupComplete"
+    GITEA_WAITED=0
+    GITEA_TIMEOUT=300
+    while true; do
+      GITEA_READY=$(oc get gitea golden-path-agent-gitea -n "$GITEA_NS" \
+        -o jsonpath='{.status.adminSetupComplete}' 2>/dev/null || echo "")
+      [ "$GITEA_READY" = "true" ] && { log "  Gitea: adminSetupComplete"; break; }
+      if [ "$GITEA_WAITED" -ge "$GITEA_TIMEOUT" ]; then
+        log "  Gitea: still not ready after ${GITEA_TIMEOUT}s -- inspect 'oc get gitea golden-path-agent-gitea -n $GITEA_NS -o yaml'"
+        exit 1
+      fi
+      sleep 10; GITEA_WAITED=$((GITEA_WAITED + 10))
+    done
+    GITEA_ROUTE=$(oc get gitea golden-path-agent-gitea -n "$GITEA_NS" -o jsonpath='{.status.giteaRoute}')
+    log "  waiting for Gitea route to answer 200: $GITEA_ROUTE"
+    GITEA_HTTP_WAITED=0
+    while true; do
+      GITEA_HTTP_CODE=$(curl -sk -o /dev/null -w '%{http_code}' "$GITEA_ROUTE" 2>/dev/null || echo "000")
+      [ "$GITEA_HTTP_CODE" = "200" ] && { log "  Gitea route: 200"; break; }
+      if [ "$GITEA_HTTP_WAITED" -ge 120 ]; then
+        log "  Gitea route still not answering 200 after 120s (last: $GITEA_HTTP_CODE) -- inspect 'curl -vk $GITEA_ROUTE'"
+        exit 1
+      fi
+      sleep 5; GITEA_HTTP_WAITED=$((GITEA_HTTP_WAITED + 5))
+    done
+
+    gitea_api() {
+      # $1 = method, $2 = path (leading /), $3 = json body (optional).
+      # Admin-authenticated (golden-path-agent-admin), for org/account/
+      # team management only -- never used for the scaffolder's own
+      # token, which self-authenticates (see below).
+      local method="$1" path="$2" body="${3:-}"
+      if [ -n "$body" ]; then
+        curl -sk -u "${GITEA_ADMIN_USER}:${GITEA_ADMIN_PASSWORD}" -X "$method" \
+          -H 'Content-Type: application/json' -d "$body" "${GITEA_ROUTE}${path}"
+      else
+        curl -sk -u "${GITEA_ADMIN_USER}:${GITEA_ADMIN_PASSWORD}" -X "$method" "${GITEA_ROUTE}${path}"
+      fi
+    }
+
+    GITEA_ADMIN_USER=golden-path-agent-admin
+    GITEA_ADMIN_PASSWORD=$(oc get secret golden-path-agent-gitea-admin-password -n "$GITEA_NS" -o jsonpath='{.data.adminPassword}' | base64 -d)
+    GITEA_ORG=golden-path-agent-projects
+    GITEA_SCAFFOLDER_USER=golden-path-agent-scaffolder
+
+    # Org: create-once, idempotent (DEC-100 precedent).
+    if ! gitea_api GET "/api/v1/orgs/${GITEA_ORG}" | jq -e '.id' >/dev/null 2>&1; then
+      log "  creating Gitea org $GITEA_ORG"
+      gitea_api POST "/api/v1/orgs" "{\"username\":\"${GITEA_ORG}\"}" >/dev/null
+    fi
+
+    # Scaffolder account's own login password: create-once (DEC-059 --
+    # this is the account's persisted credential, not a rotatable
+    # downstream copy; regenerating it here would silently desync from
+    # what Gitea itself has stored, unlike the token below which Gitea
+    # is explicitly asked to reissue every run).
+    if oc get secret golden-path-agent-gitea-scaffolder-password -n "$GITEA_NS" >/dev/null 2>&1; then
+      GITEA_SCAFFOLDER_PASSWORD=$(oc get secret golden-path-agent-gitea-scaffolder-password -n "$GITEA_NS" -o jsonpath='{.data.password}' | base64 -d)
+    else
+      log "  creating golden-path-agent-gitea-scaffolder-password (first time on this cluster)"
+      GITEA_SCAFFOLDER_PASSWORD=$(openssl rand -base64 24)
+      oc create secret generic golden-path-agent-gitea-scaffolder-password -n "$GITEA_NS" \
+        --from-literal=password="$GITEA_SCAFFOLDER_PASSWORD" >/dev/null
+    fi
+
+    # Scaffolder account: create-once, idempotent, non-admin (DEC-100).
+    if ! gitea_api GET "/api/v1/users/${GITEA_SCAFFOLDER_USER}" | jq -e '.id' >/dev/null 2>&1; then
+      log "  creating Gitea scaffolder account $GITEA_SCAFFOLDER_USER"
+      gitea_api POST "/api/v1/admin/users" \
+        "{\"username\":\"${GITEA_SCAFFOLDER_USER}\",\"password\":\"${GITEA_SCAFFOLDER_PASSWORD}\",\"email\":\"${GITEA_SCAFFOLDER_USER}@example.com\",\"must_change_password\":false}" >/dev/null
+    fi
+
+    # Narrowly-scoped team: write on repo.code/repo.pulls only, never the
+    # org's default Owners team (DEC-100's own live-proven finding).
+    GITEA_TEAM_ID=$(gitea_api GET "/api/v1/orgs/${GITEA_ORG}/teams" | jq -r '.[] | select(.name=="scaffolder") | .id' | head -1)
+    if [ -z "$GITEA_TEAM_ID" ]; then
+      log "  creating Gitea team 'scaffolder' in $GITEA_ORG"
+      gitea_api POST "/api/v1/orgs/${GITEA_ORG}/teams" \
+        '{"name":"scaffolder","permission":"write","units":["repo.code","repo.pulls"],"units_map":{"repo.code":"write","repo.pulls":"write"}}' >/dev/null
+      GITEA_TEAM_ID=$(gitea_api GET "/api/v1/orgs/${GITEA_ORG}/teams" | jq -r '.[] | select(.name=="scaffolder") | .id' | head -1)
+    fi
+    gitea_api PUT "/api/v1/teams/${GITEA_TEAM_ID}/members/${GITEA_SCAFFOLDER_USER}" >/dev/null
+
+    # Token: regenerated every run (DEC-059 downstream discipline,
+    # matching provision-identity-secrets.sh's own resync-from-source
+    # pattern for this exact secret) -- self-authenticated as the
+    # scaffolder account itself, never the admin, since a token's own
+    # scopes are bound to whichever account creates it. write:repository
+    # alone was proven live (DEC-100) to fail org-repo creation;
+    # write:organization is also required.
+    curl -sk -u "${GITEA_SCAFFOLDER_USER}:${GITEA_SCAFFOLDER_PASSWORD}" -X DELETE \
+      "${GITEA_ROUTE}/api/v1/users/${GITEA_SCAFFOLDER_USER}/tokens/golden-path-agent-bootstrap" >/dev/null 2>&1 || true
+    GITEA_TOKEN_JSON=$(curl -sk -u "${GITEA_SCAFFOLDER_USER}:${GITEA_SCAFFOLDER_PASSWORD}" -X POST \
+      -H 'Content-Type: application/json' \
+      -d '{"name":"golden-path-agent-bootstrap","scopes":["write:repository","write:organization"]}' \
+      "${GITEA_ROUTE}/api/v1/users/${GITEA_SCAFFOLDER_USER}/tokens")
+    GITEA_TOKEN=$(echo "$GITEA_TOKEN_JSON" | jq -r '.sha1')
+    if [ -z "$GITEA_TOKEN" ] || [ "$GITEA_TOKEN" = "null" ]; then
+      log "  FAILED to create Gitea scaffolder token: $GITEA_TOKEN_JSON"
+      exit 1
+    fi
+    if oc get secret golden-path-agent-gitea-scaffolder-token -n "$GITEA_NS" >/dev/null 2>&1; then
+      oc patch secret golden-path-agent-gitea-scaffolder-token -n "$GITEA_NS" --type merge \
+        -p "{\"data\":{\"username\":\"$(printf '%s' "$GITEA_SCAFFOLDER_USER" | base64 -w0)\",\"token\":\"$(printf '%s' "$GITEA_TOKEN" | base64 -w0)\"}}" >/dev/null
+    else
+      oc create secret generic golden-path-agent-gitea-scaffolder-token -n "$GITEA_NS" \
+        --from-literal=username="$GITEA_SCAFFOLDER_USER" \
+        --from-literal=token="$GITEA_TOKEN" >/dev/null
+    fi
+    unset GITEA_ADMIN_PASSWORD GITEA_SCAFFOLDER_PASSWORD GITEA_TOKEN GITEA_TOKEN_JSON
+    log "  provisioned Gitea org/scaffolder account/token in $GITEA_NS"
+  fi
 fi
 
 log "=== waiting for Keycloak to report Ready before provisioning identity secrets ==="
@@ -356,7 +484,7 @@ while true; do
 done
 
 log "=== step 5/9: identity secrets (idempotent by regeneration -- DEC-059) ==="
-./platform/bootstrap/provision-identity-secrets.sh
+WITH_RHDH="$WITH_RHDH" ./platform/bootstrap/provision-identity-secrets.sh
 
 log "=== step 6/9: manual secret + config check ==="
 # Real gap found live: provision-identity-secrets.sh (step 5) creates
@@ -387,6 +515,13 @@ if ! oc get configmap golden-path-agent-ci-config -n golden-path-agent-ci >/dev/
   NEEDS_MANUAL=true
   log "  missing: golden-path-agent-ci-config in golden-path-agent-ci -- docs/phase-c-runbook.md S2b"
 fi
+# DEC-137: only relevant when --with-rhdh is set -- Gitea (step 4c) has
+# no consumer without RHDH and is never applied otherwise.
+if [ "$WITH_RHDH" = "true" ] && ! oc get secret golden-path-agent-gitea-admin-password -n golden-path-agent-gitea \
+    -o jsonpath='{.data.adminPassword}' 2>/dev/null | grep -q .; then
+  NEEDS_MANUAL=true
+  log "  missing: golden-path-agent-gitea-admin-password (adminPassword) in golden-path-agent-gitea -- docs/phase-c-runbook.md S2c"
+fi
 if [ "$NEEDS_MANUAL" = "true" ]; then
   cat <<'EOF'
 
@@ -397,6 +532,11 @@ run (docs/phase-c-runbook.md S2 and S2b have the exact commands).
 S3 (golden-path-agent-github-token) is optional -- DEC-078: this
 cluster's pipeline never gets promotion authority over the shared main
 digest pin regardless; any resulting PR is closed unmerged.
+
+If --with-rhdh was used and S2c (Gitea admin password) is listed above:
+step 4c already applied the Gitea operator and CR; its own controller
+will complete reconciliation once the secret exists, but this run did
+not wait for it -- re-run this script once it's provisioned.
 
 Re-run this script with the same kubeconfig once the items above exist
 -- every step above is idempotent and will skip straight through.

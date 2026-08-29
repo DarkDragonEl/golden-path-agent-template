@@ -283,19 +283,36 @@ echo "provisioned RHDH OIDC client secret in ${NS_RHDH}/golden-path-agent-rhdh-o
 # regenerate-every-run idempotence as the rest of this script: this is a
 # resync of the source token's current value, not a one-time copy that
 # could drift if the source is ever rotated.
+#
+# DEC-137: Gitea has no consumer without --with-rhdh (nothing else in
+# this blueprint reads it), so this section is a no-op, not a failure,
+# when RHDH wasn't requested. When RHDH WAS requested, the namespace and
+# token Secret this section reads are scripts/bootstrap.sh's own step
+# 4c's responsibility -- if either is missing here, that step either
+# didn't run or hasn't completed (most likely: the out-of-band
+# golden-path-agent-gitea-admin-password Secret step 4c depends on isn't
+# provisioned yet), not something this script should try to work around.
 NS_GITEA=golden-path-agent-gitea
-GITEA_SCAFFOLDER_USERNAME=$(oc get secret golden-path-agent-gitea-scaffolder-token -n "$NS_GITEA" -o jsonpath='{.data.username}' | base64 -d)
-GITEA_SCAFFOLDER_TOKEN=$(oc get secret golden-path-agent-gitea-scaffolder-token -n "$NS_GITEA" -o jsonpath='{.data.token}' | base64 -d)
-if oc get secret golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" >/dev/null 2>&1; then
-  oc patch secret golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" --type merge \
-    -p "{\"data\":{\"GITEA_SCAFFOLDER_USERNAME\":\"$(printf '%s' "$GITEA_SCAFFOLDER_USERNAME" | base64 -w0)\",\"GITEA_SCAFFOLDER_TOKEN\":\"$(printf '%s' "$GITEA_SCAFFOLDER_TOKEN" | base64 -w0)\"}}" >/dev/null
+if [ "${WITH_RHDH:-false}" != "true" ]; then
+  echo "WARNING: --with-rhdh not set -- skipping Gitea scaffolder credential copy (RHDH is Gitea's only consumer)"
+elif ! oc get namespace "$NS_GITEA" >/dev/null 2>&1 || \
+    ! oc get secret golden-path-agent-gitea-scaffolder-token -n "$NS_GITEA" >/dev/null 2>&1; then
+  echo "[provision-identity-secrets.sh] FAILED: golden-path-agent-gitea namespace or golden-path-agent-gitea-scaffolder-token Secret not found -- scripts/bootstrap.sh's step 4c (Gitea) must complete first (see docs/phase-c-runbook.md S2c if it stopped there for the out-of-band admin password)" >&2
+  exit 1
 else
-  oc create secret generic golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" \
-    --from-literal=GITEA_SCAFFOLDER_USERNAME="$GITEA_SCAFFOLDER_USERNAME" \
-    --from-literal=GITEA_SCAFFOLDER_TOKEN="$GITEA_SCAFFOLDER_TOKEN" >/dev/null
+  GITEA_SCAFFOLDER_USERNAME=$(oc get secret golden-path-agent-gitea-scaffolder-token -n "$NS_GITEA" -o jsonpath='{.data.username}' | base64 -d)
+  GITEA_SCAFFOLDER_TOKEN=$(oc get secret golden-path-agent-gitea-scaffolder-token -n "$NS_GITEA" -o jsonpath='{.data.token}' | base64 -d)
+  if oc get secret golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" >/dev/null 2>&1; then
+    oc patch secret golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" --type merge \
+      -p "{\"data\":{\"GITEA_SCAFFOLDER_USERNAME\":\"$(printf '%s' "$GITEA_SCAFFOLDER_USERNAME" | base64 -w0)\",\"GITEA_SCAFFOLDER_TOKEN\":\"$(printf '%s' "$GITEA_SCAFFOLDER_TOKEN" | base64 -w0)\"}}" >/dev/null
+  else
+    oc create secret generic golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" \
+      --from-literal=GITEA_SCAFFOLDER_USERNAME="$GITEA_SCAFFOLDER_USERNAME" \
+      --from-literal=GITEA_SCAFFOLDER_TOKEN="$GITEA_SCAFFOLDER_TOKEN" >/dev/null
+  fi
+  unset GITEA_SCAFFOLDER_USERNAME GITEA_SCAFFOLDER_TOKEN
+  echo "provisioned RHDH's copy of the Gitea scaffolder credential in ${NS_RHDH}/golden-path-agent-rhdh-gitea-scaffolder-secret"
 fi
-unset GITEA_SCAFFOLDER_USERNAME GITEA_SCAFFOLDER_TOKEN
-echo "provisioned RHDH's copy of the Gitea scaffolder credential in ${NS_RHDH}/golden-path-agent-rhdh-gitea-scaffolder-secret"
 
 # Phase G, Stage 3 (G6 Path A landing). RHDH's plugin-loading init
 # container needs its own registry pull credential (a real gap found live
