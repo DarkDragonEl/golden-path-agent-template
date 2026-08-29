@@ -1,0 +1,22 @@
+# Shared/single-node profile (see docs/cluster-profile.md). Not a
+# kustomize overlay -- platform/bootstrap/*.yaml is a flat, directly-
+# `oc apply -f`'d tree with no base/ subdirectory for an overlay to
+# reference without breaking kustomize's own load-restriction
+# boundary. Applied instead as a strategic-merge `oc patch` after the
+# normal `oc apply -f platform/bootstrap/keycloak-postgres.yaml`, only
+# when scripts/bootstrap.sh --constrained-node is passed. The
+# committed base manifest's own requests are unchanged; this is an
+# environment difference, not a base change.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: golden-path-agent-keycloak-db
+spec:
+  template:
+    spec:
+      containers:
+        - name: postgresql
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi

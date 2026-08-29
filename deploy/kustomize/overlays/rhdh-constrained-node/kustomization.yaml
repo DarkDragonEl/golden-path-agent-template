@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Same shared/single-node profile as ../constrained-node/, applied to
+# the Backstage (RHDH) CR. See that overlay's own header comment for
+# the general reasoning; rhdh/ itself is unchanged.
+#
+# Field correction, verified live, not assumed: Backstage's CRD has no
+# spec.application.resources -- the real mechanism is
+# spec.deployment.patch, "a valid fragment of Deployment to be merged
+# with default/raw configuration" (`oc explain
+# backstage.spec.deployment.patch`). The main container's name,
+# backstage-backend, comes from the operator's own default deployment
+# template (redhat-developer/rhdh-operator, config/profile/rhdh/
+# default-config/deployment.yaml, read directly at the pinned
+# rhdh-operator.v1.10.3 release).
+resources:
+  - ../rhdh
+
+patches:
+  - target:
+      kind: Backstage
+      name: golden-path-agent
+    patch: |-
+      - op: add
+        path: /spec/deployment
+        value:
+          patch:
+            spec:
+              template:
+                spec:
+                  containers:
+                    - name: backstage-backend
+                      resources:
+                        requests:
+                          cpu: 50m
+                          memory: 256Mi

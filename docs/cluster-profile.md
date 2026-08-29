@@ -1,0 +1,165 @@
+# Cluster profile
+
+A living record of what this blueprint's own bootstrap needs from a
+target cluster, and what to check/adjust when the cluster isn't the
+one the pins in `PINS.md` were originally verified against. Derived
+from `tools/cluster_precheck.sh`'s own output and from real deviations
+found while bootstrapping onto a second, differently-shaped cluster —
+not hand-written speculation. Each new cluster this blueprint targets
+is expected to add rows here, not replace the existing ones, unless a
+row is proven wrong.
+
+## Model endpoint
+
+**No GPU is required to run this blueprint.** The agent consumes an
+OpenAI-compatible model endpoint over HTTP
+(`MODEL_API_BASE_URL`/`MODEL_API_KEY`) — an external MaaS route, not a
+model served from cluster GPU capacity. GPU provisioning is explicitly
+out of this blueprint's own scope.
+
+**What the cluster needs**: an OpenAI-compatible endpoint reachable
+from the cluster's own pod network (or from wherever `scripts/dev.sh`
+runs, for local dev). Nothing else — no in-cluster inference stack,
+no GPU node, no model-serving operator.
+
+**How the credential is provisioned** (`docs/phase-c-runbook.md`
+section 2, unchanged for a new cluster — same procedure, different
+target): three copies of a `golden-path-agent-secrets` Secret, one
+each in `golden-path-agent-ephemeral-test`, `golden-path-agent-ci`,
+and `golden-path-agent-demo-prod`, sourced from a local, gitignored
+`.env` file — never scripted, never committed, never printed in a
+report. The `demo-prod` copy additionally carries
+`MODEL_API_BASE_URL`/`MODEL_NAME`/`MODEL_FALLBACK_API_BASE_URL`/
+`MODEL_FALLBACK_NAME` (`demo-prod`'s `ConfigMap` is ArgoCD-managed with
+`selfHeal: true`, so only a Secret — never Kustomize/ArgoCD-managed —
+can hold the real value without being stomped back to the committed
+placeholder on the next sync).
+
+The owner decides which endpoint each new cluster targets; this
+document and the bootstrap tooling never assume one.
+
+## Shared/single-node profile (`--constrained-node`)
+
+For a shared, multi-tenant cluster or a single node where scheduling
+headroom is the actual constraint, not real usage (confirmed live on
+one such cluster: ~7% CPU utilization against allocatable capacity,
+while committed *requests* — not usage — are what the scheduler
+actually gates on). `scripts/bootstrap.sh --constrained-node` applies:
+
+- `deploy/kustomize/overlays/constrained-node/` instead of `demo-prod`
+  (agent, mcp Deployments).
+- `deploy/kustomize/overlays/approval-platform-constrained-node/`
+  instead of `approval-platform` (the shared approval-service
+  singleton, `ADR-012`).
+- `deploy/kustomize/overlays/rhdh-constrained-node/` instead of `rhdh`,
+  when `--with-rhdh` is also passed.
+- `platform/bootstrap/constrained-node-patches/{keycloak-postgres,
+  keycloak-cr,otel-collector}.yaml`, applied via `oc patch` right
+  after the normal `oc apply -f` of those three manifests (not a
+  kustomize overlay — `platform/bootstrap/` is a flat, directly-
+  applied tree with no `base/` subdirectory a nested overlay could
+  reference without breaking kustomize's own load-restriction
+  boundary).
+
+**What changes**: `resources.requests` only, lowered to roughly
+10–50m CPU / 16–256Mi memory depending on the component. `resources.
+limits` are left at `base/`'s own committed values (Burstable QoS —
+generous burst headroom on top of a small guaranteed floor). `base/`
+itself, `demo-prod`, `approval-platform`, and `rhdh` are never edited
+by this profile; it is a selectable environment variant, applied
+either via a fresh kustomize `path` (deploy/-based components) or a
+live-only `oc patch` (platform/bootstrap/'s directly-applied
+manifests and, for the two GitOps-managed Applications, their own
+`spec.source.path`).
+
+**Field corrections found while building this, verified live, not
+assumed from documentation**:
+- `Backstage`'s CRD has no `spec.application.resources` field. The
+  real mechanism is `spec.deployment.patch` ("a valid fragment of
+  Deployment to be merged with default/raw configuration"), and the
+  main container's name — `backstage-backend` — comes from the
+  operator's own default deployment template
+  (`redhat-developer/rhdh-operator`, `config/profile/rhdh/
+  default-config/deployment.yaml`, read directly at the pinned
+  `rhdh-operator.v1.10.3` release, not guessed).
+- `Keycloak`'s CRD does expose `spec.resources.{requests,limits}`
+  directly, confirmed via `oc explain keycloak.spec.resources`.
+- Gitea's operator CRD (`pfe.rhpds.com/v1`, `rhpds/gitea-operator`)
+  has **no resources field of any kind** — confirmed by reading its
+  CRD schema directly at the pinned commit. There is no CR-level knob
+  to constrain Gitea's own pod; the operator's underlying Deployment
+  would need a direct post-creation patch if this ever becomes a real
+  constraint, not a CR field. Not yet needed — Gitea's own footprint
+  was never part of the static request total to begin with (the
+  operator was never installed on this cluster before this
+  bootstrap), so there is nothing to compare a "before" against.
+  Revisit once a real instance exists to inspect.
+- Tekton step defaults: this cluster's own `TektonConfig` sets no
+  `default-container-resource-requirements`, and no `Task` in
+  `pipelines/tasks/` declares its own `computeResources` — pipeline
+  steps already schedule with no explicit request at all (confirmed
+  no `LimitRange` in `golden-path-agent-ci` imposes an implicit
+  default either). Nothing to constrain further; already the smallest
+  possible footprint. Build/eval steps keep their current, unbounded
+  limits — they are expected to burst.
+
+**Verified total requests, static estimate** (same method
+`tools/cluster_precheck.sh` uses — parse committed/rendered manifests,
+sum `resources.requests`, not a live cluster measurement):
+
+| Component | Before (realistic profile) | After (`--constrained-node`) |
+|---|---|---|
+| `demo-prod` (agent + mcp) | 150m CPU / 384Mi | 30m CPU / 96Mi |
+| `approval-platform` | 100m CPU / 256Mi | 20m CPU / 64Mi |
+| `rhdh` (Postgres + Backstage) | 100m CPU / 256Mi | 150m CPU / 512Mi |
+| `platform/bootstrap` (Keycloak DB + OTel Collector + Keycloak CR) | 175m CPU / 448Mi | 55m CPU / 240Mi |
+| **Total** | **525m CPU / 1344Mi** | **255m CPU / 912Mi** |
+
+`rhdh`'s own row rises, not falls: the committed `Backstage` CR had
+**no declared request at all** before this profile (BestEffort
+scheduling, no accounting) — giving it an honest 50m/256Mi floor for
+a real Node.js app is a deliberate correctness improvement, not a
+regression, even though it makes that one row's static total larger.
+Every other component's total falls, and the profile's actual value
+is headroom margin and QoS discipline on a shared node, not solving
+an acute capacity shortage — this blueprint's own footprint was never
+the binding constraint on the cluster this was verified against (node
+allocatable vs. already-used-by-other-tenants headroom was already
+positive before this profile existed; see the dated precheck report
+this row is attached to for that cluster's own numbers).
+
+## Operator channel/version drift between clusters
+
+Every operator this blueprint subscribes to should be re-verified
+against the *target* cluster's own live catalog before bootstrapping —
+`tools/cluster_precheck.sh` automates exactly this check. Do not
+assume a pin verified on one cluster (or a now-gone cluster) still
+resolves on a different one; record what actually differed here, not
+just what was expected.
+
+## Leftover-state hazards found on a shared cluster, not this
+blueprint's own
+
+A cluster this blueprint didn't provision from scratch may carry
+state from other tenants, or from an earlier, since-superseded
+bootstrap of this same project, that a clean-slate re-bootstrap needs
+to know about:
+
+- An operator Subscription for a package this blueprint also
+  subscribes to (e.g. `rhdh-operator`), already installed on a
+  different channel than this blueprint's own pin. Not necessarily a
+  conflict to work around — if it is this same project's own
+  abandoned prior instance, the fix is deleting it outright (its CR,
+  namespace, Subscription, and CSV) so this blueprint's own bootstrap
+  creates and owns a fresh one on its own pinned channel, rather than
+  colliding with or silently adopting someone else's install.
+- A shared Gateway API `GatewayClass`/`Gateway` serving real,
+  unrelated workloads (another tenant's dashboard, notebooks) may
+  share underlying infrastructure with an experimental stack this
+  blueprint has no use for. Before proposing removal of anything
+  attached to shared gateway infrastructure, confirm via each
+  policy/CR's own `targetRef` (not just naming conventions) exactly
+  which Gateway it targets, and confirm the `GatewayClass`'s own
+  `controllerName` and owning labels — do not assume shared
+  infrastructure is safe to remove just because part of it looks
+  unused.

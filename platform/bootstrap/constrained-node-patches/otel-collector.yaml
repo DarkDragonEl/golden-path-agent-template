@@ -1,0 +1,20 @@
+# Shared/single-node profile -- see keycloak-postgres.yaml's own
+# header comment in this same directory for the full reasoning.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: golden-path-agent-otel-collector
+spec:
+  template:
+    spec:
+      containers:
+        - name: otel-collector
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+        - name: traces-http
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi

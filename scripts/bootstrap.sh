@@ -15,7 +15,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'USAGE'
-usage: bootstrap.sh <kubeconfig-path> [--reenable-sync] [--with-rhdh]
+usage: bootstrap.sh <kubeconfig-path> [--reenable-sync] [--with-rhdh] [--constrained-node]
 
 Bootstraps the golden-path-agent blueprint onto a fresh OpenShift cluster
 from Git alone. The kubeconfig must already be authenticated (this script
@@ -34,6 +34,20 @@ you deliberately intend to reverse that specific cluster's freeze.
 AllNamespaces) plus its Postgres credentials Secret -- opt-in because it
 carries real cluster-wide visibility cost a plain namespace/client does
 not.
+
+--constrained-node: shared/single-node profile (docs/cluster-profile.md)
+-- lowers this project's own CPU/memory *requests* to a few tens of
+millicores and a few dozen Mi (limits unchanged, Burstable QoS), since
+scheduling on a busy shared node is gated by requests, not actual
+usage. Applies deploy/kustomize/overlays/constrained-node/ and
+.../approval-platform-constrained-node/ instead of demo-prod/
+approval-platform directly (via a live-only ArgoCD Application
+source.path patch, safe only because ADR-009's freeze already means
+golden-path-agent-root's own auto-sync won't revert it), patches
+platform/bootstrap/{keycloak-postgres,keycloak-cr,otel-collector}.yaml
+in place after their normal apply, and (with --with-rhdh) points
+golden-path-agent-rhdh at .../rhdh-constrained-node/ the same way. The
+committed base manifests themselves are never changed by this flag.
 USAGE
   exit 1
 }
@@ -43,10 +57,12 @@ USAGE
 export KUBECONFIG="$1"
 REENABLE_SYNC=false
 WITH_RHDH=false
+CONSTRAINED_NODE=false
 for arg in "${@:2}"; do
   case "$arg" in
     --reenable-sync) REENABLE_SYNC=true ;;
     --with-rhdh) WITH_RHDH=true ;;
+    --constrained-node) CONSTRAINED_NODE=true ;;
   esac
 done
 
@@ -152,9 +168,26 @@ log "keycloak operator install path used this run: $KEYCLOAK_PATH"
 oc apply -f platform/bootstrap/keycloak-postgres.yaml
 oc apply -f platform/bootstrap/keycloak-cr.yaml
 oc apply -f platform/bootstrap/keycloak-realm-import.yaml
+if [ "$CONSTRAINED_NODE" = "true" ]; then
+  log "  --constrained-node: patching keycloak-db/keycloak requests"
+  oc patch deployment golden-path-agent-keycloak-db -n golden-path-agent-keycloak \
+    --type strategic --patch-file platform/bootstrap/constrained-node-patches/keycloak-postgres.yaml >/dev/null
+  oc patch keycloak golden-path-agent -n golden-path-agent-keycloak \
+    --type merge --patch-file platform/bootstrap/constrained-node-patches/keycloak-cr.yaml >/dev/null
+fi
 
 log "=== step 4/9: cluster-tier otel collector ==="
 oc apply -f platform/bootstrap/otel-collector.yaml
+if [ "$CONSTRAINED_NODE" = "true" ]; then
+  log "  --constrained-node: patching otel-collector requests"
+  # --type strategic, not merge: the otel-collector Deployment has TWO
+  # containers (otel-collector, traces-http) -- a plain JSON Merge
+  # Patch would replace the whole containers list with just the one
+  # entry in this patch file, silently deleting the sidecar. Strategic
+  # merge patches list items by their own `name` key instead.
+  oc patch deployment golden-path-agent-otel-collector -n golden-path-agent-otel \
+    --type strategic --patch-file platform/bootstrap/constrained-node-patches/otel-collector.yaml >/dev/null
+fi
 
 if [ "$WITH_RHDH" = "true" ]; then
   log "=== step 4b/9 (--with-rhdh, Phase F4, DEC-092): RHDH operator + Postgres secret ==="
@@ -305,6 +338,40 @@ if [ "$ROOT_EXISTS" = "true" ]; then
   fi
 else
   oc apply -f deploy/argocd/application-root.yaml
+fi
+
+if [ "$CONSTRAINED_NODE" = "true" ]; then
+  log "=== step 8b/9 (--constrained-node): pointing demo-prod/approval-platform at the shared/single-node overlays ==="
+  # Live-only, same safety precondition as the ADR-009 guard just above:
+  # this only sticks because golden-path-agent-root's own auto-sync is
+  # already disabled on this cluster, so nothing will silently revert
+  # these Application objects' own spec.source.path back to the
+  # committed demo-prod/approval-platform/rhdh value on the next sync.
+  # demo-prod/approval-platform/rhdh's OWN selfHeal (unaffected by
+  # root's freeze) then reconciles their live resources against
+  # WHICHEVER path is set here, same as it always does.
+  patch_app_path() {
+    # $1 = Application name, $2 = new source path, $3 = human label
+    local app="$1" path="$2" label="$3" waited=0
+    while ! oc get applications.argoproj.io "$app" -n openshift-gitops >/dev/null 2>&1; do
+      if [ "$waited" -ge 60 ]; then
+        log "  $label ($app): did not appear within 60s of root's own sync -- not patched, check manually"
+        return 1
+      fi
+      sleep 5; waited=$((waited + 5))
+    done
+    oc patch applications.argoproj.io "$app" -n openshift-gitops --type merge \
+      -p "{\"spec\":{\"source\":{\"path\":\"$path\"}}}" >/dev/null
+    log "  $label ($app): source.path -> $path"
+  }
+  patch_app_path golden-path-agent-demo-prod \
+    deploy/kustomize/overlays/constrained-node "demo-prod"
+  patch_app_path golden-path-agent-approval \
+    deploy/kustomize/overlays/approval-platform-constrained-node "approval-platform"
+  if [ "$WITH_RHDH" = "true" ]; then
+    patch_app_path golden-path-agent-rhdh \
+      deploy/kustomize/overlays/rhdh-constrained-node "rhdh"
+  fi
 fi
 
 log "=== step 9/9: verification ==="
