@@ -681,10 +681,25 @@ for deploy_name in golden-path-agent golden-path-agent-mcp; do
   done
   verify_row "demo-prod Deployment/$deploy_name ready replicas" "${READY:-0}" "1"
 done
+if [ "$VERIFY_FAILED" = "true" ]; then
+  log "  a 0/1 above on a cluster where no PipelineRun has ever executed is the documented ImagePullBackOff condition (DEC-080): the inherited base digest was never pushed to this cluster's own internal registry. Not something this script's own bootstrap steps fix -- run the pipeline."
+fi
 
-verify_row "Application golden-path-agent-root sync" \
-  "$(oc get applications.argoproj.io golden-path-agent-root -n openshift-gitops -o jsonpath='{.status.sync.status}' 2>/dev/null)" \
-  "Synced"
+# root's own diff is expected to be non-empty specifically when
+# --constrained-node live-patched its children's spec.source.path away
+# from what's committed (step 8b) -- that drift is the whole mechanism,
+# safe only because root's own auto-sync is frozen and will never
+# "correct" it back. Checking root itself for Synced would be checking
+# this script's own intentional design against itself.
+if [ "$CONSTRAINED_NODE" = "true" ]; then
+  verify_row "Application golden-path-agent-root sync (--constrained-node: OutOfSync is the intended state)" \
+    "$(oc get applications.argoproj.io golden-path-agent-root -n openshift-gitops -o jsonpath='{.status.sync.status}' 2>/dev/null)" \
+    "OutOfSync"
+else
+  verify_row "Application golden-path-agent-root sync" \
+    "$(oc get applications.argoproj.io golden-path-agent-root -n openshift-gitops -o jsonpath='{.status.sync.status}' 2>/dev/null)" \
+    "Synced"
+fi
 verify_row "Application golden-path-agent-demo-prod sync" \
   "$(oc get applications.argoproj.io golden-path-agent-demo-prod -n openshift-gitops -o jsonpath='{.status.sync.status}' 2>/dev/null)" \
   "Synced"
