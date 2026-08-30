@@ -21,6 +21,15 @@ stages:
       MCP_MODE: mock
     run: python -m eval.cli run --all
 
+  - name: journal-census
+    description: >
+      I5 Phase 0.3 -- tools/journal_census.py --diff origin/main. Fails
+      only on build-journal vocabulary (decision-number citations,
+      Phase/Stage/Checkpoint/... narrative) newly added versus main, not
+      on the pre-existing I5/I6/I7 backlog (still red without --diff
+      until that cleanup lands).
+    run: python3 tools/journal_census.py --diff origin/main
+
   - name: container-build
     run: docker build -t golden-path-agent:pr-${GIT_SHA:-local} .
 

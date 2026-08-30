@@ -1,0 +1,51 @@
+# I5 Phase 0.3: a regression-only gate for tools/journal_census.py's
+# build-journal-vocabulary lint -- decision-number citations and
+# Phase/Stage/Checkpoint/... narrative that belongs in this project's
+# separate, unpublished engineering history, not this published blueprint
+# (see tools/journal_census.py's own docstring for the full pattern list
+# and rationale). Blocks a PR
+# that adds NEW unallowed occurrences versus base-revision; does not block
+# on the pre-existing I5/I6/I7 backlog -- the full, non-diff census stays
+# red by design until that cleanup lands, and is run here only as a
+# non-blocking informational report. Once the full census reaches zero
+# (Phase 6), this task is expected to tighten from --diff to the full
+# census as the blocking check.
+#
+# alpine/git + `apk add python3` (no pip installs -- journal_census.py is
+# stdlib-only): the same base image and package-install shape already
+# proven under this cluster's restricted-v2 SCC in open-promotion-pr.yaml's
+# open-pr step, reused here rather than a second, unverified
+# python-image-plus-git combination.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: journal-census
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  params:
+    - name: base-revision
+      type: string
+      default: main
+      description: The ref this PR's journal-vocabulary regressions are measured against.
+  workspaces:
+    - name: source
+  steps:
+    - name: census
+      image: docker.io/alpine/git:2.54.0
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -eu
+        apk add --no-cache python3 >/dev/null
+        # fetch-source's own clone only has the PR's own revision -- the
+        # base revision this diff is measured against isn't present yet.
+        git fetch --depth 1 origin "$(params.base-revision):refs/remotes/origin/$(params.base-revision)"
+
+        echo "--- full repo-wide census (informational only until I5-I7 close the backlog) ---"
+        python3 tools/journal_census.py || true
+        echo
+
+        echo "--- regression gate: fails only on occurrences new since origin/$(params.base-revision) ---"
+        python3 tools/journal_census.py --diff "origin/$(params.base-revision)"

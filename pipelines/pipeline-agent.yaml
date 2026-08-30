@@ -48,6 +48,22 @@ spec:
       runAfter: [fetch-source]
       workspaces: [{ name: source, workspace: source }]
 
+    - name: journal-census
+      taskRef: { name: journal-census }
+      runAfter: [fetch-source]
+      workspaces: [{ name: source, workspace: source }]
+
+    # Agent-pipeline-only, like policy-validate above: skeleton/ +
+    # skeleton-tools/ are the template-instantiation feature, not part of
+    # the mcp/approval images (mirrors pipeline-mcp.yaml's own comment on
+    # why it excludes agent-reasoning-specific gates). Non-blocking -- see
+    # pipelines/tasks/verify-skeleton.yaml for why -- so it is deliberately
+    # left out of container-build's runAfter below.
+    - name: verify-skeleton
+      taskRef: { name: verify-skeleton }
+      runAfter: [fetch-source]
+      workspaces: [{ name: source, workspace: source }]
+
     - name: container-build
       taskRef:
         resolver: cluster
@@ -55,7 +71,7 @@ spec:
           - { name: kind, value: task }
           - { name: name, value: buildah }
           - { name: namespace, value: openshift-pipelines }
-      runAfter: [unit-tests, eval-gate-offline, policy-validate]
+      runAfter: [unit-tests, eval-gate-offline, policy-validate, journal-census]
       workspaces: [{ name: source, workspace: source }]
       params:
         - name: IMAGE

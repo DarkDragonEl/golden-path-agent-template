@@ -23,6 +23,12 @@ Rendering logic lives in tools/skeleton_renderer.py, shared with F3's CLI
 copy (it used to; DEC-075's precedent is exactly the failure this refactor
 avoids repeating).
 
+I5 Phase 0.4: a third sweep, (c) zero journal-vocabulary findings, reusing
+tools/journal_census.py's own allowlist/line-exempt logic against the
+rendered output -- a rendered project is a standalone artifact an adopter
+commits and reads on its own, so it must be as journal-clean as this repo
+itself, not just free of template placeholders and source-repo literals.
+
 Usage:
     python3 tools/verify_skeleton.py
 """
@@ -38,6 +44,16 @@ from skeleton_renderer import (  # noqa: E402
     sweep_for_literal,
     sweep_for_unresolved_placeholders,
 )
+# I5 Phase 0.4: the same census/lint logic the top-level lint-journal gate
+# runs against this repo, reused here against a rendered project instead
+# -- build_report_for_files + discover_files_walk exist specifically so a
+# non-git output directory (a fresh render has no .git of its own) can be
+# scanned without shelling out to a second CLI process. Rendering here
+# goes through render_skeleton() directly (the same function
+# tools/instantiate_agent_project.py's CLI path calls) rather than
+# spawning that CLI as a subprocess, since this file already renders both
+# templates that way -- one rendering call site, not two.
+from journal_census import build_report_for_files, discover_files_walk  # noqa: E402
 
 # Deliberately distinct from any real value this project's own identity
 # ever used, so a false-pass (test values that happen to collide with a
@@ -111,6 +127,23 @@ def verify_one(target: dict) -> bool:
             print(f"  - {h}")
     else:
         print("PASS: zero unresolved template placeholders in the rendered output")
+
+    # I5 Phase 0.4: the rendered project is a standalone artifact an
+    # adopter commits and reads on its own -- it must be as journal-clean
+    # as this repo itself. No .git here, so discover_files_walk (a plain
+    # rglob, not journal_census.py's usual git-aware discovery) is what
+    # feeds the same allowlist/line-exempt logic the top-level lint runs.
+    census_files = discover_files_walk(scratch_dir)
+    census_findings = build_report_for_files(scratch_dir, census_files)["findings"]
+    if census_findings:
+        ok = False
+        print(f"FAIL: {len(census_findings)} journal-vocabulary finding(s) in the rendered "
+              f"output (see tools/journal_census.py's ALLOWLIST_PATHS/ALLOWLIST_PREFIXES/"
+              f"LINE_EXEMPT_RULES to allowlist a deliberate exception):")
+        for f in census_findings:
+            print(f"  - {f['path']} [{f['pattern']}] x{f['count']}")
+    else:
+        print("PASS: zero journal-vocabulary findings in the rendered output")
 
     # Confirm the schema's own declared properties actually match what
     # was rendered against -- catches a schema/skeleton drift the sweep

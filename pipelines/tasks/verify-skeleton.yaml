@@ -1,0 +1,33 @@
+# I5 Phase 0.4: tools/verify_skeleton.py existed as a hand-run check only
+# -- never wired into a pipeline before this task. Runs all three of its
+# sweeps (source-repo literal leakage, unresolved template placeholders,
+# and the journal-vocabulary census added at I5 Phase 0.4) against both
+# rendered templates (skeleton/, skeleton-tools/).
+#
+# Non-blocking for now (`|| true`): the journal-vocabulary sweep inherits
+# the same pre-I5/I6/I7 backlog as the repo-wide journal-census task and
+# is non-zero by design until that cleanup lands -- wiring this as a hard
+# gate today would fail every PR on a pre-existing backlog it didn't
+# introduce, not on a regression it caused. The other two sweeps
+# (literal/placeholder) already pass clean; this is a deliberate,
+# temporary trade-off, same shape as journal-census.yaml's own
+# informational full-census line, expected to flip to blocking once
+# Phase 6 drives the census to zero.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: verify-skeleton
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: verify
+      image: docker.io/library/python:3.12-slim
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -eu
+        python3 tools/verify_skeleton.py || true

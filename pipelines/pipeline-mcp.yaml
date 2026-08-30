@@ -39,6 +39,11 @@ spec:
       runAfter: [fetch-source]
       workspaces: [{ name: source, workspace: source }]
 
+    - name: journal-census
+      taskRef: { name: journal-census }
+      runAfter: [fetch-source]
+      workspaces: [{ name: source, workspace: source }]
+
     - name: container-build
       taskRef:
         resolver: cluster
@@ -46,7 +51,7 @@ spec:
           - { name: kind, value: task }
           - { name: name, value: buildah }
           - { name: namespace, value: openshift-pipelines }
-      runAfter: [unit-tests]
+      runAfter: [unit-tests, journal-census]
       workspaces: [{ name: source, workspace: source }]
       params:
         - name: IMAGE

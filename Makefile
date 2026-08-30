@@ -1,6 +1,7 @@
 CONTAINER_ENGINE ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo docker)
+JOURNAL_BASE ?= origin/main
 
-.PHONY: build up up-offline down logs eval eval-fast eval-domain validate-eval-set trace test lint bootstrap
+.PHONY: build up up-offline down logs eval eval-fast eval-domain validate-eval-set trace test lint lint-journal bootstrap
 
 # DEC-098/DEC-099 (G2, three-image split): three independent images, one
 # per component -- no more single shared image + entrypoint dispatch.
@@ -63,6 +64,13 @@ test:
 
 lint:
 	python -m py_compile $$(find agent mcp_server eval -name '*.py')
+
+# I5 Phase 0.3: a regression-only gate -- fails only if this branch adds a
+# NEW unallowed journal-vocabulary occurrence versus JOURNAL_BASE, not on
+# the existing pre-I5 backlog (tools/journal_census.py with no --diff is
+# the full-repo census/lint, still red by design until I5-I7 land).
+lint-journal:
+	python3 tools/journal_census.py --diff $(JOURNAL_BASE)
 
 # Phase E, E1 (DECISIONS.md DEC-078 onward). Replays the from-scratch
 # bootstrap sequence (operators, namespaces, RBAC, Keycloak, cluster-tier

@@ -16,3 +16,9 @@ site/
 # design" (local-only content for whoever adopts this template). Phase
 # B3.5 populated it with this blueprint's own synthetic demo corpus,
 # which the golden path actually depends on -- tracked from here on.
+
+# I5: staged content destined for the separate, unpublished engineering-
+# history repo -- never committed here, per this mission's own ground
+# rules. handoff/CHECKPOINT-*.md reports stay tracked (not covered by
+# this pattern).
+handoff/to-roadmap/
