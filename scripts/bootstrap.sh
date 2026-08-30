@@ -267,6 +267,74 @@ ensure_operator() {
   done
 }
 
+promote_component() {
+  # $1 = component (agent|mcp), $2 = ImageStream name, $3 = the images[]
+  # entry name in deploy/kustomize/base/kustomization.yaml this component
+  # corresponds to.
+  #
+  # DEC-139: what this blueprint replicates on a new cluster is the
+  # RECIPE (source commit, Containerfile, dependency lockfiles, base
+  # image digest) -- rebuilding from it, passing the eval gates, and
+  # promoting the resulting digest is a day-zero/day-one activity, not a
+  # workaround. The committed digest pin means "exactly what passed the
+  # gates and what runs"; this function never writes to it directly --
+  # only a merged promotion PR does that (SysR-P-F-06).
+  local component="$1" isname="$2" imagekey="$3" committed_digest
+  committed_digest=$(awk -v name="$imagekey" '
+    $0 ~ "- name: " name "$" { found=1; next }
+    found && /digest: sha256:/ { print $2; exit }
+    found && /- name:/ { exit }
+  ' deploy/kustomize/base/kustomization.yaml)
+  if [ -z "$committed_digest" ]; then
+    log "  $component: could not find a committed digest for images[].name == $imagekey in deploy/kustomize/base/kustomization.yaml"
+    return 1
+  fi
+  if oc get is "$isname" -n golden-path-agent-ci -o json 2>/dev/null | \
+      jq -e --arg d "$committed_digest" '.status.tags[]?.items[]? | select(.image == $d)' >/dev/null 2>&1; then
+    log "  $component: committed digest ($committed_digest) already present in this cluster's own registry -- no rebuild needed"
+    return 0
+  fi
+  log "  $component: committed digest ($committed_digest) not present in this cluster's own registry -- triggering the initial PipelineRun to rebuild from the pinned commit"
+  local run_name
+  run_name=$(oc create -f "pipelines/pipelinerun-template-${component}.yaml" -n golden-path-agent-ci -o jsonpath='{.metadata.name}')
+  log "  $component: triggered $run_name -- waiting through the eval gates (bounded, up to 20 minutes)"
+  local waited=0 timeout=1200 overall_status=""
+  while [ "$waited" -lt "$timeout" ]; do
+    overall_status=$(oc get pipelinerun "$run_name" -n golden-path-agent-ci -o jsonpath='{.status.conditions[0].status}' 2>/dev/null || echo "")
+    { [ "$overall_status" = "True" ] || [ "$overall_status" = "False" ]; } && break
+    sleep 15; waited=$((waited + 15))
+  done
+  if [ "$overall_status" != "True" ] && [ "$overall_status" != "False" ]; then
+    log "  $component: $run_name still running after ${timeout}s -- not waiting further. Inspect 'oc get pipelinerun $run_name -n golden-path-agent-ci -o yaml'."
+    return 1
+  fi
+
+  # open-promotion-pr only ever runs once every one of its own runAfter
+  # dependencies (unit-tests, eval-gate-offline, policy-validate,
+  # container-build, digest-capture, sbom-generate, eval-gate-live,
+  # security-tests, operational-tests) has succeeded -- Tekton skips a
+  # task outright if any dependency failed. Its presence among this
+  # run's child tasks is therefore proof every gate before it passed,
+  # regardless of whether open-promotion-pr itself then succeeded.
+  local promo_taskrun
+  promo_taskrun=$(oc get pipelinerun "$run_name" -n golden-path-agent-ci \
+    -o jsonpath='{.status.childReferences[?(@.pipelineTaskName=="open-promotion-pr")].name}' 2>/dev/null || echo "")
+  if [ -z "$promo_taskrun" ]; then
+    log "  $component: $run_name never reached open-promotion-pr -- a real gate failed, not a missing-credential issue. Inspect 'oc get pipelinerun $run_name -n golden-path-agent-ci -o yaml'."
+    return 1
+  fi
+  local promo_status new_digest
+  promo_status=$(oc get taskrun "$promo_taskrun" -n golden-path-agent-ci -o jsonpath='{.status.conditions[0].status}' 2>/dev/null || echo "")
+  new_digest=$(oc get is "$isname" -n golden-path-agent-ci -o jsonpath='{.status.tags[0].items[0].image}' 2>/dev/null || echo "")
+  if [ "$promo_status" = "True" ]; then
+    log "  $component: all gates passed and open-promotion-pr succeeded -- a promotion PR should now be open against main. Merging it is the promotion decision (SysR-P-F-06); demo-prod syncs from it via ArgoCD once merged."
+    return 1
+  fi
+  log "  $component: all gates passed, but open-promotion-pr itself failed -- almost always because the golden-path-agent-github-token Secret (namespace golden-path-agent-ci, key 'token') doesn't exist yet in this environment (docs/phase-c-runbook.md S3)."
+  log "  $component: to promote by hand instead: branch off main, in deploy/kustomize/base/kustomization.yaml set the '$imagekey' entry's digest to $new_digest, open a PR against main (never commit this directly to main -- SysR-P-F-06)."
+  return 1
+}
+
 log "=== step 1/9: cluster-scoped operators (Pipelines, GitOps) ==="
 ensure_operator openshift-operators "OpenShift Pipelines" \
   pipelines/bootstrap/pipelines-operator.yaml \
@@ -617,9 +685,9 @@ if [ "$WITH_RHDH" = "true" ]; then
     "present"
 fi
 if [ -n "${GITHUB_TOKEN:-}" ]; then
-  log "  GITHUB_TOKEN set in $ENV_FILE -- S3 (promotion-PR git credential) provisioning not yet wired to bootstrap.env, still manual (docs/phase-c-runbook.md S3)"
+  log "  GITHUB_TOKEN set in $ENV_FILE -- will be provisioned as golden-path-agent-github-token before step 9b, so open-promotion-pr can open a real PR automatically if a rebuild+promote is needed (DEC-139)"
 else
-  log "  GITHUB_TOKEN not set -- S3 skipped (optional, DEC-078: this cluster's pipeline never gets promotion authority over the shared main digest pin regardless)"
+  log "  GITHUB_TOKEN not set -- optional (docs/phase-c-runbook.md S3); step 9b will print exact manual-promotion instructions instead if a rebuild+promote turns out to be needed"
 fi
 if [ "$VERIFY_FAILED" = "true" ]; then
   log "  one or more checks FAILED -- see table above. These are all created earlier in this same run from already-validated bootstrap.env inputs, so a FAIL here is a defect in this script, not a missing manual step."
@@ -702,51 +770,41 @@ log "=== step 9/9: verification ==="
 VERIFY_FAILED=false
 oc get applications.argoproj.io -n openshift-gitops
 
-# Step 9b: a genuinely fresh cluster's own internal registry starts
-# empty, so a plain bootstrap otherwise ends in the documented
-# ImagePullBackOff condition (DEC-080) with no path to a working
-# demo-prod at all. Trigger the already-committed PipelineRun template
-# for each demo-prod-relevant component and wait only for the
-# build/push (container-build + digest-capture), not the full pipeline
-# (eval-gate-live/security-tests/operational-tests/open-promotion-pr
-# keep running in the background) -- that's the only part standing
-# between "no image exists yet" and demo-prod being pullable. This
-# never touches the committed digest pin itself or attempts to merge
-# anything; if a freshly-built image's digest doesn't match what's
-# committed, demo-prod stays on ImagePullBackOff exactly as before, and
-# that's a real, separate promotion decision, not something this step
-# resolves silently.
-for component in agent mcp; do
-  RUN_NAME=$(oc create -f "pipelines/pipelinerun-template-${component}.yaml" -n golden-path-agent-ci -o jsonpath='{.metadata.name}')
-  log "  step 9b: triggered $RUN_NAME"
-  DIGEST_TASKRUN=""
-  PR_WAITED=0
-  PR_TIMEOUT=480
-  while [ -z "$DIGEST_TASKRUN" ]; do
-    DIGEST_TASKRUN=$(oc get pipelinerun "$RUN_NAME" -n golden-path-agent-ci \
-      -o jsonpath='{.status.childReferences[?(@.pipelineTaskName=="digest-capture")].name}' 2>/dev/null || echo "")
-    [ -n "$DIGEST_TASKRUN" ] && break
-    if [ "$PR_WAITED" -ge "$PR_TIMEOUT" ]; then
-      log "  step 9b: $RUN_NAME never reached digest-capture within ${PR_TIMEOUT}s -- inspect 'oc get pipelinerun $RUN_NAME -n golden-path-agent-ci -o yaml'"
-      break
-    fi
-    sleep 10; PR_WAITED=$((PR_WAITED + 10))
-  done
-  if [ -n "$DIGEST_TASKRUN" ]; then
-    while true; do
-      TR_STATUS=$(oc get taskrun "$DIGEST_TASKRUN" -n golden-path-agent-ci \
-        -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].status}' 2>/dev/null || echo "")
-      [ "$TR_STATUS" = "True" ] && { log "  step 9b: $RUN_NAME image build+push succeeded"; break; }
-      [ "$TR_STATUS" = "False" ] && { log "  step 9b: $RUN_NAME image build+push FAILED -- inspect 'oc get taskrun $DIGEST_TASKRUN -n golden-path-agent-ci -o yaml'"; break; }
-      if [ "$PR_WAITED" -ge "$PR_TIMEOUT" ]; then
-        log "  step 9b: $RUN_NAME digest-capture still not finished after ${PR_TIMEOUT}s -- not waiting further, the rest of the pipeline continues in the background"
-        break
-      fi
-      sleep 10; PR_WAITED=$((PR_WAITED + 10))
-    done
+# open-promotion-pr (docs/phase-c-runbook.md S3) reads its GitHub PAT
+# from this Secret -- optional, since S3 stays optional overall
+# (DEC-078), but wired from bootstrap.env now that step 9b can actually
+# reach this task. Regenerated every run, same discipline as every
+# other identity secret (DEC-059); simply skipped if GITHUB_TOKEN was
+# never set.
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+  if oc get secret golden-path-agent-github-token -n golden-path-agent-ci >/dev/null 2>&1; then
+    oc patch secret golden-path-agent-github-token -n golden-path-agent-ci --type merge \
+      -p "{\"data\":{\"token\":\"$(printf '%s' "$GITHUB_TOKEN" | base64 -w0)\"}}" >/dev/null
+  else
+    oc create secret generic golden-path-agent-github-token -n golden-path-agent-ci \
+      --from-literal=token="$GITHUB_TOKEN" >/dev/null
   fi
-  log "  step 9b: $RUN_NAME left running in the background for its remaining tasks (eval-gate-live/security-tests/operational-tests/open-promotion-pr/destroy-ephemeral)"
-done
+  log "  provisioned golden-path-agent-github-token in golden-path-agent-ci (S3, optional)"
+fi
+
+# Step 9b (DEC-139): what this blueprint replicates on a new cluster is
+# the RECIPE (source commit, Containerfile, dependency lockfiles, base
+# image digest) -- rebuilding from it, passing the eval gates, and
+# promoting the resulting digest is a day-zero/day-one activity, not a
+# workaround. If the committed digest is already pullable here, nothing
+# to do. If not, rebuild from the pinned commit and wait through the
+# eval gates; on success this either lets open-promotion-pr open a real
+# PR (if the github token Secret exists) or prints exactly what a human
+# needs to open one by hand. Never writes the digest pin to main
+# directly, under any flag -- merging a promotion PR is the owner's own
+# decision (SysR-P-F-06/DEC-078).
+PROMOTION_NEEDED=false
+promote_component agent golden-path-agent golden-path-agent || PROMOTION_NEEDED=true
+promote_component mcp golden-path-agent-mcp golden-path-agent-mcp || PROMOTION_NEEDED=true
+if [ "$PROMOTION_NEEDED" = "true" ]; then
+  log "  step 9b: one or more components need a promotion PR merged before demo-prod can reach 1/1 -- see messages above for exact digests/instructions. Stopping here; re-run this script once that PR is merged."
+  exit 1
+fi
 
 # A pod already sitting in ImagePullBackOff from before step 9b ran
 # retries on kubelet's own exponential backoff (up to 300s between
@@ -771,7 +829,7 @@ for deploy_name in golden-path-agent golden-path-agent-mcp; do
   verify_row "demo-prod Deployment/$deploy_name ready replicas" "${READY:-0}" "1"
 done
 if [ "$VERIFY_FAILED" = "true" ]; then
-  log "  a 0/1 above on a cluster where no PipelineRun has ever executed is the documented ImagePullBackOff condition (DEC-080): the inherited base digest was never pushed to this cluster's own internal registry. Not something this script's own bootstrap steps fix -- run the pipeline."
+  log "  a 0/1 above is unexpected at this point: step 9b already confirmed both components' committed digests exist in this cluster's own registry before reaching here. Inspect the pod directly (image pull secret, scheduling, resource limits) -- this is not the original DEC-080 ImagePullBackOff condition, which step 9b now closes."
 fi
 
 # root's own diff is expected to be non-empty specifically when

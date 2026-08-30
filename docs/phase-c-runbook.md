@@ -191,12 +191,12 @@ scoped to exactly this one repo. Mechanism:
      branch), `Pull requests: Read and write` (open the PR). Nothing else.
    - A short expiry (90 days is reasonable for a demo milestone) — rotate
      by repeating this step, not by widening scope.
-2. Store it as a `Secret`, never in Git, never echoed:
-   ```sh
-   oc create secret generic golden-path-agent-github-token \
-     -n golden-path-agent-ci \
-     --from-literal=token="<the fine-grained PAT>"
-   ```
+2. **Automated (`DEC-139`)**: set `GITHUB_TOKEN` in `bootstrap.env` —
+   `scripts/bootstrap.sh` creates the `golden-path-agent-github-token`
+   Secret from it before step 9b runs, regenerated every run like every
+   other identity secret. Leave it blank to skip; step 9b still works,
+   it just prints manual promotion instructions instead of opening a PR
+   automatically.
 3. `pipelines/tasks/open-promotion-pr.yaml`'s two steps reference this
    Secret by name only (`secretKeyRef`), as an env var — never a Tekton
    `param` (which Tekton persists into the `PipelineRun`'s own spec/status,
@@ -206,15 +206,14 @@ scoped to exactly this one repo. Mechanism:
    assumed: the token is only ever used inside a `-H "Authorization:
    Bearer ${GITHUB_TOKEN}"` header argument, never `echo`'d or logged.
 
-**Not yet done**: step 1–2 above are a manual action for the human
-operator, same as the MaaS credential — not performed automatically by
-this session, since it requires generating a credential through GitHub's
-own UI. `open-promotion-pr` will fail with a clear, non-secret-leaking
-error (`Secret "golden-path-agent-github-token" not found`) until this is
-done. This does not block C1c's negative-proof-#1 (a seeded bad change is
-expected to fail before `open-promotion-pr` is ever reached) — it only
-blocks the green-path run's final stage and the digest-promotion PR merge
-itself.
+**Manual step remaining**: generating the PAT itself (step 1) is a human
+action through GitHub's own UI, same as the MaaS credential — nothing
+automates that. Once it's in `bootstrap.env`, step 2 (the Secret) is
+automatic. Without it, `open-promotion-pr` fails with a clear,
+non-secret-leaking error (`Secret "golden-path-agent-github-token" not
+found`) — step 9b (`DEC-139`) treats that specific failure as expected
+when no token was configured, and prints the exact manual-promotion
+instructions instead of treating it as a gate failure.
 
 ## 4. Endpoint-drift diagnostic procedure (for `eval-gate-live` — Step C1b)
 
