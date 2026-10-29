@@ -60,6 +60,9 @@ Look up a fact.
 - **[Pinned versions and sources (`PINS.md`)](https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/PINS.md)** — every
   pinned component version, commit, and the date it was last verified
   live.
+- **[Platform repos](platform-repos.md)** — the three repo tiers
+  (blueprint, adopter platform-gitops, agent pair), what lives in each,
+  and the Git-provider contract.
 - **[Template nine-output mapping](template-nine-output-mapping.md)** —
   where each of `SysR-P-F-01`'s nine required scaffolder outputs lives in
   `skeleton/`.
