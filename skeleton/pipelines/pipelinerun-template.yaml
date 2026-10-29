@@ -37,6 +37,8 @@ metadata:
   namespace: ${{ values.name }}-ci
   labels:
     app.kubernetes.io/part-of: ${{ values.name }}
+    backstage.io/kubernetes-id: ${{ values.name }} # DEC-141: Tekton
+    # propagates it to TaskRuns/pods, so RHDH's CI view selects them.
 spec:
   pipelineRef:
     name: ${{ values.name }}-ci

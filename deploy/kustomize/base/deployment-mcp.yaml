@@ -2,6 +2,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: golden-path-agent-mcp
+  # DEC-141: same as deployment-agent.yaml; pairs with Pipeline
+  # golden-path-agent-ci-mcp.
+  labels:
+    backstage.io/kubernetes-id: golden-path-agent
+    app.kubernetes.io/instance: golden-path-agent-mcp
 spec:
   replicas: 1
   selector:
@@ -13,6 +18,7 @@ spec:
       labels:
         app.kubernetes.io/name: golden-path-agent
         app.kubernetes.io/component: mcp
+        backstage.io/kubernetes-id: golden-path-agent # DEC-141
     spec:
       serviceAccountName: golden-path-agent-mcp
       containers:

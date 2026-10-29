@@ -49,6 +49,7 @@ nav:
       - Local dev: local-dev.md
       - Testing perspectives guide: testing-perspectives-guide.md
       - TechDocs preview (this site): techdocs-preview.md
+      - RHDH CI/CD visibility plugins: rhdh-cicd-plugins.md
   - Reference:
       - Environments: environments.md
       - Evaluation: evaluation.md

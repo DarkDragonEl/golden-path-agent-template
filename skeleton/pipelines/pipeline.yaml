@@ -12,6 +12,10 @@ metadata:
   namespace: ${{ values.name }}-ci
   labels:
     app.kubernetes.io/part-of: ${{ values.name }}
+    # DEC-141: RHDH visibility; instance must equal the Deployment's for
+    # Topology's PipelineRun decorator.
+    backstage.io/kubernetes-id: ${{ values.name }}
+    app.kubernetes.io/instance: ${{ values.name }}
 spec:
   params:
     - name: repo-url

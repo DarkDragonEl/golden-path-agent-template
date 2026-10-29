@@ -1,0 +1,61 @@
+# DEC-141: CI/CD visibility on the component page (Kubernetes, Topology,
+# and the staged Tekton/Argo CD plugins). One data entry, per the
+# operator's merge-order constraint (same as oidc-app-config.yaml).
+#
+# Kubernetes: in-cluster API, authenticated as golden-path-agent-rhdh-
+# kubernetes (platform/bootstrap/rhdh-kubernetes-rbac.yaml). Token and CA
+# are read from that SA's token Secret, mounted by backstage.yaml's
+# extraFiles -- no credential value in Git or in an env var.
+# objectTypes + customResources match the ClusterRole's grants exactly,
+# so nothing the SA can't read is ever requested (no 403 noise).
+#
+# argocd: consumed only once the staged Argo CD plugins are enabled;
+# both values come from golden-path-agent-rhdh-argocd-secret (not yet
+# referenced by backstage.yaml -- see docs/rhdh-cicd-plugins.md).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: golden-path-agent-rhdh-cicd-config
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+data:
+  app-config.cicd.yaml: |
+    kubernetes:
+      serviceLocatorMethod:
+        type: multiTenant
+      clusterLocatorMethods:
+        - type: config
+          clusters:
+            - name: in-cluster
+              url: https://kubernetes.default.svc
+              authProvider: serviceAccount
+              serviceAccountToken:
+                $file: /opt/app-root/src/kubernetes-sa/token
+              caFile: /opt/app-root/src/kubernetes-sa/ca.crt
+              skipTLSVerify: false
+              skipMetricsLookup: true
+      objectTypes:
+        - pods
+        - services
+        - deployments
+        - replicasets
+      customResources:
+        - group: route.openshift.io
+          apiVersion: v1
+          plural: routes
+        - group: tekton.dev
+          apiVersion: v1
+          plural: pipelines
+        - group: tekton.dev
+          apiVersion: v1
+          plural: pipelineruns
+        - group: tekton.dev
+          apiVersion: v1
+          plural: taskruns
+    argocd:
+      appLocatorMethods:
+        - type: config
+          instances:
+            - name: openshift-gitops
+              url: ${ARGOCD_INSTANCE1_URL}
+              token: ${ARGOCD_AUTH_TOKEN}

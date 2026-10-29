@@ -18,6 +18,11 @@
 # (image-registry.openshift-image-registry.svc:5000, this project's own
 # internal registry -- self-contained, no external plugin-registry
 # dependency), not a floating tag.
+#
+# DEC-141 (CI/CD visibility): Kubernetes backend + frontend and Topology
+# are enabled -- all three are preinstalled in the RHDH 1.10.3 image
+# (./dynamic-plugins/dist). Tekton and Argo CD (Community family) are NOT
+# in the image (ghcr.io OCI only), so they are staged `disabled: true`.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -35,3 +40,48 @@ data:
         disabled: false
       - package: oci://image-registry.openshift-image-registry.svc:5000/golden-path-agent-rhdh/backstage-plugin-scaffolder-backend-module-gitea@sha256:e335af032bc97a1e46c4099e7ae4657c7eea38e94902066484278f5557ad3cb8
         disabled: false
+      # DEC-141: `pluginConfig: {}` replaces (not merges) the default
+      # entry's skipTLSVerify cluster stanza; the real `kubernetes:` block
+      # lives in cicd-app-config.yaml.
+      - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes-backend-dynamic
+        disabled: false
+        pluginConfig: {}
+      - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-topology
+        disabled: false
+      # DEC-141: staged, not enabled -- not preinstalled in the image.
+      # Enabling = flip `disabled` and allow egress to ghcr.io (or mirror
+      # the artifact, DEC-118 style). See docs/rhdh-cicd-plugins.md.
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-tekton:{{inherit}}
+        disabled: true
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-argocd-backend@sha256:de3a311dafb2a853354f30434451fc04c56b5ee53f085f38471410c695f16e46!backstage-community-plugin-argocd-backend
+        disabled: true
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-argocd@sha256:4c922b0b3bafaf70925a860a14ce22df5d05e70edb92f0db8608b461f91444bf!backstage-community-plugin-argocd
+        disabled: true
+        pluginConfig:
+          dynamicPlugins:
+            frontend:
+              backstage-community.plugin-argocd:
+                translationResources:
+                  - importName: argocdTranslations
+                    ref: argocdTranslationRef
+                mountPoints:
+                  - mountPoint: entity.page.overview/cards
+                    importName: ArgocdDeploymentSummary
+                    config:
+                      layout:
+                        gridColumnEnd:
+                          lg: span 8
+                          xs: span 12
+                      if:
+                        allOf:
+                          - isArgocdConfigured
+                  - mountPoint: entity.page.cd/cards
+                    importName: ArgocdDeploymentLifecycle
+                    config:
+                      layout:
+                        gridColumn: 1 / -1
+                      if:
+                        allOf:
+                          - isArgocdConfigured

@@ -5,7 +5,14 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: golden-path-agent
-  annotations: {}   # TODO(platform): ingress-class/TLS annotations are platform-specific — add per environment overlay
+  # DEC-141: OpenShift copies an Ingress's labels onto the Route it
+  # generates (Topology selects that Route); reconcile-labels keeps an
+  # already-generated Route in step when the labels change.
+  labels:
+    backstage.io/kubernetes-id: golden-path-agent
+  annotations:
+    router.openshift.io/reconcile-labels: "true"
+  # TODO(platform): ingress-class/TLS annotations are platform-specific — add per environment overlay
 spec:
   rules:
     - http:
