@@ -3,9 +3,11 @@
 Pytest suite covering `agent/`, `approval_service/`, and `mcp_server/`
 in-process — graph topology and node behavior, the approval service's
 API and telemetry, MCP auth/contract/client-OIDC, policy limits and
-write-gating, model/retrieval clients, and `tools/trace-check` itself
-(`test_trace_check.py`). Fully offline and deterministic: no live model,
-no cluster, no network access required.
+write-gating, model/retrieval clients, `tools/trace-check` itself
+(`test_trace_check.py`), and `platform/bootstrap/provision-identity-
+secrets.sh` against a stub `oc` (`test_provision_identity_secrets.py`).
+Fully offline and deterministic: no live model, no cluster, no network
+access required.
 
 **Consumed by**: `make test` (`pytest -q`, a human developer's inner
 loop) and `pipelines/tasks/unit-tests.yaml` (the same command as a CI
