@@ -11,18 +11,16 @@
 # extend it -- dropping these two entries here would be a real,
 # accidental behavior change, not a no-op).
 #
-# The scaffolder-backend-module-gitea entry is the one new plugin this
-# file exists to add: real, live-verified end-to-end (DEC-118) -- a
-# genuine Scaffolder task run through this exact package reference
-# created a real repo in Gitea with real content. Pinned by digest
-# (image-registry.openshift-image-registry.svc:5000, this project's own
-# internal registry -- self-contained, no external plugin-registry
-# dependency), not a floating tag.
+# The Gitea scaffolder module (DEC-118, live-verified end-to-end) comes
+# from the second include: a file scripts/bootstrap.sh renders into
+# ConfigMap golden-path-agent-rhdh-gitea-plugin from RHDH_PLUGIN_REGISTRY
+# (bootstrap.env) and the digest in platform/rhdh-plugins/gitea-scaffolder/
+# pin.env (DEC-144) -- so no registry host is ever committed here.
 #
-# DEC-141 (CI/CD visibility): Kubernetes backend + frontend and Topology
-# are enabled -- all three are preinstalled in the RHDH 1.10.3 image
-# (./dynamic-plugins/dist). Tekton and Argo CD (Community family) are NOT
-# in the image (ghcr.io OCI only), so they are staged `disabled: true`.
+# DEC-141/DEC-142 (CI/CD visibility): Kubernetes backend + frontend and
+# Topology are preinstalled in the RHDH 1.10.3 image. Tekton and Argo CD
+# (Community family) are not: they are pulled from ghcr.io at pod start,
+# pinned by digest (mirroring them is recorded debt, DEC-142).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -33,12 +31,11 @@ data:
   dynamic-plugins.yaml: |
     includes:
       - dynamic-plugins.default.yaml
+      - /opt/app-root/src/gitea-plugin/dynamic-plugins.gitea.yaml
     plugins:
       - package: oci://registry.access.redhat.com/rhdh/red-hat-developer-hub-backstage-plugin-lightspeed:{{inherit}}
         disabled: false
       - package: oci://registry.access.redhat.com/rhdh/red-hat-developer-hub-backstage-plugin-lightspeed-backend:{{inherit}}
-        disabled: false
-      - package: oci://image-registry.openshift-image-registry.svc:5000/golden-path-agent-rhdh/backstage-plugin-scaffolder-backend-module-gitea@sha256:e335af032bc97a1e46c4099e7ae4657c7eea38e94902066484278f5557ad3cb8
         disabled: false
       # DEC-141: `pluginConfig: {}` replaces (not merges) the default
       # entry's skipTLSVerify cluster stanza; the real `kubernetes:` block
@@ -50,15 +47,16 @@ data:
         disabled: false
       - package: ./dynamic-plugins/dist/backstage-community-plugin-topology
         disabled: false
-      # DEC-141: staged, not enabled -- not preinstalled in the image.
-      # Enabling = flip `disabled` and allow egress to ghcr.io (or mirror
-      # the artifact, DEC-118 style). See docs/rhdh-cicd-plugins.md.
-      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-tekton:{{inherit}}
-        disabled: true
+      # DEC-142: enabled from ghcr.io, pinned by digest (PINS.md). Tekton
+      # uses the default entry's image path (no `!path`), so it overrides
+      # that entry and inherits its mount points; Argo CD (Community) has
+      # no default entry, so its mount points are spelled out below.
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-tekton@sha256:a26ed788824fbd29e65b02f956dad8f35275a8ccd1110b23fc17957104d38a01
+        disabled: false
       - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-argocd-backend@sha256:de3a311dafb2a853354f30434451fc04c56b5ee53f085f38471410c695f16e46!backstage-community-plugin-argocd-backend
-        disabled: true
+        disabled: false
       - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-argocd@sha256:4c922b0b3bafaf70925a860a14ce22df5d05e70edb92f0db8608b461f91444bf!backstage-community-plugin-argocd
-        disabled: true
+        disabled: false
         pluginConfig:
           dynamicPlugins:
             frontend:

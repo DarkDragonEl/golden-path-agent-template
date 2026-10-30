@@ -1,8 +1,8 @@
 # Phase C, Step C1b. SysR-P-F-06 -- promotion is exclusively a GitOps PR
 # merge, never a rebuild and never a direct push to main. This Task only
 # runs when every prior gate passed (the Pipeline's `when:` condition, not
-# this Task's own logic) and only ever touches
-# deploy/kustomize/base/kustomization.yaml's one images.digest field.
+# this Task's own logic) and only ever touches one image's digest field,
+# in every kustomization that pins that image (DEC-146).
 #
 # Credential: docs/phase-c-runbook.md §3 -- a fine-grained GitHub PAT,
 # scoped to Contents (read/write) + Pull requests (read/write) on this one
@@ -59,12 +59,21 @@ spec:
         # `- name: ...` / `newName: ...` / `digest: ...`, three lines,
         # so the range closes on the very next `digest:` line, which is
         # this same entry's own.
-        sed -i "/- name: $(params.image-name)$/,/digest: sha256:/{s#digest: sha256:.*#${NEW_DIGEST}#}" \
-          deploy/kustomize/base/kustomization.yaml
+        #
+        # DEC-146 (M21): every kustomization that pins this image gets the
+        # same edit in the same commit -- the approval image is pinned in
+        # base/ AND overlays/approval-platform/ (tests/test_image_pins.py).
+        PIN_FILES=$(grep -l -e "- name: $(params.image-name)$" \
+          deploy/kustomize/base/kustomization.yaml deploy/kustomize/overlays/*/kustomization.yaml)
+        [ -n "$PIN_FILES" ] || { echo "no images[] entry named $(params.image-name)" >&2; exit 1; }
+        for f in $PIN_FILES; do
+          sed -i "/- name: $(params.image-name)$/,/digest: sha256:/{s#digest: sha256:.*#${NEW_DIGEST}#}" "$f"
+        done
         git config user.name "golden-path-agent-ci"
         git config user.email "golden-path-agent-ci@users.noreply.github.com"
         git checkout -b "$BRANCH"
-        git add deploy/kustomize/base/kustomization.yaml
+        # shellcheck disable=SC2086 # word-split on purpose: one path per word
+        git add $PIN_FILES
         git commit -m "Promote $(params.commit-sha): $(params.image-ref)"
         # DEC-037: bare `Authorization: Bearer` fails for git push over
         # HTTPS (confirmed live) -- URL-embedded-credential is GitHub's
@@ -92,7 +101,7 @@ spec:
             'title': 'Promote $(params.component) ' + '$(params.commit-sha)'[:12],
             'head': '$BRANCH',
             'base': 'main',
-            'body': 'Automated digest promotion PR for the $(params.component) component ($(params.image-name)). Image: $(params.image-ref)\n\nOnly the $(params.image-name) entry in deploy/kustomize/base/kustomization.yaml\'s images: list changes -- the other two components\' digests are untouched. Merging this is the promotion event (SysR-P-F-06) -- demo-prod syncs from it via ArgoCD.',
+            'body': 'Automated digest promotion PR for the $(params.component) component ($(params.image-name)). Image: $(params.image-ref)\n\nOnly the $(params.image-name) images: entry changes, in every kustomization that pins it (base/, plus overlays/approval-platform/ for approval) -- the other components\' digests are untouched. Merging this is the promotion event (SysR-P-F-06) -- ArgoCD syncs it.',
         }))
         ")
         curl -sf -X POST \

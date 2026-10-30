@@ -9,9 +9,9 @@
 # objectTypes + customResources match the ClusterRole's grants exactly,
 # so nothing the SA can't read is ever requested (no 403 noise).
 #
-# argocd: consumed only once the staged Argo CD plugins are enabled;
-# both values come from golden-path-agent-rhdh-argocd-secret (not yet
-# referenced by backstage.yaml -- see docs/rhdh-cicd-plugins.md).
+# argocd: both values come from golden-path-agent-rhdh-argocd-secret,
+# which scripts/bootstrap.sh writes from a read-only local Argo CD
+# account it creates (DEC-143) -- never a value in Git.
 apiVersion: v1
 kind: ConfigMap
 metadata:

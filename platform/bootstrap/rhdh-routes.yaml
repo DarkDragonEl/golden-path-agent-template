@@ -1,0 +1,43 @@
+# DEC-146 (M10/M11): the two browser-facing Routes RHDH's sign-in needs --
+# RHDH itself, and Keycloak (the OIDC popup is a browser redirect,
+# DEC-097). Edge TLS on the router's default certificate, HTTP redirected
+# (DEC-094). No `host`: OpenShift assigns one from the cluster's apps
+# domain, scripts/bootstrap.sh reads it back (.spec.host) into
+# PUBLIC_URL/OIDC_METADATA_URL, so no hostname is ever committed (ADR-016).
+# Applied by scripts/bootstrap.sh --with-rhdh (step 4b), not ArgoCD: the
+# Keycloak namespace isn't GitOps-managed, and the hosts are needed at
+# step 5, before ArgoCD's first sync. Names match `oc create route`'s
+# defaults, so a re-run adopts an existing hand-made Route (host kept).
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: backstage-golden-path-agent
+  namespace: golden-path-agent-rhdh
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  to:
+    kind: Service
+    name: backstage-golden-path-agent # the RHDH Operator's Service for CR golden-path-agent
+  port:
+    targetPort: http-backend
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: golden-path-agent-service
+  namespace: golden-path-agent-keycloak
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+spec:
+  to:
+    kind: Service
+    name: golden-path-agent-service # the Keycloak Operator's Service for CR golden-path-agent
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

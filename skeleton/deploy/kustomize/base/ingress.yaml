@@ -5,9 +5,9 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ${{ values.name }}
-  # DEC-141: OpenShift copies an Ingress's labels onto the Route it
-  # generates (Topology selects that Route); reconcile-labels keeps an
-  # already-generated Route in step when the labels change.
+  # DEC-141/DEC-146: once an overlay gives this Ingress a host (OpenShift
+  # skips host-less rules), the Routes OpenShift generates copy these
+  # labels -- reconcile-labels keeps them in step -- so Topology sees them.
   labels:
     backstage.io/kubernetes-id: ${{ values.name }}
   annotations:

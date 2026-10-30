@@ -52,8 +52,17 @@ STUB_OC = textwrap.dedent(
         jsonpath = [a for a in args if a.startswith("jsonpath=")]
         if args[2] == "golden-path-agent-keycloak-admin" and jsonpath:
             b64("admin" if "username" in jsonpath[0] else "admin-password")
+        elif args[2] == "golden-path-agent-gitea-scaffolder-token":
+            if jsonpath:
+                b64("scaffolder" if "username" in jsonpath[0] else "gitea-token-value")
+        elif args[2] == "golden-path-agent-rhdh-plugin-puller-token" and jsonpath:
+            b64("puller-sa-token-value")
         else:
             sys.exit(1)  # "NotFound": the script takes its create path
+    elif args[:2] == ["get", "namespace"]:
+        pass
+    elif args[:2] == ["get", "route"]:
+        print("gitea.example.test", end="")
     elif args[:1] == ["exec"]:
         if os.environ.get("STUB_EXEC_FAIL", "") and os.environ["STUB_EXEC_FAIL"] in stdin:
             print("error: unable to upgrade connection: container not found", file=sys.stderr)
@@ -148,3 +157,45 @@ def test_empty_regeneration_output_fails_script_before_any_secret_write(stub_env
     result = run_script(env, STUB_EXEC_EMPTY="regenerate_secret(")
     assert result.returncode != 0
     assert workload_secret_writes(log) == []
+
+
+RHDH_ENV = {"WITH_RHDH": "true", "RHDH_HOST": "rhdh.example.test", "KEYCLOAK_HOST": "keycloak.example.test"}
+
+
+def calls(log):
+    return [json.loads(line) for line in log.read_text().splitlines()]
+
+
+def test_with_rhdh_writes_public_and_external_oidc_urls(stub_env):
+    """DEC-146 (M12/M13): both URLs come from the Routes bootstrap made."""
+    env, log = stub_env
+    result = run_script(env, **RHDH_ENV)
+    assert result.returncode == 0, result.stderr
+    oidc = [c for c in calls(log) if c[:1] == ["create"] and "golden-path-agent-rhdh-oidc-secret" in c]
+    assert len(oidc) == 1
+    assert "--from-literal=PUBLIC_URL=https://rhdh.example.test" in oidc[0]
+    assert ("--from-literal=OIDC_METADATA_URL=https://keycloak.example.test"
+            "/realms/golden-path-agent/.well-known/openid-configuration") in oidc[0]
+
+
+def test_with_rhdh_registry_auth_is_service_account_backed(stub_env):
+    """DEC-146 (M17): the plugin-pull credential is the puller SA's token,
+    never the operator's own `oc whoami -t` session."""
+    env, log = stub_env
+    result = run_script(env, **RHDH_ENV)
+    assert result.returncode == 0, result.stderr
+    assert not [c for c in calls(log) if c[:1] == ["whoami"]]
+    auth = [c for c in calls(log) if c[:1] == ["create"] and "golden-path-agent-rhdh-registry-auth" in c]
+    assert len(auth) == 1
+    literal = next(a for a in auth[0] if a.startswith("--from-literal=auth.json="))
+    auths = json.loads(literal.split("=", 2)[2])["auths"]
+    import base64
+    entry = base64.b64decode(auths["image-registry.openshift-image-registry.svc:5000"]["auth"]).decode()
+    assert entry == "serviceaccount:puller-sa-token-value"
+
+
+def test_with_rhdh_but_no_route_hosts_fails_before_writing_oidc_secret(stub_env):
+    env, log = stub_env
+    result = run_script(env, WITH_RHDH="true")
+    assert result.returncode != 0
+    assert not [c for c in calls(log) if "golden-path-agent-rhdh-oidc-secret" in c and c[:1] in (["create"], ["patch"])]

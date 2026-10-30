@@ -59,16 +59,9 @@ configMapGenerator:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318 # DEC-071:
         # the cluster-tier collector (DEC-068) -- this is Checkpoint D's
         # own live-trace target environment.
-  - name: ${{ values.name }}-approval-config
-    behavior: merge
-    literals:
-      - AUTH_MODE=oidc # DEC-063: the D2 cutover's own binding requirement
-        # (DEC-046 owner-addition #1) -- the approval service now
-        # validates real Keycloak-issued tokens for every decision/query
-        # call in this environment. tools/check_config_contract.py's own
-        # new demo-prod-config assertion (DEC-063) mechanically fails if
-        # this line is ever reverted/omitted, not left to convention.
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318 # DEC-071
+  # DEC-146: no approval-config merge here -- approval is the shared
+  # Platform Foundation service (DEC-098/DEC-099), so this skeleton's base
+  # has no approval ConfigMap to merge into (the old entry broke the build).
 
 replicas:
   - name: ${{ values.name }}

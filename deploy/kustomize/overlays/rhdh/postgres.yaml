@@ -2,17 +2,26 @@
 # DB, same plain Deployment+PVC pattern (no new operator). GitOps-managed
 # (unlike Keycloak's manual bootstrap), since RHDH's Backstage CR is
 # GitOps-managed too. Credentials: a plain Secret
-# (golden-path-agent-rhdh-db-secret), manually provisioned, never committed.
+# (golden-path-agent-rhdh-db-secret), created once by scripts/bootstrap.sh
+# step 4b, never committed.
 #
-# REQUIRED MANUAL STEP (DEC-093 addendum): RHDH creates one Postgres
-# database per backend plugin at startup, not just this S2I image's
-# default single database -- the app user needs CREATEDB or every plugin
-# fails ("permission denied to create database"). Run once, after this
-# Deployment is Running (scripts/bootstrap.sh's --with-rhdh does not
-# automate this):
-#   oc exec -n golden-path-agent-rhdh <pg-pod> -- \
-#     psql -U postgres -d postgres -c "ALTER ROLE rhdh CREATEDB;"
-# The grant lives in the role itself -- survives pod restarts.
+# CREATEDB (DEC-093 addendum; automated by DEC-146, M9): RHDH creates one
+# database per backend plugin, so its role needs CREATEDB. The image's own
+# start hook (/opt/app-root/src/postgresql-start/*.sh, sourced on every
+# start once the server is up, local socket, superuser) grants it from the
+# ConfigMap below -- idempotent, no hand step, no ordering race with ArgoCD.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: golden-path-agent-rhdh-db-start-hooks
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+data:
+  10-rhdh-createdb.sh: |
+    # DEC-146 (M9): sourced by the image's run-postgresql (set -eu), so a
+    # failure stops the start rather than leaving RHDH half-provisioned.
+    psql -v ON_ERROR_STOP=1 -d postgres --command "ALTER ROLE \"${POSTGRESQL_USER}\" CREATEDB;"
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -74,10 +83,16 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/pgsql/data
+            - name: start-hooks
+              mountPath: /opt/app-root/src/postgresql-start
+              readOnly: true
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: golden-path-agent-rhdh-db
+        - name: start-hooks
+          configMap:
+            name: golden-path-agent-rhdh-db-start-hooks
 ---
 apiVersion: v1
 kind: Service

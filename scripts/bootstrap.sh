@@ -105,6 +105,9 @@ set -a
 . "$ENV_FILE"
 set +a
 REQUIRED_ENV_KEYS=(MODEL_API_BASE_URL MODEL_NAME MODEL_FALLBACK_API_BASE_URL MODEL_FALLBACK_NAME MODEL_API_KEY)
+# DEC-144 (M16): with RHDH, the external registry holding the Gitea
+# scaffolder plugin image is an operator input too.
+[ "$WITH_RHDH" = "true" ] && REQUIRED_ENV_KEYS+=(RHDH_PLUGIN_REGISTRY)
 MISSING_ENV_KEYS=()
 for key in "${REQUIRED_ENV_KEYS[@]}"; do
   [ -n "${!key:-}" ] || MISSING_ENV_KEYS+=("$key")
@@ -114,6 +117,26 @@ if [ "${#MISSING_ENV_KEYS[@]}" -gt 0 ]; then
   exit 1
 fi
 log "  all required keys present in $ENV_FILE"
+# DEC-146: every local tool this script (and provision-identity-secrets.sh)
+# shells out to, checked before anything touches the cluster.
+MISSING_TOOLS=()
+for tool in oc jq curl openssl python3 base64 git awk sed; do
+  command -v "$tool" >/dev/null 2>&1 || MISSING_TOOLS+=("$tool")
+done
+if [ "${#MISSING_TOOLS[@]}" -gt 0 ]; then
+  echo "[bootstrap.sh] missing local tools: ${MISSING_TOOLS[*]}" >&2
+  exit 1
+fi
+if [ "$WITH_RHDH" = "true" ]; then
+  GITEA_PLUGIN_NAME=$(sed -n 's/^PLUGIN_IMAGE_NAME=//p' platform/rhdh-plugins/gitea-scaffolder/pin.env)
+  GITEA_PLUGIN_DIGEST=$(sed -n 's/^PLUGIN_DIGEST=//p' platform/rhdh-plugins/gitea-scaffolder/pin.env)
+  case "$GITEA_PLUGIN_DIGEST" in
+    sha256:*) log "  Gitea scaffolder plugin pinned: ${GITEA_PLUGIN_NAME}@${GITEA_PLUGIN_DIGEST}" ;;
+    *)
+      echo "[bootstrap.sh] the Gitea scaffolder plugin has no pinned digest yet (platform/rhdh-plugins/gitea-scaffolder/pin.env) -- build and push it once with that directory's build.sh --write-pin, commit the digest, then re-run (DEC-144)" >&2
+      exit 1 ;;
+  esac
+fi
 
 VERIFY_FAILED=false
 verify_row() {
@@ -268,9 +291,11 @@ ensure_operator() {
 }
 
 promote_component() {
-  # $1 = component (agent|mcp), $2 = ImageStream name, $3 = the images[]
-  # entry name in deploy/kustomize/base/kustomization.yaml this component
-  # corresponds to.
+  # $1 = component (agent|mcp|approval), $2 = ImageStream name, $3 = the
+  # images[] entry name in deploy/kustomize/base/kustomization.yaml this
+  # component corresponds to. approval's second pin (overlays/approval-
+  # platform/) always carries the same digest (tests/test_image_pins.py),
+  # so base/ is the one place to read it (DEC-146, M21).
   #
   # DEC-139: what this blueprint replicates on a new cluster is the
   # RECIPE (source commit, Containerfile, dependency lockfiles, base
@@ -331,7 +356,7 @@ promote_component() {
     return 1
   fi
   log "  $component: all gates passed, but open-promotion-pr itself failed -- almost always because the golden-path-agent-github-token Secret (namespace golden-path-agent-ci, key 'token') doesn't exist yet in this environment (docs/phase-c-runbook.md S3)."
-  log "  $component: to promote by hand instead: branch off main, in deploy/kustomize/base/kustomization.yaml set the '$imagekey' entry's digest to $new_digest, open a PR against main (never commit this directly to main -- SysR-P-F-06)."
+  log "  $component: to promote by hand instead: branch off main, set the '$imagekey' images entry's digest to $new_digest in every kustomization that pins it (deploy/kustomize/base/, plus overlays/approval-platform/ for approval), open a PR against main (never commit this directly to main -- SysR-P-F-06)."
   return 1
 }
 
@@ -346,6 +371,8 @@ ensure_operator openshift-operators "OpenShift GitOps" \
 log "=== step 2/9: namespaces + rbac ==="
 oc apply -f pipelines/bootstrap/namespaces.yaml
 oc apply -f pipelines/bootstrap/rbac.yaml
+# DEC-146 (M22): demo-prod's agent Route (host assigned by OpenShift).
+oc apply -f pipelines/bootstrap/demo-prod-route.yaml
 
 # Both secrets required BEFORE keycloak-postgres.yaml/keycloak-cr.yaml
 # apply, or those pods hit CreateContainerConfigError. Create-once, not
@@ -460,6 +487,45 @@ if [ "$WITH_RHDH" = "true" ]; then
   # lands here. The Backstage CR mounts its token Secret, so this must
   # precede the GitOps sync of deploy/kustomize/overlays/rhdh/.
   oc apply -f platform/bootstrap/rhdh-kubernetes-rbac.yaml
+  # DEC-146 (M17): durable plugin-pull identity (provision-identity-
+  # secrets.sh turns its token into golden-path-agent-rhdh-registry-auth).
+  oc apply -f platform/bootstrap/rhdh-plugin-puller.yaml
+
+  # DEC-146 (M10/M11): RHDH's and Keycloak's browser-facing Routes, no
+  # committed host -- OpenShift assigns one, read straight back here and
+  # handed to step 5 (PUBLIC_URL / OIDC_METADATA_URL).
+  oc apply -f platform/bootstrap/rhdh-routes.yaml
+  RHDH_HOST=$(oc get route backstage-golden-path-agent -n golden-path-agent-rhdh -o jsonpath='{.spec.host}')
+  KEYCLOAK_HOST=$(oc get route golden-path-agent-service -n golden-path-agent-keycloak -o jsonpath='{.spec.host}')
+  if [ -z "$RHDH_HOST" ] || [ -z "$KEYCLOAK_HOST" ]; then
+    log "  FAILED: RHDH/Keycloak Route has no assigned host (rhdh='$RHDH_HOST', keycloak='$KEYCLOAK_HOST')"
+    exit 1
+  fi
+  log "  Routes: RHDH https://${RHDH_HOST}, Keycloak https://${KEYCLOAK_HOST}"
+
+  # DEC-146 (M13/C7): CAs RHDH must trust -- this cluster's ingress CA
+  # (the Keycloak Route on a fresh cluster's self-signed router cert) and
+  # the service CA (in-cluster TLS: internal registry, Argo CD). One file,
+  # mounted by the Backstage CR for both skopeo and Node.
+  CLUSTER_CA_BUNDLE=$(mktemp)
+  trap 'rm -f "$CLUSTER_CA_BUNDLE"' EXIT
+  oc get configmap default-ingress-cert -n openshift-config-managed -o jsonpath='{.data.ca-bundle\.crt}' > "$CLUSTER_CA_BUNDLE"
+  printf '\n' >> "$CLUSTER_CA_BUNDLE"
+  oc get configmap openshift-service-ca.crt -n golden-path-agent-rhdh -o jsonpath='{.data.service-ca\.crt}' >> "$CLUSTER_CA_BUNDLE"
+  if [ "$(grep -c 'BEGIN CERTIFICATE' "$CLUSTER_CA_BUNDLE")" -lt 2 ]; then
+    log "  FAILED: expected the ingress CA and the service CA in the cluster CA bundle, found $(grep -c 'BEGIN CERTIFICATE' "$CLUSTER_CA_BUNDLE") certificate(s)"
+    exit 1
+  fi
+  oc create configmap golden-path-agent-rhdh-cluster-ca -n golden-path-agent-rhdh \
+    --from-file=ca-bundle.crt="$CLUSTER_CA_BUNDLE" --dry-run=client -o yaml | oc apply -f - >/dev/null
+
+  # DEC-144 (M16): the Gitea scaffolder plugin include, from the external
+  # registry (bootstrap.env) and the digest pinned in Git (step 0).
+  GITEA_PLUGIN_INCLUDE=$(printf 'plugins:\n  - package: oci://%s/%s@%s\n    disabled: false\n' \
+    "$RHDH_PLUGIN_REGISTRY" "$GITEA_PLUGIN_NAME" "$GITEA_PLUGIN_DIGEST")
+  oc create configmap golden-path-agent-rhdh-gitea-plugin -n golden-path-agent-rhdh \
+    --from-literal=dynamic-plugins.gitea.yaml="$GITEA_PLUGIN_INCLUDE" --dry-run=client -o yaml | oc apply -f - >/dev/null
+  log "  rendered golden-path-agent-rhdh-cluster-ca and golden-path-agent-rhdh-gitea-plugin"
   log "RHDH operator ready, DB secret provisioned -- Postgres/Backstage CR themselves are GitOps-managed (deploy/kustomize/overlays/rhdh/, deploy/argocd/apps/rhdh.yaml), applied automatically by golden-path-agent-root's own selfHeal sync, not by this script"
 
   log "=== step 4c/9 (--with-rhdh, DEC-137/DEC-138): Gitea (RHDH scaffolder's git host) ==="
@@ -594,8 +660,107 @@ if [ "$WITH_RHDH" = "true" ]; then
       --from-literal=username="$GITEA_SCAFFOLDER_USER" \
       --from-literal=token="$GITEA_TOKEN" >/dev/null
   fi
-  unset GITEA_ADMIN_PASSWORD GITEA_SCAFFOLDER_PASSWORD GITEA_TOKEN GITEA_TOKEN_JSON
+  unset GITEA_SCAFFOLDER_PASSWORD GITEA_TOKEN GITEA_TOKEN_JSON
   log "  provisioned Gitea org/scaffolder account/token in $GITEA_NS"
+
+  # M18/M19 (DEC-145): the Gitea copy of this blueprint -- catalog
+  # location of the portal's Template. Content = the same GitHub main
+  # ArgoCD syncs, plus ONE commit replacing template.yaml's allowedHosts
+  # placeholder with this cluster's Gitea host. Git keeps the placeholder;
+  # only this copy carries the host. Re-pushed every run (force), so it
+  # never drifts from GitHub main by more than that one commit.
+  GITEA_HOST=${GITEA_ROUTE#*://}; GITEA_HOST=${GITEA_HOST%%/*}
+  GITEA_MIRROR_REPO=golden-path-agent-template
+  BLUEPRINT_REPO_URL=$(awk '/repoURL:/ {print $2; exit}' deploy/argocd/application-root.yaml)
+  if ! gitea_api GET "/api/v1/repos/${GITEA_ADMIN_USER}/${GITEA_MIRROR_REPO}" | jq -e '.id' >/dev/null 2>&1; then
+    log "  creating Gitea repo ${GITEA_ADMIN_USER}/${GITEA_MIRROR_REPO} (the portal's Template source)"
+    gitea_api POST "/api/v1/user/repos" \
+      "{\"name\":\"${GITEA_MIRROR_REPO}\",\"private\":false,\"default_branch\":\"main\"}" >/dev/null
+  fi
+  MIRROR_DIR=$(mktemp -d)
+  git clone -q --depth 1 --branch main "$BLUEPRINT_REPO_URL" "$MIRROR_DIR/src"
+  sed -i "s/^\( *- \)gitea\.example\.com\$/\1${GITEA_HOST}/" "$MIRROR_DIR/src/template.yaml"
+  if ! grep -q -- "- ${GITEA_HOST}\$" "$MIRROR_DIR/src/template.yaml"; then
+    log "  FAILED: template.yaml has no 'gitea.example.com' allowedHosts placeholder to replace -- refusing to push a Gitea copy the portal can't publish from"
+    exit 1
+  fi
+  git -C "$MIRROR_DIR/src" -c user.name=golden-path-agent-bootstrap -c user.email=golden-path-agent-bootstrap@example.com \
+    commit -q -am "Gitea copy: allowedHosts -> this cluster's Gitea host (scripts/bootstrap.sh, DEC-145)"
+  # Credentials via GIT_ASKPASS from the environment, never in argv or a URL.
+  # shellcheck disable=SC2016 # expanded by the helper at run time, not here
+  printf '#!/bin/sh\ncase "$1" in Username*) printf %%s "$MIRROR_USER";; *) printf %%s "$MIRROR_PASS";; esac\n' > "$MIRROR_DIR/askpass"
+  chmod 700 "$MIRROR_DIR/askpass"
+  mirror_push() {
+    # $@ = extra `git -c` options. TLS: the system CA store first (a
+    # publicly-trusted router cert), then step 4b's cluster CA bundle (a
+    # fresh cluster's self-signed one) -- sslCAInfo replaces the system
+    # store rather than adding to it, so it can't simply always be set.
+    MIRROR_USER="$GITEA_ADMIN_USER" MIRROR_PASS="$GITEA_ADMIN_PASSWORD" GIT_ASKPASS="$MIRROR_DIR/askpass" GIT_TERMINAL_PROMPT=0 \
+      git -C "$MIRROR_DIR/src" "$@" push -q --force "https://${GITEA_HOST}/${GITEA_ADMIN_USER}/${GITEA_MIRROR_REPO}.git" HEAD:main
+  }
+  mirror_push 2>/dev/null || mirror_push -c http.sslCAInfo="$CLUSTER_CA_BUNDLE"
+  rm -rf "$MIRROR_DIR"
+  unset GITEA_ADMIN_PASSWORD
+  log "  pushed GitHub main + allowedHosts commit to Gitea ${GITEA_ADMIN_USER}/${GITEA_MIRROR_REPO}"
+
+  log "=== step 4d/9 (--with-rhdh, DEC-143): read-only Argo CD account for RHDH's CD tab ==="
+  # OpenShift GitOps >= 1.18 spec.localUsers: the operator itself creates
+  # the account, mints a non-expiring API token and stores it in Secret
+  # <name>-local-user (key apiToken). Bootstrap only declares the user
+  # (apiKey, no login) and its read-only RBAC line -- required, since the
+  # default instance's defaultPolicy grants nothing -- then copies the
+  # token into RHDH's namespace (Secrets can't be read across namespaces).
+  ARGOCD_NS=openshift-gitops
+  ARGOCD_CR=openshift-gitops
+  ARGOCD_ACCOUNT=golden-path-agent-rhdh
+  ARGOCD_WAITED=0
+  until oc get argocd "$ARGOCD_CR" -n "$ARGOCD_NS" >/dev/null 2>&1; do
+    if [ "$ARGOCD_WAITED" -ge 300 ]; then
+      log "  FAILED: ArgoCD $ARGOCD_NS/$ARGOCD_CR not found after 300s (the GitOps operator creates it, step 1)"
+      exit 1
+    fi
+    sleep 10; ARGOCD_WAITED=$((ARGOCD_WAITED + 10))
+  done
+  ARGOCD_CR_JSON=$(oc get argocd "$ARGOCD_CR" -n "$ARGOCD_NS" -o json)
+  if ! jq -e --arg u "$ARGOCD_ACCOUNT" '.spec.localUsers[]? | select(.name == $u)' <<<"$ARGOCD_CR_JSON" >/dev/null; then
+    ARGOCD_USER_JSON=$(jq -cn --arg u "$ARGOCD_ACCOUNT" '{name: $u, apiKey: true, login: false}')
+    if jq -e '.spec.localUsers' <<<"$ARGOCD_CR_JSON" >/dev/null; then
+      ARGOCD_USER_PATCH="[{\"op\":\"add\",\"path\":\"/spec/localUsers/-\",\"value\":${ARGOCD_USER_JSON}}]"
+    else
+      ARGOCD_USER_PATCH="[{\"op\":\"add\",\"path\":\"/spec/localUsers\",\"value\":[${ARGOCD_USER_JSON}]}]"
+    fi
+    log "  adding local user $ARGOCD_ACCOUNT (apiKey only) to ArgoCD $ARGOCD_NS/$ARGOCD_CR"
+    oc patch argocd "$ARGOCD_CR" -n "$ARGOCD_NS" --type json -p "$ARGOCD_USER_PATCH" >/dev/null
+  fi
+  ARGOCD_POLICY=$(jq -r '.spec.rbac.policy // ""' <<<"$ARGOCD_CR_JSON")
+  ARGOCD_RBAC_LINE="g, ${ARGOCD_ACCOUNT}, role:readonly"
+  if ! grep -qxF "$ARGOCD_RBAC_LINE" <<<"$ARGOCD_POLICY"; then
+    log "  granting $ARGOCD_ACCOUNT role:readonly (appended to spec.rbac.policy, nothing else changed)"
+    ARGOCD_NEW_POLICY=$(printf '%s\n%s\n' "${ARGOCD_POLICY%$'\n'}" "$ARGOCD_RBAC_LINE" | sed '/./,$!d')
+    oc patch argocd "$ARGOCD_CR" -n "$ARGOCD_NS" --type merge \
+      -p "$(jq -cn --arg p "$ARGOCD_NEW_POLICY" '{spec: {rbac: {policy: $p}}}')" >/dev/null
+  fi
+  ARGOCD_WAITED=0
+  until ARGOCD_TOKEN=$(oc get secret "${ARGOCD_ACCOUNT}-local-user" -n "$ARGOCD_NS" -o jsonpath='{.data.apiToken}' 2>/dev/null | base64 -d) && [ -n "$ARGOCD_TOKEN" ]; do
+    if [ "$ARGOCD_WAITED" -ge 300 ]; then
+      log "  FAILED: no apiToken in $ARGOCD_NS/${ARGOCD_ACCOUNT}-local-user after 300s -- inspect the GitOps operator's log (spec.localUsers needs OpenShift GitOps >= 1.18)"
+      exit 1
+    fi
+    sleep 10; ARGOCD_WAITED=$((ARGOCD_WAITED + 10))
+  done
+  # In-cluster URL: the server's certificate is service-CA-signed for this
+  # name, and RHDH trusts the service CA (golden-path-agent-rhdh-cluster-ca).
+  ARGOCD_URL="https://openshift-gitops-server.${ARGOCD_NS}.svc"
+  if oc get secret golden-path-agent-rhdh-argocd-secret -n golden-path-agent-rhdh >/dev/null 2>&1; then
+    oc patch secret golden-path-agent-rhdh-argocd-secret -n golden-path-agent-rhdh --type merge \
+      -p "{\"data\":{\"ARGOCD_INSTANCE1_URL\":\"$(printf '%s' "$ARGOCD_URL" | base64 -w0)\",\"ARGOCD_AUTH_TOKEN\":\"$(printf '%s' "$ARGOCD_TOKEN" | base64 -w0)\"}}" >/dev/null
+  else
+    oc create secret generic golden-path-agent-rhdh-argocd-secret -n golden-path-agent-rhdh \
+      --from-literal=ARGOCD_INSTANCE1_URL="$ARGOCD_URL" \
+      --from-literal=ARGOCD_AUTH_TOKEN="$ARGOCD_TOKEN" >/dev/null
+  fi
+  unset ARGOCD_TOKEN ARGOCD_CR_JSON ARGOCD_POLICY ARGOCD_NEW_POLICY
+  log "  provisioned golden-path-agent-rhdh-argocd-secret (read-only account $ARGOCD_ACCOUNT)"
 fi
 
 log "=== waiting for Keycloak to report Ready before provisioning identity secrets ==="
@@ -644,7 +809,7 @@ log "=== step 5/9: identity secrets (idempotent by regeneration -- DEC-059) ==="
 # whole script is safe: it's already explicitly idempotent by
 # regeneration, not by detection (DEC-059).
 IDENTITY_SECRETS_ATTEMPTS=0
-until WITH_RHDH="$WITH_RHDH" ./platform/bootstrap/provision-identity-secrets.sh; do
+until WITH_RHDH="$WITH_RHDH" RHDH_HOST="${RHDH_HOST:-}" KEYCLOAK_HOST="${KEYCLOAK_HOST:-}" ./platform/bootstrap/provision-identity-secrets.sh; do
   IDENTITY_SECRETS_ATTEMPTS=$((IDENTITY_SECRETS_ATTEMPTS + 1))
   if [ "$IDENTITY_SECRETS_ATTEMPTS" -ge 3 ]; then
     log "  provision-identity-secrets.sh failed $IDENTITY_SECRETS_ATTEMPTS times -- not retrying further"
@@ -653,6 +818,15 @@ until WITH_RHDH="$WITH_RHDH" ./platform/bootstrap/provision-identity-secrets.sh;
   log "  provision-identity-secrets.sh failed (attempt $IDENTITY_SECRETS_ATTEMPTS) -- likely Keycloak's own DB reconnection window after a Postgres rollout; retrying"
   sleep 15
 done
+# DEC-146 (M15): step 5 just regenerated RHDH's OIDC client secret (and,
+# with step 4b, its URLs/CA/plugin inputs). A running RHDH pod holds the
+# old values in its env and caches Keycloak's discovery document for its
+# lifetime (DEC-097) -- restart it. No-op on a first run: ArgoCD hasn't
+# created it yet, and it starts with the current values.
+if [ "$WITH_RHDH" = "true" ] && oc get deployment backstage-golden-path-agent -n golden-path-agent-rhdh >/dev/null 2>&1; then
+  log "  restarting RHDH to pick up the regenerated OIDC secret and discovery URLs"
+  oc rollout restart deployment/backstage-golden-path-agent -n golden-path-agent-rhdh >/dev/null
+fi
 
 log "=== step 6/9: CI config + verification (DEC-138) ==="
 # golden-path-agent-ci-config (a plain ConfigMap -- MODEL_API_BASE_URL/
@@ -806,6 +980,9 @@ fi
 PROMOTION_NEEDED=false
 promote_component agent golden-path-agent golden-path-agent || PROMOTION_NEEDED=true
 promote_component mcp golden-path-agent-mcp golden-path-agent-mcp || PROMOTION_NEEDED=true
+# DEC-146 (M21): the shared approval service is rebuilt and promoted the
+# same way -- on a fresh cluster its committed digest doesn't exist either.
+promote_component approval golden-path-agent-approval golden-path-agent-approval || PROMOTION_NEEDED=true
 if [ "$PROMOTION_NEEDED" = "true" ]; then
   log "  step 9b: one or more components need a promotion PR merged before demo-prod can reach 1/1 -- see messages above for exact digests/instructions. Stopping here; re-run this script once that PR is merged."
   exit 1
@@ -816,6 +993,7 @@ fi
 # attempts) -- force an immediate fresh pull attempt rather than
 # passively waiting on that schedule.
 oc rollout restart deployment/golden-path-agent deployment/golden-path-agent-mcp -n golden-path-agent-demo-prod >/dev/null 2>&1 || true
+oc rollout restart deployment/golden-path-agent-approval -n golden-path-agent-approval >/dev/null 2>&1 || true
 
 # demo-prod's two Deployments are the one thing here that can genuinely
 # still be mid-rollout moments after step 8's apply (image pull, pod
@@ -833,6 +1011,15 @@ for deploy_name in golden-path-agent golden-path-agent-mcp; do
   done
   verify_row "demo-prod Deployment/$deploy_name ready replicas" "${READY:-0}" "1"
 done
+# DEC-146 (M21): the shared approval service, which step 9 never checked.
+APPROVAL_WAITED=0
+while true; do
+  APPROVAL_READY=$(oc get deployment golden-path-agent-approval -n golden-path-agent-approval -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "")
+  [ "${APPROVAL_READY:-0}" = "1" ] && break
+  if [ "$APPROVAL_WAITED" -ge 180 ]; then break; fi
+  sleep 10; APPROVAL_WAITED=$((APPROVAL_WAITED + 10))
+done
+verify_row "golden-path-agent-approval Deployment ready replicas" "${APPROVAL_READY:-0}" "1"
 if [ "$VERIFY_FAILED" = "true" ]; then
   log "  a 0/1 above is unexpected at this point: step 9b already confirmed both components' committed digests exist in this cluster's own registry before reaching here. Inspect the pod directly (image pull secret, scheduling, resource limits) -- this is not the original DEC-080 ImagePullBackOff condition, which step 9b now closes."
 fi
@@ -871,9 +1058,11 @@ fi
 # actually works. deploy/kustomize/base/ingress.yaml deliberately
 # commits no `host`/TLS annotations (platform-specific), so discover
 # the live Route and its scheme rather than assuming either.
-AGENT_ROUTE_HOST=$(oc get route -n golden-path-agent-demo-prod -o jsonpath='{.items[?(@.spec.to.name=="golden-path-agent")].spec.host}' 2>/dev/null | head -1)
+# DEC-146 (M22): step 2's own Route, by name -- an adopter overlay that
+# gives the Ingress a host would add generated Routes alongside it.
+AGENT_ROUTE_HOST=$(oc get route golden-path-agent -n golden-path-agent-demo-prod -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
 if [ -n "$AGENT_ROUTE_HOST" ]; then
-  AGENT_ROUTE_TLS=$(oc get route -n golden-path-agent-demo-prod -o jsonpath='{.items[?(@.spec.to.name=="golden-path-agent")].spec.tls}' 2>/dev/null | head -1)
+  AGENT_ROUTE_TLS=$(oc get route golden-path-agent -n golden-path-agent-demo-prod -o jsonpath='{.spec.tls}' 2>/dev/null || echo "")
   AGENT_SCHEME="http"; [ -n "$AGENT_ROUTE_TLS" ] && AGENT_SCHEME="https"
   AGENT_HEALTHZ=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "${AGENT_SCHEME}://${AGENT_ROUTE_HOST}/healthz" 2>/dev/null || echo "000")
   verify_row "demo-prod agent /healthz via live Route (E2E)" "$AGENT_HEALTHZ" "200"
