@@ -31,7 +31,7 @@ repository. Step numbers in brackets are `scripts/bootstrap.sh` steps.
 | M13 | External `OIDC_METADATA_URL` + RHDH trusting it | Covered | [5] writes it from the Keycloak Route host. [4b] writes `golden-path-agent-rhdh-cluster-ca` (ingress + service CA), which the Backstage CR mounts and points `NODE_EXTRA_CA_CERTS` at. |
 | M14 | Keycloak `proxy.headers: xforwarded` | Covered | `platform/bootstrap/keycloak-cr.yaml`, [3] (mission C0). |
 | M15 | Restart RHDH after OIDC/discovery changes | Covered | Right after [5], whenever the RHDH Deployment exists. |
-| M16 | Gitea scaffolder plugin image | **Operator input** (one-time build + one key) | Build and push once with `platform/rhdh-plugins/gitea-scaffolder/build.sh --write-pin` (needs the operator's registry login), then commit the digest (`pin.env` + PINS.md). `bootstrap.env` `RHDH_PLUGIN_REGISTRY`. [0] refuses `--with-rhdh` until both exist. [4b] renders the include RHDH loads. |
+| M16 | Gitea scaffolder plugin image | Covered (digest pinned); **operator input**: one key | Built and pushed once with `platform/rhdh-plugins/gitea-scaffolder/build.sh --write-pin`; the digest is committed in `pin.env` and PINS.md, and an anonymous pull by digest was verified. Set `bootstrap.env` `RHDH_PLUGIN_REGISTRY` to the registry that holds that digest. Rebuild only to change the plugin version or the registry. [0] refuses `--with-rhdh` if either is missing. [4b] renders the include RHDH loads. |
 | M17 | RHDH plugin-loader registry credential | Covered | [4b] `platform/bootstrap/rhdh-plugin-puller.yaml` (ServiceAccount + token Secret + `system:image-puller`). [5] builds `auth.json` from it, plus the optional `RHDH_PLUGIN_REGISTRY_USERNAME`/`_PASSWORD` operator input for a private registry. |
 | M18 | Gitea copy of this blueprint | Covered | [4c] pushes GitHub `main` plus one commit to `golden-path-agent-admin/golden-path-agent-template`, every run. |
 | M19 | Gitea host in RHDH config + template | Covered | [5] discovers `GITEA_HOST` (`${GITEA_HOST}` in the catalog config). [4c] injects it into the Gitea copy's `allowedHosts`; Git keeps `gitea.example.com`. |
@@ -52,8 +52,9 @@ repository. Step numbers in brackets are `scripts/bootstrap.sh` steps.
 
 **Operator inputs, complete list:** M1 (kubeconfig); `bootstrap.env`
 (M2 model endpoint, M3 optional `GITHUB_TOKEN`, M16
-`RHDH_PLUGIN_REGISTRY` plus optional pull credentials); the one-time
-plugin build and its committed digest (M16); merging promotion PRs (M20).
+`RHDH_PLUGIN_REGISTRY` plus optional pull credentials); merging
+promotion PRs (M20). The plugin build is done once and its digest is
+committed (M16).
 
 ## 2. Cluster coupling (after C2)
 
