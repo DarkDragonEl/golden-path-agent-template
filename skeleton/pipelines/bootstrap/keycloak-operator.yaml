@@ -14,8 +14,8 @@
 # access, which OLM's CSV almost certainly needs too).
 #
 # BLOCKED LIVE (DECISIONS.md DEC-055/DEC-056), NOT applied to the
-# cluster: a different tenant's broken CatalogSource
-# (nousie-docling-catalog) poisons OLM's cluster-wide package resolution
+# cluster: a different tenant's broken third-party CatalogSource
+# poisons OLM's cluster-wide package resolution
 # for every Subscription on this shared cluster, confirmed via
 # catalog-operator's own logs and matching Red Hat KB 7052456 exactly.
 # Not this project's resource to fix. D2 actually proceeded via
