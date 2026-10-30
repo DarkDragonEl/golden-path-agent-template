@@ -26,6 +26,16 @@ spec:
     - name: image-repo
       type: string
       default: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent-approval
+    # DEC-155: "" = the committed agent digest (DEC-099). Set by bootstrap
+    # step 9b only when that digest is absent from this cluster's registry.
+    - name: agent-image-ref
+      type: string
+      default: ""
+    # DEC-155: "" = the committed mcp digest (DEC-099). Set by bootstrap
+    # step 9b only when that digest is absent from this cluster's registry.
+    - name: mcp-image-ref
+      type: string
+      default: ""
 
   workspaces:
     - name: source
@@ -80,7 +90,10 @@ spec:
       params:
         - name: approval-image-ref
           value: "$(params.image-repo)@$(tasks.digest-capture.results.digest)"
-        # agent-image-ref / mcp-image-ref left at their "" default.
+        - name: agent-image-ref
+          value: $(params.agent-image-ref)
+        - name: mcp-image-ref
+          value: $(params.mcp-image-ref)
 
     - name: approval-operational-test
       taskRef: { name: approval-operational-test }

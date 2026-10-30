@@ -64,7 +64,7 @@ committed (M16).
 | C2 | `template.yaml` `allowedHosts` | `gitea.example.com` placeholder in Git. The real host exists only in the Gitea copy [4c]; the Template is registered from that copy only. |
 | C3 | `template-schema*.json` `gitHost` default | Placeholder; the caller passes the host. |
 | C4 | Gitea scaffolder plugin digest | External registry from `bootstrap.env`, digest in `pin.env`/PINS.md (`DEC-145`); no host in Git. |
-| C5 | Component image digests | Cluster-local by nature; [9b] rebuilds agent, mcp **and approval** and promotes by PR. |
+| C5 | Component image digests | Cluster-local by nature; [9b] rebuilds agent, mcp **and approval** and promotes by PR. On an empty registry it first seeds a build-only image of each component, and each gated run deploys its siblings at the newest image built here, unpromoted (`DEC-155`). |
 | C6 | `PUBLIC_URL`, `OIDC_METADATA_URL` | Derived from the [4b] Routes every run. |
 | C7 | RHDH CA bundle | Bootstrap-written `golden-path-agent-rhdh-cluster-ca`; no Pipelines-injected dependency. |
 | C8 | demo-prod external host (M22) | Assigned by OpenShift to the [2] Route, read back by [9]; nothing in Git. |

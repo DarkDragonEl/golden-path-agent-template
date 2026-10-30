@@ -392,67 +392,146 @@ apply_rhbk_upstream_fallback() {
   oc apply -k platform/bootstrap/keycloak-operator-upstream/
 }
 
-promote_component() {
-  # $1 = component (agent|mcp|approval), $2 = ImageStream name, $3 = the
-  # images[] entry name in deploy/kustomize/base/kustomization.yaml this
-  # component corresponds to. approval's second pin (overlays/approval-
-  # platform/) always carries the same digest (tests/test_image_pins.py),
-  # so base/ is the one place to read it (DEC-147, M21).
-  #
-  # DEC-139: what this blueprint replicates on a new cluster is the
-  # RECIPE (source commit, Containerfile, dependency lockfiles, base
-  # image digest) -- rebuilding from it, passing the eval gates, and
-  # promoting the resulting digest is a day-zero/day-one activity, not a
-  # workaround. The committed digest pin means "exactly what passed the
-  # gates and what runs"; this function never writes to it directly --
-  # only a merged promotion PR does that (SysR-P-F-06).
-  local component="$1" isname="$2" imagekey="$3" committed_digest
-  committed_digest=$(awk -v name="$imagekey" '
+# DEC-155: the three components, as component:imagestream (each
+# imagestream name is also its images[] key in base/kustomization.yaml).
+CI_NS=golden-path-agent-ci
+CI_REGISTRY=image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci
+COMPONENTS="agent:golden-path-agent mcp:golden-path-agent-mcp approval:golden-path-agent-approval"
+
+committed_digest_for() {
+  # $1 = images[] name. Prints its committed digest in base/kustomization.yaml.
+  awk -v name="$1" '
     $0 ~ "- name: " name "$" { found=1; next }
     found && /digest: sha256:/ { print $2; exit }
     found && /- name:/ { exit }
-  ' deploy/kustomize/base/kustomization.yaml)
+  ' deploy/kustomize/base/kustomization.yaml
+}
+
+digest_in_registry() {
+  # $1 = imagestream, $2 = digest. True when this cluster's registry has it.
+  oc get is "$1" -n "$CI_NS" -o json 2>/dev/null | \
+    jq -e --arg d "$2" '.status.tags[]?.items[]? | select(.image == $d)' >/dev/null 2>&1
+}
+
+latest_built_ref() {
+  # $1 = imagestream. Prints <registry>/<is>@<digest> of the newest image
+  # built in this cluster (any tag), or nothing if none exists yet.
+  local json
+  json=$(oc get is "$1" -n "$CI_NS" -o json 2>/dev/null) || return 0
+  printf '%s' "$json" | jq -r --arg repo "$CI_REGISTRY/$1" '
+    [.status.tags[]?.items[]?] | sort_by(.created) | last
+    | select(. != null) | "\($repo)@\(.image)"'
+}
+
+sibling_image_ref() {
+  # $1 = imagestream. DEC-155: prints "" when the committed digest is in
+  # this registry (DEC-099 unchanged), else the newest image built here.
+  # Fails closed when neither exists.
+  local isname="$1" digest ref
+  digest=$(committed_digest_for "$isname")
+  if [ -n "$digest" ] && digest_in_registry "$isname" "$digest"; then
+    return 0
+  fi
+  ref=$(latest_built_ref "$isname")
+  [ -n "$ref" ] || return 1
+  printf '%s' "$ref"
+}
+
+create_pipelinerun() {
+  # $1 = PipelineRun template, $2 = JSON array of extra {name,value}
+  # params. Prints the created PipelineRun's name.
+  oc create --dry-run=client -o json -f "$1" | \
+    jq --argjson extra "$2" '.spec.params = ((.spec.params // []) + $extra)' | \
+    oc create -n "$CI_NS" -f - -o jsonpath='{.metadata.name}'
+}
+
+wait_pipelinerun() {
+  # $1 = run name, $2 = timeout seconds. Prints True, False, or nothing on timeout.
+  local waited=0 status=""
+  while [ "$waited" -lt "$2" ]; do
+    status=$(oc get pipelinerun "$1" -n "$CI_NS" -o jsonpath='{.status.conditions[0].status}' 2>/dev/null || echo "")
+    { [ "$status" = "True" ] || [ "$status" = "False" ]; } && break
+    sleep 15; waited=$((waited + 15))
+  done
+  printf '%s' "$status"
+}
+
+seed_missing_images() {
+  # DEC-155: for each component whose committed digest is absent here and
+  # that has no image built in this cluster at all, run the build-only seed
+  # Pipeline, so the other components' gated runs can deploy beside it. A
+  # seed image is never promoted.
+  local entry component isname digest run status
+  for entry in $COMPONENTS; do
+    component=${entry%%:*}; isname=${entry#*:}
+    digest=$(committed_digest_for "$isname")
+    if [ -n "$digest" ] && digest_in_registry "$isname" "$digest"; then continue; fi
+    [ -z "$(latest_built_ref "$isname")" ] || continue
+    log "  $component: no image of it exists in this cluster's registry -- seeding a build-only image for the other components' ephemeral tests (DEC-155; never promoted)"
+    run=$(create_pipelinerun pipelines/pipelinerun-template-seed.yaml \
+      "[{\"name\":\"imagestream\",\"value\":\"$isname\"},{\"name\":\"dockerfile\",\"value\":\"./Containerfile.$component\"}]") || return 1
+    status=$(wait_pipelinerun "$run" 900)
+    if [ "$status" != "True" ]; then
+      log "  $component: seed run $run did not succeed (status '${status:-timeout}') -- inspect 'oc get pipelinerun $run -n $CI_NS -o yaml'"
+      return 1
+    fi
+  done
+}
+
+sibling_params_for() {
+  # $1 = component. Prints the JSON param array for its PipelineRun: one
+  # <sibling>-image-ref per sibling whose committed digest is absent here.
+  # Its stdout is captured, so its log lines go to stderr.
+  local self="$1" entry component isname ref params="[]"
+  for entry in $COMPONENTS; do
+    component=${entry%%:*}; isname=${entry#*:}
+    [ "$component" = "$self" ] && continue
+    if ! ref=$(sibling_image_ref "$isname"); then
+      log "  $self: sibling $component has neither its committed digest nor any built image in this cluster -- refusing to run (DEC-155)" >&2
+      return 1
+    fi
+    [ -n "$ref" ] || continue
+    log "  $self: sibling $component's committed digest is absent here -- its ephemeral test uses the newest $component image built in this cluster, unpromoted: $ref (DEC-155)" >&2
+    params=$(printf '%s' "$params" | jq -c --arg n "$component-image-ref" --arg v "$ref" '. + [{name: $n, value: $v}]')
+  done
+  printf '%s' "$params"
+}
+
+promote_component() {
+  # $1 = component (agent|mcp|approval), $2 = ImageStream name, $3 = the
+  # images[] entry name in deploy/kustomize/base/kustomization.yaml.
+  local component="$1" isname="$2" imagekey="$3" committed_digest
+  committed_digest=$(committed_digest_for "$imagekey")
   if [ -z "$committed_digest" ]; then
     log "  $component: could not find a committed digest for images[].name == $imagekey in deploy/kustomize/base/kustomization.yaml"
     return 1
   fi
-  if oc get is "$isname" -n golden-path-agent-ci -o json 2>/dev/null | \
-      jq -e --arg d "$committed_digest" '.status.tags[]?.items[]? | select(.image == $d)' >/dev/null 2>&1; then
+  if digest_in_registry "$isname" "$committed_digest"; then
     log "  $component: committed digest ($committed_digest) already present in this cluster's own registry -- no rebuild needed"
     return 0
   fi
   log "  $component: committed digest ($committed_digest) not present in this cluster's own registry -- triggering the initial PipelineRun to rebuild from the pinned commit"
-  local run_name
-  run_name=$(oc create -f "pipelines/pipelinerun-template-${component}.yaml" -n golden-path-agent-ci -o jsonpath='{.metadata.name}')
+  local run_name sibling_params
+  sibling_params=$(sibling_params_for "$component") || return 1
+  run_name=$(create_pipelinerun "pipelines/pipelinerun-template-${component}.yaml" "$sibling_params")
   log "  $component: triggered $run_name -- waiting through the eval gates (bounded, up to 20 minutes)"
-  local waited=0 timeout=1200 overall_status=""
-  while [ "$waited" -lt "$timeout" ]; do
-    overall_status=$(oc get pipelinerun "$run_name" -n golden-path-agent-ci -o jsonpath='{.status.conditions[0].status}' 2>/dev/null || echo "")
-    { [ "$overall_status" = "True" ] || [ "$overall_status" = "False" ]; } && break
-    sleep 15; waited=$((waited + 15))
-  done
+  local overall_status
+  overall_status=$(wait_pipelinerun "$run_name" 1200)
   if [ "$overall_status" != "True" ] && [ "$overall_status" != "False" ]; then
-    log "  $component: $run_name still running after ${timeout}s -- not waiting further. Inspect 'oc get pipelinerun $run_name -n golden-path-agent-ci -o yaml'."
+    log "  $component: $run_name still running after 1200s -- not waiting further. Inspect 'oc get pipelinerun $run_name -n $CI_NS -o yaml'."
     return 1
   fi
 
-  # open-promotion-pr only ever runs once every one of its own runAfter
-  # dependencies (unit-tests, eval-gate-offline, policy-validate,
-  # container-build, digest-capture, sbom-generate, eval-gate-live,
-  # security-tests, operational-tests) has succeeded -- Tekton skips a
-  # task outright if any dependency failed. Its presence among this
-  # run's child tasks is therefore proof every gate before it passed,
-  # regardless of whether open-promotion-pr itself then succeeded.
   local promo_taskrun
-  promo_taskrun=$(oc get pipelinerun "$run_name" -n golden-path-agent-ci \
+  promo_taskrun=$(oc get pipelinerun "$run_name" -n "$CI_NS" \
     -o jsonpath='{.status.childReferences[?(@.pipelineTaskName=="open-promotion-pr")].name}' 2>/dev/null || echo "")
   if [ -z "$promo_taskrun" ]; then
-    log "  $component: $run_name never reached open-promotion-pr -- a real gate failed, not a missing-credential issue. Inspect 'oc get pipelinerun $run_name -n golden-path-agent-ci -o yaml'."
+    log "  $component: $run_name never reached open-promotion-pr -- a real gate failed, not a missing-credential issue. Inspect 'oc get pipelinerun $run_name -n $CI_NS -o yaml'."
     return 1
   fi
   local promo_status new_digest
-  promo_status=$(oc get taskrun "$promo_taskrun" -n golden-path-agent-ci -o jsonpath='{.status.conditions[0].status}' 2>/dev/null || echo "")
-  new_digest=$(oc get is "$isname" -n golden-path-agent-ci -o jsonpath='{.status.tags[0].items[0].image}' 2>/dev/null || echo "")
+  promo_status=$(oc get taskrun "$promo_taskrun" -n "$CI_NS" -o jsonpath='{.status.conditions[0].status}' 2>/dev/null || echo "")
+  new_digest=$(latest_built_ref "$isname"); new_digest=${new_digest##*@}
   if [ "$promo_status" = "True" ]; then
     log "  $component: all gates passed and open-promotion-pr succeeded -- a promotion PR should now be open against main. Merging it is the promotion decision (SysR-P-F-06); demo-prod syncs from it via ArgoCD once merged."
     return 1
@@ -983,6 +1062,7 @@ log "=== step 7/9: pipeline + task definitions ==="
 oc apply -f pipelines/pipeline-agent.yaml -n golden-path-agent-ci
 oc apply -f pipelines/pipeline-mcp.yaml -n golden-path-agent-ci
 oc apply -f pipelines/pipeline-approval.yaml -n golden-path-agent-ci
+oc apply -f pipelines/pipeline-seed.yaml -n golden-path-agent-ci # DEC-155
 oc apply -f pipelines/tasks/ -n golden-path-agent-ci
 
 log "=== step 8/9: argocd app-of-apps root ==="
@@ -1080,6 +1160,12 @@ fi
 # directly, under any flag -- merging a promotion PR is the owner's own
 # decision (SysR-P-F-06/DEC-078).
 PROMOTION_NEEDED=false
+# DEC-155: on an empty registry, seed images first so every gated run has
+# its siblings to deploy beside it.
+if ! seed_missing_images; then
+  log "  step 9b: seeding failed -- see above. Stopping here."
+  exit 1
+fi
 promote_component agent golden-path-agent golden-path-agent || PROMOTION_NEEDED=true
 promote_component mcp golden-path-agent-mcp golden-path-agent-mcp || PROMOTION_NEEDED=true
 # DEC-147 (M21): the shared approval service is rebuilt and promoted the

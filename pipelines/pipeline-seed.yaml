@@ -1,0 +1,61 @@
+# Build-only seed for an empty cluster registry. Bootstrap step 9b
+# runs it for a component whose committed digest is absent AND that has no
+# image built in this cluster yet, so the other components' gated runs have
+# something to deploy beside them in ephemeral-test. No gates and no
+# open-promotion-pr: a seed image is never promoted. Promotion stays the
+# component's own gated Pipeline and its PR (SysR-P-F-06).
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: golden-path-agent-ci-seed
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+    app.kubernetes.io/component: seed
+spec:
+  params:
+    - name: repo-url
+      type: string
+      default: https://github.com/DarkDragonEl/golden-path-agent-template.git
+    - name: revision
+      type: string
+      default: main
+    - name: imagestream
+      type: string
+      description: golden-path-agent, golden-path-agent-mcp or golden-path-agent-approval
+    - name: dockerfile
+      type: string
+      description: ./Containerfile.agent, ./Containerfile.mcp or ./Containerfile.approval
+
+  workspaces:
+    - name: source
+
+  tasks:
+    - name: fetch-source
+      taskRef: { name: fetch-source }
+      workspaces: [{ name: source, workspace: source }]
+      params:
+        - { name: repo-url, value: $(params.repo-url) }
+        - { name: revision, value: $(params.revision) }
+
+    - name: container-build
+      taskRef:
+        resolver: cluster
+        params:
+          - { name: kind, value: task }
+          - { name: name, value: buildah }
+          - { name: namespace, value: openshift-pipelines }
+      runAfter: [fetch-source]
+      workspaces: [{ name: source, workspace: source }]
+      params:
+        - name: IMAGE
+          value: "image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/$(params.imagestream):seed-$(tasks.fetch-source.results.commit-sha)"
+        - name: DOCKERFILE
+          value: $(params.dockerfile)
+
+    - name: digest-capture
+      taskRef: { name: digest-capture }
+      runAfter: [container-build]
+      params:
+        - name: imagestream-tag
+          value: "$(params.imagestream):seed-$(tasks.fetch-source.results.commit-sha)"
