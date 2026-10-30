@@ -1,0 +1,42 @@
+# DEC-147 (M17): durable pull identity for RHDH's plugin-install init
+# container, replacing the operator's personal `oc whoami -t` token (which
+# expires, and doesn't exist at all for a client-certificate kubeconfig).
+# provision-identity-secrets.sh turns this SA's token into the auth.json
+# in golden-path-agent-rhdh-registry-auth. Applied by scripts/bootstrap.sh
+# --with-rhdh (step 4b); no value is ever written here.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: golden-path-agent-rhdh-plugin-puller
+  namespace: golden-path-agent-rhdh
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: golden-path-agent-rhdh-plugin-puller-token
+  namespace: golden-path-agent-rhdh
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+  annotations:
+    kubernetes.io/service-account.name: golden-path-agent-rhdh-plugin-puller
+---
+# Pull rights on golden-path-agent-rhdh's own ImageStreams only (the home
+# of any in-cluster plugin image: phase-2 builds, DEC-145; mirrors, DEC-143).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: golden-path-agent-rhdh-plugin-puller
+  namespace: golden-path-agent-rhdh
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+subjects:
+  - kind: ServiceAccount
+    name: golden-path-agent-rhdh-plugin-puller
+    namespace: golden-path-agent-rhdh
+roleRef:
+  kind: ClusterRole
+  name: system:image-puller
+  apiGroup: rbac.authorization.k8s.io

@@ -280,9 +280,23 @@ secret_result = admin("POST", f"/realms/{realm}/clients/{uuid}/client-secret")
 print(secret_result["value"], end="")
 PYEOF
 )
+# DEC-147 (M12/M13): with RHDH, its public URL and the browser-reachable
+# Keycloak discovery URL come from the two Routes scripts/bootstrap.sh
+# created at step 4b (hosts passed in as RHDH_HOST/KEYCLOAK_HOST) and are
+# rewritten every run -- never committed, never typed in by hand.
+OIDC_URL_DATA=""
+if [ "${WITH_RHDH:-false}" = "true" ]; then
+  if [ -z "${RHDH_HOST:-}" ] || [ -z "${KEYCLOAK_HOST:-}" ]; then
+    echo "[provision-identity-secrets.sh] FAILED: WITH_RHDH=true needs RHDH_HOST and KEYCLOAK_HOST (scripts/bootstrap.sh step 4b passes both)" >&2
+    exit 1
+  fi
+  RHDH_PUBLIC_URL="https://${RHDH_HOST}"
+  RHDH_OIDC_METADATA_URL="https://${KEYCLOAK_HOST}/realms/${REALM}/.well-known/openid-configuration"
+  OIDC_URL_DATA=",\"PUBLIC_URL\":\"$(printf '%s' "$RHDH_PUBLIC_URL" | base64 -w0)\",\"OIDC_METADATA_URL\":\"$(printf '%s' "$RHDH_OIDC_METADATA_URL" | base64 -w0)\""
+fi
 if oc get secret golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" >/dev/null 2>&1; then
   oc patch secret golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" --type merge \
-    -p "{\"data\":{\"OIDC_CLIENT_SECRET\":\"$(printf '%s' "$RHDH_OIDC_SECRET" | base64 -w0)\"}}" >/dev/null
+    -p "{\"data\":{\"OIDC_CLIENT_SECRET\":\"$(printf '%s' "$RHDH_OIDC_SECRET" | base64 -w0)\"${OIDC_URL_DATA}}}" >/dev/null
 else
   # DEC-092 (addendum): SESSION_SECRET is generated only here, at first
   # creation -- regenerating it on an existing environment would
@@ -292,10 +306,11 @@ else
   oc create secret generic golden-path-agent-rhdh-oidc-secret -n "$NS_RHDH" \
     --from-literal=OIDC_CLIENT_ID=golden-path-agent-rhdh \
     --from-literal=OIDC_CLIENT_SECRET="$RHDH_OIDC_SECRET" \
-    --from-literal=OIDC_METADATA_URL="http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/${REALM}/.well-known/openid-configuration" \
+    --from-literal=OIDC_METADATA_URL="${RHDH_OIDC_METADATA_URL:-http://golden-path-agent-service.golden-path-agent-keycloak.svc.cluster.local:8080/realms/${REALM}/.well-known/openid-configuration}" \
+    ${RHDH_PUBLIC_URL:+--from-literal=PUBLIC_URL="$RHDH_PUBLIC_URL"} \
     --from-literal=SESSION_SECRET="$(openssl rand -base64 32)" >/dev/null
 fi
-unset RHDH_OIDC_SECRET
+unset RHDH_OIDC_SECRET OIDC_URL_DATA
 echo "provisioned RHDH OIDC client secret in ${NS_RHDH}/golden-path-agent-rhdh-oidc-secret"
 
 # Phase G, Stage 3 (DECISIONS.md DEC-098/DEC-099/DEC-110/DEC-118, G6 Path A
@@ -335,49 +350,70 @@ elif ! oc get namespace "$NS_GITEA" >/dev/null 2>&1 || \
 else
   GITEA_SCAFFOLDER_USERNAME=$(oc get secret golden-path-agent-gitea-scaffolder-token -n "$NS_GITEA" -o jsonpath='{.data.username}' | base64 -d)
   GITEA_SCAFFOLDER_TOKEN=$(oc get secret golden-path-agent-gitea-scaffolder-token -n "$NS_GITEA" -o jsonpath='{.data.token}' | base64 -d)
+  # GITEA_HOST (DEC-131): the Gitea Route's own live hostname, queried here
+  # rather than hardcoded -- this cluster's apps domain is environment
+  # config, not a committed value. Only one Route exists in this namespace
+  # (the auto-created Gitea Route, DEC-100), so the first item is
+  # unambiguous. Consumed the same way as the two credential fields above:
+  # via Backstage's ${VAR} syntax in catalog-locations-config.yaml, never a
+  # literal in that ConfigMap.
+  GITEA_HOST=$(oc get route -n "$NS_GITEA" -o jsonpath='{.items[0].spec.host}')
+  if [ -z "$GITEA_HOST" ]; then
+    echo "FAIL: no Route found in ${NS_GITEA} -- Gitea must be live before RHDH's catalog config can resolve GITEA_HOST" >&2
+    exit 1
+  fi
   if oc get secret golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" >/dev/null 2>&1; then
     oc patch secret golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" --type merge \
-      -p "{\"data\":{\"GITEA_SCAFFOLDER_USERNAME\":\"$(printf '%s' "$GITEA_SCAFFOLDER_USERNAME" | base64 -w0)\",\"GITEA_SCAFFOLDER_TOKEN\":\"$(printf '%s' "$GITEA_SCAFFOLDER_TOKEN" | base64 -w0)\"}}" >/dev/null
+      -p "{\"data\":{\"GITEA_SCAFFOLDER_USERNAME\":\"$(printf '%s' "$GITEA_SCAFFOLDER_USERNAME" | base64 -w0)\",\"GITEA_SCAFFOLDER_TOKEN\":\"$(printf '%s' "$GITEA_SCAFFOLDER_TOKEN" | base64 -w0)\",\"GITEA_HOST\":\"$(printf '%s' "$GITEA_HOST" | base64 -w0)\"}}" >/dev/null
   else
     oc create secret generic golden-path-agent-rhdh-gitea-scaffolder-secret -n "$NS_RHDH" \
       --from-literal=GITEA_SCAFFOLDER_USERNAME="$GITEA_SCAFFOLDER_USERNAME" \
-      --from-literal=GITEA_SCAFFOLDER_TOKEN="$GITEA_SCAFFOLDER_TOKEN" >/dev/null
+      --from-literal=GITEA_SCAFFOLDER_TOKEN="$GITEA_SCAFFOLDER_TOKEN" \
+      --from-literal=GITEA_HOST="$GITEA_HOST" >/dev/null
   fi
-  unset GITEA_SCAFFOLDER_USERNAME GITEA_SCAFFOLDER_TOKEN
-  echo "provisioned RHDH's copy of the Gitea scaffolder credential in ${NS_RHDH}/golden-path-agent-rhdh-gitea-scaffolder-secret"
+  unset GITEA_SCAFFOLDER_USERNAME GITEA_SCAFFOLDER_TOKEN GITEA_HOST
+  echo "provisioned RHDH's copy of the Gitea scaffolder credential + live GITEA_HOST in ${NS_RHDH}/golden-path-agent-rhdh-gitea-scaffolder-secret"
 fi
 
-# Phase G, Stage 3 (G6 Path A landing). RHDH's plugin-loading init
-# container needs its own registry pull credential (a real gap found live
-# during the spike: skopeo inspect, not a kubelet-mediated pull, so the
-# system:image-puller RoleBinding pattern this project uses elsewhere --
-# pipelines/bootstrap/rbac.yaml -- does not cover it). KNOWN, NAMED
-# LIMITATION, not solved here: this uses the current session's own `oc
-# whoami -t` bearer token, which is a personal OAuth token with its own
-# expiry (the exact class of token that already expired mid-spike once
-# this same session) -- not a durable credential. Scripted here so at
-# least re-running this script rotates it (same "safe to regenerate every
-# run" posture as the OIDC secret above), rather than the one-off manual
-# `oc create` the spike itself used. A real follow-up, not attempted
-# here: a long-lived ServiceAccount-based credential reformatted into
-# this same auth.json shape, so the plugin loader stops depending on
-# whoever last ran this script still having a live personal session.
-REGISTRY_HOST="image-registry.openshift-image-registry.svc:5000"
-REGISTRY_TOKEN=$(oc whoami -t)
-REGISTRY_AUTH_JSON=$(python3 -c "
-import base64, json, sys
-token = sys.argv[1]
-auth = base64.b64encode(f'unused:{token}'.encode()).decode()
-print(json.dumps({'auths': {sys.argv[2]: {'auth': auth}}}))
-" "$REGISTRY_TOKEN" "$REGISTRY_HOST")
-if oc get secret golden-path-agent-rhdh-registry-auth -n "$NS_RHDH" >/dev/null 2>&1; then
-  oc patch secret golden-path-agent-rhdh-registry-auth -n "$NS_RHDH" --type merge \
-    -p "{\"data\":{\"auth.json\":\"$(printf '%s' "$REGISTRY_AUTH_JSON" | base64 -w0)\"}}" >/dev/null
+# RHDH's plugin-install init container pulls with skopeo, not the kubelet,
+# so it needs its own auth.json (golden-path-agent-rhdh-registry-auth,
+# mounted by the Backstage CR). DEC-147 (M17): the internal-registry entry
+# is the golden-path-agent-rhdh-plugin-puller ServiceAccount's long-lived
+# token (platform/bootstrap/rhdh-plugin-puller.yaml) -- no longer the
+# operator's own expiring `oc whoami -t`. DEC-145: if the external plugin
+# registry is private, RHDH_PLUGIN_REGISTRY_USERNAME/_PASSWORD
+# (bootstrap.env, optional) add its entry. Regenerated every run.
+if [ "${WITH_RHDH:-false}" != "true" ]; then
+  echo "WARNING: --with-rhdh not set -- skipping RHDH's plugin registry credential"
 else
-  oc create secret generic golden-path-agent-rhdh-registry-auth -n "$NS_RHDH" \
-    --from-literal=auth.json="$REGISTRY_AUTH_JSON" >/dev/null
+  REGISTRY_HOST="image-registry.openshift-image-registry.svc:5000"
+  PULLER_WAITED=0
+  until REGISTRY_TOKEN=$(oc get secret golden-path-agent-rhdh-plugin-puller-token -n "$NS_RHDH" -o jsonpath='{.data.token}' 2>/dev/null | base64 -d) && [ -n "$REGISTRY_TOKEN" ]; do
+    if [ "$PULLER_WAITED" -ge 60 ]; then
+      echo "[provision-identity-secrets.sh] FAILED: golden-path-agent-rhdh-plugin-puller-token has no token after 60s (applied by scripts/bootstrap.sh step 4b)" >&2
+      exit 1
+    fi
+    sleep 5; PULLER_WAITED=$((PULLER_WAITED + 5))
+  done
+  REGISTRY_AUTH_JSON=$(REGISTRY_TOKEN="$REGISTRY_TOKEN" python3 -c "
+import base64, json, os, sys
+def entry(user, password):
+    return {'auth': base64.b64encode(f'{user}:{password}'.encode()).decode()}
+auths = {sys.argv[1]: entry('serviceaccount', os.environ['REGISTRY_TOKEN'])}
+external = os.environ.get('RHDH_PLUGIN_REGISTRY', '').split('/', 1)[0]
+if external and os.environ.get('RHDH_PLUGIN_REGISTRY_USERNAME'):
+    auths[external] = entry(os.environ['RHDH_PLUGIN_REGISTRY_USERNAME'], os.environ.get('RHDH_PLUGIN_REGISTRY_PASSWORD', ''))
+print(json.dumps({'auths': auths}))
+" "$REGISTRY_HOST")
+  if oc get secret golden-path-agent-rhdh-registry-auth -n "$NS_RHDH" >/dev/null 2>&1; then
+    oc patch secret golden-path-agent-rhdh-registry-auth -n "$NS_RHDH" --type merge \
+      -p "{\"data\":{\"auth.json\":\"$(printf '%s' "$REGISTRY_AUTH_JSON" | base64 -w0)\"}}" >/dev/null
+  else
+    oc create secret generic golden-path-agent-rhdh-registry-auth -n "$NS_RHDH" \
+      --from-literal=auth.json="$REGISTRY_AUTH_JSON" >/dev/null
+  fi
+  unset REGISTRY_TOKEN REGISTRY_AUTH_JSON
+  echo "provisioned RHDH's plugin registry credential in ${NS_RHDH}/golden-path-agent-rhdh-registry-auth (ServiceAccount-backed)"
 fi
-unset REGISTRY_TOKEN REGISTRY_AUTH_JSON
-echo "provisioned RHDH's own internal-registry pull credential in ${NS_RHDH}/golden-path-agent-rhdh-registry-auth (personal-token-backed -- see this script's own comment above)"
 
 echo "provision-identity-secrets.sh: done."

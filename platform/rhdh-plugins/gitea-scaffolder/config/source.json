@@ -1,0 +1,5 @@
+{
+  "repo": "https://github.com/backstage/backstage",
+  "repo-ref": "v1.49.0",
+  "workspace-path": "."
+}

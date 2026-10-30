@@ -8,6 +8,7 @@ namespace: golden-path-agent-demo-prod
 # managed resource here) for why.
 resources:
   - ../../base
+  - route-agent.yaml # DEC-149 (M22): the host-less agent Route, Argo CD-managed
 
 # DEC-103: the approval service moves out of this namespace into the
 # Platform Foundation (overlays/approval-platform/) as a shared singleton

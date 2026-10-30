@@ -26,6 +26,19 @@ spec:
         #!/bin/sh
         set -eu
         pip install --no-cache-dir -q -r requirements.txt -r requirements-dev.txt
+        # DEC-147: tests/test_overlays_build.py builds every overlay. Pinned,
+        # checksum-verified kustomize (PINS.md), and REQUIRE_KUSTOMIZE=1 so a
+        # missing binary fails the run instead of skipping the test.
+        python - <<'PYEOF'
+        import hashlib, io, tarfile, urllib.request
+        URL = "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz"
+        SHA256 = "3669470b454d865c8184d6bce78df05e977c9aea31c30df3c669317d43bcc7a7"
+        data = urllib.request.urlopen(URL, timeout=120).read()
+        if hashlib.sha256(data).hexdigest() != SHA256:
+            raise SystemExit("kustomize download: sha256 mismatch")
+        tarfile.open(fileobj=io.BytesIO(data)).extract("kustomize", "/tmp/bin", filter="data")
+        PYEOF
+        export PATH="/tmp/bin:$PATH" REQUIRE_KUSTOMIZE=1
         # DEC-028: HOME=/tmp makes pip fall back to --user mode, installing
         # the pytest binary off $PATH -- python -m pytest finds it via
         # sys.path instead, same pattern as eval-gate-offline.yaml.
