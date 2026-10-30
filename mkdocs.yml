@@ -45,6 +45,7 @@ nav:
   - How-to / runbooks:
       - Phase C runbook: phase-c-runbook.md
       - Phase D runbook: phase-d-runbook.md
+      - Refresh #2 checklist: refresh-2-checklist.md
       - Access and credentials: access-and-credentials.md
       - Local dev: local-dev.md
       - Testing perspectives guide: testing-perspectives-guide.md

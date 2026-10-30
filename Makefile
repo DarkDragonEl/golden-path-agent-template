@@ -73,5 +73,7 @@ lint:
 # DEC-083: pass REENABLE_SYNC=true only to deliberately reverse a
 # cluster's own single-active-cluster auto-sync freeze -- see
 # scripts/bootstrap.sh's own usage text for what this actually guards.
+# WITH_RHDH=true passes --with-rhdh (DEC-092: RHDH operator + Gitea, opt-in)
+# -- without it `make bootstrap` alone could never reach Phase F/G.
 bootstrap:
-	./scripts/bootstrap.sh $(CLUSTER) $(if $(filter true,$(REENABLE_SYNC)),--reenable-sync,)
+	./scripts/bootstrap.sh $(CLUSTER) $(if $(filter true,$(REENABLE_SYNC)),--reenable-sync,) $(if $(filter true,$(WITH_RHDH)),--with-rhdh,)
