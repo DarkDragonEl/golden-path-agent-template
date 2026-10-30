@@ -70,6 +70,10 @@ spec:
       kind: Application # DEC-021: app-of-apps pattern -- required for
       # the root Application to manage the child Applications; still
       # bounded by this same AppProject's destinations/whitelist.
+    - group: route.openshift.io
+      kind: Route # DEC-149 (M22): demo-prod's host-less agent Route
+      # (overlays/demo-prod/route-agent.yaml). RHDH's and Keycloak's Routes
+      # stay bootstrap-applied, so this adds no destination.
     - group: rhdh.redhat.com
       kind: Backstage # DEC-092: RHDH Operator's own namespace-scoped CR
       # (deploy/kustomize/overlays/rhdh/backstage.yaml).

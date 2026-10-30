@@ -179,9 +179,10 @@ The pull identity this needs already exists
   should print `golden-path-agent`.
 - **Selection is cluster-wide.** `ephemeral-test` copies appear while a
   PipelineRun's deploy step has them up.
-- **Route decorator comes from bootstrap's Route.** OpenShift never
+- **Route decorator comes from the overlay's Route.** OpenShift never
   generates a Route from the host-less base Ingress (`DEC-147`). The
-  agent's Route is `pipelines/bootstrap/demo-prod-route.yaml` (labeled
-  for Topology), applied by bootstrap step 2.
+  agent's Route is `deploy/kustomize/overlays/demo-prod/route-agent.yaml`
+  (labeled for Topology), synced by Argo CD with the rest of `demo-prod`
+  (`DEC-149`).
 - **Not covered yet:** the approval service's own Component
   (`golden-path-agent-approval-service`) and the Tools Template.

@@ -1,0 +1,25 @@
+# DEC-147 (M22), moved here by DEC-149: demo-prod's external entry point on
+# OpenShift. The base Ingress is deliberately platform-neutral and
+# host-less, and OpenShift's ingress-to-route controller skips any rule
+# without a host ("Missing host field"). A host-less native Route instead:
+# OpenShift assigns <name>-<namespace>.<apps domain>, so no hostname is
+# committed. Managed by Argo CD with this overlay. The AppProject
+# whitelists the Route kind, and apps/demo-prod.yaml ignores /spec/host
+# (RespectIgnoreDifferences=true) so the assigned host is neither pruned
+# nor reported as drift. Step 9's E2E probe reads it by name.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: golden-path-agent
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+    backstage.io/kubernetes-id: golden-path-agent # DEC-141: Topology's Route decorator
+spec:
+  to:
+    kind: Service
+    name: golden-path-agent
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

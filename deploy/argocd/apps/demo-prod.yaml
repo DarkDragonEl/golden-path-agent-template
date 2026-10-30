@@ -15,11 +15,21 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: golden-path-agent-demo-prod
+  # DEC-149 (M22): OpenShift assigns the agent Route's host after creation.
+  # The manifest omits it, so ignore it in the diff and in sync (otherwise
+  # selfHeal/prune would fight the router).
+  ignoreDifferences:
+    - group: route.openshift.io
+      kind: Route
+      name: golden-path-agent
+      jsonPointers:
+        - /spec/host
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
+      - RespectIgnoreDifferences=true # DEC-149 (M22)
       - CreateNamespace=false # namespace is bootstrapped once, out-of-band
         # (pipelines/bootstrap/namespaces.yaml) -- same reasoning as
         # pilot-prod's existing stub, not ArgoCD-managed.

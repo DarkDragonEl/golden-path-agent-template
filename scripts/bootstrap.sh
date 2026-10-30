@@ -371,8 +371,6 @@ ensure_operator openshift-operators "OpenShift GitOps" \
 log "=== step 2/9: namespaces + rbac ==="
 oc apply -f pipelines/bootstrap/namespaces.yaml
 oc apply -f pipelines/bootstrap/rbac.yaml
-# DEC-147 (M22): demo-prod's agent Route (host assigned by OpenShift).
-oc apply -f pipelines/bootstrap/demo-prod-route.yaml
 
 # Both secrets required BEFORE keycloak-postgres.yaml/keycloak-cr.yaml
 # apply, or those pods hit CreateContainerConfigError. Create-once, not
@@ -1058,9 +1056,17 @@ fi
 # actually works. deploy/kustomize/base/ingress.yaml deliberately
 # commits no `host`/TLS annotations (platform-specific), so discover
 # the live Route and its scheme rather than assuming either.
-# DEC-147 (M22): step 2's own Route, by name -- an adopter overlay that
-# gives the Ingress a host would add generated Routes alongside it.
-AGENT_ROUTE_HOST=$(oc get route golden-path-agent -n golden-path-agent-demo-prod -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+# DEC-149 (M22): the Route Argo CD syncs from overlays/demo-prod, by name --
+# an adopter overlay that gives the Ingress a host would add generated
+# Routes alongside it. Created by the same sync as the Deployment; poll
+# briefly for OpenShift to assign its host.
+ROUTE_WAITED=0
+while true; do
+  AGENT_ROUTE_HOST=$(oc get route golden-path-agent -n golden-path-agent-demo-prod -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+  [ -n "$AGENT_ROUTE_HOST" ] && break
+  if [ "$ROUTE_WAITED" -ge 60 ]; then break; fi
+  sleep 5; ROUTE_WAITED=$((ROUTE_WAITED + 5))
+done
 if [ -n "$AGENT_ROUTE_HOST" ]; then
   AGENT_ROUTE_TLS=$(oc get route golden-path-agent -n golden-path-agent-demo-prod -o jsonpath='{.spec.tls}' 2>/dev/null || echo "")
   AGENT_SCHEME="http"; [ -n "$AGENT_ROUTE_TLS" ] && AGENT_SCHEME="https"
