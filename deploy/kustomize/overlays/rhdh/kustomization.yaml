@@ -9,4 +9,5 @@ resources:
   - catalog-locations-config.yaml
   - techdocs-app-config.yaml
   - dynamic-plugins-config.yaml
+  - cicd-app-config.yaml
   - backstage.yaml

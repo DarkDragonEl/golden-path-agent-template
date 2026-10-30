@@ -23,6 +23,14 @@ metadata:
     # own generator wiring: deploy/kustomize/overlays/rhdh/
     # techdocs-app-config.yaml.
     backstage.io/techdocs-ref: dir:.
+    # DEC-141: CI/CD visibility. kubernetes-id selects every workload,
+    # Pipeline and PipelineRun labeled backstage.io/kubernetes-id=
+    # golden-path-agent, cluster-wide (Kubernetes + Topology tabs; the
+    # staged Tekton plugin reads the same selection). argocd/app-name is
+    # read by the staged Argo CD plugin only.
+    backstage.io/kubernetes-id: golden-path-agent
+    janus-idp.io/tekton: golden-path-agent
+    argocd/app-name: golden-path-agent-demo-prod
   links:
     - url: https://github.com/DarkDragonEl/golden-path-agent-template/blob/main/docs/architecture.md
       title: Architecture

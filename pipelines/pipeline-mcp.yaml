@@ -11,6 +11,10 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
     app.kubernetes.io/component: mcp
+    # DEC-141: RHDH visibility; instance must equal the Deployment's
+    # for Topology's PipelineRun decorator.
+    backstage.io/kubernetes-id: golden-path-agent
+    app.kubernetes.io/instance: golden-path-agent-mcp
 spec:
   params:
     - name: repo-url

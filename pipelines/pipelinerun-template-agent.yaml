@@ -11,6 +11,8 @@ metadata:
   labels:
     app.kubernetes.io/part-of: golden-path-agent
     app.kubernetes.io/component: agent
+    backstage.io/kubernetes-id: golden-path-agent # DEC-141: Tekton
+    # propagates it to TaskRuns/pods, so RHDH's CI view selects them.
 spec:
   pipelineRef:
     name: golden-path-agent-ci-agent

@@ -43,6 +43,9 @@ Accomplish one task against a real environment.
   run this same `docs/` tree through `mkdocs serve` locally, including the
   fuller mkdocstrings-generated API reference that RHDH's own live
   TechDocs page can't render.
+- **[RHDH CI/CD visibility plugins](rhdh-cicd-plugins.md)** — what the
+  component page's Kubernetes/Topology tabs need (plugins, RBAC, labels),
+  why Tekton/Argo CD are staged rather than enabled, and the live steps.
 
 ## Reference
 

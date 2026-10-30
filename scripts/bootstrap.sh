@@ -455,6 +455,11 @@ if [ "$WITH_RHDH" = "true" ]; then
       --from-literal=POSTGRES_PASSWORD="$RHDH_DB_PASSWORD" >/dev/null
     unset RHDH_DB_PASSWORD
   fi
+  # DEC-141: cluster-scoped read-only identity for RHDH's Kubernetes/
+  # Topology plugins -- outside the AppProject's reach by design, so it
+  # lands here. The Backstage CR mounts its token Secret, so this must
+  # precede the GitOps sync of deploy/kustomize/overlays/rhdh/.
+  oc apply -f platform/bootstrap/rhdh-kubernetes-rbac.yaml
   log "RHDH operator ready, DB secret provisioned -- Postgres/Backstage CR themselves are GitOps-managed (deploy/kustomize/overlays/rhdh/, deploy/argocd/apps/rhdh.yaml), applied automatically by golden-path-agent-root's own selfHeal sync, not by this script"
 
   log "=== step 4c/9 (--with-rhdh, DEC-137/DEC-138): Gitea (RHDH scaffolder's git host) ==="
