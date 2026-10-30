@@ -778,7 +778,9 @@ if [ "$WITH_RHDH" = "true" ]; then
       "{\"name\":\"${GITEA_MIRROR_REPO}\",\"private\":false,\"default_branch\":\"main\"}" >/dev/null
   fi
   MIRROR_DIR=$(mktemp -d)
-  git clone -q --depth 1 --branch main "$BLUEPRINT_REPO_URL" "$MIRROR_DIR/src"
+  # Full history, not --depth 1: Gitea rejects a push from a shallow clone
+  # ("shallow update not allowed", DEC-153).
+  git clone -q --branch main "$BLUEPRINT_REPO_URL" "$MIRROR_DIR/src"
   sed -i "s/^\( *- \)gitea\.example\.com\$/\1${GITEA_HOST}/" "$MIRROR_DIR/src/template.yaml"
   if ! grep -q -- "- ${GITEA_HOST}\$" "$MIRROR_DIR/src/template.yaml"; then
     log "  FAILED: template.yaml has no 'gitea.example.com' allowedHosts placeholder to replace -- refusing to push a Gitea copy the portal can't publish from"
