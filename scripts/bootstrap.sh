@@ -187,6 +187,65 @@ find_subscription_for_package() {
     jq -r --arg pkg "$pkg" '.items[] | select(.spec.name==$pkg) | .metadata.name' | head -1
 }
 
+# DEC-152: this blueprint's own operator packages and the channel each is
+# installed from. ensure_operator is called with these, and the joint
+# InstallPlan check reads the same values -- one place to change a channel.
+PIPELINES_PKG=openshift-pipelines-operator-rh
+PIPELINES_CHANNEL=pipelines-1.22
+GITOPS_PKG=openshift-gitops-operator
+GITOPS_CHANNEL=gitops-1.20
+RHDH_PKG=rhdh
+RHDH_CHANNEL=fast-1.10
+
+blueprint_operator_channel() {
+  # $1 = package name. Prints its expected channel; prints nothing for a
+  # package that is not one of this blueprint's operators.
+  case "$1" in
+    "$PIPELINES_PKG") echo "$PIPELINES_CHANNEL" ;;
+    "$GITOPS_PKG") echo "$GITOPS_CHANNEL" ;;
+    "$RHDH_PKG") echo "$RHDH_CHANNEL" ;;
+  esac
+}
+
+joint_plan_extra_accepted() {
+  # $1 = namespace, $2 = a CSV that a joint InstallPlan bundles beyond the
+  # one being approved. Accepted only when it is the status.currentCSV of
+  # exactly one Subscription in the namespace, for a blueprint operator
+  # package, on that package's expected channel (DEC-152): an in-channel
+  # upgrade of an operator this blueprint owns. Every refusal says why;
+  # an unreadable Subscription list refuses too.
+  local ns="$1" csv="$2" subs matches pkg channel expected
+  if ! subs=$(oc get subscription -n "$ns" -o json); then
+    log "  extra CSV $csv: could not list Subscriptions in $ns -- refusing"
+    return 1
+  fi
+  if ! matches=$(printf '%s' "$subs" | jq -r --arg csv "$csv" '
+      .items[] | select(.status.currentCSV == $csv) | "\(.spec.name) \(.spec.channel)"'); then
+    log "  extra CSV $csv: could not read the Subscription list -- refusing"
+    return 1
+  fi
+  if [ -z "$matches" ]; then
+    log "  extra CSV $csv: no Subscription in $ns has it as currentCSV -- refusing"
+    return 1
+  fi
+  if [ "$(printf '%s\n' "$matches" | wc -l)" -ne 1 ]; then
+    log "  extra CSV $csv: more than one Subscription claims it -- refusing"
+    return 1
+  fi
+  pkg=${matches% *}
+  channel=${matches#* }
+  expected=$(blueprint_operator_channel "$pkg")
+  if [ -z "$expected" ]; then
+    log "  extra CSV $csv: package $pkg is not one of this blueprint's operators -- refusing"
+    return 1
+  fi
+  if [ "$channel" != "$expected" ]; then
+    log "  extra CSV $csv: package $pkg is on channel '$channel', not the expected '$expected' -- refusing"
+    return 1
+  fi
+  log "  extra CSV $csv accepted: currentCSV of this blueprint's $pkg Subscription, on its expected channel '$expected' (DEC-152)"
+}
+
 approve_pending_installplan_for_package() {
   # $1 = namespace, $2 = Subscription object name (NOT the package name
   # -- confirmed live that a CSV's own bundle name is not guaranteed to
@@ -205,24 +264,30 @@ approve_pending_installplan_for_package() {
   # contents has no such ambiguity.
   #
   # Refuses to approve a plan that also lists any OTHER CSV (fail
-  # closed, CLAUDE.md). OLM can bundle several pending Manual-approval
-  # upgrades into one joint InstallPlan when they resolve together in
-  # the same pass -- approving it would upgrade those other targets
-  # too, which this call was never asked to touch.
-  local ns="$1" sub="$2" target_csv plan other_csvs approved
+  # closed, CLAUDE.md), unless every extra CSV is an in-channel upgrade
+  # of one of this blueprint's own operators (joint_plan_extra_accepted,
+  # DEC-152). OLM bundles several pending Manual-approval upgrades into
+  # one joint InstallPlan when they resolve together in the same pass --
+  # approving it would upgrade those other targets too, which is only
+  # acceptable for operators this blueprint owns.
+  local ns="$1" sub="$2" target_csv plan other_csvs extra approved
   target_csv=$(oc get subscription "$sub" -n "$ns" -o jsonpath='{.status.currentCSV}' 2>/dev/null || echo "")
   [ -n "$target_csv" ] || return 0
-  plan=$(oc get installplan -n "$ns" -o json 2>/dev/null | jq -r --arg csv "$target_csv" '
+  plan=$(oc get installplan -n "$ns" -o json | jq -r --arg csv "$target_csv" '
     .items[]
     | select(.spec.approved != true)
     | select(.spec.clusterServiceVersionNames[]? == $csv)
-    | .metadata.name' | head -1)
+    | .metadata.name' | head -1) || return 1
   [ -n "$plan" ] || return 0
-  other_csvs=$(oc get installplan "$plan" -n "$ns" -o json 2>/dev/null | jq -r --arg csv "$target_csv" '
-    [.spec.clusterServiceVersionNames[] | select(. != $csv)] | join(", ")')
+  other_csvs=$(oc get installplan "$plan" -n "$ns" -o json | jq -r --arg csv "$target_csv" '
+    .spec.clusterServiceVersionNames[] | select(. != $csv)') || return 1
   if [ -n "$other_csvs" ]; then
-    log "  InstallPlan $plan also bundles: $other_csvs -- NOT auto-approving a joint plan for targets this run wasn't asked to touch. Resolve manually."
-    return 1
+    while IFS= read -r extra; do
+      if ! joint_plan_extra_accepted "$ns" "$extra"; then
+        log "  InstallPlan $plan also bundles $extra -- NOT auto-approving a joint plan for targets this run wasn't asked to touch. Resolve manually."
+        return 1
+      fi
+    done <<<"$other_csvs"
   fi
   approved=$(oc get installplan "$plan" -n "$ns" -o jsonpath='{.spec.approved}' 2>/dev/null || echo "")
   if [ "$approved" != "true" ]; then
@@ -400,10 +465,10 @@ promote_component() {
 log "=== step 1/9: cluster-scoped operators (Pipelines, GitOps) ==="
 ensure_operator openshift-operators "OpenShift Pipelines" \
   pipelines/bootstrap/pipelines-operator.yaml \
-  openshift-pipelines-operator-rh pipelines-1.22 1.22.5 300
+  "$PIPELINES_PKG" "$PIPELINES_CHANNEL" 1.22.5 300
 ensure_operator openshift-operators "OpenShift GitOps" \
   pipelines/bootstrap/gitops-operator.yaml \
-  openshift-gitops-operator gitops-1.20 1.20.6 300
+  "$GITOPS_PKG" "$GITOPS_CHANNEL" 1.20.6 300
 
 log "=== step 2/9: namespaces + rbac ==="
 oc apply -f pipelines/bootstrap/namespaces.yaml
@@ -496,7 +561,7 @@ if [ "$WITH_RHDH" = "true" ]; then
   fi
   ensure_operator openshift-operators "RHDH" \
     platform/bootstrap/rhdh-operator.yaml \
-    rhdh fast-1.10 1.10.3 300
+    "$RHDH_PKG" "$RHDH_CHANNEL" 1.10.3 300
   # Real gap found live (Phase F4): the RHDH Operator's external-DB secret
   # needs both the OpenShift postgresql S2I image's own env vars
   # (POSTGRESQL_USER/PASSWORD/DATABASE) AND the operator's own
