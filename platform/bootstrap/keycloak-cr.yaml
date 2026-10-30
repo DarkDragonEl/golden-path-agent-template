@@ -38,6 +38,12 @@ spec:
     httpEnabled: true
   hostname:
     strict: false
+  # DEC-097: behind an edge-terminated Route, Keycloak otherwise reports
+  # http:// issuer/token endpoints and RHDH's OIDC token exchange fails
+  # (302). Was a live-only patch on one cluster; committed so a fresh
+  # bootstrap gets it. Inert for in-cluster callers (no X-Forwarded-*).
+  proxy:
+    headers: xforwarded
   ingress:
     enabled: false
   bootstrapAdmin:

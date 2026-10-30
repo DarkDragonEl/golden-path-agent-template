@@ -26,6 +26,9 @@ Accomplish one task against a real environment.
   RBAC, the pipeline's own ServiceAccount).
 - **[Phase D runbook](phase-d-runbook.md)** — manual bootstrap steps for
   identity (Keycloak namespace, operator, database, realm import).
+- **[Refresh #2 checklist](refresh-2-checklist.md)** — fresh-cluster
+  readiness: every remaining manual step, cluster-coupled value, and
+  Phase F/G reachability gap, plus the ordered steps for the run.
 - **[Access and credentials](access-and-credentials.md)** — the demo
   accounts, how their secrets are provisioned/rotated, the self-service
   reset flow, and showcase access.

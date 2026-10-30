@@ -51,8 +51,13 @@ ADMIN_PASS=$(oc get secret golden-path-agent-keycloak-admin -n "$NS_KEYCLOAK" -o
 # DEC-058: always regenerate via Keycloak's admin-API "regenerate client
 # secret" endpoint, not the CRD's spec.placeholders mechanism -- one
 # code path for both a fresh environment and rotation.
-read -r APPROVAL_SECRET MCP_SECRET <<EOF
-$(oc exec -i -n "$NS_KEYCLOAK" "$PG_POD" -- python3 - "$ADMIN_USER" "$ADMIN_PASS" "$REALM" <<'PYEOF'
+#
+# DEC-080 (latent bug, fixed): captured into a plain assignment first,
+# never substituted straight into a `read <<EOF` heredoc -- a command
+# substitution inside a heredoc body discards its exit status, so set -e
+# never saw a failed `oc exec` and step 2 wrote two empty secrets into
+# every consumer namespace. A plain `VAR=$(...)` does propagate it.
+CLIENT_SECRETS=$(oc exec -i -n "$NS_KEYCLOAK" "$PG_POD" -- python3 - "$ADMIN_USER" "$ADMIN_PASS" "$REALM" <<'PYEOF'
 import json, sys, urllib.request, urllib.parse
 
 admin_user, admin_pass, realm = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -90,7 +95,12 @@ mcp_secret = regenerate_secret("golden-path-agent-mcp-workload")
 print(approval_secret, mcp_secret)
 PYEOF
 )
-EOF
+read -r APPROVAL_SECRET MCP_SECRET <<<"$CLIENT_SECRETS"
+unset CLIENT_SECRETS
+if [ -z "$APPROVAL_SECRET" ] || [ -z "$MCP_SECRET" ]; then
+  echo "[provision-identity-secrets.sh] FAILED to regenerate workload client secrets (empty result) -- not writing empty values" >&2
+  exit 1
+fi
 
 # --- Step 2: write the two client secrets + model-endpoint config into
 # every consuming namespace -- golden-path-agent-secrets. `oc patch
