@@ -135,11 +135,23 @@ def test_happy_path_writes_regenerated_client_secrets(stub_env):
     env, log = stub_env
     result = run_script(env)
     assert result.returncode == 0, result.stderr
-    writes = workload_secret_writes(log)
+    writes = [c for c in workload_secret_writes(log) if "golden-path-agent-ci" not in c]
     assert len(writes) == 2  # ephemeral-test + demo-prod
     for call in writes:
         assert "--from-literal=APPROVAL_OIDC_CLIENT_SECRET=approval-secret-value" in call
         assert "--from-literal=MCP_AUTH_TOKEN=mcp-secret-value" in call
+
+
+def test_ci_namespace_gets_only_the_model_api_key(stub_env):
+    """DEC-156: eval-gate-live's Secret in golden-path-agent-ci carries the
+    model API key and nothing else -- no workload client secret."""
+    env, log = stub_env
+    result = run_script(env)
+    assert result.returncode == 0, result.stderr
+    ci = [c for c in workload_secret_writes(log) if "golden-path-agent-ci" in c]
+    assert len(ci) == 1
+    literals = [a for a in ci[0] if a.startswith("--from-literal=")]
+    assert [a.split("=", 2)[1] for a in literals] == ["MODEL_API_KEY"]
 
 
 def test_failing_oc_exec_fails_script_before_any_secret_write(stub_env):

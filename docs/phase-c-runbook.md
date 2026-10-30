@@ -143,15 +143,11 @@ step 6 creates `golden-path-agent-ci-config` directly from them,
 idempotent by regeneration (`DEC-059`). No manual `oc create configmap`
 step remains.
 
-**Known gap, not closed by `DEC-138`**: `pipelines/tasks/eval-gate-live.yaml`
-also reads `MODEL_API_KEY` via `secretKeyRef` from a `golden-path-agent-secrets`
-Secret *in `golden-path-agent-ci` itself* — a third copy, distinct from
-the demo-prod/ephemeral-test one §2 now automates and from this
-`ConfigMap`. This was always a pure manual step (the original "Copy 2"),
-never migrated into any script even before `DEC-137`/`DEC-138`, and
-`bootstrap.sh` still does not create it. Triggering a `PipelineRun` that
-includes `eval-gate-live` on a genuinely fresh cluster still needs it
-created by hand, the same way as before this entry.
+**Closed by `DEC-156`**: `pipelines/tasks/eval-gate-live.yaml` also reads
+`MODEL_API_KEY` via `secretKeyRef` from a `golden-path-agent-secrets` Secret
+*in `golden-path-agent-ci` itself* (the original manual "Copy 2").
+`platform/bootstrap/provision-identity-secrets.sh` now writes it at step 5,
+with that one key only.
 
 ## 2c. Gitea admin password (`--with-rhdh` only; `DEC-137`/`DEC-138`)
 

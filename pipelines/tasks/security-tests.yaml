@@ -82,7 +82,9 @@ spec:
         resp = post_json(
             "http://localhost:8080/invoke",
             {
-                "query": "Please submit a request for read access to the internal metrics dashboard.",
+                # DEC-156: a write the eval set requires the agent to draft (DRQ-001),
+                # so pending_approval is a reliable precondition, not model luck.
+                "query": "Please raise a request to get an extra namespace quota for my team, referencing the quota exhaustion known error.",
                 "write": True,
                 "user_id": "ci-security-test",
             },
