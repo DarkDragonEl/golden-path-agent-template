@@ -1,0 +1,66 @@
+# DEC-141: read-only cluster identity for RHDH's Kubernetes/Topology/
+# Tekton plugins. Applied by scripts/bootstrap.sh --with-rhdh (step 4b),
+# not ArgoCD: the golden-path-agent AppProject whitelists no cluster-
+# scoped kinds, by design. A ClusterRoleBinding, not RoleBindings: the
+# plugin lists by label selector across namespaces (CI in -ci, workloads
+# in -demo-prod/-ephemeral-test), which a namespaced grant can't serve.
+# Read-only (get/list), exactly the kinds cicd-app-config.yaml fetches.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: golden-path-agent-rhdh-kubernetes
+  namespace: golden-path-agent-rhdh
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+---
+# Token Secret for the SA above: the cluster's token controller fills
+# token/ca.crt in; no value is ever written here or by hand. Re-applying
+# this manifest never clears controller-written data.
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: golden-path-agent-rhdh-kubernetes-token
+  namespace: golden-path-agent-rhdh
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+  annotations:
+    kubernetes.io/service-account.name: golden-path-agent-rhdh-kubernetes
+---
+# No pods/log (opt-in, docs/rhdh-cicd-plugins.md), no secrets, no
+# configmaps, no write verbs. services: Topology resolves Route ->
+# Service -> workload. pipelines: Topology's PipelineRun decorator.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: golden-path-agent-rhdh-read-only
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list"]
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes"]
+    verbs: ["get", "list"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelines", "pipelineruns", "taskruns"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: golden-path-agent-rhdh-read-only
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+subjects:
+  - kind: ServiceAccount
+    name: golden-path-agent-rhdh-kubernetes
+    namespace: golden-path-agent-rhdh
+roleRef:
+  kind: ClusterRole
+  name: golden-path-agent-rhdh-read-only
+  apiGroup: rbac.authorization.k8s.io

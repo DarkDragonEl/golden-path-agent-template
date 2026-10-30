@@ -15,6 +15,12 @@ metadata:
     ${{ values.description }}
   annotations:
     tool-contract.io/model-route: ${{ values.modelRoute }}
+    # DEC-141: same CI/CD visibility as the blueprint's own Component --
+    # matches the backstage.io/kubernetes-id label on this project's
+    # Deployment, Pipeline and PipelineRun template.
+    backstage.io/kubernetes-id: ${{ values.name }}
+    janus-idp.io/tekton: ${{ values.name }}
+    argocd/app-name: ${{ values.name }}-demo-prod
   tags:
     - agentic-ai
     - langgraph

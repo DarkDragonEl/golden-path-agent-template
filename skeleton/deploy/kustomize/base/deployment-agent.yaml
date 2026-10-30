@@ -2,6 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ${{ values.name }}
+  # DEC-141: RHDH visibility (catalog-info.yaml's kubernetes-id). instance
+  # pairs this Deployment with Pipeline ${{ values.name }}-ci for
+  # Topology's PipelineRun decorator. Not in the selector: immutable.
+  labels:
+    backstage.io/kubernetes-id: ${{ values.name }}
+    app.kubernetes.io/instance: ${{ values.name }}
 spec:
   replicas: 1
   selector:
@@ -13,6 +19,7 @@ spec:
       labels:
         app.kubernetes.io/name: ${{ values.name }}
         app.kubernetes.io/component: agent
+        backstage.io/kubernetes-id: ${{ values.name }} # DEC-141
     spec:
       serviceAccountName: ${{ values.name }}
       containers:

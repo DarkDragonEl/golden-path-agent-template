@@ -2,6 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: golden-path-agent
+  # DEC-141: RHDH visibility (catalog-info.yaml's kubernetes-id). instance
+  # pairs this Deployment with Pipeline golden-path-agent-ci-agent for
+  # Topology's PipelineRun decorator. Not in the selector: immutable.
+  labels:
+    backstage.io/kubernetes-id: golden-path-agent
+    app.kubernetes.io/instance: golden-path-agent
 spec:
   replicas: 1
   selector:
@@ -13,6 +19,7 @@ spec:
       labels:
         app.kubernetes.io/name: golden-path-agent
         app.kubernetes.io/component: agent
+        backstage.io/kubernetes-id: golden-path-agent # DEC-141
     spec:
       serviceAccountName: golden-path-agent
       containers:
