@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DEC-144 (M16): builds RHDH's Gitea scaffolder dynamic plugin
+# DEC-145 (M16): builds RHDH's Gitea scaffolder dynamic plugin
 # (@backstage/plugin-scaffolder-backend-module-gitea, backstage v1.49.0 --
 # matched to RHDH 1.10.3's backend, DEC-118) with Red Hat's
 # rhdh-dynamic-plugin-factory, pushes it to an external registry, and

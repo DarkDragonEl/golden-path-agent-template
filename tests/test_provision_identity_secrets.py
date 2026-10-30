@@ -167,7 +167,7 @@ def calls(log):
 
 
 def test_with_rhdh_writes_public_and_external_oidc_urls(stub_env):
-    """DEC-146 (M12/M13): both URLs come from the Routes bootstrap made."""
+    """DEC-147 (M12/M13): both URLs come from the Routes bootstrap made."""
     env, log = stub_env
     result = run_script(env, **RHDH_ENV)
     assert result.returncode == 0, result.stderr
@@ -179,7 +179,7 @@ def test_with_rhdh_writes_public_and_external_oidc_urls(stub_env):
 
 
 def test_with_rhdh_registry_auth_is_service_account_backed(stub_env):
-    """DEC-146 (M17): the plugin-pull credential is the puller SA's token,
+    """DEC-147 (M17): the plugin-pull credential is the puller SA's token,
     never the operator's own `oc whoami -t` session."""
     env, log = stub_env
     result = run_script(env, **RHDH_ENV)

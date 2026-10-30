@@ -15,12 +15,12 @@
 # from the second include: a file scripts/bootstrap.sh renders into
 # ConfigMap golden-path-agent-rhdh-gitea-plugin from RHDH_PLUGIN_REGISTRY
 # (bootstrap.env) and the digest in platform/rhdh-plugins/gitea-scaffolder/
-# pin.env (DEC-144) -- so no registry host is ever committed here.
+# pin.env (DEC-145) -- so no registry host is ever committed here.
 #
-# DEC-141/DEC-142 (CI/CD visibility): Kubernetes backend + frontend and
+# DEC-141/DEC-143 (CI/CD visibility): Kubernetes backend + frontend and
 # Topology are preinstalled in the RHDH 1.10.3 image. Tekton and Argo CD
 # (Community family) are not: they are pulled from ghcr.io at pod start,
-# pinned by digest (mirroring them is recorded debt, DEC-142).
+# pinned by digest (mirroring them is recorded debt, DEC-143).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -47,7 +47,7 @@ data:
         disabled: false
       - package: ./dynamic-plugins/dist/backstage-community-plugin-topology
         disabled: false
-      # DEC-142: enabled from ghcr.io, pinned by digest (PINS.md). Tekton
+      # DEC-143: enabled from ghcr.io, pinned by digest (PINS.md). Tekton
       # uses the default entry's image path (no `!path`), so it overrides
       # that entry and inherits its mount points; Argo CD (Community) has
       # no default entry, so its mount points are spelled out below.

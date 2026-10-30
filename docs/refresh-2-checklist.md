@@ -6,7 +6,7 @@ one pipeline run per component, Phase F/G included (RHDH, Gitea, the
 Gitea scaffolder plugin, Tools Template, catalog, TechDocs).
 
 **Status: repo-only.** Nothing in this file was run against a cluster.
-Mission C0 inventoried the hand steps; mission C2 (`DEC-142`–`DEC-146`)
+Mission C0 inventoried the hand steps; mission C2 (`DEC-143`–`DEC-147`)
 closed them. **Every row below is now either done by bootstrap (or by
 GitOps) or a named operator input.** Names only, never values.
 `DECISIONS.md`/`HANDOFF.md` references are to the `agent-roadmap`
@@ -37,7 +37,7 @@ repository. Step numbers in brackets are `scripts/bootstrap.sh` steps.
 | M19 | Gitea host in RHDH config + template | Covered | [5] discovers `GITEA_HOST` (`${GITEA_HOST}` in the catalog config). [4c] injects it into the Gitea copy's `allowedHosts`; Git keeps `gitea.example.com`. |
 | M20 | Merge the promotion PRs [9b] opens | **Operator decision** (by design) | Merging is the promotion event (SysR-P-F-06); re-run bootstrap afterwards. |
 | M21 | Rebuild + promote the approval image | Covered | [9b] `promote_component approval`. `open-promotion-pr` updates both of its pins in one PR, `tests/test_image_pins.py` blocks drift, and [9] checks the approval Deployment. |
-| M22 | demo-prod agent reachable from outside (E2E probe) | Covered | [2] applies `pipelines/bootstrap/demo-prod-route.yaml`, a host-less Route that OpenShift assigns a host to. The real blocker was the Ingress's missing **host**: OpenShift's ingress-to-route controller skips host-less rules. It wasn't the IngressClass; `openshift-default` exists, and a class-less Ingress is still managed (`DEC-146`). |
+| M22 | demo-prod agent reachable from outside (E2E probe) | Covered | [2] applies `pipelines/bootstrap/demo-prod-route.yaml`, a host-less Route that OpenShift assigns a host to. The real blocker was the Ingress's missing **host**: OpenShift's ingress-to-route controller skips host-less rules. It wasn't the IngressClass; `openshift-default` exists, and a class-less Ingress is still managed (`DEC-147`). |
 | M23 | Approver-UI access (two `oc port-forward`s) | Walkthrough action, not a restore step | `docs/phase-d-runbook.md` D3. |
 | M24 | Demo-user passwords | Covered | [5]; read from `golden-path-agent-demo-users`. |
 | M25 | RHDH OIDC client on an already-imported realm | Covered | [5], create-if-missing. |
@@ -47,7 +47,7 @@ repository. Step numbers in brackets are `scripts/bootstrap.sh` steps.
 | M29 | `ConfigMap` change → rollout restart | Operations, not a restore step | `DEC-065`; [9] restarts demo-prod and the approval service itself. |
 | M30 | PAT rotation | Operations, deferred by the owner | `HANDOFF.md` §8. |
 | M31 | `--with-rhdh` through `make bootstrap` | Covered | `make bootstrap WITH_RHDH=true` (mission C0). |
-| M32 | Read-only Argo CD account + token for RHDH's CD tab | Covered | [4d] (`DEC-143`), writing `golden-path-agent-rhdh-argocd-secret`. |
+| M32 | Read-only Argo CD account + token for RHDH's CD tab | Covered | [4d] (`DEC-144`), writing `golden-path-agent-rhdh-argocd-secret`. |
 | M33 | RHDH's CA bundle (was an implicit dependency on a Pipelines-injected ConfigMap, C7) | Covered | [4b] writes `golden-path-agent-rhdh-cluster-ca`. |
 
 **Operator inputs, complete list:** M1 (kubeconfig); `bootstrap.env`
@@ -59,10 +59,10 @@ plugin build and its committed digest (M16); merging promotion PRs (M20).
 
 | # | Where | Status |
 |---|---|---|
-| C1 | `catalog-locations-config.yaml` Gitea host | `${GITEA_HOST}`, discovered [5] (`DEC-145`). |
+| C1 | `catalog-locations-config.yaml` Gitea host | `${GITEA_HOST}`, discovered [5] (`DEC-146`). |
 | C2 | `template.yaml` `allowedHosts` | `gitea.example.com` placeholder in Git. The real host exists only in the Gitea copy [4c]; the Template is registered from that copy only. |
 | C3 | `template-schema*.json` `gitHost` default | Placeholder; the caller passes the host. |
-| C4 | Gitea scaffolder plugin digest | External registry from `bootstrap.env`, digest in `pin.env`/PINS.md (`DEC-144`); no host in Git. |
+| C4 | Gitea scaffolder plugin digest | External registry from `bootstrap.env`, digest in `pin.env`/PINS.md (`DEC-145`); no host in Git. |
 | C5 | Component image digests | Cluster-local by nature; [9b] rebuilds agent, mcp **and approval** and promotes by PR. |
 | C6 | `PUBLIC_URL`, `OIDC_METADATA_URL` | Derived from the [4b] Routes every run. |
 | C7 | RHDH CA bundle | Bootstrap-written `golden-path-agent-rhdh-cluster-ca`; no Pipelines-injected dependency. |
@@ -84,7 +84,7 @@ from the cluster at run time and are never written to Git or reports.
 | 5 | `make bootstrap CLUSTER=<kubeconfig> WITH_RHDH=true` | [0] reports keys, tools and the plugin pin present. [1]/[3]/[4b] CSVs `Succeeded`. [4b] prints both Route hosts and renders the CA bundle and plugin include. [4c] Gitea ready, and the Gitea copy pushed. [4d] Argo CD account + token written. [5] "provision-identity-secrets.sh: done." [6] all `PASS`. [9b] on a fresh cluster: no committed digest exists, so agent, mcp and approval PipelineRuns are triggered; each reaches `open-promotion-pr`, opening three promotion PRs (with `GITHUB_TOKEN`), then "re-run this script once that PR is merged". |
 | 6 | Owner merges the three promotion PRs (M20). | ArgoCD syncs demo-prod and the approval service onto the new digests. |
 | 7 | Re-run `make bootstrap CLUSTER=<kubeconfig> WITH_RHDH=true`. | [9b] "already present" ×3. [9] all `PASS`: demo-prod agent/mcp 1/1, approval 1/1, every Application `Synced`, the E2E `/healthz` 200 through the agent's Route. Note [5] rotates credentials again (`DEC-059`) and restarts RHDH. |
-| 8 | Real external-browser verification (`DEC-094`/`DEC-097`). | RHDH sign-in via Keycloak as `demo-user`. The `golden-path-agent` Component shows TechDocs, Kubernetes, Topology, CI (Tekton) and CD (Argo CD). The platform `System`/`API`/`Resource`/`Group` entities and both Templates are listed. The Create wizard's `publish:gitea` creates the two repos under `golden-path-agent-projects`; this is the first task-level read of the skeleton from Gitea (`DEC-145`). One write→approve→execute flow runs through the approver UI (M23). Then the `pre-flight` and `post-deploy` skills. |
+| 8 | Real external-browser verification (`DEC-094`/`DEC-097`). | RHDH sign-in via Keycloak as `demo-user`. The `golden-path-agent` Component shows TechDocs, Kubernetes, Topology, CI (Tekton) and CD (Argo CD). The platform `System`/`API`/`Resource`/`Group` entities and both Templates are listed. The Create wizard's `publish:gitea` creates the two repos under `golden-path-agent-projects`; this is the first task-level read of the skeleton from Gitea (`DEC-146`). One write→approve→execute flow runs through the approver UI (M23). Then the `pre-flight` and `post-deploy` skills. |
 
 ## 4. Inputs and Secrets (names only)
 
@@ -106,7 +106,7 @@ login used by `build.sh`.
 | `golden-path-agent-rhdh` | `golden-path-agent-rhdh-db-secret` | create-once [4b] |
 | `golden-path-agent-rhdh` | `golden-path-agent-rhdh-kubernetes-token`, `golden-path-agent-rhdh-plugin-puller-token` | token controller fills them, [4b] |
 | `golden-path-agent-rhdh` | ConfigMaps `golden-path-agent-rhdh-cluster-ca`, `golden-path-agent-rhdh-gitea-plugin` | regenerated [4b] |
-| `golden-path-agent-rhdh` | `golden-path-agent-rhdh-argocd-secret` | [4d] (`DEC-143`) |
+| `golden-path-agent-rhdh` | `golden-path-agent-rhdh-argocd-secret` | [4d] (`DEC-144`) |
 | `golden-path-agent-rhdh` | `golden-path-agent-rhdh-oidc-secret` (`SESSION_SECRET` create-once; `OIDC_CLIENT_SECRET`, `PUBLIC_URL`, `OIDC_METADATA_URL` every run), `golden-path-agent-rhdh-gitea-scaffolder-secret` (incl. `GITEA_HOST`), `golden-path-agent-rhdh-registry-auth` | [5] |
 | `golden-path-agent-gitea` | `golden-path-agent-gitea-admin-password`, `golden-path-agent-gitea-scaffolder-password` (create-once), `golden-path-agent-gitea-scaffolder-token` (regenerated) | [4c] |
 | `golden-path-agent-ci` | `golden-path-agent-github-token` (only if `GITHUB_TOKEN` set), ConfigMap `golden-path-agent-ci-config` | [9], [6] |

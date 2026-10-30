@@ -1,4 +1,4 @@
-"""DEC-146: every kustomize tree must build -- the blueprint's own
+"""DEC-147: every kustomize tree must build -- the blueprint's own
 (deploy/, adapters/, platform/) and every rendered template's (skeleton/,
 skeleton-tools/). A skeleton overlay that only breaks after rendering
 (the old demo-prod approval-config merge) is invisible to every other

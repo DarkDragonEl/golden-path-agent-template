@@ -5,7 +5,7 @@
 # (golden-path-agent-rhdh-db-secret), created once by scripts/bootstrap.sh
 # step 4b, never committed.
 #
-# CREATEDB (DEC-093 addendum; automated by DEC-146, M9): RHDH creates one
+# CREATEDB (DEC-093 addendum; automated by DEC-147, M9): RHDH creates one
 # database per backend plugin, so its role needs CREATEDB. The image's own
 # start hook (/opt/app-root/src/postgresql-start/*.sh, sourced on every
 # start once the server is up, local socket, superuser) grants it from the
@@ -18,7 +18,7 @@ metadata:
     app.kubernetes.io/part-of: golden-path-agent
 data:
   10-rhdh-createdb.sh: |
-    # DEC-146 (M9): sourced by the image's run-postgresql (set -eu), so a
+    # DEC-147 (M9): sourced by the image's run-postgresql (set -eu), so a
     # failure stops the start rather than leaving RHDH half-provisioned.
     psql -v ON_ERROR_STOP=1 -d postgres --command "ALTER ROLE \"${POSTGRESQL_USER}\" CREATEDB;"
 ---

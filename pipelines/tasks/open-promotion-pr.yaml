@@ -2,7 +2,7 @@
 # merge, never a rebuild and never a direct push to main. This Task only
 # runs when every prior gate passed (the Pipeline's `when:` condition, not
 # this Task's own logic) and only ever touches one image's digest field,
-# in every kustomization that pins that image (DEC-146).
+# in every kustomization that pins that image (DEC-147).
 #
 # Credential: docs/phase-c-runbook.md §3 -- a fine-grained GitHub PAT,
 # scoped to Contents (read/write) + Pull requests (read/write) on this one
@@ -60,7 +60,7 @@ spec:
         # so the range closes on the very next `digest:` line, which is
         # this same entry's own.
         #
-        # DEC-146 (M21): every kustomization that pins this image gets the
+        # DEC-147 (M21): every kustomization that pins this image gets the
         # same edit in the same commit -- the approval image is pinned in
         # base/ AND overlays/approval-platform/ (tests/test_image_pins.py).
         PIN_FILES=$(grep -l -e "- name: $(params.image-name)$" \

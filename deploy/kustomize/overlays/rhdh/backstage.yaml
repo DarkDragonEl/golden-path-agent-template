@@ -51,11 +51,11 @@ spec:
       secrets:
         - name: golden-path-agent-rhdh-oidc-secret
         - name: golden-path-agent-rhdh-gitea-scaffolder-secret
-        # DEC-143: written by scripts/bootstrap.sh (read-only Argo CD
+        # DEC-144: written by scripts/bootstrap.sh (read-only Argo CD
         # account token) before ArgoCD ever syncs this CR.
         - name: golden-path-agent-rhdh-argocd-secret
       envs:
-        # DEC-146 (M13): Node trusts this cluster's ingress + service CAs
+        # DEC-147 (M13): Node trusts this cluster's ingress + service CAs
         # (the cluster-ca file below), e.g. for the Keycloak Route on a
         # fresh cluster's self-signed ingress certificate. Adds to, never
         # replaces, Node's built-in CA store.
@@ -65,13 +65,13 @@ spec:
     extraFiles:
       mountPath: /etc/containers/certs.d/image-registry.openshift-image-registry.svc:5000
       configMaps:
-        # DEC-146 (C7/M13): written by scripts/bootstrap.sh step 4b from
+        # DEC-147 (C7/M13): written by scripts/bootstrap.sh step 4b from
         # the cluster's own CA ConfigMaps -- replaces the Pipelines-injected
         # config-service-cabundle this CR used to depend on implicitly.
         - name: golden-path-agent-rhdh-cluster-ca
           key: ca-bundle.crt
           containers: ["*"]
-        # DEC-144 (M16): the Gitea plugin include (dynamic-plugins-
+        # DEC-145 (M16): the Gitea plugin include (dynamic-plugins-
         # config.yaml), rendered by scripts/bootstrap.sh step 4b.
         - name: golden-path-agent-rhdh-gitea-plugin
           mountPath: /opt/app-root/src/gitea-plugin

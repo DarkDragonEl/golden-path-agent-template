@@ -6,7 +6,7 @@
 #
 # Own `images:` transform, same digest as base/'s pin: open-promotion-pr
 # updates both in one PR and tests/test_image_pins.py fails on drift
-# (DEC-146, M21). Not a shared Component: a Component's images transform
+# (DEC-147, M21). Not a shared Component: a Component's images transform
 # runs before base's own, which would defeat deploy-ephemeral's
 # `kustomize edit set image` override in base/.
 namespace: golden-path-agent-approval

@@ -1,4 +1,4 @@
-# DEC-146 (M17): durable pull identity for RHDH's plugin-install init
+# DEC-147 (M17): durable pull identity for RHDH's plugin-install init
 # container, replacing the operator's personal `oc whoami -t` token (which
 # expires, and doesn't exist at all for a client-certificate kubeconfig).
 # provision-identity-secrets.sh turns this SA's token into the auth.json
@@ -24,7 +24,7 @@ metadata:
     kubernetes.io/service-account.name: golden-path-agent-rhdh-plugin-puller
 ---
 # Pull rights on golden-path-agent-rhdh's own ImageStreams only (the home
-# of any in-cluster plugin image: phase-2 builds, DEC-144; mirrors, DEC-142).
+# of any in-cluster plugin image: phase-2 builds, DEC-145; mirrors, DEC-143).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:

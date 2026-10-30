@@ -5,7 +5,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ${{ values.name }}
-  # DEC-141/DEC-146: once an overlay gives this Ingress a host (OpenShift
+  # DEC-141/DEC-147: once an overlay gives this Ingress a host (OpenShift
   # skips host-less rules), the Routes OpenShift generates copy these
   # labels -- reconcile-labels keeps them in step -- so Topology sees them.
   labels:

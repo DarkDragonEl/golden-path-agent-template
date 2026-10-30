@@ -26,7 +26,7 @@ spec:
         #!/bin/sh
         set -eu
         pip install --no-cache-dir -q -r requirements.txt -r requirements-dev.txt
-        # DEC-146: tests/test_overlays_build.py builds every overlay. Pinned,
+        # DEC-147: tests/test_overlays_build.py builds every overlay. Pinned,
         # checksum-verified kustomize (PINS.md), and REQUIRE_KUSTOMIZE=1 so a
         # missing binary fails the run instead of skipping the test.
         python - <<'PYEOF'

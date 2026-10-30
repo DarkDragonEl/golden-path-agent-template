@@ -1,4 +1,4 @@
-# DEC-146 (M22): demo-prod's external entry point on OpenShift. The base
+# DEC-147 (M22): demo-prod's external entry point on OpenShift. The base
 # Ingress is deliberately platform-neutral and host-less, and OpenShift's
 # ingress-to-route controller skips any rule without a host ("Missing
 # host field") -- the real reason no Route ever appeared (DEC-139 blamed

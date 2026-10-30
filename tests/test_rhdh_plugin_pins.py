@@ -1,4 +1,4 @@
-"""DEC-142/DEC-144: RHDH's remote plugins are pinned, and pinned in one
+"""DEC-143/DEC-145: RHDH's remote plugins are pinned, and pinned in one
 place each. The Gitea scaffolder plugin's digest lives in
 platform/rhdh-plugins/gitea-scaffolder/pin.env (bootstrap reads it) and
 PINS.md (people read it); the two must agree. Every other OCI plugin in
@@ -63,7 +63,7 @@ def test_tekton_and_community_argocd_are_enabled():
 
 def test_gitea_plugin_registry_is_not_committed():
     """The Gitea plugin comes only from the bootstrap-rendered include
-    (RHDH_PLUGIN_REGISTRY is an operator input, DEC-144)."""
+    (RHDH_PLUGIN_REGISTRY is an operator input, DEC-145)."""
     assert not any("scaffolder-backend-module-gitea" in p["package"] for p in _plugins())
     configmap = yaml.safe_load(PLUGINS_CONFIG.read_text(encoding="utf-8"))
     includes = yaml.safe_load(configmap["data"]["dynamic-plugins.yaml"])["includes"]

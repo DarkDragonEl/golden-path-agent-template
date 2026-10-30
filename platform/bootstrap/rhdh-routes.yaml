@@ -1,4 +1,4 @@
-# DEC-146 (M10/M11): the two browser-facing Routes RHDH's sign-in needs --
+# DEC-147 (M10/M11): the two browser-facing Routes RHDH's sign-in needs --
 # RHDH itself, and Keycloak (the OIDC popup is a browser redirect,
 # DEC-097). Edge TLS on the router's default certificate, HTTP redirected
 # (DEC-094). No `host`: OpenShift assigns one from the cluster's apps

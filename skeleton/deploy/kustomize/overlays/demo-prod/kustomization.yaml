@@ -59,7 +59,7 @@ configMapGenerator:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://${{ values.name }}-otel-collector.${{ values.name }}-otel.svc.cluster.local:4318 # DEC-071:
         # the cluster-tier collector (DEC-068) -- this is Checkpoint D's
         # own live-trace target environment.
-  # DEC-146: no approval-config merge here -- approval is the shared
+  # DEC-147: no approval-config merge here -- approval is the shared
   # Platform Foundation service (DEC-098/DEC-099), so this skeleton's base
   # has no approval ConfigMap to merge into (the old entry broke the build).
 

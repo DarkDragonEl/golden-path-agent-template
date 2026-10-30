@@ -1,4 +1,4 @@
-"""DEC-146 (M21): one image, one digest. The approval image is pinned in
+"""DEC-147 (M21): one image, one digest. The approval image is pinned in
 both deploy/kustomize/base/ and overlays/approval-platform/ (the shared
 service's standalone overlay); a promotion that updated only one of them
 let the shared service run a stale image unnoticed. Every kustomization

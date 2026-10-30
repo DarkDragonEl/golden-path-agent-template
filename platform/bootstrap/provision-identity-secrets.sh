@@ -280,7 +280,7 @@ secret_result = admin("POST", f"/realms/{realm}/clients/{uuid}/client-secret")
 print(secret_result["value"], end="")
 PYEOF
 )
-# DEC-146 (M12/M13): with RHDH, its public URL and the browser-reachable
+# DEC-147 (M12/M13): with RHDH, its public URL and the browser-reachable
 # Keycloak discovery URL come from the two Routes scripts/bootstrap.sh
 # created at step 4b (hosts passed in as RHDH_HOST/KEYCLOAK_HOST) and are
 # rewritten every run -- never committed, never typed in by hand.
@@ -377,10 +377,10 @@ fi
 
 # RHDH's plugin-install init container pulls with skopeo, not the kubelet,
 # so it needs its own auth.json (golden-path-agent-rhdh-registry-auth,
-# mounted by the Backstage CR). DEC-146 (M17): the internal-registry entry
+# mounted by the Backstage CR). DEC-147 (M17): the internal-registry entry
 # is the golden-path-agent-rhdh-plugin-puller ServiceAccount's long-lived
 # token (platform/bootstrap/rhdh-plugin-puller.yaml) -- no longer the
-# operator's own expiring `oc whoami -t`. DEC-144: if the external plugin
+# operator's own expiring `oc whoami -t`. DEC-145: if the external plugin
 # registry is private, RHDH_PLUGIN_REGISTRY_USERNAME/_PASSWORD
 # (bootstrap.env, optional) add its entry. Regenerated every run.
 if [ "${WITH_RHDH:-false}" != "true" ]; then

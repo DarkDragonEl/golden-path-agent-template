@@ -5,11 +5,11 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: golden-path-agent
-  # DEC-141/DEC-146: once an overlay gives this Ingress a host (OpenShift
+  # DEC-141/DEC-147: once an overlay gives this Ingress a host (OpenShift
   # skips host-less rules), the Routes OpenShift generates copy these
   # labels -- reconcile-labels keeps them in step -- so Topology sees them.
   # On OpenShift the golden path uses bootstrap's host-less Route instead
-  # (pipelines/bootstrap/demo-prod-route.yaml, DEC-146).
+  # (pipelines/bootstrap/demo-prod-route.yaml, DEC-147).
   labels:
     backstage.io/kubernetes-id: golden-path-agent
   annotations:

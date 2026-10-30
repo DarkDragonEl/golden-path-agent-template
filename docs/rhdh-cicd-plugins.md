@@ -2,8 +2,8 @@
 
 How the golden-path agent's RHDH component page shows its workloads,
 its pipelines and its Argo CD deployment. The decision records are
-`DECISIONS.md` `DEC-141` (C1: what the image ships), `DEC-142` (C2:
-Tekton and Argo CD enabled from `ghcr.io`) and `DEC-143` (C2: the Argo CD
+`DECISIONS.md` `DEC-141` (C1: what the image ships), `DEC-143` (C2:
+Tekton and Argo CD enabled from `ghcr.io`) and `DEC-144` (C2: the Argo CD
 token); this page is the operator's view.
 
 ## What is enabled
@@ -12,7 +12,7 @@ RHDH 1.10.3 is the pinned operand (`PINS.md`, Phase F). Kubernetes and
 Topology ship **inside the image** (`/opt/app-root/src/dynamic-plugins/dist/`).
 Tekton and Argo CD are not in the image in any 1.10.x release; they are
 OCI artifacts on `ghcr.io`, pulled by RHDH's `install-dynamic-plugins`
-init container at pod start and pinned by digest (`DEC-142`).
+init container at pod start and pinned by digest (`DEC-143`).
 
 | Plugin | Package | Version | 1.10 support level | State |
 |---|---|---|---|---|
@@ -123,7 +123,7 @@ covered yet.
 | Secret (namespace `golden-path-agent-rhdh`) | Written by | Holds |
 |---|---|---|
 | `golden-path-agent-rhdh-kubernetes-token` | step 4b, `platform/bootstrap/rhdh-kubernetes-rbac.yaml` | filled in by the cluster's token controller (`token`, `ca.crt`) |
-| `golden-path-agent-rhdh-argocd-secret` | step 4d (`DEC-143`) | `ARGOCD_INSTANCE1_URL`, `ARGOCD_AUTH_TOKEN` of a read-only local Argo CD account bootstrap creates (`golden-path-agent-rhdh`, `role:readonly`) |
+| `golden-path-agent-rhdh-argocd-secret` | step 4d (`DEC-144`) | `ARGOCD_INSTANCE1_URL`, `ARGOCD_AUTH_TOKEN` of a read-only local Argo CD account bootstrap creates (`golden-path-agent-rhdh`, `role:readonly`) |
 
 The Backstage CR references `golden-path-agent-rhdh-argocd-secret` only
 because bootstrap writes it before ArgoCD's first sync (step 8). On a
@@ -154,7 +154,7 @@ The ordered refresh steps are in `docs/refresh-2-checklist.md`. After
 ## Mirroring is debt
 
 Tekton and Argo CD are pulled from `ghcr.io` at every RHDH pod start
-(`DEC-142`). A cluster without egress to `ghcr.io` fails the init
+(`DEC-143`). A cluster without egress to `ghcr.io` fails the init
 container, and RHDH stays down. The remedy is recorded as debt, not
 built:
 - Copy the three pinned digests into `golden-path-agent-rhdh`'s own
@@ -163,7 +163,7 @@ built:
 - Repoint the three packages at those copies.
 
 The pull identity this needs already exists
-(`golden-path-agent-rhdh-plugin-puller`, `DEC-146`).
+(`golden-path-agent-rhdh-plugin-puller`, `DEC-147`).
 
 ## Known limits
 
@@ -180,7 +180,7 @@ The pull identity this needs already exists
 - **Selection is cluster-wide.** `ephemeral-test` copies appear while a
   PipelineRun's deploy step has them up.
 - **Route decorator comes from bootstrap's Route.** OpenShift never
-  generates a Route from the host-less base Ingress (`DEC-146`). The
+  generates a Route from the host-less base Ingress (`DEC-147`). The
   agent's Route is `pipelines/bootstrap/demo-prod-route.yaml` (labeled
   for Topology), applied by bootstrap step 2.
 - **Not covered yet:** the approval service's own Component

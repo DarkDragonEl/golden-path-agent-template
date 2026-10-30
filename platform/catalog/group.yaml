@@ -1,4 +1,4 @@
-# DEC-146 (M26): the Group every blueprint entity names as its owner
+# DEC-147 (M26): the Group every blueprint entity names as its owner
 # (group:default/golden-path-agent-team). Without it the catalog shows an
 # unresolved-owner warning on each of them (DEC-097). No members: user
 # ingestion stays off (oidc-app-config.yaml's sign-in resolver).

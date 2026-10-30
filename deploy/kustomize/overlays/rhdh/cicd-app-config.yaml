@@ -11,7 +11,7 @@
 #
 # argocd: both values come from golden-path-agent-rhdh-argocd-secret,
 # which scripts/bootstrap.sh writes from a read-only local Argo CD
-# account it creates (DEC-143) -- never a value in Git.
+# account it creates (DEC-144) -- never a value in Git.
 apiVersion: v1
 kind: ConfigMap
 metadata:
