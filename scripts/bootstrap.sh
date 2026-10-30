@@ -290,6 +290,43 @@ ensure_operator() {
   done
 }
 
+foreign_keycloak_crd_owners() {
+  # DEC-151: prints "<namespace>/<csv>" for every ClusterServiceVersion
+  # that owns keycloaks.k8s.keycloak.org outside this blueprint's own
+  # namespace, one per line. Copied CSVs (status.reason == "Copied", how
+  # OLM mirrors an AllNamespaces operator into every namespace) are not
+  # owners, so they are skipped; the real CSV they copy is still listed.
+  # Fails closed: returns non-zero if the CSV list cannot be read.
+  local csvs
+  csvs=$(oc get csv -A -o json) || return 1
+  printf '%s' "$csvs" | jq -r '
+    .items[]
+    | select(.metadata.namespace != "golden-path-agent-keycloak")
+    | select(.status.reason != "Copied")
+    | select(any(.spec.customresourcedefinitions.owned[]?; .name == "keycloaks.k8s.keycloak.org"))
+    | "\(.metadata.namespace)/\(.metadata.name)"'
+}
+
+apply_rhbk_upstream_fallback() {
+  # DEC-056's upstream-kustomize install ships its own copy of the
+  # k8s.keycloak.org CRDs. Applying it while another operator owns those
+  # CRDs replaces their schema under that operator's live resources, so
+  # it is refused (DEC-151), the same sole-owner stance as DEC-136. There
+  # is deliberately no flag to override this.
+  local owners
+  if ! owners=$(foreign_keycloak_crd_owners); then
+    log "  ABORT: could not list ClusterServiceVersions to check who owns the k8s.keycloak.org CRDs -- refusing the upstream-kustomize fallback (DEC-151)."
+    return 1
+  fi
+  if [ -n "$owners" ]; then
+    log "  ABORT: another operator already owns the k8s.keycloak.org CRDs:"
+    while IFS= read -r owner; do log "    $owner"; done <<<"$owners"
+    log "  The upstream-kustomize fallback would replace CRDs that operator owns (DEC-151). Not applying it. Fix why the OLM path did not reach Succeeded, or remove that operator, then re-run."
+    return 1
+  fi
+  oc apply -k platform/bootstrap/keycloak-operator-upstream/
+}
+
 promote_component() {
   # $1 = component (agent|mcp|approval), $2 = ImageStream name, $3 = the
   # images[] entry name in deploy/kustomize/base/kustomization.yaml this
@@ -399,8 +436,8 @@ if ! ensure_operator golden-path-agent-keycloak "rhbk-operator" \
     platform/bootstrap/keycloak-operator.yaml \
     rhbk-operator stable-v26.6 26.6.6-opr.1 300; then
   log "rhbk-operator OLM path did not reach Succeeded in time -- falling back to upstream kustomize (DEC-056 precedent)"
+  apply_rhbk_upstream_fallback || exit 1
   KEYCLOAK_PATH="upstream-kustomize"
-  oc apply -k platform/bootstrap/keycloak-operator-upstream/
 fi
 log "keycloak operator install path used this run: $KEYCLOAK_PATH"
 oc apply -f platform/bootstrap/keycloak-postgres.yaml
