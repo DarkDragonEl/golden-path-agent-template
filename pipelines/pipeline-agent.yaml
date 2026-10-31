@@ -25,6 +25,16 @@ spec:
     - name: image-repo
       type: string
       default: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent
+    # DEC-155: "" = the committed mcp digest (DEC-099). Set by bootstrap
+    # step 9b only when that digest is absent from this cluster's registry.
+    - name: mcp-image-ref
+      type: string
+      default: ""
+    # DEC-155: "" = the committed approval digest (DEC-099). Set by bootstrap
+    # step 9b only when that digest is absent from this cluster's registry.
+    - name: approval-image-ref
+      type: string
+      default: ""
 
   workspaces:
     - name: source
@@ -89,9 +99,10 @@ spec:
       params:
         - name: agent-image-ref
           value: "$(params.image-repo)@$(tasks.digest-capture.results.digest)"
-        # mcp-image-ref / approval-image-ref left at their "" default --
-        # ephemeral-test renders with the currently-committed (last
-        # independently promoted) mcp/approval digests, per DEC-099.
+        - name: mcp-image-ref
+          value: $(params.mcp-image-ref)
+        - name: approval-image-ref
+          value: $(params.approval-image-ref)
 
     - name: eval-gate-live
       taskRef: { name: eval-gate-live }

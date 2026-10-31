@@ -138,6 +138,17 @@ for ns in "${CONSUMER_NAMESPACES[@]}"; do
   fi
   echo "provisioned workload client secrets + model-endpoint config in ${ns}/golden-path-agent-secrets"
 done
+# DEC-156: eval-gate-live reads MODEL_API_KEY from a golden-path-agent-secrets
+# Secret in golden-path-agent-ci itself (the old manual "Copy 2"). Only that
+# key: the CI namespace never holds the workload client secrets.
+if oc get secret golden-path-agent-secrets -n golden-path-agent-ci >/dev/null 2>&1; then
+  oc patch secret golden-path-agent-secrets -n golden-path-agent-ci --type merge \
+    -p "{\"data\":{\"MODEL_API_KEY\":\"${B64_MODEL_API_KEY}\"}}" >/dev/null
+else
+  oc create secret generic golden-path-agent-secrets -n golden-path-agent-ci \
+    --from-literal=MODEL_API_KEY="$MODEL_API_KEY" >/dev/null
+fi
+echo "provisioned the model API key in golden-path-agent-ci/golden-path-agent-secrets"
 unset B64_MODEL_API_KEY B64_MODEL_API_BASE_URL B64_MODEL_NAME B64_MODEL_FALLBACK_API_BASE_URL B64_MODEL_FALLBACK_NAME
 unset APPROVAL_SECRET MCP_SECRET B64_APPROVAL B64_MCP
 

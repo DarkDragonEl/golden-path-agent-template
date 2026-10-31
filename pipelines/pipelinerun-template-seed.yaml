@@ -1,0 +1,28 @@
+# Triggers golden-path-agent-ci-seed (pipeline-seed.yaml). Bootstrap
+# step 9b adds the imagestream/dockerfile params per component; by hand:
+#   oc create -f pipelines/pipelinerun-template-seed.yaml -n golden-path-agent-ci
+# after adding those two params.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: golden-path-agent-ci-seed-
+  namespace: golden-path-agent-ci
+  labels:
+    app.kubernetes.io/part-of: golden-path-agent
+    app.kubernetes.io/component: seed
+spec:
+  pipelineRef:
+    name: golden-path-agent-ci-seed
+  taskRunTemplate:
+    serviceAccountName: golden-path-agent-ci-pipeline
+  params:
+    - name: revision
+      value: main
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi
