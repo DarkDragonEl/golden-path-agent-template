@@ -2,8 +2,8 @@
 
 Five steps against the local stack, each one screen of `curl` + `jq`. The
 request and response shapes come from `agent/api.py` and
-`approval_service/api.py`; the two queries are eval cases the domain gate
-passes (`KQA-002`, `DRQ-002`). No cluster is involved.
+`approval_service/api.py`; the two queries are eval cases that
+passed the 2026-10-30 live run (`KQA-009`, `DRQ-001`; see the end). No cluster is involved.
 
 ## 0. Before recording
 
@@ -35,29 +35,29 @@ Expected: `{"status": "ok"}`.
 
 ## 2. A read query, answered with a citation
 
-Eval case `KQA-002`: the answer must name the approver and cite the seeded
-policy document `PLAT-002`.
+Eval case `KQA-009`: the answer must name the reviewer and cite the seeded
+procedure document `PROC-004`.
 
 ```bash
 R=$(curl -s -X POST "$A/invoke" -H 'Content-Type: application/json' \
-  -d '{"query": "Under the Namespace Request and Quota Policy, who approves a namespace quota increase above the default limit?", "user_id": "demo-user"}')
+  -d '{"query": "Who is responsible for reviewing production access requests, per the Production Access Request Procedure?", "user_id": "demo-user"}')
 echo "$R" | jq '{session_id, pending_approval, tools: [.tool_calls[]?.tool_name], fallback_reason}'
 echo "$R" | jq -r .final_output | fold -s -w 100
-echo "$R" | jq -r .final_output | grep -o 'PLAT-002' | head -1
+echo "$R" | jq -r .final_output | grep -o 'PROC-004' | head -1
 ```
 
-Expected: `pending_approval: false`. The answer says the Namespace
-Governance Owner approves quota increases above the default limit, and the
-last line prints `PLAT-002`.
+Expected: `pending_approval: false`. The answer says the Identity and
+Access Team Lead reviews production access requests, and the last line
+prints `PROC-004`.
 
 ## 3. A write request stops for approval
 
-Eval case `DRQ-002`. With `"write": true` the agent drafts the ITSM request
-and pauses; nothing is written yet.
+Eval case `DRQ-001`. With `"write": true` the agent drafts the ITSM request,
+linked to the quota known error, and pauses; nothing is written yet.
 
 ```bash
 R=$(curl -s -X POST "$A/invoke" -H 'Content-Type: application/json' \
-  -d '{"query": "Draft an access request for the staging namespace.", "write": true, "user_id": "demo-user"}')
+  -d '{"query": "Please raise a request to get an extra namespace quota for my team, referencing the quota exhaustion known error.", "write": true, "user_id": "demo-user"}')
 echo "$R" | jq '{session_id, pending_approval, final_output}'
 SID=$(echo "$R" | jq -r .session_id)
 ```
@@ -126,7 +126,7 @@ The 62 live cases take a while. For a short take, run only the case from
 step 2:
 
 ```bash
-AGENT_MODEL_MODE=live python -m eval.cli run --case KQA-002
+AGENT_MODEL_MODE=live python -m eval.cli run --case KQA-009
 ```
 
 ## How these commands were checked
@@ -143,4 +143,10 @@ the fake model client (`AGENT_MODEL_MODE=fake`), on the same ports as
 `make eval-fast` passed 2/2. The fake model returns placeholder content, so
 the cited answer, the `itsm_create_request` arguments and the domain gate
 result were not observed. They are the eval set's own expectations for
-`KQA-002`/`DRQ-002`. Do a dry run with the live model before recording.
+`KQA-009`/`DRQ-001`. Do a dry run with the live model before recording.
+
+Why these two cases: on 2026-10-30 the configured model scored 44/62 on
+the domain suite, and the earlier picks (`KQA-002`, `DRQ-002`) were among
+the failures. `KQA-009` passed that run, and `DRQ-001` drafted the write
+in 4 of 4 local runs. `make eval` itself will show the current score, so
+it is not a reliable on-camera pass until the model question is settled.
