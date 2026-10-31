@@ -804,12 +804,22 @@ if [ "$WITH_RHDH" = "true" ]; then
 
   # Narrowly-scoped team: write on repo.code/repo.pulls only, never the
   # org's default Owners team (DEC-100's own live-proven finding).
+  # DEC-157: the team must also be allowed to create repos in the org
+  # (can_create_org_repo) and write to every repo in it -- the org holds
+  # only scaffolded projects. Without it the portal's publish step gets
+  # 403 "not allowed to create repository in organization". Applied on
+  # create AND on every run, so an existing team is brought up to date.
+  GITEA_TEAM_SPEC='{"name":"scaffolder","permission":"write","can_create_org_repo":true,"includes_all_repositories":true,"units":["repo.code","repo.pulls"],"units_map":{"repo.code":"write","repo.pulls":"write"}}'
   GITEA_TEAM_ID=$(gitea_api GET "/api/v1/orgs/${GITEA_ORG}/teams" | jq -r '.[] | select(.name=="scaffolder") | .id' | head -1)
   if [ -z "$GITEA_TEAM_ID" ]; then
     log "  creating Gitea team 'scaffolder' in $GITEA_ORG"
-    gitea_api POST "/api/v1/orgs/${GITEA_ORG}/teams" \
-      '{"name":"scaffolder","permission":"write","units":["repo.code","repo.pulls"],"units_map":{"repo.code":"write","repo.pulls":"write"}}' >/dev/null
+    gitea_api POST "/api/v1/orgs/${GITEA_ORG}/teams" "$GITEA_TEAM_SPEC" >/dev/null
     GITEA_TEAM_ID=$(gitea_api GET "/api/v1/orgs/${GITEA_ORG}/teams" | jq -r '.[] | select(.name=="scaffolder") | .id' | head -1)
+  fi
+  gitea_api PATCH "/api/v1/teams/${GITEA_TEAM_ID}" "$GITEA_TEAM_SPEC" >/dev/null
+  if ! gitea_api GET "/api/v1/teams/${GITEA_TEAM_ID}" | jq -e '.can_create_org_repo == true and .includes_all_repositories == true' >/dev/null; then
+    log "  FAILED: Gitea team 'scaffolder' in $GITEA_ORG still cannot create org repos -- the portal's publish step would get 403 (DEC-157)"
+    exit 1
   fi
   gitea_api PUT "/api/v1/teams/${GITEA_TEAM_ID}/members/${GITEA_SCAFFOLDER_USER}" >/dev/null
 
