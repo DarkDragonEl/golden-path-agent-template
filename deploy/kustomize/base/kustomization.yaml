@@ -61,4 +61,4 @@ images:
     digest: sha256:649540364bb82a46ee2eab389b8cc0435907fca7d775c23f293b89e4bea960d6
   - name: golden-path-agent-approval
     newName: image-registry.openshift-image-registry.svc:5000/golden-path-agent-ci/golden-path-agent-approval
-    digest: sha256:e22f0577229b412d8bfc4b3135f5a215f68430c52de77a10603770f2185f0f71
+    digest: sha256:dab17ea09ca6830f7f38c5ebd3916b63ce1372becb6a482ba3779e1d1529ed7e
